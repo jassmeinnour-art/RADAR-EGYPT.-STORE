@@ -11027,7 +11027,7 @@ export default function App() {
         connectedPlatforms={connectedPlatforms}
         unresolvedSyncErrors={unresolvedSyncErrors}
         activeMerchantId={activeMerchantId}
-        activeMerchantName={currentManagedMerchant?.storeName || undefined}
+        activeMerchantName={activeMerchantObj?.storeName || undefined}
         onNavigateToTab={(tab) => {
           setActiveTab(tab as any);
           window.scrollTo({ top: 0, behavior: 'smooth' });
