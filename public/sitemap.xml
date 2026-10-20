@@ -1,21 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://radaregypt.store/</loc>
-    <lastmod>2026-10-19</lastmod>
-    <changefreq>daily</changefreq>
+    <loc>https://www.radaregypt.store/</loc>
+    <lastmod>2026-10-20</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://radaregypt.store/dashboard</loc>
-    <lastmod>2026-10-19</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://radaregypt.store/search</loc>
-    <lastmod>2026-10-19</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
+    <loc>https://www.radaregypt.store/</loc>
+    <loc>https://radaregypt.store/</loc>
   </url>
 </urlset>
