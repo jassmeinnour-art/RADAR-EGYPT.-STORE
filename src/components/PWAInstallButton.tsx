@@ -52,6 +52,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   );
 
   const handleInstallClick = async () => {
+    window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
+    setShowInstallGuide(true);
     if (isInstallable) {
       setIsInstalling(true);
       const success = await install();
@@ -63,61 +65,16 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
           origin: { y: 0.6 }
         });
         onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على جهازك! 🎉');
-        return;
       }
     }
-    // Open detailed step-by-step installation guide
-    setShowInstallGuide(true);
   };
 
-  // If already installed and running standalone
-  if (isInstalled) {
-    if (variant === 'settings') {
-      return (
-        <div id="pwa-settings-installed-status" className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-right">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-              <CheckCircle className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-black text-emerald-900">التطبيق مثبت كبرنامج مستقل (PWA)</div>
-              <div className="text-[11px] text-emerald-700">يعمل التطبيق الآن مثل تطبيقات فيسبوك وواتساب دون الحاجة للمتصفح.</div>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold shrink-0">
-            نشط ومثبت ✓
-          </span>
-        </div>
-      );
-    }
-
-    if (variant === 'menu-item') {
-      return (
-        <div className="w-full px-2.5 py-2 rounded-xl bg-emerald-50/60 text-emerald-800 text-xs font-bold flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-            <span>مثبت على الجهاز (PWA)</span>
-          </span>
-          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-black">✓ نشط</span>
-        </div>
-      );
-    }
-
-    if (variant === 'compact') {
-      return (
-        <span 
-          id="pwa-installed-badge"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-2xs"
-          title="التطبيق مثبت ويعمل كبرنامج هاتف مستقل (Installed PWA)"
-        >
-          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-          <span>مثبت على الهاتف ✓</span>
-        </span>
-      );
-    }
-
-    return null;
-  }
+  // If already installed, we still keep the button accessible for re-install, multi-device, and certificate download
+  const isInstalledBadge = isInstalled ? (
+    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-1.5 py-0.2 rounded font-mono">
+      مثبت ✓
+    </span>
+  ) : null;
 
   return (
     <>

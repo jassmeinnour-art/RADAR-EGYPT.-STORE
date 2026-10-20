@@ -142,6 +142,7 @@ import { SeasonalDemandForecast } from './components/SeasonalDemandForecast';
 import { PlatformCommissionCalculator } from './components/PlatformCommissionCalculator';
 import { ArchivedProductsVault } from './components/ArchivedProductsVault';
 import { ArchiveProductModal } from './components/ArchiveProductModal';
+import { ResetViewConfirmModal } from './components/ResetViewConfirmModal';
 import { QuickStartWelcomeScreen } from './components/QuickStartWelcomeScreen';
 import { CurrencyExchangeModal } from './components/CurrencyExchangeModal';
 import { getActiveDisplayCurrency, SupportedCurrencyCode } from './utils/multiCurrencyManager';
@@ -268,6 +269,9 @@ export default function App() {
 
   // Amazon Multi-Item Waybill Cropper Modal
   const [isAmazonWaybillCropperOpen, setIsAmazonWaybillCropperOpen] = useState<boolean>(false);
+
+  // Multi-Platform Installation Modal
+  const [isMultiPlatformInstallModalOpen, setIsMultiPlatformInstallModalOpen] = useState(false);
 
   // Archive Product Modal
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
@@ -11013,6 +11017,22 @@ export default function App() {
           setDisplayCurrency(newCode);
         }}
         onToast={showToast}
+      />
+
+      {/* Exclusive Owner Diagnostics & AI Studio Debugger Widget */}
+      <OwnerAiStudioDebuggerWidget
+        activeTab={activeTab}
+        activeTabLabel={NAV_TAB_METADATA[activeTab]?.label || activeTab}
+        currentProduct={currentProduct}
+        connectedPlatforms={connectedPlatforms}
+        unresolvedSyncErrors={unresolvedSyncErrors}
+        activeMerchantId={activeMerchantId}
+        activeMerchantName={currentManagedMerchant?.storeName || undefined}
+        onNavigateToTab={(tab) => {
+          setActiveTab(tab as any);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onShowToast={showToast}
       />
 
     </div>

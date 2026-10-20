@@ -100,6 +100,7 @@ interface HeaderProps {
   onToggleLanguage?: () => void;
   onOpenPushNotificationModal?: () => void;
   onOpenAndroidModal?: () => void;
+  onOpenInstallModal?: () => void;
   onOpenManageApisModal?: () => void;
   onOpenSubscriptionModal?: () => void;
   subscriptionBadgeLabel?: string;
@@ -197,6 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleLanguage,
   onOpenPushNotificationModal,
   onOpenAndroidModal,
+  onOpenInstallModal,
   onOpenManageApisModal,
   onOpenSubscriptionModal,
   subscriptionBadgeLabel,
@@ -582,6 +584,27 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* الأزرار الرئيسية الفعالة في الواجهة بتناسق ومحاذاة موحدة */}
           <div className="flex items-center gap-2.5 flex-wrap">
+            {/* زر تثبيت التطبيق دائم الظهور ولا يختفي أبداً لكافة المنصات والأجهزة */}
+            <button
+              type="button"
+              id="btn-header-install-app"
+              onClick={() => {
+                if (onOpenInstallModal) {
+                  onOpenInstallModal();
+                } else {
+                  window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
+                }
+              }}
+              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-indigo-400/30"
+              title="تثبيت التطبيق على جهازك (Windows · Android · iOS) مع شهادة اعتماد رقمية موثقة"
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+              </span>
+              <Smartphone className="w-4 h-4 shrink-0 text-white" />
+              <span className="font-extrabold whitespace-nowrap">تثبيت التطبيق 📱</span>
+            </button>
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (
               <button
@@ -992,6 +1015,20 @@ export const Header: React.FC<HeaderProps> = ({
                 الذكاء والتسعير
               </span>
               <div className="space-y-1">
+                <SidebarButton
+                  id="sidebar-btn-install-app-multiplatform"
+                  icon={<Smartphone className="w-4 h-4 text-emerald-400" />}
+                  label="تثبيت التطبيق (Android · iOS · Windows)"
+                  badge="تثبيت رسمي 📲"
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    if (onOpenInstallModal) {
+                      onOpenInstallModal();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
+                    }
+                  }}
+                />
                 <SidebarButton
                   id="sidebar-btn-smart-analytics"
                   icon={<BarChart2 className="w-4 h-4" />}
