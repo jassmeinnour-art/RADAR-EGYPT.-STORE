@@ -1,0 +1,47 @@
+{
+  "packageId": "com.merchantradar.egypt",
+  "host": "merchantradar.egypt",
+  "name": "رادار التاجر الذكي مصر",
+  "launcherName": "رادار التاجر",
+  "themeColor": "#059669",
+  "themeColorDark": "#090d16",
+  "navigationColor": "#090d16",
+  "navigationColorDark": "#090d16",
+  "navigationDividerColor": "#1e293b",
+  "navigationDividerColorDark": "#1e293b",
+  "backgroundColor": "#090d16",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "/pwa-512x512.png",
+  "maskableIconUrl": "/pwa-maskable-512x512.png",
+  "appVersionName": "2.6.0",
+  "appVersionCode": 26,
+  "shortcuts": [
+    {
+      "name": "رادار الأسعار",
+      "shortName": "الرادار",
+      "url": "/?tab=radar",
+      "icon": "/pwa-192x192.png"
+    },
+    {
+      "name": "بوالص الشحن",
+      "shortName": "البوالص",
+      "url": "/?tab=waybills",
+      "icon": "/pwa-192x192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "playBilling": {
+      "enabled": false
+    },
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  }
+}

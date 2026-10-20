@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.cache/
+.env
+.env*
+!.env.example
+bun.lock
+bun.lockb
+coverage/
+.DS_Store
+*.log
+.vercel
+.vite/

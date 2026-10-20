@@ -1,0 +1,4 @@
+﻿User-agent: *
+Allow: /
+
+Sitemap: https://merchant-radar-egypt.vercel.app/sitemap.xml

@@ -1,0 +1,656 @@
+@import "tailwindcss";
+@import "./styles/themes.css";
+
+/* ==========================================================================
+   Calibrated High-Clarity Typography Scale (Comfortable Low-Vision Sizing)
+   ========================================================================== */
+@theme {
+  --text-2xs: 0.76rem;
+  --text-2xs--line-height: 1.42;
+  --text-xs: 0.82rem;
+  --text-xs--line-height: 1.48;
+  --text-sm: 0.90rem;
+  --text-sm--line-height: 1.55;
+  --text-base: 0.98rem;
+  --text-base--line-height: 1.62;
+  --text-lg: 1.10rem;
+  --text-lg--line-height: 1.52;
+  --text-xl: 1.22rem;
+  --text-xl--line-height: 1.45;
+}
+
+/* ==========================================================================
+   1. GENTLE OFF-WHITE (#F8FAFC) GLARE-FREE BACKGROUNDS ACROSS ENTIRE INTERFACE
+   ========================================================================== */
+html,
+body,
+#root,
+#root > div,
+main,
+header,
+footer,
+aside,
+nav,
+section,
+article,
+dialog,
+table,
+thead,
+tbody,
+tfoot,
+tr,
+th,
+td,
+fieldset,
+form,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea,
+[role="dialog"],
+[role="region"],
+[role="tabpanel"],
+[role="menu"],
+[role="listbox"],
+[role="tooltip"],
+[role="radiogroup"],
+.sidebar-drawer,
+.radar-luxury-card,
+.radar-card-smooth,
+.platform-card,
+#main-active-product-hero-card,
+#main-active-product-empty-card,
+#nav-active-screen-banner,
+#header-operations-toolbar,
+#radar-global-hero-visual,
+.bg-white,
+[class*="bg-white"],
+[class*="bg-slate-"],
+[class*="bg-gray-"],
+[class*="bg-zinc-"],
+[class*="bg-neutral-"],
+[class*="bg-stone-"],
+[class*="bg-sky-"],
+[class*="bg-blue-"],
+[class*="bg-indigo-"],
+[class*="bg-cyan-"],
+[class*="bg-emerald-"],
+[class*="bg-teal-"],
+[class*="bg-green-"],
+[class*="bg-purple-"],
+[class*="bg-violet-"],
+[class*="bg-fuchsia-"],
+[class*="bg-rose-"],
+[class*="bg-red-"],
+[class*="bg-orange-"],
+[class*="bg-amber-"],
+[class*="bg-yellow-"],
+[class*="bg-black"],
+[class*="bg-[#"],
+[class*="bg-gradient-"],
+[class*="bg-linear-"],
+[class*="from-"],
+[class*="via-"],
+[class*="to-"] {
+  background-color: #F8FAFC !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Modal and dialog backdrops: soft focus overlay with clear visual hierarchy */
+[id*="backdrop"],
+.fixed.inset-0[class*="bg-slate-"],
+.fixed.inset-0[class*="bg-black/"],
+[role="dialog"] > .fixed.inset-0 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+/* Modal dialog cards: crisp off-white background with bold solid black borders */
+[id*="modal-card"],
+[role="dialog"] div[class*="rounded-3xl"],
+[role="dialog"] div[class*="rounded-2xl"] {
+  background-color: #F8FAFC !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* Clean structural borders on cards/containers so sections remain well-defined on gentle off-white */
+div[class*="border-slate-"],
+div[class*="border-sky-"],
+div[class*="border-indigo-"],
+div[class*="border-blue-"],
+div[class*="border-emerald-"],
+div[class*="border-rose-"],
+div[class*="border-purple-"],
+div[class*="border-white/"],
+section[class*="border-"],
+header[class*="border-"],
+aside[class*="border-"],
+table,
+th,
+td,
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.platform-card,
+.radar-luxury-card,
+.radar-card-smooth,
+#main-active-product-hero-card,
+#main-active-product-empty-card,
+#nav-active-screen-banner,
+#radar-global-hero-visual {
+  border-color: #000000 !important;
+}
+
+/* ==========================================================================
+   2. SOLID BLACK (#000000) TYPOGRAPHY & CRISP FONT RENDERING
+   ========================================================================== */
+html {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  position: relative;
+  font-size: 15.5px;
+  font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Alexandria', sans-serif;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: geometricPrecision;
+  font-kerning: normal;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  font-optical-sizing: auto;
+  background-color: #F8FAFC !important;
+  color: #000000 !important;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Alexandria', sans-serif;
+  font-weight: 600;
+  line-height: 1.58;
+  letter-spacing: 0 !important;
+  background-color: #F8FAFC !important;
+  color: #000000 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  background-color: #F8FAFC !important;
+  color: #000000 !important;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div,
+a,
+label,
+li,
+ul,
+ol,
+td,
+th,
+caption,
+strong,
+b,
+em,
+small,
+code,
+pre,
+blockquote,
+figcaption,
+dt,
+dd,
+summary,
+legend,
+input,
+select,
+textarea,
+option,
+button,
+[class*="text-white"],
+[class*="text-slate-"],
+[class*="text-gray-"],
+[class*="text-zinc-"],
+[class*="text-neutral-"],
+[class*="text-sky-"],
+[class*="text-blue-"],
+[class*="text-indigo-"],
+[class*="text-cyan-"],
+[class*="text-emerald-"],
+[class*="text-teal-"],
+[class*="text-green-"],
+[class*="text-purple-"],
+[class*="text-violet-"],
+[class*="text-rose-"],
+[class*="text-red-"],
+[class*="text-orange-"],
+[class*="text-amber-"],
+[class*="text-yellow-"],
+[class*="text-[#"],
+.text-transparent,
+.bg-clip-text,
+.radar-sky-gradient-text,
+.radar-gold-gradient-text,
+.platform-card .platform-title,
+.platform-card .platform-subtitle,
+.platform-card .platform-badge-text {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  text-shadow: none !important;
+}
+
+/* Prevent Arabic glyph disconnection caused by positive letter-spacing */
+[dir="rtl"],
+[dir="rtl"] *:not(.font-mono):not([dir="ltr"]) {
+  letter-spacing: 0 !important;
+}
+
+/* Crisp heading weights and balanced line heights */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Cairo', 'Alexandria', sans-serif;
+  font-weight: 800 !important;
+  line-height: 1.38 !important;
+  color: #000000 !important;
+}
+
+/* High-contrast input placeholders for low vision */
+input::placeholder,
+textarea::placeholder {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 0.72 !important;
+}
+
+/* Lucide UI icons inherit solid black (#000000) while preserving non-Lucide brand SVGs */
+svg.lucide {
+  color: #000000 !important;
+  stroke: #000000 !important;
+  stroke-width: 2.15px;
+  flex-shrink: 0;
+}
+
+/* Calibrated micro-text overrides: clear & legible without crowding buttons */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\] {
+  font-size: 0.76rem !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+}
+
+.text-\[11px\],
+.text-xs {
+  font-size: 0.82rem !important;
+  line-height: 1.48 !important;
+  font-weight: 600 !important;
+}
+
+.text-sm {
+  font-size: 0.90rem !important;
+  line-height: 1.54 !important;
+  font-weight: 600 !important;
+}
+
+.text-base {
+  font-size: 0.98rem !important;
+  line-height: 1.58 !important;
+}
+
+/* ==========================================================================
+   3. REFINED BUTTON SPACING, ALIGNMENT, THICK BORDERS & ACTIVE CLICK STATE
+   ========================================================================== */
+button,
+[type="button"],
+[type="submit"],
+[type="reset"],
+[role="button"],
+.btn-emerald-primary,
+.btn-primary-subtle,
+.theme-primary-btn {
+  background-color: #F8FAFC !important;
+  background-image: none !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  border: 3px solid #000000 !important;
+  border-width: 3px !important;
+  border-style: solid !important;
+  border-color: #000000 !important;
+  outline-color: #000000 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+  font-family: 'Cairo', 'Alexandria', sans-serif !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  vertical-align: middle;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+
+/* Standardize alignment and internal icon-text spacing inside flex buttons */
+button:not(.block):not(.grid):not(.hidden),
+[role="button"]:not(.block):not(.grid):not(.hidden) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+button.w-full,
+[role="button"].w-full {
+  display: flex;
+  width: 100%;
+}
+
+button.justify-between,
+[role="button"].justify-between {
+  justify-content: space-between !important;
+}
+
+button.justify-center,
+[role="button"].justify-center {
+  justify-content: center !important;
+}
+
+/* Ensure comfortable horizontal & vertical padding on text buttons while keeping icon-only buttons compact */
+button:not(.p-0):not(.p-0\.5):not(.p-1):not(.p-1\.5):not(.p-2):not(.w-6):not(.w-7):not(.w-8):not(.w-9):not(.w-10) {
+  padding-inline: 0.78rem;
+  padding-block: 0.38rem;
+}
+
+button:hover,
+[type="button"]:hover,
+[type="submit"]:hover,
+[type="reset"]:hover,
+[role="button"]:hover,
+.btn-emerald-primary:hover,
+.btn-primary-subtle:hover,
+.theme-primary-btn:hover {
+  background-color: #F1F5F9 !important;
+  background-image: none !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  border: 3px solid #000000 !important;
+  border-width: 3px !important;
+  border-color: #000000 !important;
+  outline: 2px solid #000000 !important;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Clear, unmistakable active/clicked state color when buttons are pressed or selected */
+button:active,
+[type="button"]:active,
+[type="submit"]:active,
+[type="reset"]:active,
+[role="button"]:active,
+button[aria-pressed="true"],
+button[aria-selected="true"],
+button[data-state="active"],
+button[data-active="true"],
+[role="button"][aria-pressed="true"],
+[role="button"][aria-selected="true"],
+[role="tab"][aria-selected="true"],
+.btn-emerald-primary:active,
+.btn-primary-subtle:active,
+.theme-primary-btn:active {
+  background-color: #CBD5E1 !important;
+  background-image: none !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  border: 3.5px solid #000000 !important;
+  border-width: 3.5px !important;
+  border-color: #000000 !important;
+  outline: 2.5px solid #000000 !important;
+  outline-offset: 1px !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(0, 0, 0, 0.25) !important;
+  transform: translateY(1px) scale(0.97);
+}
+
+button:focus-visible,
+[type="button"]:focus-visible,
+[type="submit"]:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid #000000 !important;
+  outline-offset: 2px !important;
+  border: 3px solid #000000 !important;
+}
+
+/* Clean split-button groups so wrapper and inner buttons don't double-stack borders */
+div.inline-flex.overflow-hidden {
+  border-color: #000000 !important;
+  gap: 0;
+}
+
+/* Dedicated styling and prominent :active pressed state for Add Platform header trigger */
+#btn-add-platform-header-trigger {
+  cursor: pointer !important;
+  padding: 12px 24px !important;
+  font-size: 0.95rem !important;
+  line-height: 1.25rem !important;
+  background-color: #F8FAFC !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  border-width: 3px !important;
+  border-color: #000000 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+  transition: all 0.1s ease-in-out !important;
+}
+
+#btn-add-platform-header-trigger:disabled,
+#btn-add-platform-header-trigger[aria-busy="true"] {
+  cursor: wait !important;
+  opacity: 0.9 !important;
+}
+
+#btn-add-platform-header-trigger svg {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  min-width: 1.25rem !important;
+  min-height: 1.25rem !important;
+}
+
+#btn-add-platform-header-trigger svg.help-circle-icon {
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+  min-width: 1.05rem !important;
+  min-height: 1.05rem !important;
+  transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+#btn-add-platform-header-trigger #btn-add-platform-help-trigger:hover svg.help-circle-icon {
+  transform: scale(1.15);
+}
+
+#btn-add-platform-header-trigger span {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+}
+
+#btn-add-platform-header-trigger:hover {
+  background-color: #F1F5F9 !important;
+  border: 3px solid #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22) !important;
+  transform: translateY(-1px);
+}
+
+#btn-add-platform-header-trigger:active,
+#btn-add-platform-header-trigger[data-active="true"] {
+  background-color: #000000 !important;
+  color: #F8FAFC !important;
+  -webkit-text-fill-color: #F8FAFC !important;
+  border: 4.5px solid #000000 !important;
+  border-width: 4.5px !important;
+  border-color: #000000 !important;
+  outline: 2px solid #000000 !important;
+  outline-offset: 2px !important;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(0, 0, 0, 0.25) !important;
+  transform: scale(0.95) translateY(1.5px) !important;
+  transition: all 0.1s ease-in-out !important;
+}
+
+#btn-add-platform-header-trigger:active svg,
+#btn-add-platform-header-trigger:active span,
+#btn-add-platform-header-trigger[data-active="true"] svg,
+#btn-add-platform-header-trigger[data-active="true"] span {
+  color: #F8FAFC !important;
+  stroke: #F8FAFC !important;
+  fill: none;
+}
+
+/* ==========================================================================
+   4. RTL, Bidi, Scrollbars & Layout Utilities
+   ========================================================================== */
+.dir-rtl {
+  direction: rtl;
+}
+
+.sidebar-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 320px;
+  background-color: #F8FAFC !important;
+  border-left: 2px solid #000000 !important;
+  transition: transform 0.3s ease-in-out;
+  z-index: 50;
+}
+
+.sidebar-drawer.closed {
+  transform: translateX(100%);
+}
+
+.sidebar-drawer.open {
+  transform: translateX(0);
+}
+
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+[dir="rtl"] th.text-center,
+[dir="rtl"] td.text-center {
+  text-align: center;
+}
+
+[dir="rtl"] th.text-left,
+[dir="rtl"] td.text-left {
+  text-align: left;
+}
+
+.font-mono,
+.ltr-text,
+code,
+input[type="number"],
+input[type="tel"],
+bdi,
+.bidi-isolate {
+  unicode-bidi: isolate;
+}
+
+.product-code-badge {
+  direction: ltr;
+  display: inline-block;
+  unicode-bidi: isolate;
+}
+
+/* Clean Off-White & Solid Black Custom Scrollbars */
+.scroller-sm::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar,
+table::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.scroller-sm::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track,
+table::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #F8FAFC;
+  border: 1px solid #000000;
+  border-radius: 9999px;
+}
+
+.scroller-sm::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb,
+table::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #000000;
+  border-radius: 9999px;
+}
+
+.scroller-sm::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+table::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #1E293B;
+}
+
+.scroller-sm {
+  scrollbar-width: thin;
+  scrollbar-color: #000000 #F8FAFC;
+  -webkit-overflow-scrolling: touch;
+}
+
+.platform-card {
+  position: relative;
+  background-color: #F8FAFC !important;
+  border: 2px solid #000000 !important;
+  color: #000000 !important;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.platform-card:hover {
+  box-shadow: 0 5px 15px -4px rgba(0, 0, 0, 0.26) !important;
+  border-color: #000000 !important;
+  transform: translateY(-1px);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-executive-report,
+  #printable-executive-report * {
+    visibility: visible;
+  }
+  #printable-executive-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

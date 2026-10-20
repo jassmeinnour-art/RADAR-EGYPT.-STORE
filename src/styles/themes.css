@@ -1,0 +1,72 @@
+/* ==========================================================================
+   Gentle Off-White (#F8FAFC) Glare-Free Background, Solid Black (#000000) Typography,
+   and Logo-Matching Dark Button Borders
+   ========================================================================== */
+:root,
+html,
+html[data-color-mode="light"],
+html[data-color-mode="dark"] {
+  --logo-brand-color: #000000;
+  --logo-brand-hover: #1E293B;
+  --logo-brand-active: #0F172A;
+  --logo-brand-active-bg: #E2E8F0;
+  --primary-color: #000000;
+  --primary-hover: #1E293B;
+  --primary-active: #0F172A;
+  --primary-light: #F8FAFC;
+  --primary-light-hover: #F1F5F9;
+  --primary-border: #000000;
+  --primary-text: #000000;
+  --primary-chart-stroke: #000000;
+  --primary-chart-fill: #000000;
+  --primary-chart-light: #F8FAFC;
+
+  --app-bg-primary: #F8FAFC;
+  --app-bg-surface: #F8FAFC;
+  --app-bg-card: #F8FAFC;
+  --app-text-primary: #000000;
+  --app-text-secondary: #000000;
+  --app-border-color: #000000;
+}
+
+/* Dedicated Theme Helper Classes */
+.theme-primary-btn {
+  background-color: #F8FAFC !important;
+  background-image: none !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  outline-color: #000000 !important;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+
+.theme-primary-btn:hover {
+  background-color: #F1F5F9 !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18) !important;
+}
+
+.theme-primary-btn:active,
+.theme-primary-btn[aria-pressed="true"],
+.theme-primary-btn[aria-selected="true"],
+.theme-primary-btn[data-state="active"] {
+  background-color: #CBD5E1 !important;
+  color: #000000 !important;
+  border: 3.5px solid #000000 !important;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 0, 0, 0.2) !important;
+  transform: translateY(1px) scale(0.98);
+}
+
+.theme-primary-light-badge {
+  background-color: #F8FAFC !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+}
+
+.theme-primary-text {
+  color: #000000 !important;
+}
+
+.theme-primary-border {
+  border-color: #000000 !important;
+}

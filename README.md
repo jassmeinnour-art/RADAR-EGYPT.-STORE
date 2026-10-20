@@ -1,11 +1,24 @@
-<div align="center">
+# Merchant Radar - رادار التجار
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+> مشروع تم إنشاؤه بواسطة استوديو جوجل للذكاء الاصطناعي
 
-  <h1>Built with AI Studio</h2>
+## فكرة المشروع
+Merchant Radar هو تطبيق يساعد على تحليل ومتابعة أداء التجار والمنافسين باستخدام الذكاء الاصطناعي.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## التقنيات المستخدمة
+- React (JSX)
+- Google AI Studio
+- GitHub Workflows
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## طريقة التشغيل محلياً
+1. نزلي المشروع:
+```bash
+git clone https://github.com/jassmeinnour-art/Merchant-Radar-E...
+npm install
+npm run dev
 
-</div>
+4. انزلي تحت خالص ودوسي **Commit changes**
+
+عايزاني أظبطلك الاسم والوصف على حسب فكرة مشروعك بالظبط؟ قوليلي هو بيعمل ايه وانا اكتبلك وصف احترافي أكتر.
+تحديث 2026
+تم التحديث في 10 أكتوبر 2026 - رادار التجار كامل

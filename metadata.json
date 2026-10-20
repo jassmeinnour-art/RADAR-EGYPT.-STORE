@@ -1,0 +1,15 @@
+{
+  "name": "Merchant Radar Egypt | رادار التاجر المصري",
+  "description": "منصة ذكية لمتابعة المنتجات والأسعار في السوق المصري مع تحليلات ذكية - رادار التاجر",
+  "requestFramePermissions": [],
+  "prompt": "انت مساعد ذكي متخصص في التجارة الإلكترونية في مصر",
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "models": [
+    {
+      "model": "gemini-1.5-flash",
+      "temperature": 0.7
+    }
+  ]
+}

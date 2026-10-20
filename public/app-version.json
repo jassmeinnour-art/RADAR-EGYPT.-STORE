@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "version": "2.5.0",
+  "bootTime": 1760000000000,
+  "environment": "production",
+  "source": "static_fallback"
+}
