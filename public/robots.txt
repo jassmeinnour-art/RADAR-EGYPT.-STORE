@@ -2,6 +2,3 @@ User-agent: *
 Allow: /
 
 Sitemap: https://radaregypt.store/sitemap.xml
-
-Disallow: /api/
-Disallow: /_next/
