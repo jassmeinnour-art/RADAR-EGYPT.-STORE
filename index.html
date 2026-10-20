@@ -3,13 +3,23 @@
   <head>
     <script>
       (function() {
+        const isWsMsg = function(msg) {
+          if (!msg) return false;
+          const str = String(typeof msg === 'object' ? (msg.message || msg.reason || '') : msg);
+          return str.includes('WebSocket') || str.includes('ws://') || str.includes('wss://') || str.includes('failed to connect to websocket');
+        };
         const origError = console.error;
         console.error = function(...args) {
-          if (args[0] && typeof args[0] === 'string' && args[0].includes('WebSocket')) return;
+          if (args.some(isWsMsg)) return;
           origError.apply(console, args);
         };
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+          if (args.some(isWsMsg)) return;
+          origWarn.apply(console, args);
+        };
         window.addEventListener('unhandledrejection', function(e) {
-          if (e.reason && (e.reason.message || '').includes('WebSocket')) {
+          if (isWsMsg(e.reason)) {
             e.stopImmediatePropagation();
             e.preventDefault();
           }

@@ -64,7 +64,8 @@ import {
   Monitor,
   Presentation,
   Lock,
-  Eye
+  Eye,
+  Laptop
 } from 'lucide-react';
 import { ConnectedMerchantPlatform } from '../types';
 import { isExportOverdue24h, getHoursSinceLastExport } from '../utils/csvProductManager';
@@ -101,6 +102,8 @@ interface HeaderProps {
   onOpenPushNotificationModal?: () => void;
   onOpenAndroidModal?: () => void;
   onOpenInstallModal?: () => void;
+  onOpenWindowsInstallModal?: () => void;
+  onOpenMobileInstallModal?: () => void;
   onOpenManageApisModal?: () => void;
   onOpenSubscriptionModal?: () => void;
   subscriptionBadgeLabel?: string;
@@ -199,6 +202,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPushNotificationModal,
   onOpenAndroidModal,
   onOpenInstallModal,
+  onOpenWindowsInstallModal,
+  onOpenMobileInstallModal,
   onOpenManageApisModal,
   onOpenSubscriptionModal,
   subscriptionBadgeLabel,
@@ -584,27 +589,56 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* الأزرار الرئيسية الفعالة في الواجهة بتناسق ومحاذاة موحدة */}
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* زر تثبيت التطبيق دائم الظهور ولا يختفي أبداً لكافة المنصات والأجهزة */}
-            <button
-              type="button"
-              id="btn-header-install-app"
-              onClick={() => {
-                if (onOpenInstallModal) {
-                  onOpenInstallModal();
-                } else {
-                  window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
-                }
-              }}
-              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-indigo-400/30"
-              title="تثبيت التطبيق على جهازك (Windows · Android · iOS) مع شهادة اعتماد رقمية موثقة"
-            >
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-              </span>
-              <Smartphone className="w-4 h-4 shrink-0 text-white" />
-              <span className="font-extrabold whitespace-nowrap">تثبيت التطبيق 📱</span>
-            </button>
+            {/* أزرار تثبيت التطبيق دائمي الظهور ولا يختفيان أبداً لكافة المنصات والأجهزة */}
+            <div id="btn-header-install-app" className="flex items-center gap-1.5 shrink-0">
+              {/* 1. زر تثبيت الهواتف الذكية (Mobile) */}
+              <button
+                type="button"
+                id="btn-header-install-mobile"
+                onClick={() => {
+                  if (onOpenMobileInstallModal) {
+                    onOpenMobileInstallModal();
+                  } else if (onOpenInstallModal) {
+                    onOpenInstallModal();
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
+                  }
+                }}
+                className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30 select-none whitespace-nowrap"
+                title="تثبيت الهواتف الذكية (Android · iPhone/iOS) مع شهادة الاعتماد الرقمية الموثقة"
+              >
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
+                </span>
+                <Smartphone className="w-4 h-4 shrink-0 text-white" />
+                <span className="whitespace-nowrap">تثبيت الهواتف الذكية (Mobile) 📱</span>
+              </button>
+
+              {/* 2. زر تثبيت الويندوز (Windows Desktop) */}
+              <button
+                type="button"
+                id="btn-header-install-windows"
+                onClick={() => {
+                  if (onOpenWindowsInstallModal) {
+                    onOpenWindowsInstallModal();
+                  } else if (onOpenInstallModal) {
+                    onOpenInstallModal();
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
+                  }
+                }}
+                className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-sky-600 via-sky-700 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-sky-400/30 select-none whitespace-nowrap"
+                title="تثبيت الويندوز (Windows Desktop 10/11) كبرنامج مستقل مع شهادة الاعتماد"
+              >
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-80" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-300" />
+                </span>
+                <Laptop className="w-4 h-4 shrink-0 text-white" />
+                <span className="whitespace-nowrap">تثبيت الويندوز (Windows) 💻</span>
+              </button>
+            </div>
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (
               <button
@@ -1016,16 +1050,34 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
               <div className="space-y-1">
                 <SidebarButton
-                  id="sidebar-btn-install-app-multiplatform"
+                  id="sidebar-btn-install-mobile"
                   icon={<Smartphone className="w-4 h-4 text-emerald-400" />}
-                  label="تثبيت التطبيق (Android · iOS · Windows)"
-                  badge="تثبيت رسمي 📲"
+                  label="تثبيت الهواتف الذكية (Mobile)"
+                  badge="Android · iOS 📱"
                   onClick={() => {
                     setIsSidebarOpen(false);
-                    if (onOpenInstallModal) {
+                    if (onOpenMobileInstallModal) {
+                      onOpenMobileInstallModal();
+                    } else if (onOpenInstallModal) {
                       onOpenInstallModal();
                     } else {
-                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
+                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
+                    }
+                  }}
+                />
+                <SidebarButton
+                  id="sidebar-btn-install-windows"
+                  icon={<Laptop className="w-4 h-4 text-sky-400" />}
+                  label="تثبيت الويندوز (Windows Desktop)"
+                  badge="Win 10/11 💻"
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    if (onOpenWindowsInstallModal) {
+                      onOpenWindowsInstallModal();
+                    } else if (onOpenInstallModal) {
+                      onOpenInstallModal();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
                     }
                   }}
                 />
