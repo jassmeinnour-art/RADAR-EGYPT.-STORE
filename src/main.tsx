@@ -1,3 +1,10 @@
+import { Analytics } from "@vercel/analytics/react"
+import { SpeedInsights } from "@vercel/speed-insights/react"
+import React from "react"
+import ReactDOM from "react-dom/client"
+import App from "./App.tsx"
+import "./index.css"
+
 // Suppress Vite HMR / WebSocket errors from rendering error overlay
 if (typeof window !== 'undefined') {
   const suppressWsError = (errMessage: any) => {
@@ -5,7 +12,7 @@ if (typeof window !== 'undefined') {
     return (
       str.includes('WebSocket closed without opened') ||
       str.includes('WebSocket') ||
-      str.includes('@vite/client') ||
+      str.includes('ws/vite/client') ||
       str.includes('ws://') ||
       str.includes('wss://')
     );
@@ -22,35 +29,16 @@ if (typeof window !== 'undefined') {
   }, true);
 
   window.addEventListener('error', (event) => {
-    if (suppressWsError(event.message || event.error?.message)) {
+    if (suppressWsError(event.message || event.error)) {
       event.preventDefault();
-      event.stopImmediatePropagation();
     }
-  }, true);
+  });
 }
-
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
-import { AudioNotificationProvider } from './context/AudioNotificationContext'
-import { AuthProvider } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
-import { AsyncOperationsProvider } from './context/AsyncOperationsContext'
-import { ErrorBoundary } from './components/ErrorBoundary'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary sectionName="الرئيسية">
-      <AuthProvider>
-        <ThemeProvider>
-          <AsyncOperationsProvider>
-            <AudioNotificationProvider>
-              <App />
-            </AudioNotificationProvider>
-          </AsyncOperationsProvider>
-        </ThemeProvider>
-      </AuthProvider>
-    </ErrorBoundary>
-  </React.StrictMode>,
+    <App />
+    <Analytics />
+    <SpeedInsights />
+  </React.StrictMode>
 )
