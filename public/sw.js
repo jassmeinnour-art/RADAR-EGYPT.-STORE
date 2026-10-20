@@ -1,33 +1,40 @@
-const CACHE_NAME = 'cool-cache';
-
-// Add whichever assets you want to pre-cache here:
-const PRECACHE_ASSETS = [
+const CACHE_NAME = 'radar-egypt-v46';
+const urlsToCache = [
   '/',
+  '/index.html',
   '/manifest.json',
-  '/icon.svg',
-  '/favicon.ico'
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/sitemap.xml',
+  '/robots.txt'
 ];
 
-// Listener for the install event - pre-caches our assets list on service worker install.
 self.addEventListener('install', event => {
-  event.waitUntil((async () => {
-    try {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.addAll(PRECACHE_ASSETS);
-    } catch (err) {
-      console.warn('[cool-cache] Precache fallback notice:', err);
-    }
-  })());
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+  self.skipWaiting();
 });
 
-// Listener for the activate event - takes immediate control of clients.
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+    ))
+  );
+  self.clients.claim();
 });
 
-// Import existing comprehensive PWA runtime features
-try {
-  importScripts('/service-worker.js');
-} catch (e) {
-  console.warn('[sw.js] service-worker.js import warning:', e);
-}
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      if (response) return response;
+      return fetch(event.request).then(res => {
+        if (!res || res.status !== 200 || res.type !== 'basic') return res;
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return res;
+      }).catch(() => caches.match('/index.html'));
+    })
+  );
+});
