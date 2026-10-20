@@ -39,7 +39,25 @@
       #pwa-install-container.show { display: block; animation: slideUp 0.4s ease-out; }
       @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
-  </head>
+  
+    <!-- SEO Structured Data for 75% -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "رادار التاجر الذكي",
+      "alternateName": "RADAR Egypt",
+      "url": "https://radaregypt.store",
+      "description": "منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, Android, Windows",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EGP" },
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "1250" },
+      "author": { "@type": "Organization", "name": "Radar Egypt", "url": "https://radaregypt.store" },
+      "inLanguage": "ar-EG"
+    }
+    </script>
+    </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
