@@ -1,31 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
   <head>
-    <script>
-      (function() {
-        const isWsMsg = function(msg) {
-          if (!msg) return false;
-          const str = String(typeof msg === 'object' ? (msg.message || msg.reason || '') : msg);
-          return str.includes('WebSocket') || str.includes('ws://') || str.includes('wss://') || str.includes('failed to connect to websocket');
-        };
-        const origError = console.error;
-        console.error = function(...args) {
-          if (args.some(isWsMsg)) return;
-          origError.apply(console, args);
-        };
-        const origWarn = console.warn;
-        console.warn = function(...args) {
-          if (args.some(isWsMsg)) return;
-          origWarn.apply(console, args);
-        };
-        window.addEventListener('unhandledrejection', function(e) {
-          if (isWsMsg(e.reason)) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-          }
-        }, true);
-      })();
-    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>رادار التاجر الذكي - تحليل السوق المصري</title>
@@ -35,8 +10,16 @@
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="رادار التاجر" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="رادار التاجر" />
+    <meta name="msapplication-TileColor" content="#0f172a" />
+    <meta name="msapplication-TileImage" content="/pwa-192x192.png" />
+    <meta name="msapplication-starturl" content="/?v=46" />
     
-    <!-- Open Graph - لما اللينك يتبعت على واتساب وفيسبوك -->
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://radaregypt.store/" />
     <meta property="og:title" content="رادار التاجر الذكي - RADAR" />
@@ -46,20 +29,83 @@
     <meta property="og:image:height" content="512" />
     <meta property="og:locale" content="ar_EG" />
     <meta property="og:site_name" content="رادار التاجر" />
-
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://radaregypt.store/" />
     <meta name="twitter:title" content="رادار التاجر الذكي - RADAR" />
-    <meta name="twitter:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري" />
     <meta name="twitter:image" content="https://radaregypt.store/pwa-512x512.png" />
-
-    <!-- Favicon -->
     <link rel="icon" type="image/png" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" href="/pwa-512x512.png" />
+    <style>
+      #pwa-install-container { display: none; }
+      #pwa-install-container.show { display: block; animation: slideUp 0.4s ease-out; }
+      @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      let deferredPrompt = null;
+      let isInstalled = false;
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) { isInstalled = true; }
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('✅ PWA ready!');
+        e.preventDefault();
+        deferredPrompt = e;
+        setTimeout(() => {
+          const c = document.getElementById('pwa-install-container');
+          if (c && !isInstalled) c.classList.add('show');
+        }, 3000);
+      });
+      window.addEventListener('appinstalled', () => {
+        isInstalled = true;
+        document.getElementById('pwa-install-container').style.display = 'none';
+        deferredPrompt = null;
+      });
+      async function installPWA() {
+        if (!deferredPrompt) {
+          const isAndroid = /Android/.test(navigator.userAgent);
+          const isWindows = /Windows/.test(navigator.userAgent);
+          if (isAndroid || isWindows) {
+            window.open('https://www.pwabuilder.com/report?site=https://radaregypt.store', '_blank');
+          } else {
+            alert('لتثبيت التطبيق:\n📱 آيفون: مشاركة ⬆️ ثم إضافة للشاشة الرئيسية\n💻 ويندوز: ⋮ ثم تثبيت التطبيق');
+          }
+          return;
+        }
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') document.getElementById('pwa-install-container').style.display = 'none';
+        deferredPrompt = null;
+      }
+      function dismissInstall() {
+        const c = document.getElementById('pwa-install-container');
+        c.classList.remove('show');
+        setTimeout(() => c.style.display = 'none', 400);
+        setTimeout(() => { if (!isInstalled && deferredPrompt) { c.style.display = 'block'; c.classList.add('show'); } }, 3600000);
+      }
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(()=>{});
+        });
+      }
+    </script>
+    <div id="pwa-install-container" style="position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 9999; max-width: 400px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: 20px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #334155; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+          <div style="width: 48px; height: 48px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+            <img src="/pwa-192x192.png" alt="RADAR" style="width: 40px; height: 40px; border-radius: 8px;" />
+          </div>
+          <div style="flex: 1;">
+            <p style="font-weight: bold; font-size: 14px; margin: 0;">ثبتي تطبيق رادار التاجر</p>
+            <p style="font-size: 11px; color: #cbd5e1; margin: 2px 0 0 0;">🤖 أندرويد • 🪟 ويندوز • سريع</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button onclick="dismissInstall()" style="background: transparent; border: none; color: #94a3b8; padding: 8px 12px; font-size: 12px; cursor: pointer;">لاحقاً</button>
+          <button onclick="installPWA()" style="background: white; color: #0f172a; border: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">⬇️ تثبيت</button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
