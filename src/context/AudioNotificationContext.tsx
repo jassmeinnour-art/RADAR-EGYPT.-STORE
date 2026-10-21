@@ -57,7 +57,20 @@ interface AudioNotificationContextType {
   setActiveGlobalSettingsTab: (tab: 'theme' | 'audio') => void;
 }
 
-const AudioNotificationContext = createContext<AudioNotificationContextType | undefined>(undefined);
+const DEFAULT_CONTEXT: AudioNotificationContextType = {
+  settings: DEFAULT_AUDIO_SETTINGS,
+  updateSettings: () => {},
+  resetSettings: () => {},
+  playPriceAlertSound: () => {},
+  playCompetitorStatusSound: () => {},
+  playTonePreview: () => {},
+  isAudioModalOpen: false,
+  setIsAudioModalOpen: () => {},
+  activeGlobalSettingsTab: 'audio',
+  setActiveGlobalSettingsTab: () => {},
+};
+
+const AudioNotificationContext = createContext<AudioNotificationContextType>(DEFAULT_CONTEXT);
 
 function getPitchMultiplier(pitch: PitchOption): number {
   switch (pitch) {
@@ -168,9 +181,6 @@ export const AudioNotificationProvider: React.FC<{ children: React.ReactNode }> 
 };
 
 export function useAudioNotifications() {
-  const context = useContext(AudioNotificationContext);
-  if (!context) {
-    throw new Error('useAudioNotifications must be used within an AudioNotificationProvider');
-  }
-  return context;
+  console.log('useAudioNotifications called');
+  return useContext(AudioNotificationContext);
 }
