@@ -189,6 +189,7 @@ import { AndroidGooglePlayHubModal } from './components/AndroidGooglePlayHubModa
 import { MobileBottomDock } from './components/MobileBottomDock';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
+import { OnboardingGuideModal } from './components/OnboardingGuideModal';
 import { useAppUpdate } from './hooks/useAppUpdate';
 import { LiveUpdateNotification } from './components/LiveUpdateNotification';
 import { isExportOverdue24h, exportSingleProductFullAuditCSV, exportSingleProductWithAiBriefCSV } from './utils/csvProductManager';
@@ -11034,6 +11035,9 @@ export default function App() {
         }}
         onShowToast={showToast}
       />
+
+      {/* First-Visit Onboarding Guide Modal */}
+      <OnboardingGuideModal onShowToast={showToast} />
 
     </div>
   );

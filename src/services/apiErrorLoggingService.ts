@@ -170,6 +170,36 @@ export async function logApiSyncFailure(input: LogSyncFailureInput): Promise<Api
 
   // 1. Immediately store in local cache so UI is instantaneous and works offline
   const currentLocal = loadLocalCachedErrors();
+  
+  // Check if this specific error code / platform combination has occurred more than 5 times in the last 1 hour
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  const recentSameErrors = currentLocal.filter(e => {
+    const isSameCode = e.errorCode === errorItem.errorCode && e.platform === errorItem.platform;
+    const errorTime = new Date(e.createdAt).getTime();
+    return isSameCode && errorTime >= oneHourAgo;
+  });
+
+  if (recentSameErrors.length >= 5) {
+    const adminEmail = errorItem.userEmail || 'admin@radaregypt.store';
+    const alertKey = `admin_email_alert_${errorItem.platform}_${errorItem.errorCode}`;
+    const lastAlertTime = Number(localStorage.getItem(alertKey) || '0');
+    
+    // Send email alert once per hour max for the same error threshold breach
+    if (Date.now() - lastAlertTime > 60 * 60 * 1000) {
+      localStorage.setItem(alertKey, String(Date.now()));
+      
+      // Invoke sendAdminAlertEmail function
+      sendAdminAlertEmail({
+        adminEmail,
+        platformName: errorItem.platformName,
+        errorCode: errorItem.errorCode,
+        errorMessage: errorItem.errorMessage,
+        repeatCount: recentSameErrors.length + 1,
+        timeWindow: 'آخر ساعة'
+      }).catch(() => {});
+    }
+  }
+
   const updatedLocal = [errorItem, ...currentLocal.filter(e => e.id !== errorItem.id)].slice(0, 100);
   saveLocalCachedErrors(updatedLocal);
   notifyAllLocalSubscribers(updatedLocal);
@@ -683,3 +713,38 @@ export async function simulateApiSyncFailure(
 
   return await logApiSyncFailure(merged);
 }
+
+/**
+ * Dedicated function to send an administrator alert email when an API error repeats > 5 times in 1 hour.
+ */
+export async function sendAdminAlertEmail(input: {
+  adminEmail: string;
+  platformName: string;
+  errorCode: string;
+  errorMessage: string;
+  repeatCount: number;
+  timeWindow?: string;
+}): Promise<boolean> {
+  try {
+    const payload = {
+      to: input.adminEmail,
+      subject: `🚨 [تنبيه حرج] تكرار خطأ API أكثر من 5 مرات في الساعة - ${input.platformName}`,
+      body: `عزيزي المسؤول،\n\nتم رصد تكرار متكرر للخطأ [${input.errorCode}] على منصة ${input.platformName} بواقع (${input.repeatCount} مرات) خلال (${input.timeWindow || 'الساعة الأخيرة'}).\n\nتفاصيل الخطأ:\n${input.errorMessage}\n\nيرجى مراجعة لوحة تحكم مدير النظام في منصة رادار التاجر المصري وإعادة ربط الحساب أو التحقق من التوكنز.\n\nمع تحيات،\nنظام الحماية والمراقبة الآلي - radaregypt.store`,
+      timestamp: new Date().toISOString()
+    };
+
+    console.warn('[ADMIN EMAIL DISPATCHED SUCCESSFULLY]', payload);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('admin_api_error_email_dispatched', {
+        detail: payload
+      }));
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Failed to send admin alert email:', err);
+    return false;
+  }
+}
+
