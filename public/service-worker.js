@@ -44,6 +44,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+  if (
+    url.hostname.includes('run.app') ||
+    url.hostname === 'localhost' ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/src/') ||
+    url.search.includes('v=') ||
+    url.pathname.includes('hot-update')
+  ) {
+    return;
+  }
+
   // Handle API or dynamic routes with Network First
   if (event.request.url.includes('/api/')) {
     event.respondWith(

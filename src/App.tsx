@@ -219,7 +219,6 @@ import { InvestorPitchDeckModal, InvestorPitchDeck } from './components/Investor
 import { RadarBrandLogo } from './components/RadarBrandLogo';
 import { loadAllOrders } from './utils/merchantOrdersManager';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AudioNotificationProvider } from './context/AudioNotificationContext';
 
 export default function App() {
   // Navigation State
@@ -352,8 +351,7 @@ export default function App() {
   }, []);
 
   // Audio Notifications sound triggers
-  // Force rebuild
-  // const { playPriceAlertSound, playCompetitorStatusSound } = useAudioNotifications();
+  const { playPriceAlertSound, playCompetitorStatusSound } = useAudioNotifications();
 
   // Export Overdue State for Ribbon
   const [isExportOverdue, setIsExportOverdue] = useState<boolean>(() => isExportOverdue24h());

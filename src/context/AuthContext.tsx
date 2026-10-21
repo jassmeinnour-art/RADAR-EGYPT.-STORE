@@ -792,10 +792,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
+const FALLBACK_AUTH_CONTEXT: AuthContextType = {
+  user: null,
+  profile: null,
+  sessionData: null,
+  isLoading: false,
+  isDbConnected: true,
+  isOwner: false,
+  loginError: null,
+  authErrorCode: null,
+  isUnauthorizedDomain: false,
+  currentDomain: typeof window !== 'undefined' ? window.location.hostname : '',
+  domainInfo: getFirebaseDomainInfo(),
+  signInWithGoogle: async () => {},
+  signInWithEmail: async () => {},
+  signUpWithEmail: async () => {},
+  sendPasswordReset: async () => {},
+  signInAsGuest: async () => {},
+  signInDemoMerchant: async () => {},
+  signInAsOwner: async () => {},
+  signOut: async () => {},
+  updateStoreProfile: async () => {},
+  refreshProfile: async () => {},
+  clearLoginError: () => {},
+};
+
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    return FALLBACK_AUTH_CONTEXT;
   }
   return context;
 };

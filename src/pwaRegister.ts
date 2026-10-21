@@ -46,7 +46,8 @@ export async function triggerPWARefresh(): Promise<void> {
 export function setupPWA(onNeedRefresh?: () => void) {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     const isIframe = window.self !== window.top;
-    if (isIframe) {
+    const isDev = window.location.hostname.includes('run.app') || window.location.hostname === 'localhost' || window.location.port !== '';
+    if (isIframe || isDev) {
       return () => Promise.resolve();
     }
 

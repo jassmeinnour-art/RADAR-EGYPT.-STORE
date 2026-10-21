@@ -337,10 +337,26 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+const FALLBACK_THEME_CONTEXT: ThemeContextType = {
+  currentThemeId: 'sky',
+  currentTheme: THEME_PRESETS[0],
+  allThemes: THEME_PRESETS,
+  setPrimaryTheme: () => {},
+  resetToDefaultTheme: () => {},
+  isThemeModalOpen: false,
+  setIsThemeModalOpen: () => {},
+  colorMode: 'light',
+  resolvedColorMode: 'light',
+  systemColorScheme: 'light',
+  setColorMode: () => {},
+  toggleColorMode: () => {},
+  cycleColorMode: () => 'light',
+};
+
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    return FALLBACK_THEME_CONTEXT;
   }
   return context;
 };

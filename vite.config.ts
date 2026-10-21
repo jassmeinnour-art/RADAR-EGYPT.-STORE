@@ -10,9 +10,15 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, '.'),
+      'react': path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime'],
   },
   build: {
     outDir: 'dist',
@@ -61,10 +67,6 @@ export default defineConfig({
     host: true,
     historyApiFallback: true,
     strictPort: false,
-    hmr: {
-      protocol: 'wss',
-      clientPort: 443,
-      overlay: false,
-    },
+    hmr: false,
   },
 });

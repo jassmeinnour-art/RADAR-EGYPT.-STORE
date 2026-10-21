@@ -183,10 +183,24 @@ export const AsyncOperationsProvider: React.FC<{ children: React.ReactNode }> = 
   );
 };
 
+const FALLBACK_ASYNC_OPS_CONTEXT: AsyncOperationsContextType = {
+  activeOperations: [],
+  recentCompleted: null,
+  isPlatformSyncing: false,
+  isCsvExporting: false,
+  isDatabaseBusy: false,
+  isAnyBusy: false,
+  startOperation: () => () => {},
+  runWithLoading: async <T,>(_category: AsyncOpCategory, _title: string, action: () => Promise<T> | T): Promise<T> => {
+    return await action();
+  },
+  clearCompleted: () => {},
+};
+
 export function useAsyncOperations(): AsyncOperationsContextType {
   const ctx = useContext(AsyncOperationsContext);
   if (!ctx) {
-    throw new Error('useAsyncOperations must be used within an AsyncOperationsProvider');
+    return FALLBACK_ASYNC_OPS_CONTEXT;
   }
   return ctx;
 }

@@ -181,6 +181,5 @@ export const AudioNotificationProvider: React.FC<{ children: React.ReactNode }> 
 };
 
 export function useAudioNotifications() {
-  console.log('useAudioNotifications called');
   return useContext(AudioNotificationContext);
 }
