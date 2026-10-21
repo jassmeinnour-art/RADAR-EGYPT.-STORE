@@ -62,7 +62,7 @@ export const DailyPriceEmailReportModal: React.FC<DailyPriceEmailReportModalProp
   products,
   notificationLogs = [],
   merchantStoreName = 'متجر التاجر المعتمد - مصر',
-  managerEmail = 'jassmeinnour@gmail.com',
+  managerEmail = '',
   currency = 'ج.م',
   onShowToast,
   onOpenRepriceModal

@@ -39,7 +39,7 @@ export const SmartGmailAutoLinkModal: React.FC<SmartGmailAutoLinkModalProps> = (
   onClose,
   platforms,
   onUpdatePlatforms,
-  currentMerchantEmail = 'jassmeinnour@gmail.com',
+  currentMerchantEmail = '',
   onShowToast,
   initialTab = 'gmail_link',
 }) => {
@@ -49,7 +49,7 @@ export const SmartGmailAutoLinkModal: React.FC<SmartGmailAutoLinkModalProps> = (
   const [emailInput, setEmailInput] = useState<string>(() => {
     // Check if any platform has linked Gmail
     const linked = platforms.find((p) => p.isGmailLinked && p.linkedGmail)?.linkedGmail;
-    return linked || currentMerchantEmail;
+    return linked || '';
   });
   const [copiedUrlCode, setCopiedUrlCode] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);

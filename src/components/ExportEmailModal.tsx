@@ -34,7 +34,7 @@ export const ExportEmailModal: React.FC<ExportEmailModalProps> = ({
   winningPrice,
   selectedDiscount = 5,
   onSuccessToast,
-  defaultRecipient = 'jassmeinnour@gmail.com'
+  defaultRecipient = ''
 }) => {
   const [recipientEmail, setRecipientEmail] = useState<string>(defaultRecipient);
   const [managerName, setManagerName] = useState<string>('السيد مدير المبيعات والتسعير');

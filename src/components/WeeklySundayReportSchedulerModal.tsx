@@ -82,7 +82,7 @@ export const WeeklySundayReportSchedulerModal: React.FC<WeeklySundayReportSchedu
   allProducts,
   watchlist,
   connectedPlatforms = [],
-  defaultEmail = 'jassmeinnour@gmail.com',
+  defaultEmail = '',
   merchantStoreName = 'متجر التاجر المعتمد - مصر',
   currency = 'ج.م',
   onShowToast,

@@ -10448,7 +10448,7 @@ export default function App() {
               currency={currency}
               connectedPlatforms={connectedPlatforms}
               merchantStoreName={remoteMerchantsList.find(m => m.id === activeMerchantId)?.storeName || 'متجر التاجر المعتمد'}
-              managerEmail={user?.email || 'jassmeinnour@gmail.com'}
+              managerEmail={user?.email || ''}
               onShowToast={showToast}
             />
           )}
@@ -10682,7 +10682,7 @@ export default function App() {
           winningPrice={winningPrice}
           selectedDiscount={selectedDiscount}
           onSuccessToast={showToast}
-          defaultRecipient="jassmeinnour@gmail.com"
+          defaultRecipient=""
         />
       )}
 
@@ -10745,7 +10745,7 @@ export default function App() {
           onDisconnect={handleDisconnectPlatformAccount}
           remoteMerchants={remoteMerchantsList}
           currentMerchantEmail={remoteMerchantsList.find(m => m.id === activeMerchantId)?.primaryEmail || 'seller@merchant-store.com'}
-          managerEmail={user?.email || 'jassmeinnour@gmail.com'}
+          managerEmail={user?.email || ''}
           activeMerchantId={activeMerchantId}
           onSwitchActiveMerchant={handleSwitchActiveMerchant}
           allProducts={allProducts}
@@ -10826,7 +10826,7 @@ export default function App() {
         onClose={() => setIsSmartGmailModalOpen(false)}
         platforms={connectedPlatforms}
         onUpdatePlatforms={handleUpdateConnectedPlatforms}
-        currentMerchantEmail={user?.email || 'jassmeinnour@gmail.com'}
+        currentMerchantEmail={user?.email || ''}
         onShowToast={showToast}
         initialTab={smartGmailModalTab}
       />
