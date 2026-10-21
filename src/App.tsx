@@ -5141,7 +5141,7 @@ export default function App() {
       />
 
       {/* Main Content Body */}
-      <main className="flex-1 w-full max-w-full xl:max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 sm:pb-12 flex flex-col gap-5 sm:gap-6 overflow-x-hidden">
+      <main className="flex-1 w-full max-w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 sm:pb-12 flex flex-col gap-5 sm:gap-6 overflow-x-hidden">
 
         {/* Offline Network Status Indicator */}
         <OfflineIndicator />

@@ -420,7 +420,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-[#F8FAFC] border-b-2 border-[#000000] shadow-sm text-[#000000]">
       {/* Top Merchant Intelligence Bar */}
       <div className="bg-[#F8FAFC] text-[#000000] text-xs py-1.5 px-4 sm:px-8 border-b-2 border-[#000000]">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full px-4 md:px-8 max-w-none flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-bold text-[#000000] text-sm">
               RADAR · منظومة التسعير الذكي وإدارة المتاجر المصرية (EGP · VAT 14%)
@@ -481,7 +481,7 @@ export const Header: React.FC<HeaderProps> = ({
           id="agency-client-workspace-switcher-bar"
           className="bg-slate-950/95 border-b border-sky-500/20 px-4 sm:px-8 py-2 text-xs"
         >
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+          <div className="w-full px-4 md:px-8 max-w-none flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 overflow-x-auto scroller-sm py-0.5">
               <span className="text-[11px] font-black text-sky-400 flex items-center gap-1.5 shrink-0">
                 <Store className="w-3.5 h-3.5 text-sky-400" />
@@ -549,7 +549,7 @@ export const Header: React.FC<HeaderProps> = ({
       )}
 
       {/* 1. الشريط العلوي (الواجهة الرئيسية المخصصة للعمليات اليومية فقط) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-2.5">
+      <div className="w-full px-4 md:px-8 max-w-none py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* زر فتح القائمة الجانبية + شعار وعنوان رادار التاجر الذكي */}
           <div className="flex items-center gap-3">
