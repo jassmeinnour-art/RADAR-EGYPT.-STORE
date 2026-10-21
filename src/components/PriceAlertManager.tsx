@@ -36,6 +36,7 @@ import confetti from 'canvas-confetti';
 import { ProductData, PriceAlert, AlertNotificationLog, ConnectedMerchantPlatform, MerchantOffer } from '../types';
 import { WhatsAppTemplatesCustomizer } from './WhatsAppTemplatesCustomizer';
 import { DailyPriceEmailReportModal } from './DailyPriceEmailReportModal';
+import { ExecutivePdfReportModal } from './ExecutivePdfReportModal';
 import { INITIAL_CONNECTED_PLATFORMS } from '../data/sampleProducts';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 import { useTheme } from '../context/ThemeContext';
@@ -109,6 +110,51 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
   const [newRecipientRole, setNewRecipientRole] = useState<'admin' | 'pricing_manager' | 'inventory_specialist'>('pricing_manager');
   const [testingPhoneId, setTestingPhoneId] = useState<string | null>(null);
   const [waSaveToast, setWaSaveToast] = useState<boolean>(false);
+  const [isPdfReportOpen, setIsPdfReportOpen] = useState<boolean>(false);
+  const [isDispatchingDailyWa, setIsDispatchingDailyWa] = useState<boolean>(false);
+
+  const handleSendDailyWhatsAppReportViaApi = async () => {
+    setIsDispatchingDailyWa(true);
+    try {
+      const activeRecipients = waConfig.recipients.filter(r => r.isActive);
+      if (activeRecipients.length === 0) {
+        if (onShowToast) onShowToast('⚠️ يرجى إضافة وتفعيل رقم واتساب واحد على الأقل في إعدادات واتساب أولاً.');
+        setIsDispatchingDailyWa(false);
+        return;
+      }
+
+      const totalAlerts = alerts.length;
+      const recentDrops = notificationLogs.filter(l => l.priceDropAmount > 0).slice(0, 3);
+      let reportText = `📊 *تقرير تنبيهات الأسعار اليومية - ${merchantStoreName}*\n`;
+      reportText += `📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}\n`;
+      reportText += `🔔 إجمالي التنبيهات النشطة: ${totalAlerts}\n\n`;
+      if (recentDrops.length > 0) {
+        reportText += `📉 *أبرز هبوط أسعار المنافسين الأخير:*\n`;
+        recentDrops.forEach((d, i) => {
+          reportText += `${i+1}. ${d.platformName}: هبوط بمقدار ${d.priceDropAmount} ${currency} (-${d.priceDropPercent}%)\n`;
+        });
+      } else {
+        reportText += `✅ الأسعار مستقرة اليوم عبر جميع المنصات.\n`;
+      }
+      reportText += `\n⚡ مرسل آلياً عبر نظام رادار التاجر الذكي (WhatsApp Business API).`;
+
+      let sentCount = 0;
+      for (const rec of activeRecipients) {
+        await sendWhatsAppMessageToPhone(rec.phone, reportText, waConfig);
+        sentCount++;
+      }
+
+      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+      if (onShowToast) {
+        onShowToast(`تم إرسال تقرير تنبيهات الأسعار اليومية بنجاح عبر WhatsApp Business API إلى (${sentCount}) مستلم 📱⚡!`);
+      }
+    } catch (err) {
+      console.error('Failed to send daily WhatsApp report:', err);
+      if (onShowToast) onShowToast('❌ تعذر إرسال تقرير واتساب اليومي، يرجى التحقق من مفتاح API.');
+    } finally {
+      setIsDispatchingDailyWa(false);
+    }
+  };
 
   const handleAddRecipient = (e: React.FormEvent) => {
     e.preventDefault();
@@ -452,6 +498,31 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
               <Mail className="w-4 h-4 text-blue-700" />
               <span>تقارير الإيميل اليومية (SendGrid/EmailJS) ✉️</span>
               <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[9px] rounded-full font-mono">تكامل API</span>
+            </button>
+
+            {/* Daily WhatsApp Report API Dispatch Button */}
+            <button
+              type="button"
+              id="btn-dispatch-daily-wa-api"
+              onClick={handleSendDailyWhatsAppReportViaApi}
+              disabled={isDispatchingDailyWa}
+              className="h-9 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white border border-emerald-500 shadow-2xs disabled:opacity-50"
+              title="إرسال تقرير تنبيهات الأسعار اليومية فورا عبر WhatsApp Business API"
+            >
+              <Send className="w-4 h-4 text-emerald-200" />
+              <span>{isDispatchingDailyWa ? 'جارٍ الإرسال...' : 'إرسال تقرير واتساب اليومي API 📲'}</span>
+            </button>
+
+            {/* Automatic PDF Report Button */}
+            <button
+              type="button"
+              id="btn-open-pdf-report-modal"
+              onClick={() => setIsPdfReportOpen(true)}
+              className="h-9 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs"
+              title="تصدير وعرض نموذج التقرير التنفيذي PDF المعتمد"
+            >
+              <FileText className="w-4 h-4 text-rose-700" />
+              <span>نموذج تقرير PDF تلقائي 🖨️</span>
             </button>
 
             <button
@@ -1853,6 +1924,18 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
           currency={currency}
           onShowToast={onShowToast}
           onOpenRepriceModal={onOpenRepriceModal}
+        />
+      )}
+
+      {/* Executive PDF Report Modal (Automated PDF Report Template) */}
+      {isPdfReportOpen && (
+        <ExecutivePdfReportModal
+          isOpen={isPdfReportOpen}
+          onClose={() => setIsPdfReportOpen(false)}
+          product={activeProduct}
+          currency={currency}
+          winningPrice={activeProduct.currentLowestPrice}
+          onSuccessToast={onShowToast}
         />
       )}
 

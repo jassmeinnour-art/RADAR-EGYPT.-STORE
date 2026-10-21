@@ -8,6 +8,7 @@ import { ThemeProvider } from "./context/ThemeContext"
 import { AsyncOperationsProvider } from "./context/AsyncOperationsContext"
 import { AudioNotificationProvider } from "./context/AudioNotificationContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
+import "./index.css"
 
 // Hide WebSocket HMR errors in overlay
 if (typeof window !== 'undefined') {

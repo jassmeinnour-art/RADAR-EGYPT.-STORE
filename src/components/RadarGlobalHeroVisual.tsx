@@ -108,8 +108,8 @@ export const RadarGlobalHeroVisual: React.FC<RadarGlobalHeroVisualProps> = ({
   return (
     <div
       id="radar-global-hero-visual"
-      className={`relative w-full overflow-hidden rounded-2xl bg-[#FFFFFF] text-[#000000] border-2 border-[#D4AF37] shadow-sm select-none ${
-        compact ? 'p-4 sm:p-6' : 'p-5 sm:p-8'
+      className={`relative w-full max-w-xl max-h-[85vh] mx-auto overflow-hidden rounded-2xl bg-[#FFFFFF] text-[#000000] border-2 border-[#D4AF37] shadow-sm select-none ${
+        compact ? 'p-3 sm:p-5 max-w-md' : 'p-4 sm:p-6'
       }`}
       dir="ltr"
     >
@@ -200,10 +200,10 @@ export const RadarGlobalHeroVisual: React.FC<RadarGlobalHeroVisualProps> = ({
       </div>
 
       {/* Main Interactive SVG Globe & Connected Price Tags Stage (Original Brand Asset on Pure White) */}
-      <div className="relative z-10 w-full max-w-3xl mx-auto aspect-[16/10] min-h-[290px] sm:min-h-[360px] flex items-center justify-center">
+      <div className="relative z-10 w-full max-w-xs sm:max-w-sm md:max-w-md max-h-[260px] sm:max-h-[300px] mx-auto aspect-[16/10] flex items-center justify-center my-1">
         <svg
           viewBox="0 0 900 520"
-          className="w-full h-full overflow-visible"
+          className="w-full h-full max-w-full max-h-full object-contain mx-auto overflow-visible"
           aria-label="RADAR Global Marketplaces Geodesic Globe connected to Amazon, Noon, and Jumia"
         >
           <defs>

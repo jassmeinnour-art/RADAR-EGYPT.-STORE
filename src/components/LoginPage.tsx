@@ -280,11 +280,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Interactive RADAR Global Marketplaces Geodesic Globe & Real-Time Price Tracking Badges */}
-            <ErrorBoundary sectionName="رادار الأسواق العالمية">
-              <RadarGlobalHeroVisual
-                onOpenInvestorDeck={() => setIsInvestorDeckOpen(true)}
-              />
-            </ErrorBoundary>
+            <div className="w-full max-w-xl mx-auto flex items-center justify-center">
+              <ErrorBoundary sectionName="رادار الأسواق العالمية">
+                <RadarGlobalHeroVisual
+                  compact
+                  onOpenInvestorDeck={() => setIsInvestorDeckOpen(true)}
+                />
+              </ErrorBoundary>
+            </div>
 
             {/* Feature Highlights Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -585,7 +588,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       type="button"
                       onClick={handleGoogleLogin}
                       disabled={isSubmitting}
-                      className="w-full h-10 rounded-xl bg-slate-950/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-white text-xs font-bold flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                      className="w-full max-w-xs mx-auto h-10 rounded-xl bg-slate-950/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-white text-xs font-bold flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-98 disabled:opacity-50"
                       title="تسجيل الدخول بحساب Google الرسمي"
                     >
                       {/* Google G SVG */}

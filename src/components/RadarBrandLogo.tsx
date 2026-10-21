@@ -18,6 +18,9 @@ export const RadarBrandLogo: React.FC<RadarBrandLogoProps> = ({
     <svg
       viewBox="0 0 100 100"
       className={`select-none shrink-0 ${className}`}
+      style={{ maxWidth: '100%', maxHeight: '100%' }}
+      width="100%"
+      height="100%"
       role="img"
       aria-label="RADAR — Global Marketplaces Real-Time Tracking"
     >

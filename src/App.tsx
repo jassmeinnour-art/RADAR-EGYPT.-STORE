@@ -3672,16 +3672,20 @@ export default function App() {
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-[#08090D] flex flex-col items-center justify-center text-slate-100 font-['Cairo'] p-4 text-center">
-        <div className="relative mb-5">
-          <div className="w-16 h-16 rounded-3xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center animate-pulse shadow-lg shadow-sky-500/15">
-            <RadarBrandLogo className="w-11 h-11" animated />
+        <div className="w-full max-w-xs sm:max-w-sm max-h-[85vh] mx-auto flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-900/60 border border-sky-500/25 backdrop-blur-md shadow-2xl">
+          <div className="relative mb-4 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center animate-pulse shadow-lg shadow-sky-500/15 mx-auto">
+              <RadarBrandLogo className="w-10 h-10 max-w-full max-h-full" animated />
+            </div>
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-sky-400 rounded-full animate-ping" />
           </div>
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-sky-400 rounded-full animate-ping" />
+          <h2 className="text-lg sm:text-xl font-black bg-gradient-to-r from-sky-200 via-sky-400 to-sky-500 bg-clip-text text-transparent font-['Outfit','Alexandria'] mb-1.5 text-center">
+            RADAR — Global Marketplaces
+          </h2>
+          <p className="text-xs text-slate-400 max-w-xs text-center leading-relaxed">
+            جاري التحقق من جلسة التاجر السحابية والربط الآمن مع فايربيس...
+          </p>
         </div>
-        <h2 className="text-xl font-black bg-gradient-to-r from-sky-200 via-sky-400 to-sky-500 bg-clip-text text-transparent font-['Outfit','Alexandria'] mb-1.5">
-          RADAR — Global Marketplaces Real-Time Tracking
-        </h2>
-        <p className="text-xs text-slate-400 max-w-xs">جاري التحقق من جلسة التاجر السحابية والربط الآمن مع فايربيس...</p>
       </div>
     );
   }
@@ -5238,14 +5242,17 @@ export default function App() {
             </div>
 
             {!isRadarHeroCollapsed && (
-              <ErrorBoundary sectionName="رادار الأسواق العالمية">
-                <RadarGlobalHeroVisual
-                  onOpenInvestorDeck={() => setIsInvestorDeckOpen(true)}
-                  onSelectPlatform={(platId) => {
-                    showToast(`تم تحديد رادار منصة ${platId.toUpperCase()} للرصد الفوري للأسعار 🌐⚡`);
-                  }}
-                />
-              </ErrorBoundary>
+              <div className="w-full max-w-xl mx-auto flex items-center justify-center">
+                <ErrorBoundary sectionName="رادار الأسواق العالمية">
+                  <RadarGlobalHeroVisual
+                    compact
+                    onOpenInvestorDeck={() => setIsInvestorDeckOpen(true)}
+                    onSelectPlatform={(platId) => {
+                      showToast(`تم تحديد رادار منصة ${platId.toUpperCase()} للرصد الفوري للأسعار 🌐⚡`);
+                    }}
+                  />
+                </ErrorBoundary>
+              </div>
             )}
           </div>
         )}
