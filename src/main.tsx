@@ -3,42 +3,24 @@ import { SpeedInsights } from "@vercel/speed-insights/react"
 import React from "react"
 import ReactDOM from "react-dom/client"
 import App from "./App.tsx"
-import "./index.css"
 
-// Suppress Vite HMR / WebSocket errors from rendering error overlay
+// Hide WebSocket HMR errors in overlay
 if (typeof window !== 'undefined') {
-  const suppressWsError = (errMessage: any) => {
-    const str = String(errMessage || '');
-    return (
-      str.includes('WebSocket closed without opened') ||
-      str.includes('WebSocket') ||
-      str.includes('ws/vite/client') ||
-      str.includes('ws://') ||
-      str.includes('wss://')
-    );
-  };
-
-  window.addEventListener('unhandledrejection', (event) => {
-    if (
-      suppressWsError(event.reason?.message || event.reason) ||
-      (event.reason && event.reason.message && String(event.reason.message).includes('WebSocket'))
-    ) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  }, true);
-
-  window.addEventListener('error', (event) => {
-    if (suppressWsError(event.message || event.error)) {
-      event.preventDefault();
-    }
-  });
+  const origError = console.error
+  console.error = (...args: any[]) => {
+    const msg = String(args[0] || '')
+    if (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://')) return
+    origError(...args)
+  }
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-    <Analytics />
-    <SpeedInsights />
-  </React.StrictMode>
-)
+const root = document.getElementById('root')
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <App />
+      <Analytics />
+      <SpeedInsights />
+    </React.StrictMode>
+  )
+}
