@@ -111,7 +111,7 @@ export const EMAIL_DISPATCH_LOGS_STORAGE_KEY = 'merchant_radar_email_dispatch_lo
 
 // Default initial settings
 export const DEFAULT_EMAIL_SETTINGS: EmailDigestSettings = {
-  provider: 'browser_sandbox',
+  provider: 'sendgrid',
   sendgrid: {
     apiKey: '',
     senderEmail: 'reports@merchantradar.eg',

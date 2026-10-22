@@ -332,17 +332,17 @@ export const amazonSpApiInterface: AmazonSpApiConfig = {
   region: 'EG',
   merchantId: '',
   sellerId: '',
-  baseUrl: 'https://sellingpartnerapi-na.amazon.com',
+  baseUrl: 'https://sellingpartnerapi-eu.amazon.com',
 };
 
 export const noonSellerApiInterface: NoonSellerApiConfig = {
-  baseUrl: 'https://api.noon.com',
+  baseUrl: 'https://api-seller.noon.com',
   sellerId: '',
   storeName: '',
 };
 
 export const jumiaSellerCenterInterface: JumiaSellerCenterConfig = {
-  baseUrl: 'https://sellercenter.jumia.com.eg',
+  baseUrl: 'https://sellercenter-api.jumia.com.eg/v1',
   sellerId: '',
   storeName: '',
 };
