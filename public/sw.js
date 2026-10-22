@@ -1,4 +1,4 @@
-const CACHE_NAME = 'radar-egypt-v49-PRODUCTION';
+const CACHE_NAME = 'radar-egypt-v48-FIXED';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -19,49 +19,32 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Ignore non-GET requests
+  // Ignore non-GET requests - fixes POST error
   if (event.request.method !== 'GET') {
     return;
   }
-
-  const url = new URL(event.request.url);
-
-  // NEVER cache Vite dev server chunks, HMR updates, or dev modules
-  if (
-    url.hostname.includes('run.app') ||
-    url.hostname === 'localhost' ||
-    url.pathname.includes('/node_modules/') ||
-    url.pathname.includes('/@vite/') ||
-    url.pathname.includes('/@fs/') ||
-    url.pathname.includes('/src/') ||
-    url.search.includes('v=') ||
-    url.pathname.includes('hot-update')
-  ) {
-    return; // Pass through to network directly
-  }
-
-  // Network first for HTML / navigation
+  
+  // Network first for HTML - fixes white screen
   if (event.request.mode === 'navigate' || event.request.destination === 'document') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match('/'))
     );
     return;
   }
-
-  // Only cache static production assets (e.g. /assets/, /pwa-*.png)
-  if (url.pathname.startsWith('/assets/') || url.pathname.endsWith('.png') || url.pathname.endsWith('.svg')) {
-    event.respondWith(
-      caches.match(event.request).then(response => {
-        return response || fetch(event.request).then(res => {
-          if (res && res.status === 200 && res.type === 'basic') {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, clone).catch(() => {});
-            });
-          }
-          return res;
-        }).catch(() => response);
-      })
-    );
-  }
+  
+  // Cache first for assets, only GET
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request).then(res => {
+        // Only cache successful GET requests
+        if (res && res.status === 200 && res.type === 'basic' && event.request.method === 'GET') {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, clone).catch(() => {});
+          });
+        }
+        return res;
+      }).catch(() => response);
+    })
+  );
 });
