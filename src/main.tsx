@@ -1,48 +1,26 @@
+import React, { Suspense, lazy } from "react"
+import ReactDOM from "react-dom/client"
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/react"
-import React from "react"
-import ReactDOM from "react-dom/client"
-import App from "./App"
-import { AuthProvider } from "./context/AuthContext"
-import { ThemeProvider } from "./context/ThemeContext"
-import { AsyncOperationsProvider } from "./context/AsyncOperationsContext"
-import { AudioNotificationProvider } from "./context/AudioNotificationContext"
-import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 
-// Hide WebSocket HMR errors in overlay
-if (typeof window !== 'undefined') {
-  const origError = console.error
-  console.error = (...args: any[]) => {
-    const msg = String(args[0] || '')
-    if (
-      msg.includes('WebSocket') ||
-      msg.includes('ws://') ||
-      msg.includes('wss://') ||
-      msg.includes('moduleRunnerTransport') ||
-      msg.includes('vite/client')
-    ) return
-    origError(...args)
-  }
-}
+const App = lazy(() => import("./App.tsx"))
 
-const root = document.getElementById('root')
-if (root) {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <ErrorBoundary sectionName="رادار التاجر الذكي">
-        <AuthProvider>
-          <ThemeProvider>
-            <AsyncOperationsProvider>
-              <AudioNotificationProvider>
-                <App />
-                <Analytics />
-                <SpeedInsights />
-              </AudioNotificationProvider>
-            </AsyncOperationsProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </ErrorBoundary>
-    </React.StrictMode>
-  )
-}
+const Loading = () => (
+  <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'50vh',fontFamily:'system-ui'}}>
+    <div style={{textAlign:'center'}}>
+      <div style={{width:36,height:36,border:'3px solid #0f172a',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite',margin:'0 auto 12px'}}></div>
+      <p style={{margin:0,fontSize:13,color:'#64748b'}}>جاري التحميل...</p>
+    </div>
+  </div>
+)
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <Suspense fallback={<Loading />}>
+      <App />
+    </Suspense>
+    <Analytics />
+    <SpeedInsights />
+  </React.StrictMode>
+)
