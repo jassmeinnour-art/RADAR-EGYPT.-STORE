@@ -1,16 +1,29 @@
 {
-  "name": "رادار التاجر الذكي",
+  "name": "رادار التاجر الذكي - منصة أسعار السوق المصري",
   "short_name": "رادار التاجر",
-  "description": "منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري",
-  "id": "/",
-  "start_url": "/",
-  "scope": "/",
+  "description": "منصة ذكية متكاملة للتجار في مصر لتحليل أسعار المنافسين في أمازون ونون وجوميا وتتبع حركة المخزون والربحية",
+  "id": "https://www.radaregypt.store/",
+  "start_url": "https://www.radaregypt.store/",
+  "scope": "https://www.radaregypt.store/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#0f172a",
   "dir": "rtl",
   "lang": "ar-EG",
+  "categories": [
+    "shopping",
+    "business",
+    "productivity"
+  ],
+  "iarc_rating_id": "123456",
+  "prefer_related_applications": false,
+  "related_applications": [],
   "icons": [
     {
       "src": "/pwa-192x192.png",
@@ -22,7 +35,70 @@
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-1280x720.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "لوحة تحكم رادار التاجر الذكي لمتابعة الأسعار والمنافسين في السوق المصري"
+    },
+    {
+      "src": "/screenshots/mobile-720x1280.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "تطبيق رادار التاجر على الهاتف المحمول لمتابعة المبيعات والأسعار الفورية"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "رادار الأسعار الفوري",
+      "short_name": "الرادار",
+      "description": "رصد أسعار المنافسين في السوق المصري والـ Buy Box",
+      "url": "https://www.radaregypt.store/?tab=radar",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "بوالص الشحن واللوجستيات",
+      "short_name": "البوالص",
+      "description": "توليد وإدارة بوالص الشحن وشركات الشحن",
+      "url": "https://www.radaregypt.store/?tab=waybills",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "حاسبة هوامش الأرباح",
+      "short_name": "الأرباح",
+      "description": "حساب صافي الربح والعمولات وضريبة القيمة المضافة",
+      "url": "https://www.radaregypt.store/?tab=profit_calculator",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
