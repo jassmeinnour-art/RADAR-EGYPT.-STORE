@@ -3,29 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (function() {
-        var isWsErr = function(s) {
-          if (!s) return false;
-          var str = String(s);
-          return str.indexOf('WebSocket') !== -1 || str.indexOf('ws:') !== -1 || str.indexOf('wss:') !== -1 || str.indexOf('moduleRunnerTransport') !== -1 || str.indexOf('createWebSocketModuleRunnerTransport') !== -1;
-        };
-        window.addEventListener('error', function(e) {
-          if (e && (isWsErr(e.message) || isWsErr(e.filename) || isWsErr(e.error))) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-            return true;
-          }
-        }, true);
-        window.addEventListener('unhandledrejection', function(e) {
-          var reason = e && (e.reason && (e.reason.message || e.reason.stack) || e.reason);
-          if (isWsErr(reason)) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-          }
-        }, true);
-      })();
-    </script>
     <title>رادار التاجر الذكي - تحليل السوق المصري</title>
     <link rel="canonical" href="https://radaregypt.store/" />
     <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري. راقب أسعار المنافسين، تتبع المنتجات، واتخذ قرارات ذكية." />
@@ -46,10 +23,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="رادار التاجر الذكي - RADAR" />
     <meta name="twitter:image" content="https://radaregypt.store/pwa-512x512.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/pwa-512x512.png" />
+    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -72,25 +47,11 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        var isDev = window.location.hostname.includes('run.app') || 
-                    window.location.hostname === 'localhost' || 
-                    window.location.port !== '';
-        if (isDev) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            for (var i = 0; i < regs.length; i++) {
-              regs[i].unregister();
-            }
-          });
-          if ('caches' in window) {
-            caches.keys().then(function(keys) {
-              return Promise.all(keys.map(function(k) { return caches.delete(k); }));
-            });
-          }
-        } else {
-          window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js?v=49').catch(function(){});
-          });
-        }
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js?v=47').then(reg => {
+            console.log('✅ SW registered v47');
+          }).catch(()=>{});
+        });
       }
     </script>
   </body>
