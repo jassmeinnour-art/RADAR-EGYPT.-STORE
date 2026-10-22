@@ -4,37 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>رادار التاجر الذكي - تحليل السوق المصري</title>
-    <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-    <link rel="preload" as="image" href="/pwa-192x192.png" fetchpriority="high" />
+    <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري. راقب أسعار المنافسين، تتبع المنتجات، واتخذ قرارات ذكية." />
+    
+    <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0f172a" />
-    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Open Graph - لما اللينك يتبعت على واتساب وفيسبوك -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://radaregypt.store/" />
+    <meta property="og:url" content="https://merchant-radar-egypt.vercel.app/" />
     <meta property="og:title" content="رادار التاجر الذكي - RADAR" />
-    <meta property="og:description" content="منصة ذكية للتجار لتحليل الأسعار" />
-    <meta property="og:image" content="https://radaregypt.store/pwa-512x512.png" />
+    <meta property="og:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة - رصد فوري لأسعار المنتجات في السوق المصري" />
+    <meta property="og:image" content="https://merchant-radar-egypt.vercel.app/pwa-512x512.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="رادار التاجر الذكي - لوحة التحكم" />
+    <meta property="og:image:alt" content="رادار التاجر - لوحة التحكم" />
+    <meta property="og:locale" content="ar_EG" />
+    <meta property="og:site_name" content="رادار التاجر" />
+
+    <!-- Twitter Card - لما اللينك يتبعت على تويتر X -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://radaregypt.store/pwa-512x512.png" />
-    <meta name="twitter:image:width" content="512" />
-    <meta name="twitter:image:height" content="512" />
-    <link rel="icon" type="image/png" href="/pwa-512x512.png" sizes="512x512" />
-    <link rel="apple-touch-icon" href="/pwa-512x512.png" sizes="512x512" />
-    <style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,Tajawal,sans-serif;background:#f8fafc}#root{min-height:100vh}img{max-width:100%;height:auto;display:block}@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <meta name="twitter:url" content="https://merchant-radar-egypt.vercel.app/" />
+    <meta name="twitter:title" content="رادار التاجر الذكي - RADAR" />
+    <meta name="twitter:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري" />
+    <meta name="twitter:image" content="https://merchant-radar-egypt.vercel.app/pwa-512x512.png" />
+    <meta name="twitter:image:alt" content="رادار التاجر - موبايل" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/pwa-512x512.png" />
+    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js?v=52').catch(()=>{}); }
-        }, 1500);
-      });
-    </script>
   </body>
 </html>
