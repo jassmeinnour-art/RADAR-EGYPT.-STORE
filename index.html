@@ -3,6 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        var isWsErr = function(s) {
+          if (!s) return false;
+          var str = String(s);
+          return str.indexOf('WebSocket') !== -1 || str.indexOf('ws:') !== -1 || str.indexOf('wss:') !== -1 || str.indexOf('moduleRunnerTransport') !== -1 || str.indexOf('createWebSocketModuleRunnerTransport') !== -1;
+        };
+        window.addEventListener('error', function(e) {
+          if (e && (isWsErr(e.message) || isWsErr(e.filename) || isWsErr(e.error))) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e && (e.reason && (e.reason.message || e.reason.stack) || e.reason);
+          if (isWsErr(reason)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+      })();
+    </script>
     <title>رادار التاجر الذكي - تحليل السوق المصري</title>
     <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري. راقب أسعار المنافسين، تتبع المنتجات، واتخذ قرارات ذكية." />
     
