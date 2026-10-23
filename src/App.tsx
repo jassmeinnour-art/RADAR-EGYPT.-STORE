@@ -221,7 +221,7 @@ export default function App() {
               {/* Left Side: Brand Panel */}
               <div className="hidden lg:flex p-12 flex-col justify-between bg-gradient-to-br from-amber-950 to-slate-950 border-l border-amber-500/20">
                 <div className="space-y-6">
-                  <img src="/pwa-192x192.png" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
+                  <img src="/pwa-192x192.png" width="128" height="128" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
                   <h1 className="text-4xl font-black text-white">رادار التاجر <span className="text-amber-400">الذكي</span></h1>
                   <p className="text-amber-100/70 text-lg">تغطية شاملة لأسعار ومخزون أمازون، نون، وجوميا بأعلى معايير الدقة.</p>
                 </div>
@@ -230,7 +230,7 @@ export default function App() {
               {/* Right Side: Auth Panel */}
               <div className="p-8 sm:p-12 flex flex-col justify-center">
                 <div className="lg:hidden text-center mb-8">
-                  <img src="/pwa-192x192.png" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
+                  <img src="/pwa-192x192.png" width="80" height="80" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
                 </div>
                 
                 <div className="flex gap-4 mb-8">

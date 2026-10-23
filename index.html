@@ -3,29 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (function() {
-        var isWsErr = function(s) {
-          if (!s) return false;
-          var str = String(s);
-          return str.indexOf('WebSocket') !== -1 || str.indexOf('ws:') !== -1 || str.indexOf('wss:') !== -1 || str.indexOf('moduleRunnerTransport') !== -1 || str.indexOf('createWebSocketModuleRunnerTransport') !== -1;
-        };
-        window.addEventListener('error', function(e) {
-          if (e && (isWsErr(e.message) || isWsErr(e.filename) || isWsErr(e.error))) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-            return true;
-          }
-        }, true);
-        window.addEventListener('unhandledrejection', function(e) {
-          var reason = e && (e.reason && (e.reason.message || e.reason.stack) || e.reason);
-          if (isWsErr(reason)) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-          }
-        }, true);
-      })();
-    </script>
+    
+    <!-- Critical Preconnects -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" />
+    
+    <!-- Preload Critical Assets -->
+    <link rel="preload" href="/pwa-192x192.png" as="image" fetchpriority="high" />
+    
     <title>رادار التاجر الذكي - تحليل السوق المصري</title>
     <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري. راقب أسعار المنافسين، تتبع المنتجات، واتخذ قرارات ذكية." />
     
@@ -33,37 +19,19 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0f172a" />
     
-    <!-- Open Graph - لما اللينك يتبعت على واتساب وفيسبوك -->
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://merchant-radar-egypt.vercel.app/" />
+    <meta property="og:url" content="https://radaregypt.store/" />
     <meta property="og:title" content="رادار التاجر الذكي - RADAR" />
     <meta property="og:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة - رصد فوري لأسعار المنتجات في السوق المصري" />
-    <meta property="og:image" content="https://merchant-radar-egypt.vercel.app/pwa-512x512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="رادار التاجر - لوحة التحكم" />
-    <meta property="og:locale" content="ar_EG" />
-    <meta property="og:site_name" content="رادار التاجر" />
-
-    <!-- Twitter Card - لما اللينك يتبعت على تويتر X -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://merchant-radar-egypt.vercel.app/" />
-    <meta name="twitter:title" content="رادار التاجر الذكي - RADAR" />
-    <meta name="twitter:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري" />
-    <meta name="twitter:image" content="https://merchant-radar-egypt.vercel.app/pwa-512x512.png" />
-    <meta name="twitter:image:alt" content="رادار التاجر - موبايل" />
-
+    <meta property="og:image" content="https://radaregypt.store/pwa-512x512.png" />
+    
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" href="/pwa-512x512.png" />
-    
-    <!-- Preload Critical Assets -->
-    <link rel="preload" href="/pwa-192x192.png" as="image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx" defer></script>
   </body>
 </html>
