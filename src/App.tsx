@@ -22,7 +22,9 @@ import {
   Camera, 
   FileText,
   ArrowRight,
-  Shield
+  Shield,
+  HelpCircle,
+  BookOpen
 } from 'lucide-react';
 import { 
   auth, 
@@ -39,6 +41,7 @@ import {
 const PaymentModal = lazy(() => import('./components/PaymentModal'));
 const OwnerDashboard = lazy(() => import('./components/OwnerDashboard'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
+const HelpPage = lazy(() => import('./components/HelpPage'));
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -52,7 +55,7 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   
   // Dashboard states
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports'>('merchants');
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help'>('merchants');
 
   // Auth Constants
   const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -69,6 +72,28 @@ export default function App() {
     } else {
       setTrialEndDate(new Date(new Date(savedInstallDate).getTime() + 7 * 24 * 60 * 60 * 1000));
     }
+
+    // Check localStorage for persisted active session first
+    const savedUserStr = localStorage.getItem('radar_user');
+    if (savedUserStr) {
+      try {
+        const parsedUser = JSON.parse(savedUserStr);
+        if (parsedUser && parsedUser.email) {
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+          if (parsedUser.email === OWNER_EMAIL) {
+            setShowOwnerDashboard(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not parse stored radar_user:', e);
+      }
+    }
+
+    // Safety 500ms timeout fallback so authLoading never hangs indefinitely
+    const safetyTimer = setTimeout(() => {
+      setAuthLoading(false);
+    }, 500);
 
     // Process Google OAuth redirect result if returning from redirect
     getRedirectResult(auth)
@@ -91,9 +116,12 @@ export default function App() {
         setUser(currentUser);
         setIsAuthenticated(true);
       } else {
-        setUser(null);
-        setIsAuthenticated(false);
-        setShowOwnerDashboard(false);
+        const stored = localStorage.getItem('radar_user');
+        if (!stored) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setShowOwnerDashboard(false);
+        }
       }
       setAuthLoading(false);
     });
@@ -104,21 +132,36 @@ export default function App() {
       if (e.key.toLowerCase() === 'r') { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }
       if (e.key.toLowerCase() === 's') { setActiveWorkspaceTab('ai_studio'); setShowOwnerDashboard(false); }
       if (e.key.toLowerCase() === 'm') { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }
+      if (e.key.toLowerCase() === 'h') { setActiveWorkspaceTab('help'); setShowOwnerDashboard(false); }
       if (e.key.toLowerCase() === 'o' && isOwner) setShowOwnerDashboard(true);
     };
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      clearTimeout(safetyTimer);
       unsubscribe();
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAuthenticated, isOwner]);
 
+  const handleSignOut = () => {
+    localStorage.removeItem('radar_user');
+    localStorage.removeItem('radar_auth_token');
+    setUser(null);
+    setIsAuthenticated(false);
+    setShowOwnerDashboard(false);
+    firebaseSignOut(auth).catch(() => {});
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, authEmail, authPassword);
+      const cred = await signInWithEmailAndPassword(auth, authEmail, authPassword);
+      if (cred.user) {
+        localStorage.setItem('radar_user', JSON.stringify({ email: cred.user.email, uid: cred.user.uid }));
+        localStorage.setItem('radar_auth_token', 'firebase_token_' + Date.now());
+      }
     } catch (error) {
       console.error('Login error:', error);
       alert('خطأ في تسجيل الدخول. يرجى التحقق من البيانات.');
@@ -128,9 +171,23 @@ export default function App() {
   };
 
   const handleOwnerLogin = () => {
-    setUser({ email: OWNER_EMAIL, displayName: 'جاسمين نور (مالكة التطبيق)', uid: 'owner_user_999' });
+    const ownerUser = { 
+      email: OWNER_EMAIL, 
+      displayName: 'جاسمين نور (مالكة التطبيق)', 
+      uid: 'owner_user_999', 
+      role: 'owner',
+      isAuthenticated: true 
+    };
+    try {
+      localStorage.setItem('radar_user', JSON.stringify(ownerUser));
+      localStorage.setItem('radar_auth_token', 'owner_active_token_' + Date.now());
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+    setUser(ownerUser);
     setIsAuthenticated(true);
     setShowOwnerDashboard(true);
+    setAuthLoading(false);
   };
 
   const handleGoogleLogin = async () => {
@@ -157,8 +214,22 @@ export default function App() {
   };
 
   const handleDemoLogin = () => {
-    setUser({ email: 'demo@radar.store', displayName: 'تاجر تجريبي', uid: 'demo_user_123' });
+    const demoUser = { 
+      email: 'demo@radar.store', 
+      displayName: 'تاجر تجريبي', 
+      uid: 'demo_user_123',
+      role: 'demo',
+      isAuthenticated: true 
+    };
+    try {
+      localStorage.setItem('radar_user', JSON.stringify(demoUser));
+      localStorage.setItem('radar_auth_token', 'demo_active_token_' + Date.now());
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+    setUser(demoUser);
     setIsAuthenticated(true);
+    setAuthLoading(false);
   };
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -240,24 +311,92 @@ export default function App() {
           <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif] pb-20 pt-20" dir="rtl">
             <InstallationBar />
 
-            {/* Main Dashboard UI ... */}
-            <div className="p-10 text-center text-slate-400">
-              {isOwner && (
-                <button onClick={() => setShowOwnerDashboard(true)} className="p-6 mb-6 w-full bg-amber-900/30 border border-amber-500/50 text-amber-100 rounded-2xl font-bold shadow-lg hover:bg-amber-800/40 transition">
-                  👑 الدخول إلى لوحة تحكم المالك (إدارة النظام والوكالة بالكامل)
+            {/* Merchant Top Header Navigation Tabs */}
+            <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
+                <button
+                  onClick={() => setActiveWorkspaceTab('merchants')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'merchants' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>لوحة التاجر</span>
                 </button>
-              )}
-              {isTrialExpired && (
-                <div className="p-6 mb-6 bg-red-900/30 border border-red-500/50 text-red-100 rounded-2xl font-bold shadow-lg">
-                  ⚠️ انتهت الفترة التجريبية. يرجى الترقية للاشتراك المدفوع للحفاظ على الوصول للميزات المتقدمة.
-                  <button onClick={() => setIsPaymentModalOpen(true)} className="block mt-4 mx-auto px-6 py-2 bg-red-600 text-white rounded-full">ترقية الآن</button>
-                </div>
-              )}
-              <h1 className="text-2xl font-bold text-white mb-4">أهلاً بك في لوحة تحكم التاجر</h1>
-              <p>التجربة التجريبية فعالة حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</p>
-              <button onClick={() => setIsPaymentModalOpen(true)} className="mt-4 ml-2 p-2 bg-amber-900/50 rounded-lg hover:bg-amber-800/50">اشتراك / تجديد</button>
-              <button onClick={() => firebaseSignOut(auth)} className="mt-4 p-2 bg-red-900/50 rounded-lg hover:bg-red-800/50">تسجيل الخروج</button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('radar')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'radar' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>الرادار والأسعار</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('ai_studio')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'ai_studio' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>استوديو الذكاء الاصطناعي</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('help')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'help' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>دليل الربط والدعم</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={handleSignOut} 
+                  className="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-500/30 rounded-lg text-xs font-bold transition"
+                >
+                  تسجيل الخروج
+                </button>
+              </div>
             </div>
+
+            {/* Main Content Area */}
+            {activeWorkspaceTab === 'help' ? (
+              <HelpPage />
+            ) : (
+              <div className="p-10 text-center text-slate-400">
+                {isOwner && (
+                  <button onClick={() => setShowOwnerDashboard(true)} className="p-6 mb-6 w-full bg-amber-900/30 border border-amber-500/50 text-amber-100 rounded-2xl font-bold shadow-lg hover:bg-amber-800/40 transition">
+                    👑 الدخول إلى لوحة تحكم المالك (إدارة النظام والوكالة بالكامل)
+                  </button>
+                )}
+                {isTrialExpired && (
+                  <div className="p-6 mb-6 bg-red-900/30 border border-red-500/50 text-red-100 rounded-2xl font-bold shadow-lg">
+                    ⚠️ انتهت الفترة التجريبية. يرجى الترقية للاشتراك المدفوع للحفاظ على الوصول للميزات المتقدمة.
+                    <button onClick={() => setIsPaymentModalOpen(true)} className="block mt-4 mx-auto px-6 py-2 bg-red-600 text-white rounded-full">ترقية الآن</button>
+                  </div>
+                )}
+                <h1 className="text-2xl font-bold text-white mb-4">أهلاً بك في لوحة تحكم التاجر</h1>
+                <p className="mb-6">التجربة التجريبية فعالة حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</p>
+                <div className="flex justify-center gap-4">
+                  <button onClick={() => setIsPaymentModalOpen(true)} className="p-3 bg-amber-900/50 hover:bg-amber-800/50 text-amber-200 font-bold rounded-xl border border-amber-500/30">اشتراك / تجديد</button>
+                  <button onClick={() => setActiveWorkspaceTab('help')} className="p-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-md">فتح دليل الربط والدعم</button>
+                </div>
+              </div>
+            )}
             
             {/* Bottom Tab Bar (Mobile) */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around p-3 z-40">
@@ -269,6 +408,9 @@ export default function App() {
               </button>
               <button onClick={() => setActiveWorkspaceTab('ai_studio')} className={`flex flex-col items-center ${activeWorkspaceTab === 'ai_studio' ? 'text-amber-500' : 'text-slate-400'}`}>
                 <Sparkles size={24} /> <span className="text-[10px]">الاستوديو</span>
+              </button>
+              <button onClick={() => setActiveWorkspaceTab('help')} className={`flex flex-col items-center ${activeWorkspaceTab === 'help' ? 'text-amber-500' : 'text-slate-400'}`}>
+                <BookOpen size={24} /> <span className="text-[10px]">الدليل</span>
               </button>
             </div>
           </div>
