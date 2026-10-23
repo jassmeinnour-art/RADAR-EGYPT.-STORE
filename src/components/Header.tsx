@@ -74,8 +74,10 @@ import { useTheme } from '../context/ThemeContext';
 import { useAsyncOperations } from '../context/AsyncOperationsContext';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 import { LiveUpdateNotification } from './LiveUpdateNotification';
+import { LiveStatusIndicator } from './LiveStatusIndicator';
 import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
+import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { RadarBrandLogo } from './RadarBrandLogo';
 
 interface HeaderProps {
@@ -446,6 +448,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="text-sky-400 font-bold font-mono tabular-nums">{activePlatformsCount}/{connectedPlatforms.length}</span>
               <span>منصات متصلة بالتاجر</span>
+              <LiveStatusIndicator variant="compact" showLatency={true} />
             </div>
             <span className="text-slate-600 hidden sm:inline">·</span>
             <div className="hidden sm:flex items-center gap-1.5">
@@ -506,6 +509,7 @@ export const Header: React.FC<HeaderProps> = ({
                       title={`التبديل إلى مساحة عمل ${merch.storeName} (${storeCount} متاجر مرتبطة)`}
                     >
                       <span>{merch.storeName}</span>
+                      <LiveStatusIndicator storeId={merch.id} storeName={merch.storeName} variant="compact" showLatency={false} />
                       <span
                         className={`text-[9px] font-mono px-1 py-0.2 rounded ${
                           isCurrent ? 'bg-[#08090D]/20 text-[#08090D] font-black' : 'bg-slate-800 text-sky-300/90'
@@ -689,6 +693,45 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <RefreshCw className={`w-4 h-4 shrink-0 text-[#000000] ${isPlatformSyncing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">سحب الطلبات</span>
+            </button>
+
+            {/* Global Search Bar (Request 3: Instant filtering) */}
+            <div className="relative h-10 min-w-[200px] lg:min-w-[300px] hidden md:block">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="بحث سريع في المنتجات (الاسم أو الكود)..."
+                onChange={(e) => {
+                  window.dispatchEvent(new CustomEvent('merchant_global_search', { detail: { query: e.target.value } }));
+                }}
+                className="w-full h-full pr-9 pl-4 rounded-xl bg-[#F8FAFC] border-2 border-[#000000] text-xs font-bold text-[#000000] placeholder:text-slate-500 focus:outline-none focus:bg-white transition-all shadow-xs"
+              />
+            </div>
+
+            {/* Quick Dark/Light Mode Toggle Button */}
+            <button
+              type="button"
+              id="btn-header-toggle-dark-mode"
+              onClick={() => {
+                toggleColorMode();
+                if (onShowToast) {
+                  onShowToast(resolvedColorMode === 'dark' ? '☀️ تم التبديل إلى الوضع النهاري (Light Mode)' : '🌙 تم التبديل إلى الوضع الليلي لراحة العين (Dark Mode)');
+                }
+              }}
+              className="h-10 px-3 flex items-center justify-center gap-1.5 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+              title={resolvedColorMode === 'dark' ? "التبديل للوضع النهاري (Light Mode)" : "التبديل للوضع الليلي لراحة العين (Dark Mode)"}
+            >
+              {resolvedColorMode === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="hidden md:inline text-xs font-bold">وضع نهاري ☀️</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span className="hidden md:inline text-xs font-bold">وضع ليلي 🌙</span>
+                </>
+              )}
             </button>
 
             {/* Cloud Database & Authentication Widget */}
@@ -1357,131 +1400,11 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Edit Store Profile Modal */}
         {isEditProfileModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-right">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <button 
-                  onClick={() => setIsEditProfileModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer p-1"
-                >
-                  ✕
-                </button>
-                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <Store className="w-5 h-5 text-indigo-600" />
-                  إعدادات المتجر وقاعدة البيانات
-                </h3>
-              </div>
-
-              <form onSubmit={handleSaveStoreProfile} className="mt-4 space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">اسم المتجر التجاري</label>
-                  <input
-                    type="text"
-                    value={editStoreName}
-                    onChange={(e) => setEditStoreName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-800 font-medium"
-                    placeholder="مثال: متجر التقنية المصرية الحديثة"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">المدينة / المقر الرئيسي</label>
-                  <select
-                    value={editCity}
-                    onChange={(e) => setEditCity(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-800 font-medium cursor-pointer"
-                  >
-                    <option value="القاهرة">القاهرة (وسط البلد / العتبة / مدينة نصر)</option>
-                    <option value="الجيزة">الجيزة (الدقي / المهندسين / الهرم)</option>
-                    <option value="الإسكندرية">الإسكندرية (المنشية / سموحة)</option>
-                    <option value="طنطا">طنطا والغربية</option>
-                    <option value="المنصورة">المنصورة والدقهلية</option>
-                    <option value="بورسعيد">بورسعيد (المنطقة الحرة)</option>
-                    <option value="أسيوط">أسيوط والصعيد</option>
-                  </select>
-                </div>
-
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                    <Cloud className="w-3.5 h-3.5 text-indigo-600" />
-                    المزامنة السحابية الفورية
-                  </div>
-                  <p>
-                    يتم حفظ قوائم المراقبة والأسعار المحدثة وتصاميم الاستوديو في قاعدة بيانات Firestore السحابية المرتبطة بحسابك بشكل فوري.
-                  </p>
-                </div>
-
-                {/* Primary Colors Customization in Store Settings */}
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                      <Palette className="w-3.5 h-3.5" style={{ color: currentTheme.primaryHex }} />
-                      <span>ألوان لوحة التحكم (Primary Colors)</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditProfileModalOpen(false);
-                        setIsThemeModalOpen(true);
-                      }}
-                      id="btn-settings-open-full-theme-modal"
-                      className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <span>تخصيص كامل</span>
-                      <ChevronLeft className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    النسق الحالي: <strong className="text-slate-800">{currentTheme.name}</strong>. انقر لاختيار لون رئيسي جديد فوراً (يُحفظ تلقائياً في localStorage):
-                  </p>
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 pt-1">
-                    {allThemes.map((t) => {
-                      const isSelected = currentTheme.id === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setPrimaryTheme(t.id);
-                            if (onShowToast) {
-                              onShowToast(`تم تغيير اللون الرئيسي إلى: ${t.name} (حُفظ في localStorage) 🎨`);
-                            }
-                          }}
-                          className={`h-8 rounded-xl border flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
-                            isSelected
-                              ? 'ring-2 ring-offset-2 ring-slate-800 scale-105'
-                              : 'hover:scale-105 border-slate-200 opacity-85 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: t.primaryHex }}
-                          title={`${t.name} (${t.nameEn})`}
-                        >
-                          {isSelected && <span className="text-white text-xs font-black">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSavingProfile}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {isSavingProfile ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditProfileModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <ProfileSettingsModal 
+            isOpen={isEditProfileModalOpen}
+            onClose={() => setIsEditProfileModalOpen(false)}
+            onShowToast={onShowToast}
+          />
         )}
 
       </div>

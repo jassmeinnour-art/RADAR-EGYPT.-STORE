@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 export type PrimaryThemeId = 
   | 'sky'
@@ -238,31 +238,72 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'sky';
   });
 
-  // Always default to 'light' for Pure White (#FFFFFF) background & Solid Black (#000000) typography
-  const [colorMode, setColorModeState] = useState<ColorModePreference>('light');
-  const [systemColorScheme] = useState<ResolvedColorMode>('light');
+  // Color mode preference state with localStorage persistence
+  const [colorMode, setColorModeState] = useState<ColorModePreference>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_COLOR_MODE_KEY);
+        if (saved === 'dark' || saved === 'light' || saved === 'system') {
+          return saved as ColorModePreference;
+        }
+      } catch {}
+    }
+    return 'light';
+  });
+
+  const [systemColorScheme, setSystemColorScheme] = useState<ResolvedColorMode>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  });
+
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
 
+  // Listen to OS system color scheme changes
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setSystemColorScheme(e.matches ? 'dark' : 'light');
+    };
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, []);
+
   const currentTheme = THEME_PRESETS.find(t => t.id === currentThemeId) || THEME_PRESETS[0];
-  const resolvedColorMode: ResolvedColorMode = 'light';
+
+  const resolvedColorMode: ResolvedColorMode = useMemo(() => {
+    if (colorMode === 'system') {
+      return systemColorScheme;
+    }
+    return colorMode;
+  }, [colorMode, systemColorScheme]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     try {
       const root = document.documentElement;
-      root.setAttribute('data-color-mode', 'light');
-      root.setAttribute('data-color-mode-preference', 'light');
-      root.style.colorScheme = 'light';
+      root.setAttribute('data-color-mode', resolvedColorMode);
+      root.setAttribute('data-color-mode-preference', colorMode);
+      root.style.colorScheme = resolvedColorMode;
 
-      root.classList.add('light', 'theme-light');
-      root.classList.remove('dark', 'theme-dark');
+      if (resolvedColorMode === 'dark') {
+        root.classList.add('dark', 'theme-dark');
+        root.classList.remove('light', 'theme-light');
+      } else {
+        root.classList.add('light', 'theme-light');
+        root.classList.remove('dark', 'theme-dark');
+      }
 
-      localStorage.setItem(LOCAL_STORAGE_COLOR_MODE_KEY, 'light');
+      localStorage.setItem(LOCAL_STORAGE_COLOR_MODE_KEY, colorMode);
     } catch {
       // safe fallback
     }
-  }, [colorMode]);
+  }, [colorMode, resolvedColorMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -271,22 +312,35 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const root = document.documentElement;
       root.setAttribute('data-primary-theme', currentTheme.id);
 
-      root.style.setProperty('--primary-color', '#000000');
-      root.style.setProperty('--primary-hover', '#1E293B');
-      root.style.setProperty('--primary-active', '#0F172A');
-      root.style.setProperty('--primary-light', '#F8FAFC');
-      root.style.setProperty('--primary-light-hover', '#F1F5F9');
-      root.style.setProperty('--primary-border', '#000000');
-      root.style.setProperty('--primary-text', '#000000');
-      root.style.setProperty('--primary-chart-stroke', '#000000');
-      root.style.setProperty('--primary-chart-fill', '#000000');
-      root.style.setProperty('--primary-chart-light', '#F8FAFC');
+      if (resolvedColorMode === 'dark') {
+        root.style.setProperty('--primary-color', '#38BDF8');
+        root.style.setProperty('--primary-hover', '#0284C7');
+        root.style.setProperty('--primary-active', '#0369A1');
+        root.style.setProperty('--primary-light', '#0F172A');
+        root.style.setProperty('--primary-light-hover', '#1E293B');
+        root.style.setProperty('--primary-border', '#38BDF8');
+        root.style.setProperty('--primary-text', '#F8FAFC');
+        root.style.setProperty('--primary-chart-stroke', '#38BDF8');
+        root.style.setProperty('--primary-chart-fill', '#38BDF8');
+        root.style.setProperty('--primary-chart-light', '#0F172A');
+      } else {
+        root.style.setProperty('--primary-color', '#000000');
+        root.style.setProperty('--primary-hover', '#1E293B');
+        root.style.setProperty('--primary-active', '#0F172A');
+        root.style.setProperty('--primary-light', '#F8FAFC');
+        root.style.setProperty('--primary-light-hover', '#F1F5F9');
+        root.style.setProperty('--primary-border', '#000000');
+        root.style.setProperty('--primary-text', '#000000');
+        root.style.setProperty('--primary-chart-stroke', '#000000');
+        root.style.setProperty('--primary-chart-fill', '#000000');
+        root.style.setProperty('--primary-chart-light', '#F8FAFC');
+      }
 
       localStorage.setItem(LOCAL_STORAGE_THEME_KEY, currentTheme.id);
     } catch {
       // safe fallback
     }
-  }, [currentTheme]);
+  }, [currentTheme, resolvedColorMode]);
 
   const setPrimaryTheme = (themeId: PrimaryThemeId) => {
     if (THEME_PRESETS.some(t => t.id === themeId)) {
@@ -301,17 +355,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setColorModeState('light');
   };
 
-  const setColorMode = (_mode: ColorModePreference) => {
-    setColorModeState('light');
+  const setColorMode = (mode: ColorModePreference) => {
+    setColorModeState(mode);
   };
 
   const toggleColorMode = () => {
-    setColorModeState('light');
+    setColorModeState(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   const cycleColorMode = (): ColorModePreference => {
-    setColorModeState('light');
-    return 'light';
+    let next: ColorModePreference = 'light';
+    if (colorMode === 'light') next = 'dark';
+    else if (colorMode === 'dark') next = 'system';
+    else next = 'light';
+
+    setColorModeState(next);
+    return next;
   };
 
   return (

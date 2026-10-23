@@ -31,6 +31,19 @@
             return true;
           }
         }, true);
+
+        // Early theme detection to prevent flash of unstyled content
+        try {
+          var savedMode = localStorage.getItem('radar_global_color_mode_v7_offwhite_black') || 'light';
+          var isDark = savedMode === 'dark' || (savedMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark', 'theme-dark');
+            document.documentElement.classList.remove('light', 'theme-light');
+          } else {
+            document.documentElement.classList.add('light', 'theme-light');
+            document.documentElement.classList.remove('dark', 'theme-dark');
+          }
+        } catch(e) {}
       })();
     </script>
     

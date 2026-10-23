@@ -1,4 +1,12 @@
-﻿User-agent: *
+User-agent: *
 Allow: /
 
-Sitemap: https://merchant-radar-egypt.vercel.app/sitemap.xml
+# Disallow admin/private
+Disallow: /admin/
+Disallow: /api/private/
+
+# Sitemap
+Sitemap: https://radaregypt.store/sitemap.xml
+
+# Crawl-delay for performance
+Crawl-delay: 1

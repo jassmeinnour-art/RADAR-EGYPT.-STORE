@@ -80,6 +80,7 @@ import { WarehouseStockTransferModal } from './WarehouseStockTransferModal';
 import { OptimalReorderAdvisorModal } from './OptimalReorderAdvisorModal';
 import { ProactiveInventoryAlertsDrawer } from './ProactiveInventoryAlertsDrawer';
 import { safeOpenUrl } from '../utils/safeWindowOpen';
+import { syncInventoryAcrossPlatforms } from '../services/inventorySyncService';
 
 interface InventoryTrackerProps {
   products: ProductData[];
@@ -398,10 +399,17 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
     onUpdateInventory(updated);
     saveStoredInventory(updated);
+    if (delta < 0) {
+      syncInventoryAcrossPlatforms(productId, Math.abs(delta), 'manual_update', updated, onUpdateInventory);
+    }
   };
 
   // Handler for direct manual stock input
   const handleDirectStockChange = (productId: string, val: number) => {
+    const oldItem = inventory.find(i => i.productId === productId);
+    const oldStock = oldItem ? oldItem.currentStock : 0;
+    const delta = oldStock - val; // Positive if stock decreased (sold)
+
     const validVal = isNaN(val) ? 0 : Math.max(0, Math.floor(val));
     const updated = inventory.map(item => {
       if (item.productId === productId) {
@@ -432,6 +440,9 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
     onUpdateInventory(updated);
     saveStoredInventory(updated);
+    if (delta > 0) {
+      syncInventoryAcrossPlatforms(productId, delta, 'manual_direct_update', updated, onUpdateInventory);
+    }
   };
 
   // Save modified min reorder level and suggested reorder qty

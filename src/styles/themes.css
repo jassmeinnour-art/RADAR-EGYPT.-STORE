@@ -1,11 +1,10 @@
 /* ==========================================================================
-   Gentle Off-White (#F8FAFC) Glare-Free Background, Solid Black (#000000) Typography,
-   and Logo-Matching Dark Button Borders
+   Merchant Radar Theme Variables (Light & Dark Mode)
    ========================================================================== */
 :root,
 html,
-html[data-color-mode="light"],
-html[data-color-mode="dark"] {
+html.light,
+html[data-color-mode="light"] {
   --logo-brand-color: #000000;
   --logo-brand-hover: #1E293B;
   --logo-brand-active: #0F172A;
@@ -29,8 +28,34 @@ html[data-color-mode="dark"] {
   --app-border-color: #000000;
 }
 
+html.dark,
+html[data-color-mode="dark"] {
+  --logo-brand-color: #38BDF8;
+  --logo-brand-hover: #0284C7;
+  --logo-brand-active: #0369A1;
+  --logo-brand-active-bg: #1E293B;
+  --primary-color: #38BDF8;
+  --primary-hover: #0284C7;
+  --primary-active: #0369A1;
+  --primary-light: #0F172A;
+  --primary-light-hover: #1E293B;
+  --primary-border: #38BDF8;
+  --primary-text: #F8FAFC;
+  --primary-chart-stroke: #38BDF8;
+  --primary-chart-fill: #38BDF8;
+  --primary-chart-light: #0F172A;
+
+  --app-bg-primary: #0B0F17;
+  --app-bg-surface: #0F172A;
+  --app-bg-card: #1E293B;
+  --app-text-primary: #F8FAFC;
+  --app-text-secondary: #CBD5E1;
+  --app-border-color: #334155;
+}
+
 /* Dedicated Theme Helper Classes */
-.theme-primary-btn {
+html.light .theme-primary-btn,
+html:not(.dark) .theme-primary-btn {
   background-color: #F8FAFC !important;
   background-image: none !important;
   color: #000000 !important;
@@ -39,34 +64,40 @@ html[data-color-mode="dark"] {
   transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 
-.theme-primary-btn:hover {
+html.light .theme-primary-btn:hover,
+html:not(.dark) .theme-primary-btn:hover {
   background-color: #F1F5F9 !important;
   color: #000000 !important;
   border: 3px solid #000000 !important;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18) !important;
 }
 
-.theme-primary-btn:active,
-.theme-primary-btn[aria-pressed="true"],
-.theme-primary-btn[aria-selected="true"],
-.theme-primary-btn[data-state="active"] {
-  background-color: #CBD5E1 !important;
-  color: #000000 !important;
-  border: 3.5px solid #000000 !important;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 0, 0, 0.2) !important;
-  transform: translateY(1px) scale(0.98);
+html.dark .theme-primary-btn {
+  background-color: #1E293B !important;
+  background-image: none !important;
+  color: #F8FAFC !important;
+  border: 2px solid #38BDF8 !important;
+  outline-color: #38BDF8 !important;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+
+html.dark .theme-primary-btn:hover {
+  background-color: #0F172A !important;
+  color: #38BDF8 !important;
+  border: 2px solid #38BDF8 !important;
+  box-shadow: 0 3px 10px rgba(56, 189, 248, 0.25) !important;
 }
 
 .theme-primary-light-badge {
-  background-color: #F8FAFC !important;
-  color: #000000 !important;
-  border: 2px solid #000000 !important;
+  background-color: var(--app-bg-card) !important;
+  color: var(--app-text-primary) !important;
+  border: 2px solid var(--app-border-color) !important;
 }
 
 .theme-primary-text {
-  color: #000000 !important;
+  color: var(--app-text-primary) !important;
 }
 
 .theme-primary-border {
-  border-color: #000000 !important;
+  border-color: var(--app-border-color) !important;
 }

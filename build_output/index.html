@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <script>
+      (function() {
+        function isViteWsError(err) {
+          if (!err) return false;
+          var str = (err.message || '') + ' ' + (err.stack || '') + ' ' + String(err);
+          var lower = str.toLowerCase();
+          return lower.indexOf('websocket') !== -1 ||
+                 lower.indexOf('@vite/client') !== -1 ||
+                 lower.indexOf('modulerunnertransport') !== -1 ||
+                 lower.indexOf('createwebsocketmodulerunnertransport') !== -1 ||
+                 lower.indexOf('ws://') !== -1 ||
+                 lower.indexOf('wss://') !== -1;
+        }
+        window.addEventListener('error', function(e) {
+          if (isViteWsError(e.error) || isViteWsError(e.message)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          if (isViteWsError(e.reason)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        // Early theme detection to prevent flash of unstyled content
+        try {
+          var savedMode = localStorage.getItem('radar_global_color_mode_v7_offwhite_black') || 'light';
+          var isDark = savedMode === 'dark' || (savedMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark', 'theme-dark');
+            document.documentElement.classList.remove('light', 'theme-light');
+          } else {
+            document.documentElement.classList.add('light', 'theme-light');
+            document.documentElement.classList.remove('dark', 'theme-dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
+    
+    <!-- Critical Preconnects -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" />
+    
+    <!-- Preload Critical Assets -->
+    <link rel="preload" href="/pwa-192x192.png" as="image" fetchpriority="high" />
+    
+    <title>رادار التاجر الذكي - تحليل السوق المصري</title>
+    <meta name="description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري. راقب أسعار المنافسين، تتبع المنتجات، واتخذ قرارات ذكية." />
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://radaregypt.store/" />
+    <meta property="og:title" content="رادار التاجر الذكي - RADAR" />
+    <meta property="og:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة - رصد فوري لأسعار المنتجات في السوق المصري" />
+    <meta property="og:image" content="https://radaregypt.store/pwa-512x512.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/pwa-512x512.png" />
+    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
+    <script type="module" crossorigin src="/assets/index-BVlTuF9t.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-lq8XHiz5.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

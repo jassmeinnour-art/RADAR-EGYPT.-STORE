@@ -62,6 +62,8 @@ import {
   saveStoredPricingPlan,
 } from '../data/pricingGuardrailsData';
 import { exportSingleProductFullAuditCSV } from '../utils/csvProductManager';
+import { ExportReportsButton } from './ExportReportsButton';
+import { exportSingleProductCompetitorsToSpreadsheet } from '../utils/competitorPriceExport';
 import { useTheme } from '../context/ThemeContext';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 
@@ -405,6 +407,29 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
     if (filterPlatform === 'all') return true;
     return offer.platform === filterPlatform;
   });
+
+  const [isExportingCompetitors, setIsExportingCompetitors] = useState(false);
+
+  const handleExportCompetitors = (format: 'xlsx' | 'csv') => {
+    setIsExportingCompetitors(true);
+    try {
+      const currentMerchantPrice = product.suggestedRetailPrice || winningPrice;
+      const result = exportSingleProductCompetitorsToSpreadsheet(
+        product.title,
+        currentMerchantPrice,
+        filteredOffers,
+        format,
+        currency
+      );
+      if (onShowToast) {
+        onShowToast(`📊 تم تصدير قائمة أسعار المنافسين (${result.rowCount} منافس) بصيغة ${format.toUpperCase()}`);
+      }
+    } catch (err) {
+      console.error('Competitor export error:', err);
+    } finally {
+      setIsExportingCompetitors(false);
+    }
+  };
 
   const discountPresets = [
     { value: 2, label: '-2%', desc: 'أقل بفارق بسيط' },
@@ -1132,18 +1157,15 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
               )}
 
-              <button
-                onClick={() => {
-                  exportSingleProductFullAuditCSV(product);
-                  if (onShowToast) onShowToast(`تم تصدير تدقيق منتج ${product.title.substring(0, 20)}... إلى ملف Excel / CSV 📊`);
-                }}
-                id="btn-export-single-product-radar-csv"
-                className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs"
-                title="تصدير بيانات وأسعار المنافسين وسجل التغيرات لهذا المنتج إلى Excel"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>تصدير تقرير المنتج (Excel)</span>
-              </button>
+              {/* Export Reports Button (Excel .xlsx / CSV via xlsx) */}
+              <ExportReportsButton
+                onExport={handleExportCompetitors}
+                isLoading={isExportingCompetitors}
+                count={filteredOffers.length}
+                variant="emerald"
+                buttonLabel="تصدير التقارير"
+                tooltip="تحميل قائمة الأسعار الحالية للمنافسين لهذا المنتج بصيغة Excel أو CSV باستخدام مكتبة xlsx"
+              />
 
               {/* Theme Colors Switcher Button */}
               <button

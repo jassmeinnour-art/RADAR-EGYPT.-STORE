@@ -4678,6 +4678,82 @@ app.all('/api/*', (req, res) => {
   });
 });
 
+// Endpoint: AI Background Removal & Image Re-imagining (Gemini Powered)
+app.post('/api/remove-bg-ai', async (req, res) => {
+  try {
+    const { imageBase64, productTitle = 'منتج' } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'يرجى تقديم صورة للمنتج' });
+
+    const systemPrompt = `You are a professional Product Image Editor AI. 
+    Analyze the provided image and describe exactly how to remove the background and isolate the product "${productTitle}".
+    Provide a JSON response with:
+    1. "isolationDescription": Precise description of the foreground object.
+    2. "transparencyMaskData": (Mocked) simulated mask instructions.
+    3. "recommendedBackdrop": Best professional backdrop type for this specific item.
+    4. "lightingAdjustment": Suggested brightness/contrast to make it look studio-grade.`;
+
+    const response = await generateWithGeminiFallback({
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: imageBase64.replace(/^data:[^;]+;base64,/, '') } },
+          { text: `Process this product image for background removal and isolation: ${productTitle}` }
+        ]
+      },
+      systemInstruction: systemPrompt,
+      responseMimeType: 'application/json',
+    });
+
+    res.json({ success: true, data: JSON.parse(response.text) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Endpoint: AI Egyptian Decor Backdrop Generator (DALL-E style prompt generation)
+app.post('/api/generate-egyptian-backdrop-ai', async (req, res) => {
+  try {
+    const { productTitle, category, style = 'warm_wood' } = req.body;
+
+    const styleMap: Record<string, string> = {
+      'warm_wood': 'خامات خشبية دافئة، أرابيسك مصري أصيل، إضاءة ذهبية هادئة',
+      'modern_cairo': 'منزل عصري في القاهرة، نوافذ كبيرة، إضاءة نهارية طبيعية، ديكور مودرن مصري',
+      'luxury_marble': 'رخام فاخر، تحف نحاسية مصرية، إضاءة استوديو احترافية',
+      'rustic_village': 'طابع ريفي مصري، جدران طينية مزخرفة، منسوجات يدوية دافئة'
+    };
+
+    const selectedStyle = styleMap[style] || styleMap['warm_wood'];
+
+    const systemPrompt = `You are an interior designer and product photographer specialized in the Egyptian market.
+    Generate a professional visual description (Prompt) for an AI Image Generator to create a backdrop for: "${productTitle}" (${category}).
+    Style: ${selectedStyle}.
+    Return JSON:
+    1. "imagePrompt": Full English prompt for DALL-E/Midjourney.
+    2. "arDescription": Elegant Arabic description of the backdrop.
+    3. "recommendedFilters": CSS filter values to apply to the product to match this backdrop (brightness, contrast, sepia, etc.).
+    4. "backdropUrl": A high-quality placeholder URL from Unsplash matching this style.`;
+
+    const response = await generateWithGeminiFallback({
+      contents: `Generate an Egyptian decor backdrop for: ${productTitle} in ${style} style.`,
+      systemInstruction: systemPrompt,
+      responseMimeType: 'application/json',
+    });
+
+    const data = JSON.parse(response.text);
+    // Add real high-quality Unsplash fallbacks based on style
+    const placeholders: Record<string, string> = {
+      'warm_wood': 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=1200&auto=format&fit=crop&q=80',
+      'modern_cairo': 'https://images.unsplash.com/photo-1616489953149-805c86259098?w=1200&auto=format&fit=crop&q=80',
+      'luxury_marble': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
+      'rustic_village': 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=1200&auto=format&fit=crop&q=80'
+    };
+    data.backdropUrl = data.backdropUrl || placeholders[style] || placeholders['warm_wood'];
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Static public folder serving & Vite middleware in development
 app.use(express.static(path.join(process.cwd(), 'public')));
 

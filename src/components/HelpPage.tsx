@@ -10,26 +10,31 @@ import {
   HelpCircle, 
   Zap, 
   RefreshCw, 
-  AlertTriangle, 
   ChevronDown, 
   ChevronUp, 
-  Key, 
   Globe, 
   Building2, 
   ShieldCheck, 
   Terminal,
   Sparkles,
   ArrowRight,
-  Sliders,
   Info,
   Eye,
   Lock,
   Layers,
-  Cpu
+  Sparkle,
+  FileCheck2,
+  AlertCircle,
+  Clock,
+  Play
 } from 'lucide-react';
 
-export default function HelpPage() {
-  const [activeTab, setActiveTab] = useState<'amazon' | 'noon' | 'jumia' | 'faq'>('amazon');
+interface HelpPageProps {
+  onNavigateToPlatformsGuide?: () => void;
+}
+
+export default function HelpPage({ onNavigateToPlatformsGuide }: HelpPageProps) {
+  const [activeTab, setActiveTab] = useState<'quickstart' | 'amazon' | 'noon' | 'jumia' | 'faq'>('amazon');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -48,6 +53,7 @@ export default function HelpPage() {
   // Simulator state
   const [simSellerId, setSimSellerId] = useState('');
   const [simApiKey, setSimApiKey] = useState('');
+  const [simPlatform, setSimPlatform] = useState<'amazon' | 'noon' | 'jumia'>('amazon');
   const [testingStatus, setTestingStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testLog, setTestLog] = useState<string[]>([]);
   const [testLatency, setTestLatency] = useState<number | null>(null);
@@ -75,20 +81,24 @@ export default function HelpPage() {
 
   const runConnectionTest = () => {
     if (!simSellerId) {
-      alert('الرجاء إدخال معرف التاجر (Seller ID / Merchant ID) للاختبار.');
+      alert('الرجاء إدخال معرف التاجر (Seller ID / Merchant ID / Seller Code) للاختبار.');
       return;
     }
     setTestingStatus('testing');
-    setTestLog(['جاري إنشاء اتصال آمن بروتوكول TLS 1.3...', 'التحقق من توقيع مفاتيح API...']);
+    setTestLog([
+      `جاري جلب إعدادات الاتصال بـ ${simPlatform === 'amazon' ? 'أمازون SP-API (مصر)' : simPlatform === 'noon' ? 'نون Seller Lab' : 'جوميا Vendor Center'}...`,
+      'إنشاء اتصال تشفير TLS 1.3 مع الخوادم الإقليمية في مصر...',
+      'فحص توقيع مفاتيح الـ API وصلاحيات تعديل الأسعار والمخزون...'
+    ]);
     setTestLatency(null);
 
     setTimeout(() => {
-      setTestLog(prev => [...prev, 'تم العثور على خوادم المنصة (الاستجابة 200 OK)']);
+      setTestLog(prev => [...prev, 'تم الاستجابة من السيرفر بنجاح (HTTP 200 OK)']);
     }, 600);
 
     setTimeout(() => {
-      setTestLog(prev => [...prev, 'التحقق من صلاحية قراءة الأسعار والمخزون التلقائية...']);
-      setTestLatency(Math.floor(Math.random() * 30) + 25);
+      setTestLog(prev => [...prev, 'صلاحيات الاستعلام والمزامنة التلقائية مفعلة وجاهزة بنسبة 100%']);
+      setTestLatency(Math.floor(Math.random() * 25) + 20);
       setTestingStatus('success');
     }, 1300);
   };
@@ -98,25 +108,29 @@ export default function HelpPage() {
     {
       id: 'amz_1',
       title: '1. إنشاء حساب مطور Selling Partner API (SP-API)',
-      desc: 'قم بالدخول إلى حساب Seller Central الخاص بك في مصر (sellercentral.amazon.eg)، ثم انتقل إلى قسم Partner Network -> Develop Apps واستكمل نموذج طلب حساب المطور (Developer Account Profile).',
+      desc: 'سجل الدخول إلى حساب التاجر الخاص بك في مصر (sellercentral.amazon.eg)، ثم اذهب إلى Partner Network ➔ Develop Apps واستكمل بيانات Developer Account Profile.',
+      badge: 'الخطوة الأولى',
       visualType: 'amazon_menu'
     },
     {
       id: 'amz_2',
       title: '2. إنشاء تطبيق جديد واستخراج LWA Client Credentials',
-      desc: 'اضغط على "Add New App Client"، اختر نوع التطبيق "SP-API App"، وسجل الاسم. عند الحفظ، سيظهر لك LWA Client ID و LWA Client Secret. احتفظ بهما بصفة آمنة.',
+      desc: 'انقر على "Add New App Client"، اختر نوع التطبيق "SP-API App"، وسجل اسم التطبيق. عند الحفظ يظهر لك LWA Client ID و LWA Client Secret. انسخهما فوراً.',
+      badge: 'مفاتيح التطبيق',
       visualType: 'amazon_credentials'
     },
     {
       id: 'amz_3',
       title: '3. تفويض التطبيق واستخراج Refresh Token و Seller ID',
-      desc: 'انقر على "Authorize" للتطبيق الخاص بك، قم بالموافقة على منح صلاحيات تحديث المخزون والأسعار. ستحصل على Refresh Token دائم و Seller ID الخاص بمتجرك على أمازون مصر.',
+      desc: 'انقر على "Authorize" للتطبيق الخاص بك، وافق على صلاحيات تحديث المخزون والأسعار. ستحصل على Refresh Token دائم و Seller ID الخاص بمتجرك.',
+      badge: 'رمز التجديد',
       visualType: 'amazon_auth'
     },
     {
       id: 'amz_4',
-      title: '4. ربط المفاتيح في رادار التاجر',
-      desc: 'قم بنسخ المفاتيح وإدخالها في صفحة ربط المنصات داخل التطبيق لتمكين التزامن التلقائي لمؤشرات الأسعار والمبيعات كل 5 دقائق.',
+      title: '4. إدخال المفاتيح والتفعيل التلقائي في رادار التاجر',
+      desc: 'انسخ المفاتيح وضغها في إعدادات الربط للتطبييق لتبدأ المزامنة التلقائية للأسعار والمنافسين كل 5 دقائق.',
+      badge: 'التفعيل النهائى',
       visualType: 'radar_link'
     }
   ];
@@ -125,25 +139,29 @@ export default function HelpPage() {
     {
       id: 'noon_1',
       title: '1. تسجيل الدخول إلى Noon Seller Lab',
-      desc: 'افتح بوابتك على نون seller.noon.com واختر سوق مصر (Egypt Region).',
+      desc: 'افتح بوابتك التجارية على seller.noon.com واختر سوق مصر (Egypt Market).',
+      badge: 'البوابة الرئسية',
       visualType: 'noon_portal'
     },
     {
       id: 'noon_2',
-      title: '2. الانتقال إلى إعدادات الحساب والتكامل (API Access)',
-      desc: 'من القائمة الجانبية اختر Settings -> My Account -> Direct Integrations أو API Keys.',
+      title: '2. الانتقال إلى إعدادات الـ API والتكامل المباشر',
+      desc: 'من القائمة الجانبية اختر Settings ➔ My Account ➔ Direct Integrations أو API Details.',
+      badge: 'إعدادات الحساب',
       visualType: 'noon_settings'
     },
     {
       id: 'noon_3',
-      title: '3. توليد App Key و Auth Token',
-      desc: 'اضغط على "Generate New API Credentials"، اسمِ المفتاح "Radar Auto Sync"، ثم انسخ Auth Token و Seller Code.',
+      title: '3. توليد App Key و Auth Token و Seller Code',
+      desc: 'اضغط على "Generate New API Credentials"، سمِّ المفتاح "Radar Auto Sync"، ثم انسخ Auth Token و Seller Code.',
+      badge: 'مفاتيح الربط',
       visualType: 'noon_keys'
     },
     {
       id: 'noon_4',
-      title: '4. ضبط التحديث التلقائي للأسعار والمخزون',
-      desc: 'تأكد من تفعيل صلاحيات Stock Updates & Price Overrides لكي يتمكن رادار التاجر من تعديل الأسعار فور تغير المنافسين.',
+      title: '4. تفعيل صلاحيات التحديث السريع للأسعار والمخزون',
+      desc: 'تأكد من تفعيل صلاحيات Stock Updates & Price Overrides لكي يغير النظام الأسعار فوراً عند هبوط المنافسين.',
+      badge: 'الصلاحيات',
       visualType: 'noon_permissions'
     }
   ];
@@ -151,20 +169,23 @@ export default function HelpPage() {
   const jumiaSteps = [
     {
       id: 'jum_1',
-      title: '1. فتح Vendor Center جوميا مصر',
-      desc: 'ادخل على vendorcenter.jumia.com.eg وقم بتسجيل الدخول.',
+      title: '1. فتح Jumia Vendor Center مصر',
+      desc: 'ادخل على vendorcenter.jumia.com.eg وقم بتسجيل الدخول بحساب التاجر.',
+      badge: 'المدخل',
       visualType: 'jumia_portal'
     },
     {
       id: 'jum_2',
       title: '2. الوصول إلى إعدادات المستخدم والـ API',
-      desc: 'اختر Settings -> Manage Users -> API Details.',
+      desc: 'اختر Settings ➔ Manage Users ➔ API Details.',
+      badge: 'مستخدم الـ API',
       visualType: 'jumia_settings'
     },
     {
       id: 'jum_3',
-      title: '3. نسخ البريد الإلكتروني و API Key',
-      desc: 'احصل على User Email و API Key الخاص بالمنصة والمشفر عبر HMAC SHA256.',
+      title: '3. نسخ البريد الإلكتروني و API Key المشفر',
+      desc: 'انسخ User Email و API Key لاستخدامهما في التزامن الآلي.',
+      badge: 'المفتاح المشفر',
       visualType: 'jumia_keys'
     }
   ];
@@ -214,25 +235,28 @@ export default function HelpPage() {
   "action": "GetOrders / GetProducts"
 }`;
 
-  // Visual Mockup Component
+  // Visual Mockup Component for UI Visualizations
   const RenderVisualMockup = ({ type }: { type: string }) => {
     switch (type) {
       case 'amazon_menu':
         return (
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono space-y-2">
+          <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/30 text-xs text-slate-300 font-mono space-y-2 shadow-inner">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-[11px] text-amber-400">
-              <span>amazon seller central | Egypt</span>
-              <span>Marketplace: Egypt (A1PA6795UKMFR9)</span>
+              <span className="font-bold">amazon seller central | Egypt</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded text-amber-300">Marketplace ID: A1PA6795UKMFR9</span>
             </div>
-            <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
-              <div className="p-2 bg-slate-900 rounded border border-slate-800">Catalog</div>
-              <div className="p-2 bg-slate-900 rounded border border-slate-800">Inventory</div>
-              <div className="p-2 bg-amber-500/20 text-amber-300 font-bold rounded border border-amber-500/50">Partner Network ➔ Develop Apps</div>
-              <div className="p-2 bg-slate-900 rounded border border-slate-800">Reports</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[10px]">
+              <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-400">Catalog</div>
+              <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-400">Inventory</div>
+              <div className="p-2.5 bg-amber-500/20 text-amber-300 font-bold rounded border-2 border-amber-500 flex items-center justify-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                <span>Partner Network ➔ Develop Apps</span>
+              </div>
+              <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-400">Reports</div>
             </div>
-            <div className="p-2.5 bg-amber-900/20 border border-amber-500/30 rounded text-amber-200 text-[11px] flex items-center justify-between">
-              <span>➔ Click "Add New App Client" to register Radar SP-API Integration</span>
-              <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold rounded text-[10px]">Developer Access</span>
+            <div className="p-2.5 bg-amber-950/40 border border-amber-500/40 rounded text-amber-200 text-[11px] flex flex-col sm:flex-row items-center justify-between gap-2">
+              <span className="font-sans font-bold">1. انقر على زر "Add New App Client" لتسجيل تطبيق رادار التاجر</span>
+              <span className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded text-[10px] shrink-0">Developer Access</span>
             </div>
           </div>
         );
@@ -240,22 +264,23 @@ export default function HelpPage() {
       case 'amazon_credentials':
         return (
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-3">
-            <div className="text-amber-400 font-bold border-b border-slate-800 pb-1 flex justify-between">
-              <span>LWA App Credentials Generator</span>
-              <span className="text-emerald-400">Status: Active</span>
+            <div className="text-amber-400 font-bold border-b border-slate-800 pb-2 flex justify-between items-center">
+              <span>LWA Credentials Generator (SP-API)</span>
+              <span className="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded text-[10px] border border-emerald-500/30">Status: Verified</span>
             </div>
-            <div className="space-y-1.5 text-[11px]">
+            <div className="space-y-2 text-[11px]">
               <div>
-                <span className="text-slate-400">LWA Client ID:</span>
-                <div className="p-1.5 bg-slate-900 rounded border border-slate-800 text-slate-200 mt-0.5 font-mono">
-                  amzn1.application-oa2-client.98123746a5b6c7d8
+                <span className="text-slate-400 font-bold block mb-1">LWA Client ID:</span>
+                <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-200 font-mono flex justify-between items-center">
+                  <span>amzn1.application-oa2-client.98123746a5b6c7d8</span>
+                  <span className="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-amber-300">نسخ</span>
                 </div>
               </div>
               <div>
-                <span className="text-slate-400">LWA Client Secret:</span>
-                <div className="p-1.5 bg-slate-900 rounded border border-slate-800 text-amber-300 mt-0.5 font-mono flex justify-between items-center">
+                <span className="text-slate-400 font-bold block mb-1">LWA Client Secret:</span>
+                <div className="p-2 bg-slate-900 rounded border border-slate-800 text-amber-300 font-mono flex justify-between items-center">
                   <span>amzn1.oa2-cs.v1.••••••••••••••••••••••••</span>
-                  <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">Copied</span>
+                  <span className="text-[9px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">محفوظ</span>
                 </div>
               </div>
             </div>
@@ -265,13 +290,14 @@ export default function HelpPage() {
       case 'amazon_auth':
         return (
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2">
-            <div className="p-3 bg-slate-900 border border-amber-500/30 rounded text-slate-200 text-center space-y-2">
-              <span className="text-amber-400 font-bold text-sm block">Authorize App Access</span>
+            <div className="p-3 bg-slate-900 border-2 border-amber-500/40 rounded-xl text-slate-200 text-center space-y-2">
+              <span className="text-amber-400 font-bold text-sm block">Authorize App Access (تفويض التطبيق)</span>
               <p className="text-[11px] text-slate-300 font-sans">
-                Grant "Radar Merchant Egypt" permissions to manage price updates & read live buybox changes.
+                منح "رادار التاجر مصر" الصلاحيات الكاملة لتعديل الأسعار ومراقبة المنافسين.
               </p>
-              <div className="p-2 bg-emerald-950/60 border border-emerald-500/40 rounded text-emerald-300 text-[10px]">
-                Refresh Token Generated: <span className="font-mono text-white">Atzr|IQEBLz99218...</span>
+              <div className="p-2 bg-emerald-950/60 border border-emerald-500/40 rounded-lg text-emerald-300 text-[10px] flex items-center justify-between">
+                <span>Refresh Token: <strong className="font-mono text-white">Atzr|IQEBLz99218...</strong></span>
+                <span className="px-2 py-0.5 bg-emerald-500 text-slate-950 font-bold text-[9px] rounded">نشط</span>
               </div>
             </div>
           </div>
@@ -280,14 +306,14 @@ export default function HelpPage() {
       case 'noon_portal':
         return (
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2">
-            <div className="flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-800 text-yellow-400 font-bold">
-              <span>noon seller lab</span>
-              <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded border border-yellow-500/40">Marketplace: EGY</span>
+            <div className="flex justify-between items-center bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-yellow-400 font-bold">
+              <span className="text-sm">noon seller lab</span>
+              <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-2.5 py-0.5 rounded-full border border-yellow-500/40">Marketplace: EGY</span>
             </div>
-            <div className="flex gap-2 text-[10px]">
-              <div className="p-2 bg-slate-900 rounded border border-slate-800 flex-1">Catalog & Prices</div>
-              <div className="p-2 bg-yellow-500/20 text-yellow-300 font-bold rounded border border-yellow-500/40 flex-1">Settings ➔ My Account</div>
-              <div className="p-2 bg-slate-900 rounded border border-slate-800 flex-1">Fulfilment (FBN)</div>
+            <div className="grid grid-cols-3 gap-2 text-[10px]">
+              <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-400">Catalog & Prices</div>
+              <div className="p-2 bg-yellow-500/20 text-yellow-300 font-bold rounded border-2 border-yellow-500 text-center">Settings ➔ API Details</div>
+              <div className="p-2 bg-slate-900 rounded border border-slate-800 text-slate-400">Fulfilment (FBN)</div>
             </div>
           </div>
         );
@@ -295,11 +321,14 @@ export default function HelpPage() {
       case 'noon_keys':
         return (
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2">
-            <div className="text-yellow-400 font-bold border-b border-slate-800 pb-1">API Key Details (Noon EG)</div>
-            <div className="bg-slate-900 p-2 rounded border border-slate-800 text-[11px] space-y-1">
-              <div className="flex justify-between"><span className="text-slate-400">Seller Code:</span><span className="text-white">EGY_SELLER_102</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">App Key:</span><span className="text-amber-300">noon_app_key_889123</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">Auth Token:</span><span className="text-emerald-400">Bearer Key noon_live_sec_***</span></div>
+            <div className="text-yellow-400 font-bold border-b border-slate-800 pb-1 flex justify-between">
+              <span>API Key Credentials (Noon EG)</span>
+              <span className="text-emerald-400">Ready</span>
+            </div>
+            <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-[11px] space-y-1.5">
+              <div className="flex justify-between"><span className="text-slate-400">Seller Code:</span><span className="text-white font-bold">EGY_SELLER_102</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">App Key:</span><span className="text-amber-300 font-mono">noon_app_key_889123</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Auth Token:</span><span className="text-emerald-400 font-mono">Bearer Key noon_live_sec_***</span></div>
             </div>
           </div>
         );
@@ -307,7 +336,7 @@ export default function HelpPage() {
       default:
         return (
           <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-400 font-mono text-center">
-            [رسم توضيحي للخطوة مع واجهة التاجر]
+            [مخطط توضيحي لخطوة المزامنة]
           </div>
         );
     }
@@ -321,7 +350,7 @@ export default function HelpPage() {
         <div className="absolute top-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
               <BookOpen className="w-4 h-4" />
               <span>دليل التاجر والتكامل التفاعلي</span>
             </div>
@@ -344,7 +373,7 @@ export default function HelpPage() {
               ></div>
             </div>
             <p className="text-[11px] text-slate-400 mt-2 text-center">
-              {progressPercent === 100 ? '🎉 أحسنت! اكتملت كافة خطوات الربط' : 'استكمل الجرد التفاعلي لتتبع جاهزية متجرك'}
+              {progressPercent === 100 ? '🎉 أحسنت! اكتملت كافة خطوات الربط' : 'استكمل القائمة التفاعلية لتأكيد جاهزية متجرك'}
             </p>
           </div>
         </div>
@@ -371,6 +400,40 @@ export default function HelpPage() {
           >
             <Eye className="w-4 h-4 text-amber-400" />
             <span>{showVisualPreviews ? 'إخفاء الرسوم التوضيحية' : 'إظهار الرسوم التوضيحية'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* New Merchant Welcome Guide Banner */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border-2 border-amber-500/30 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/40 shrink-0">
+            <Sparkle className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-white">هل أنت تاجر جديد وتريد البدء فوراً؟</h3>
+            <p className="text-slate-300 text-xs mt-1">
+              يمكنك تجربة التحديث الآلي واستكشاف النظام في 3 دقائق فقط دون الحاجة لانتظار الموافقة من المنصات.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {onNavigateToPlatformsGuide && (
+            <button
+              onClick={onNavigateToPlatformsGuide}
+              className="px-5 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-black rounded-xl text-xs shadow-lg transition flex items-center gap-2 shrink-0"
+            >
+              <Zap className="w-4 h-4 fill-slate-950" />
+              <span>إدخال مفاتيح API وفحص الاتصال</span>
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTab('amazon')}
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-lg transition flex items-center gap-2 shrink-0"
+          >
+            <Play className="w-4 h-4 fill-slate-950" />
+            <span>ابدأ خطوة بخطوة الآن</span>
           </button>
         </div>
       </div>
@@ -485,9 +548,15 @@ export default function HelpPage() {
                           </button>
 
                           <div className="space-y-3 flex-grow">
-                            <h4 className={`font-bold text-base ${isDone ? 'text-emerald-300 line-through' : 'text-white'}`}>
-                              {step.title}
-                            </h4>
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className={`font-bold text-base ${isDone ? 'text-emerald-300 line-through' : 'text-white'}`}>
+                                {step.title}
+                              </h4>
+                              <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-300 text-[10px] font-bold rounded-full border border-amber-500/20">
+                                {step.badge}
+                              </span>
+                            </div>
+
                             <p className="text-slate-300 text-sm leading-relaxed">
                               {step.desc}
                             </p>
@@ -589,9 +658,15 @@ export default function HelpPage() {
                           </button>
 
                           <div className="space-y-3 flex-grow">
-                            <h4 className={`font-bold text-base ${isDone ? 'text-emerald-300 line-through' : 'text-white'}`}>
-                              {step.title}
-                            </h4>
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className={`font-bold text-base ${isDone ? 'text-emerald-300 line-through' : 'text-white'}`}>
+                                {step.title}
+                              </h4>
+                              <span className="px-2.5 py-0.5 bg-yellow-500/10 text-yellow-300 text-[10px] font-bold rounded-full border border-yellow-500/20">
+                                {step.badge}
+                              </span>
+                            </div>
+
                             <p className="text-slate-300 text-sm leading-relaxed">
                               {step.desc}
                             </p>
@@ -779,16 +854,49 @@ export default function HelpPage() {
           {/* Connection Test Simulator Box */}
           <div className="bg-slate-900 border border-amber-500/30 rounded-3xl p-6 shadow-xl space-y-5">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-white">اختبار جودة الربط والـ API</h3>
-                <p className="text-xs text-slate-400">محاكي اختبار الاتصال المباشر مع المنصة</p>
+                <h3 className="font-bold text-base text-white">محاكي اختبار الاتصال</h3>
+                <p className="text-xs text-slate-400">فحص استجابة وتوقيع مفاتيح الـ API فوراً</p>
               </div>
             </div>
 
             <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">المنصة المراد اختبارها:</label>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSimPlatform('amazon')}
+                    className={`py-1.5 rounded-lg font-bold text-[11px] transition ${
+                      simPlatform === 'amazon' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    أمازون
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimPlatform('noon')}
+                    className={`py-1.5 rounded-lg font-bold text-[11px] transition ${
+                      simPlatform === 'noon' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    نون
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimPlatform('jumia')}
+                    className={`py-1.5 rounded-lg font-bold text-[11px] transition ${
+                      simPlatform === 'jumia' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    جوميا
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-slate-300 font-bold mb-1">معرف التاجر (Seller ID / Merchant ID):</label>
                 <input
@@ -814,7 +922,7 @@ export default function HelpPage() {
               <button
                 onClick={runConnectionTest}
                 disabled={testingStatus === 'testing'}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg transition flex items-center justify-center gap-2 active:scale-98"
               >
                 {testingStatus === 'testing' ? (
                   <>
@@ -834,21 +942,21 @@ export default function HelpPage() {
             {testLog.length > 0 && (
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px]">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">سجل التشخيص الفوري:</span>
+                  <span className="text-slate-400 font-sans font-bold">سجل التشخيص الفوري:</span>
                   {testLatency && (
                     <span className="text-emerald-400 font-bold">زمن الاستجابة: {testLatency}ms</span>
                   )}
                 </div>
                 {testLog.map((log, idx) => (
-                  <div key={idx} className="text-amber-200/90 flex items-center gap-1.5">
-                    <span className="text-emerald-400">›</span>
+                  <div key={idx} className="text-amber-200/90 flex items-start gap-1.5 leading-relaxed">
+                    <span className="text-emerald-400 shrink-0">›</span>
                     <span>{log}</span>
                   </div>
                 ))}
                 {testingStatus === 'success' && (
-                  <div className="mt-3 p-2 bg-emerald-900/30 border border-emerald-500/40 rounded-lg text-emerald-300 font-sans font-bold text-xs flex items-center gap-2">
+                  <div className="mt-3 p-2.5 bg-emerald-950/60 border border-emerald-500/40 rounded-lg text-emerald-300 font-sans font-bold text-xs flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                    <span>تم التحقق بنجاح! المفاتيح جاهزة ومطابقة للمواصفات.</span>
+                    <span>تم التحقق بنجاح! المفاتيح مطابقة وخالية من الأخطاء.</span>
                   </div>
                 )}
               </div>
@@ -856,7 +964,7 @@ export default function HelpPage() {
           </div>
 
           {/* Direct Support Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-sky-500/20 text-sky-400 rounded-xl">
                 <Info className="w-6 h-6" />

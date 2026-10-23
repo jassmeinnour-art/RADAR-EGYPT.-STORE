@@ -52,6 +52,8 @@ import {
   executeAutomatedRepricingForMerchant
 } from '../utils/merchantCatalogManager';
 import { loadAllRegisteredMerchants, evaluateMerchantSubscriptionState } from '../utils/platformLaunchHelper';
+import { ExportReportsButton } from './ExportReportsButton';
+import { exportMerchantCatalogPricesToSpreadsheet } from '../utils/competitorPriceExport';
 
 interface MerchantCatalogManagerProps {
   selectedMerchant?: RemoteMerchantClient | null;
@@ -500,7 +502,9 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         const inAsin = p.asin ? p.asin.toLowerCase().includes(q) : false;
         const inBrand = p.brand.toLowerCase().includes(q);
         const inCompetitor = p.lowestCompetitorName.toLowerCase().includes(q);
-        if (!inTitle && !inSku && !inAsin && !inBrand && !inCompetitor) return false;
+        const inPlatform = p.platform.toLowerCase().includes(q);
+        const inPlatformName = p.platformName.toLowerCase().includes(q);
+        if (!inTitle && !inSku && !inAsin && !inBrand && !inCompetitor && !inPlatform && !inPlatformName) return false;
       }
 
       return true;
@@ -518,6 +522,26 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const summary = useMemo(() => calculateCatalogSummary(products), [products]);
   const merchantSubState = useMemo(() => evaluateMerchantSubscriptionState(currentMerchant), [currentMerchant]);
   const isMerchantLocked = merchantSubState.isTrialExpired && !merchantSubState.isSubscribed;
+
+  const [isExportingCatalog, setIsExportingCatalog] = useState(false);
+
+  const handleExportCatalogPrices = (format: 'xlsx' | 'csv') => {
+    setIsExportingCatalog(true);
+    try {
+      const result = exportMerchantCatalogPricesToSpreadsheet(
+        filteredProducts,
+        format,
+        currentMerchant?.storeName
+      );
+      if (onShowToast) {
+        onShowToast(`📊 تم تصدير تقرير أسعار المنافسين بنجاح (${result.rowCount} منتج) بصيغة ${format.toUpperCase()}`);
+      }
+    } catch (err) {
+      console.error('Catalog export error:', err);
+    } finally {
+      setIsExportingCatalog(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -743,7 +767,8 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث بالاسم، كود SKU، رقم ASIN، أو اسم المنافس..."
+              placeholder="ابحث بالاسم، كود SKU، رقم ASIN، اسم المنافس، أو المنصة..."
+              aria-label="بحث سريع في المنتجات"
               className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
             />
           </div>
@@ -1121,6 +1146,45 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
       {/* Products & Competitors Table */}
       <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
+        
+        {/* Table Toolbar Header with Export Reports */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/70">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-lg shrink-0">
+              📊
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 font-['Alexandria']">
+                  جدول بيانات المنتجات وأسعار المنافسين
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-mono font-bold">
+                  {filteredProducts.length} منتج
+                </span>
+                {currentMerchant && (
+                  <span className="text-xs text-slate-500 font-bold hidden sm:inline">
+                    • متجر: {currentMerchant.storeName}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                مراقبة حية لأسعار أمازون ونون، رصد الـ Buy Box، وهوامش فارق السعر التنافسي
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+            {/* Export Reports Button (Excel / CSV via xlsx) */}
+            <ExportReportsButton
+              onExport={handleExportCatalogPrices}
+              isLoading={isExportingCatalog}
+              count={filteredProducts.length}
+              variant="emerald"
+              buttonLabel="تصدير التقارير"
+              tooltip="تحميل قائمة الأسعار الحالية للمنافسين بصيغة Excel أو CSV باستخدام مكتبة xlsx"
+            />
+          </div>
+        </div>
         
         {filteredProducts.length === 0 ? (
           <div className="p-12 text-center space-y-3">

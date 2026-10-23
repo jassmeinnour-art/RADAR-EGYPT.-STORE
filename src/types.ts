@@ -2092,3 +2092,7 @@ export interface AIPricingTimingPrediction {
   };
   analyzedAt: string;
 }
+
+// Auto-Pricing Engine Types
+export * from './types/autoPricing';
+

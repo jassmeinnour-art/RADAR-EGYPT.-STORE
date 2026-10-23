@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { 
   Zap, 
   Sparkles, 
@@ -28,7 +28,10 @@ import {
   Crown,
   Clock,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 import { 
   auth, 
@@ -41,13 +44,22 @@ import {
   getRedirectResult
 } from './firebase';
 
-// Lazy load components
-const PaymentModal = lazy(() => import('./components/PaymentModal'));
-const OwnerDashboard = lazy(() => import('./components/OwnerDashboard'));
-const LandingPage = lazy(() => import('./components/LandingPage'));
-const HelpPage = lazy(() => import('./components/HelpPage'));
+import PaymentModal from './components/PaymentModal';
+import OwnerDashboard from './components/OwnerDashboard';
+import LandingPage from './components/LandingPage';
+import HelpPage from './components/HelpPage';
+import ShippingOrdersTable from './components/ShippingOrdersTable';
+import ProfitCalculator from './components/ProfitCalculator';
+import ShippingManagementDashboard from './components/ShippingManagementDashboard';
+import PlatformsGuideManager from './components/PlatformsGuideManager';
+import AutoPricingEngine from './components/AutoPricingEngine';
+import { ThemeToggle } from './components/ThemeToggle';
+import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
+import { PriceComparisonEngine } from './components/PriceComparisonEngine';
+import { useTheme } from './context/ThemeContext';
 
 export default function App() {
+  const { toggleColorMode, resolvedColorMode } = useTheme();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -59,7 +71,7 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   
   // Dashboard states
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help'>('merchants');
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help' | 'platforms_guide' | 'auto_pricing' | 'price_comparison'>('merchants');
 
   // Auth Constants
   const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -130,14 +142,64 @@ export default function App() {
       setAuthLoading(false);
     });
 
-    // Keyboard Shortcuts
+    // Keyboard Shortcuts (Hotkeys)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isAuthenticated) return;
-      if (e.key.toLowerCase() === 'r') { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }
-      if (e.key.toLowerCase() === 's') { setActiveWorkspaceTab('ai_studio'); setShowOwnerDashboard(false); }
-      if (e.key.toLowerCase() === 'm') { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }
-      if (e.key.toLowerCase() === 'h') { setActiveWorkspaceTab('help'); setShowOwnerDashboard(false); }
-      if (e.key.toLowerCase() === 'o' && isOwner) setShowOwnerDashboard(true);
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      if (isCtrlOrCmd && e.key === '1') {
+        e.preventDefault();
+        setActiveWorkspaceTab('merchants');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '2') {
+        e.preventDefault();
+        setActiveWorkspaceTab('radar');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '3') {
+        e.preventDefault();
+        setActiveWorkspaceTab('ai_studio');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '4') {
+        e.preventDefault();
+        setActiveWorkspaceTab('help');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '5') {
+        e.preventDefault();
+        setActiveWorkspaceTab('platforms_guide');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '6') {
+        e.preventDefault();
+        setActiveWorkspaceTab('auto_pricing');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key === '7') {
+        e.preventDefault();
+        setActiveWorkspaceTab('price_comparison');
+        setShowOwnerDashboard(false);
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'p') {
+        setActiveWorkspaceTab('auto_pricing');
+        setShowOwnerDashboard(false);
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'r') {
+        setActiveWorkspaceTab('radar');
+        setShowOwnerDashboard(false);
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 's') {
+        setActiveWorkspaceTab('ai_studio');
+        setShowOwnerDashboard(false);
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'm') {
+        setActiveWorkspaceTab('merchants');
+        setShowOwnerDashboard(false);
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'h') {
+        setActiveWorkspaceTab('help');
+        setShowOwnerDashboard(false);
+      } else if (isCtrlOrCmd && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        toggleColorMode();
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'd' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+        e.preventDefault();
+        toggleColorMode();
+      } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'o' && isOwner) {
+        setShowOwnerDashboard(true);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
 
@@ -237,6 +299,35 @@ export default function App() {
   };
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [hasNewUpdate, setHasNewUpdate] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleTriggerUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map(key => caches.delete(key)));
+      }
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          registrations.map(async (reg) => {
+            if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+            return reg.update();
+          })
+        );
+      }
+    } catch (err) {
+      console.warn('ServiceWorker update warning:', err);
+    } finally {
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -273,16 +364,65 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  const downloadApk = () => {
+    const link = document.createElement('a');
+    link.href = '/radar-al-tajer-signed.apk';
+    link.download = 'radar-al-tajer-signed.apk';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const InstallationBar = () => (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-slate-950 border-b border-amber-500/30 shadow-2xl">
-      <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-        <button onClick={handleInstall} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+      {hasNewUpdate && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between shadow-xl border-b border-amber-600/30">
+          <div className="flex items-center gap-2.5 max-w-4xl">
+            <span className="flex h-2.5 w-2.5 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-950"></span>
+            </span>
+            <Sparkles className="w-4 h-4 text-slate-950 shrink-0" />
+            <span>إصدار جديد متاح من منصة رادار التاجر (v2.4.5) — تم تحسين سرعة طباعة البوالص الحرارية والأسعار!</span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleTriggerUpdate}
+              disabled={isUpdating}
+              className="px-3.5 py-1 bg-slate-950 hover:bg-slate-900 text-amber-300 rounded-lg font-black text-xs shadow-md transition flex items-center gap-1.5 active:scale-95"
+            >
+              {isUpdating ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>جاري التحديث...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-amber-400" />
+                  <span>تحديث الآن</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setHasNewUpdate(false)}
+              className="p-1 text-slate-950/80 hover:text-slate-950 font-bold rounded transition"
+              title="إغلاق التنبيه"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 py-2.5 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <button onClick={handleInstall} className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
           <Monitor className="w-4 h-4 text-sky-400" /> <span>تثبيت الويندوز (Windows)</span>
         </button>
-        <button onClick={handleInstall} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
-          <Smartphone className="w-4 h-4 text-emerald-400" /> <span>تثبيت الهواتف الذكية (Mobile)</span>
+        <button onClick={downloadApk} className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+          <Smartphone className="w-4 h-4 text-emerald-400" /> <span>تحميل تطبيق الهواتف الذكية (radar-al-tajer-signed.apk)</span>
         </button>
-        <button onClick={downloadCertificate} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+        <button onClick={downloadCertificate} className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
           <ShieldCheck className="w-4 h-4 text-amber-400" /> <span>تحميل شهادة الاعتماد</span>
         </button>
       </div>
@@ -314,12 +454,14 @@ export default function App() {
         ) : (
           <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif] pb-20 pt-20" dir="rtl">
             <InstallationBar />
+            <DailyTaskListSidebar />
 
             {/* Merchant Top Header Navigation Tabs */}
             <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
               <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
                 <button
                   onClick={() => setActiveWorkspaceTab('merchants')}
+                  title="لوحة التاجر (اختصار: Ctrl+1)"
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                     activeWorkspaceTab === 'merchants' 
                       ? 'bg-amber-500 text-slate-950 shadow-md' 
@@ -328,10 +470,14 @@ export default function App() {
                 >
                   <Building2 className="w-4 h-4" />
                   <span>لوحة التاجر</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'merchants' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+1</span>
                 </button>
 
                 <button
                   onClick={() => setActiveWorkspaceTab('radar')}
+                  title="الرادار والأسعار (اختصار: Ctrl+2)"
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                     activeWorkspaceTab === 'radar' 
                       ? 'bg-amber-500 text-slate-950 shadow-md' 
@@ -340,10 +486,14 @@ export default function App() {
                 >
                   <Globe className="w-4 h-4" />
                   <span>الرادار والأسعار</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'radar' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+2</span>
                 </button>
 
                 <button
                   onClick={() => setActiveWorkspaceTab('ai_studio')}
+                  title="استوديو الذكاء الاصطناعي (اختصار: Ctrl+3)"
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                     activeWorkspaceTab === 'ai_studio' 
                       ? 'bg-amber-500 text-slate-950 shadow-md' 
@@ -352,10 +502,14 @@ export default function App() {
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>استوديو الذكاء الاصطناعي</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'ai_studio' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+3</span>
                 </button>
 
                 <button
                   onClick={() => setActiveWorkspaceTab('help')}
+                  title="دليل الربط والدعم (اختصار: Ctrl+4)"
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                     activeWorkspaceTab === 'help' 
                       ? 'bg-amber-500 text-slate-950 shadow-md' 
@@ -364,10 +518,62 @@ export default function App() {
                 >
                   <BookOpen className="w-4 h-4" />
                   <span>دليل الربط والدعم</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'help' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+4</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('platforms_guide')}
+                  title="دليل ربط المنصات ومفاتيح API (اختصار: Ctrl+5)"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'platforms_guide' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Key className="w-4 h-4 text-amber-400" />
+                  <span>ربط المنصات ومفاتيح API</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'platforms_guide' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+5</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('auto_pricing')}
+                  title="محرك التسعير الآلي المشروط (اختصار: Ctrl+6 أو P)"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'auto_pricing' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span>محرك التسعير الآلي</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'auto_pricing' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+6</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveWorkspaceTab('price_comparison')}
+                  title="مقارنة الفجوات السعرية عبر CSV (اختصار: Ctrl+7)"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    activeWorkspaceTab === 'price_comparison' 
+                      ? 'bg-amber-500 text-slate-950 shadow-md' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <span>مقارنة الفجوات (CSV)</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    activeWorkspaceTab === 'price_comparison' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
+                  }`}>Ctrl+7</span>
                 </button>
               </div>
 
               <div className="flex items-center gap-3">
+                <ThemeToggle variant="pill" />
                 <button 
                   onClick={handleSignOut} 
                   className="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-500/30 rounded-lg text-xs font-bold transition"
@@ -378,8 +584,24 @@ export default function App() {
             </div>
 
             {/* Main Content Area */}
-            {activeWorkspaceTab === 'help' ? (
-              <HelpPage />
+            {activeWorkspaceTab === 'auto_pricing' ? (
+              <div className="max-w-7xl mx-auto px-4 py-8">
+                <AutoPricingEngine 
+                  currency="ج.م"
+                  onNavigateToCatalog={() => setActiveWorkspaceTab('merchants')}
+                  onNavigateToRadar={() => setActiveWorkspaceTab('radar')}
+                />
+              </div>
+            ) : activeWorkspaceTab === 'price_comparison' ? (
+              <div className="max-w-7xl mx-auto px-4 py-8">
+                <PriceComparisonEngine currency="ج.م" />
+              </div>
+            ) : activeWorkspaceTab === 'platforms_guide' ? (
+              <div className="max-w-7xl mx-auto px-4 py-8">
+                <PlatformsGuideManager />
+              </div>
+            ) : activeWorkspaceTab === 'help' ? (
+              <HelpPage onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')} />
             ) : (
               <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
                 
@@ -512,23 +734,39 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 5. Interactive Shipping Management & Couriers Dashboard */}
+                <ShippingManagementDashboard />
+
+                {/* 6. Interactive Profit Calculator with Merchant Data Table */}
+                <ProfitCalculator />
+
+                {/* 7. Interactive Auto-Pricing Engine ("إذا حدث X قم بـ Y") */}
+                <AutoPricingEngine />
+
+                {/* 8. Interactive Shipping Orders Table */}
+                <ShippingOrdersTable />
+
+                {/* 9. Interactive Platforms Guide & API Manager */}
+                <PlatformsGuideManager />
+
               </div>
             )}
             
             {/* Bottom Tab Bar (Mobile) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around p-3 z-40">
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around items-center p-2.5 z-40">
               <button onClick={() => setActiveWorkspaceTab('merchants')} className={`flex flex-col items-center ${activeWorkspaceTab === 'merchants' ? 'text-amber-500' : 'text-slate-400'}`}>
-                <Building2 size={24} /> <span className="text-[10px]">الإدارة</span>
+                <Building2 size={20} /> <span className="text-[9px]">الإدارة</span>
               </button>
               <button onClick={() => setActiveWorkspaceTab('radar')} className={`flex flex-col items-center ${activeWorkspaceTab === 'radar' ? 'text-amber-500' : 'text-slate-400'}`}>
-                <Globe size={24} /> <span className="text-[10px]">الرادار</span>
+                <Globe size={20} /> <span className="text-[9px]">الرادار</span>
               </button>
-              <button onClick={() => setActiveWorkspaceTab('ai_studio')} className={`flex flex-col items-center ${activeWorkspaceTab === 'ai_studio' ? 'text-amber-500' : 'text-slate-400'}`}>
-                <Sparkles size={24} /> <span className="text-[10px]">الاستوديو</span>
+              <button onClick={() => setActiveWorkspaceTab('auto_pricing')} className={`flex flex-col items-center ${activeWorkspaceTab === 'auto_pricing' ? 'text-amber-500 font-bold' : 'text-slate-400'}`}>
+                <Zap size={20} className="text-amber-400" /> <span className="text-[9px]">التسعير الآلي</span>
               </button>
-              <button onClick={() => setActiveWorkspaceTab('help')} className={`flex flex-col items-center ${activeWorkspaceTab === 'help' ? 'text-amber-500' : 'text-slate-400'}`}>
-                <BookOpen size={24} /> <span className="text-[10px]">الدليل</span>
+              <button onClick={() => setActiveWorkspaceTab('platforms_guide')} className={`flex flex-col items-center ${activeWorkspaceTab === 'platforms_guide' ? 'text-amber-500' : 'text-slate-400'}`}>
+                <Key size={20} /> <span className="text-[9px]">المفاتيح</span>
               </button>
+              <ThemeToggle variant="icon" />
             </div>
           </div>
         )
@@ -541,7 +779,10 @@ export default function App() {
         /* Modern Executive Login Screen */
         <div className="min-h-[100dvh] w-full flex flex-col items-center bg-slate-950 text-slate-100 font-['Cairo',sans-serif] pt-20" dir="rtl">
           <InstallationBar />
-          <div className="flex-grow flex items-center justify-center p-4 w-full">
+          <div className="flex-grow flex flex-col items-center justify-center p-4 w-full">
+            <div className="max-w-5xl w-full flex justify-end mb-3">
+              <ThemeToggle variant="pill" />
+            </div>
             <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden">
               
               {/* Left Side: Brand Panel */}

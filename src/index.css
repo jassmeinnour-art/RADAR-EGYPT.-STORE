@@ -22,130 +22,126 @@ img, svg { max-width: 100%; height: auto; }
 }
 
 /* ==========================================================================
-   1. GENTLE OFF-WHITE (#F8FAFC) GLARE-FREE BACKGROUNDS ACROSS ENTIRE INTERFACE
+   1. LIGHT MODE: GENTLE OFF-WHITE (#F8FAFC) BACKGROUNDS & HIGH CONTRAST
    ========================================================================== */
-html,
-body,
-#root,
-#root > div,
-main,
-header,
-footer,
-aside,
-nav,
-section,
-article,
-dialog,
-table,
-thead,
-tbody,
-tfoot,
-tr,
-th,
-td,
-fieldset,
-form,
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-select,
-textarea,
-[role="dialog"],
-[role="region"],
-[role="tabpanel"],
-[role="menu"],
-[role="listbox"],
-[role="tooltip"],
-[role="radiogroup"],
-.sidebar-drawer,
-.radar-luxury-card,
-.radar-card-smooth,
-.platform-card,
-#main-active-product-hero-card,
-#main-active-product-empty-card,
-#nav-active-screen-banner,
-#header-operations-toolbar,
-#radar-global-hero-visual,
-.bg-white,
-[class*="bg-white"],
-[class*="bg-slate-"],
-[class*="bg-gray-"],
-[class*="bg-zinc-"],
-[class*="bg-neutral-"],
-[class*="bg-stone-"],
-[class*="bg-sky-"],
-[class*="bg-blue-"],
-[class*="bg-indigo-"],
-[class*="bg-cyan-"],
-[class*="bg-emerald-"],
-[class*="bg-teal-"],
-[class*="bg-green-"],
-[class*="bg-purple-"],
-[class*="bg-violet-"],
-[class*="bg-fuchsia-"],
-[class*="bg-rose-"],
-[class*="bg-red-"],
-[class*="bg-orange-"],
-[class*="bg-amber-"],
-[class*="bg-yellow-"],
-[class*="bg-black"],
-[class*="bg-[#"],
-[class*="bg-gradient-"],
-[class*="bg-linear-"],
-[class*="from-"],
-[class*="via-"],
-[class*="to-"] {
+html:not(.dark),
+html:not(.dark) body,
+html:not(.dark) #root,
+html:not(.dark) #root > div,
+html:not(.dark) main,
+html:not(.dark) header,
+html:not(.dark) footer,
+html:not(.dark) aside,
+html:not(.dark) nav,
+html:not(.dark) section,
+html:not(.dark) article,
+html:not(.dark) dialog,
+html:not(.dark) table,
+html:not(.dark) thead,
+html:not(.dark) tbody,
+html:not(.dark) tfoot,
+html:not(.dark) tr,
+html:not(.dark) th,
+html:not(.dark) td,
+html:not(.dark) fieldset,
+html:not(.dark) form,
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) [role="dialog"],
+html:not(.dark) [role="region"],
+html:not(.dark) [role="tabpanel"],
+html:not(.dark) [role="menu"],
+html:not(.dark) [role="listbox"],
+html:not(.dark) [role="tooltip"],
+html:not(.dark) [role="radiogroup"],
+html:not(.dark) .sidebar-drawer,
+html:not(.dark) .radar-luxury-card,
+html:not(.dark) .radar-card-smooth,
+html:not(.dark) .platform-card,
+html:not(.dark) #main-active-product-hero-card,
+html:not(.dark) #main-active-product-empty-card,
+html:not(.dark) #nav-active-screen-banner,
+html:not(.dark) #header-operations-toolbar,
+html:not(.dark) #radar-global-hero-visual,
+html:not(.dark) .bg-white,
+html:not(.dark) [class*="bg-white"],
+html:not(.dark) [class*="bg-slate-"],
+html:not(.dark) [class*="bg-gray-"],
+html:not(.dark) [class*="bg-zinc-"],
+html:not(.dark) [class*="bg-neutral-"],
+html:not(.dark) [class*="bg-stone-"],
+html:not(.dark) [class*="bg-sky-"],
+html:not(.dark) [class*="bg-blue-"],
+html:not(.dark) [class*="bg-indigo-"],
+html:not(.dark) [class*="bg-cyan-"],
+html:not(.dark) [class*="bg-emerald-"],
+html:not(.dark) [class*="bg-teal-"],
+html:not(.dark) [class*="bg-green-"],
+html:not(.dark) [class*="bg-purple-"],
+html:not(.dark) [class*="bg-violet-"],
+html:not(.dark) [class*="bg-fuchsia-"],
+html:not(.dark) [class*="bg-rose-"],
+html:not(.dark) [class*="bg-red-"],
+html:not(.dark) [class*="bg-orange-"],
+html:not(.dark) [class*="bg-amber-"],
+html:not(.dark) [class*="bg-yellow-"],
+html:not(.dark) [class*="bg-black"],
+html:not(.dark) [class*="bg-[#"],
+html:not(.dark) [class*="bg-gradient-"],
+html:not(.dark) [class*="bg-linear-"],
+html:not(.dark) [class*="from-"],
+html:not(.dark) [class*="via-"],
+html:not(.dark) [class*="to-"] {
   background-color: #F8FAFC !important;
   background-image: none !important;
   backdrop-filter: none !important;
 }
 
-/* Modal and dialog backdrops: soft focus overlay with clear visual hierarchy */
+/* Modal backdrop overlay */
 [id*="backdrop"],
 .fixed.inset-0[class*="bg-slate-"],
 .fixed.inset-0[class*="bg-black/"],
 [role="dialog"] > .fixed.inset-0 {
-  background-color: rgba(15, 23, 42, 0.45) !important;
-  backdrop-filter: blur(2px) !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(3px) !important;
 }
 
-/* Modal dialog cards: crisp off-white background with bold solid black borders */
-[id*="modal-card"],
-[role="dialog"] div[class*="rounded-3xl"],
-[role="dialog"] div[class*="rounded-2xl"] {
+/* Modal dialog cards in light mode */
+html:not(.dark) [id*="modal-card"],
+html:not(.dark) [role="dialog"] div[class*="rounded-3xl"],
+html:not(.dark) [role="dialog"] div[class*="rounded-2xl"] {
   background-color: #F8FAFC !important;
   border: 3px solid #000000 !important;
   box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.28) !important;
 }
 
-/* Clean structural borders on cards/containers so sections remain well-defined on gentle off-white */
-div[class*="border-slate-"],
-div[class*="border-sky-"],
-div[class*="border-indigo-"],
-div[class*="border-blue-"],
-div[class*="border-emerald-"],
-div[class*="border-rose-"],
-div[class*="border-purple-"],
-div[class*="border-white/"],
-section[class*="border-"],
-header[class*="border-"],
-aside[class*="border-"],
-table,
-th,
-td,
-input:not([type="checkbox"]):not([type="radio"]),
-select,
-textarea,
-.platform-card,
-.radar-luxury-card,
-.radar-card-smooth,
-#main-active-product-hero-card,
-#main-active-product-empty-card,
-#nav-active-screen-banner,
-#radar-global-hero-visual {
+/* Borders in light mode */
+html:not(.dark) div[class*="border-slate-"],
+html:not(.dark) div[class*="border-sky-"],
+html:not(.dark) div[class*="border-indigo-"],
+html:not(.dark) div[class*="border-blue-"],
+html:not(.dark) div[class*="border-emerald-"],
+html:not(.dark) div[class*="border-rose-"],
+html:not(.dark) div[class*="border-purple-"],
+html:not(.dark) div[class*="border-white/"],
+html:not(.dark) section[class*="border-"],
+html:not(.dark) header[class*="border-"],
+html:not(.dark) aside[class*="border-"],
+html:not(.dark) table,
+html:not(.dark) th,
+html:not(.dark) td,
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) .platform-card,
+html:not(.dark) .radar-luxury-card,
+html:not(.dark) .radar-card-smooth {
   border-color: #000000 !important;
 }
 
 /* ==========================================================================
-   2. SOLID BLACK (#000000) TYPOGRAPHY & CRISP FONT RENDERING
+   2. LIGHT MODE: SOLID BLACK (#000000) TYPOGRAPHY & CRISP FONTS
    ========================================================================== */
 html {
   overflow-x: hidden;
@@ -159,8 +155,6 @@ html {
   font-kerning: normal;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   font-optical-sizing: auto;
-  background-color: #F8FAFC !important;
-  color: #000000 !important;
 }
 
 @media (max-width: 640px) {
@@ -180,8 +174,6 @@ body {
   font-weight: 600;
   line-height: 1.58;
   letter-spacing: 0 !important;
-  background-color: #F8FAFC !important;
-  color: #000000 !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -192,164 +184,129 @@ body {
   width: 100%;
   min-height: 100vh;
   position: relative;
-  background-color: #F8FAFC !important;
-  color: #000000 !important;
 }
 
-body,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-p,
-span,
-div,
-a,
-label,
-li,
-ul,
-ol,
-td,
-th,
-caption,
-strong,
-b,
-em,
-small,
-code,
-pre,
-blockquote,
-figcaption,
-dt,
-dd,
-summary,
-legend,
-input,
-select,
-textarea,
-option,
-button,
-[class*="text-white"],
-[class*="text-slate-"],
-[class*="text-gray-"],
-[class*="text-zinc-"],
-[class*="text-neutral-"],
-[class*="text-sky-"],
-[class*="text-blue-"],
-[class*="text-indigo-"],
-[class*="text-cyan-"],
-[class*="text-emerald-"],
-[class*="text-teal-"],
-[class*="text-green-"],
-[class*="text-purple-"],
-[class*="text-violet-"],
-[class*="text-rose-"],
-[class*="text-red-"],
-[class*="text-orange-"],
-[class*="text-amber-"],
-[class*="text-yellow-"],
-[class*="text-[#"],
-.text-transparent,
-.bg-clip-text,
-.radar-sky-gradient-text,
-.radar-gold-gradient-text,
-.platform-card .platform-title,
-.platform-card .platform-subtitle,
-.platform-card .platform-badge-text {
+html:not(.dark) body,
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4,
+html:not(.dark) h5,
+html:not(.dark) h6,
+html:not(.dark) p,
+html:not(.dark) span,
+html:not(.dark) div,
+html:not(.dark) a,
+html:not(.dark) label,
+html:not(.dark) li,
+html:not(.dark) ul,
+html:not(.dark) ol,
+html:not(.dark) td,
+html:not(.dark) th,
+html:not(.dark) caption,
+html:not(.dark) strong,
+html:not(.dark) b,
+html:not(.dark) em,
+html:not(.dark) small,
+html:not(.dark) code,
+html:not(.dark) pre,
+html:not(.dark) blockquote,
+html:not(.dark) figcaption,
+html:not(.dark) dt,
+html:not(.dark) dd,
+html:not(.dark) summary,
+html:not(.dark) legend,
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) option,
+html:not(.dark) button,
+html:not(.dark) [class*="text-white"],
+html:not(.dark) [class*="text-slate-"],
+html:not(.dark) [class*="text-gray-"],
+html:not(.dark) [class*="text-zinc-"],
+html:not(.dark) [class*="text-neutral-"],
+html:not(.dark) [class*="text-sky-"],
+html:not(.dark) [class*="text-blue-"],
+html:not(.dark) [class*="text-indigo-"],
+html:not(.dark) [class*="text-cyan-"],
+html:not(.dark) [class*="text-emerald-"],
+html:not(.dark) [class*="text-teal-"],
+html:not(.dark) [class*="text-green-"],
+html:not(.dark) [class*="text-purple-"],
+html:not(.dark) [class*="text-violet-"],
+html:not(.dark) [class*="text-rose-"],
+html:not(.dark) [class*="text-red-"],
+html:not(.dark) [class*="text-orange-"],
+html:not(.dark) [class*="text-amber-"],
+html:not(.dark) [class*="text-yellow-"],
+html:not(.dark) [class*="text-[#"],
+html:not(.dark) .text-transparent,
+html:not(.dark) .bg-clip-text {
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
   text-shadow: none !important;
 }
 
-/* Prevent Arabic glyph disconnection caused by positive letter-spacing */
+/* Prevent Arabic glyph disconnection */
 [dir="rtl"],
 [dir="rtl"] *:not(.font-mono):not([dir="ltr"]) {
   letter-spacing: 0 !important;
 }
 
-/* Crisp heading weights and balanced line heights */
+/* Crisp heading weights */
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Cairo', 'Alexandria', sans-serif;
   font-weight: 800 !important;
   line-height: 1.38 !important;
-  color: #000000 !important;
 }
 
-/* High-contrast input placeholders for low vision */
-input::placeholder,
-textarea::placeholder {
+/* Placeholders */
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
   opacity: 0.72 !important;
 }
 
-/* Lucide UI icons inherit solid black (#000000) while preserving non-Lucide brand SVGs */
-svg.lucide {
+/* Lucide UI icons in light mode */
+html:not(.dark) svg.lucide {
   color: #000000 !important;
   stroke: #000000 !important;
   stroke-width: 2.15px;
   flex-shrink: 0;
 }
 
-/* Calibrated micro-text overrides: clear & legible without crowding buttons */
-.text-\[8px\],
-.text-\[9px\],
-.text-\[10px\] {
-  font-size: 0.76rem !important;
-  line-height: 1.4 !important;
-  font-weight: 700 !important;
-}
-
-.text-\[11px\],
-.text-xs {
-  font-size: 0.82rem !important;
-  line-height: 1.48 !important;
-  font-weight: 600 !important;
-}
-
-.text-sm {
-  font-size: 0.90rem !important;
-  line-height: 1.54 !important;
-  font-weight: 600 !important;
-}
-
-.text-base {
-  font-size: 0.98rem !important;
-  line-height: 1.58 !important;
-}
-
-/* ==========================================================================
-   3. REFINED BUTTON SPACING, ALIGNMENT, THICK BORDERS & ACTIVE CLICK STATE
-   ========================================================================== */
-button,
-[type="button"],
-[type="submit"],
-[type="reset"],
-[role="button"],
-.btn-emerald-primary,
-.btn-primary-subtle,
-.theme-primary-btn {
+/* Light mode button styles */
+html:not(.dark) button,
+html:not(.dark) [type="button"],
+html:not(.dark) [type="submit"],
+html:not(.dark) [type="reset"],
+html:not(.dark) [role="button"],
+html:not(.dark) .btn-emerald-primary,
+html:not(.dark) .btn-primary-subtle,
+html:not(.dark) .theme-primary-btn {
   background-color: #F8FAFC !important;
   background-image: none !important;
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
   border: 3px solid #000000 !important;
-  border-width: 3px !important;
-  border-style: solid !important;
-  border-color: #000000 !important;
-  outline-color: #000000 !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
   font-family: 'Cairo', 'Alexandria', sans-serif !important;
   font-weight: 700 !important;
-  line-height: 1.35 !important;
-  letter-spacing: 0 !important;
-  vertical-align: middle;
-  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
 }
 
-/* Standardize alignment and internal icon-text spacing inside flex buttons */
+html:not(.dark) button:hover,
+html:not(.dark) [type="button"]:hover,
+html:not(.dark) [type="submit"]:hover {
+  background-color: #F1F5F9 !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Standardize alignment inside flex buttons */
 button:not(.block):not(.grid):not(.hidden),
 [role="button"]:not(.block):not(.grid):not(.hidden) {
   display: inline-flex;
@@ -357,166 +314,136 @@ button:not(.block):not(.grid):not(.hidden),
   gap: 0.42rem;
 }
 
-button.w-full,
-[role="button"].w-full {
-  display: flex;
-  width: 100%;
+/* ==========================================================================
+   3. DARK MODE (#0B0F17 / #0F172A / #1E293B) - EYE COMFORT CHARCOAL PALETTE
+   ========================================================================== */
+html.dark {
+  background-color: #0B0F17 !important;
+  color: #F8FAFC !important;
 }
 
-button.justify-between,
-[role="button"].justify-between {
-  justify-content: space-between !important;
+html.dark body,
+html.dark #root,
+html.dark #root > div,
+html.dark main {
+  background-color: #0B0F17 !important;
+  color: #F8FAFC !important;
 }
 
-button.justify-center,
-[role="button"].justify-center {
-  justify-content: center !important;
-}
-
-/* Ensure comfortable horizontal & vertical padding on text buttons while keeping icon-only buttons compact */
-button:not(.p-0):not(.p-0\.5):not(.p-1):not(.p-1\.5):not(.p-2):not(.w-6):not(.w-7):not(.w-8):not(.w-9):not(.w-10) {
-  padding-inline: 0.78rem;
-  padding-block: 0.38rem;
-}
-
-button:hover,
-[type="button"]:hover,
-[type="submit"]:hover,
-[type="reset"]:hover,
-[role="button"]:hover,
-.btn-emerald-primary:hover,
-.btn-primary-subtle:hover,
-.theme-primary-btn:hover {
-  background-color: #F1F5F9 !important;
+html.dark header,
+html.dark footer,
+html.dark aside,
+html.dark nav,
+html.dark section,
+html.dark article,
+html.dark dialog,
+html.dark table,
+html.dark .sidebar-drawer,
+html.dark [role="dialog"] div[class*="rounded-3xl"],
+html.dark [role="dialog"] div[class*="rounded-2xl"],
+html.dark .radar-luxury-card,
+html.dark .radar-card-smooth,
+html.dark .platform-card,
+html.dark #main-active-product-hero-card,
+html.dark #main-active-product-empty-card,
+html.dark #nav-active-screen-banner,
+html.dark #header-operations-toolbar,
+html.dark #radar-global-hero-visual,
+html.dark .bg-white,
+html.dark [class*="bg-white"] {
+  background-color: #0F172A !important;
   background-image: none !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  border: 3px solid #000000 !important;
-  border-width: 3px !important;
-  border-color: #000000 !important;
-  outline: 2px solid #000000 !important;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22) !important;
+  color: #F8FAFC !important;
+  border-color: #334155 !important;
 }
 
-/* Clear, unmistakable active/clicked state color when buttons are pressed or selected */
-button:active,
-[type="button"]:active,
-[type="submit"]:active,
-[type="reset"]:active,
-[role="button"]:active,
-button[aria-pressed="true"],
-button[aria-selected="true"],
-button[data-state="active"],
-button[data-active="true"],
-[role="button"][aria-pressed="true"],
-[role="button"][aria-selected="true"],
-[role="tab"][aria-selected="true"],
-.btn-emerald-primary:active,
-.btn-primary-subtle:active,
-.theme-primary-btn:active {
-  background-color: #CBD5E1 !important;
-  background-image: none !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  border: 3.5px solid #000000 !important;
-  border-width: 3.5px !important;
-  border-color: #000000 !important;
-  outline: 2.5px solid #000000 !important;
-  outline-offset: 1px !important;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(0, 0, 0, 0.25) !important;
-  transform: translateY(1px) scale(0.97);
+html.dark [class*="bg-slate-50"],
+html.dark [class*="bg-slate-100"],
+html.dark [class*="bg-slate-200"],
+html.dark [class*="bg-[#F8FAFC]"],
+html.dark [class*="bg-[#f8fafc]"] {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
 }
 
-button:focus-visible,
-[type="button"]:focus-visible,
-[type="submit"]:focus-visible,
-[role="button"]:focus-visible {
-  outline: 3px solid #000000 !important;
-  outline-offset: 2px !important;
-  border: 3px solid #000000 !important;
+html.dark [class*="bg-slate-800"],
+html.dark [class*="bg-slate-900"],
+html.dark [class*="bg-slate-950"] {
+  background-color: #0B0F17 !important;
+  color: #F8FAFC !important;
 }
 
-/* Clean split-button groups so wrapper and inner buttons don't double-stack borders */
-div.inline-flex.overflow-hidden {
-  border-color: #000000 !important;
-  gap: 0;
-}
-
-/* Dedicated styling and prominent :active pressed state for Add Platform header trigger */
-#btn-add-platform-header-trigger {
-  cursor: pointer !important;
-  padding: 12px 24px !important;
-  font-size: 0.95rem !important;
-  line-height: 1.25rem !important;
-  background-color: #F8FAFC !important;
-  color: #000000 !important;
-  border: 3px solid #000000 !important;
-  border-width: 3px !important;
-  border-color: #000000 !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
-  transition: all 0.1s ease-in-out !important;
-}
-
-#btn-add-platform-header-trigger:disabled,
-#btn-add-platform-header-trigger[aria-busy="true"] {
-  cursor: wait !important;
-  opacity: 0.9 !important;
-}
-
-#btn-add-platform-header-trigger svg {
-  width: 1.25rem !important;
-  height: 1.25rem !important;
-  min-width: 1.25rem !important;
-  min-height: 1.25rem !important;
-}
-
-#btn-add-platform-header-trigger svg.help-circle-icon {
-  width: 1.05rem !important;
-  height: 1.05rem !important;
-  min-width: 1.05rem !important;
-  min-height: 1.05rem !important;
-  transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
-}
-
-#btn-add-platform-header-trigger #btn-add-platform-help-trigger:hover svg.help-circle-icon {
-  transform: scale(1.15);
-}
-
-#btn-add-platform-header-trigger span {
-  font-size: 0.95rem !important;
-  font-weight: 700 !important;
-}
-
-#btn-add-platform-header-trigger:hover {
-  background-color: #F1F5F9 !important;
-  border: 3px solid #000000 !important;
-  border-color: #000000 !important;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22) !important;
-  transform: translateY(-1px);
-}
-
-#btn-add-platform-header-trigger:active,
-#btn-add-platform-header-trigger[data-active="true"] {
-  background-color: #000000 !important;
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
+html.dark p, html.dark span, html.dark div, html.dark a, html.dark label,
+html.dark li, html.dark td, html.dark th, html.dark dt, html.dark dd, html.dark strong {
   color: #F8FAFC !important;
   -webkit-text-fill-color: #F8FAFC !important;
-  border: 4.5px solid #000000 !important;
-  border-width: 4.5px !important;
-  border-color: #000000 !important;
-  outline: 2px solid #000000 !important;
-  outline-offset: 2px !important;
-  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(0, 0, 0, 0.25) !important;
-  transform: scale(0.95) translateY(1.5px) !important;
-  transition: all 0.1s ease-in-out !important;
 }
 
-#btn-add-platform-header-trigger:active svg,
-#btn-add-platform-header-trigger:active span,
-#btn-add-platform-header-trigger[data-active="true"] svg,
-#btn-add-platform-header-trigger[data-active="true"] span {
+html.dark [class*="text-slate-400"],
+html.dark [class*="text-slate-500"],
+html.dark [class*="text-slate-600"],
+html.dark [class*="text-gray-400"],
+html.dark [class*="text-gray-500"] {
+  color: #94A3B8 !important;
+  -webkit-text-fill-color: #94A3B8 !important;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.dark select,
+html.dark textarea {
+  background-color: #0F172A !important;
   color: #F8FAFC !important;
-  stroke: #F8FAFC !important;
-  fill: none;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748B !important;
+  -webkit-text-fill-color: #64748B !important;
+}
+
+html.dark div[class*="border-"],
+html.dark section[class*="border-"],
+html.dark header[class*="border-"],
+html.dark aside[class*="border-"],
+html.dark table, html.dark th, html.dark td {
+  border-color: #334155 !important;
+}
+
+html.dark svg.lucide {
+  color: #38BDF8 !important;
+  stroke: #38BDF8 !important;
+  stroke-width: 2px;
+}
+
+html.dark button,
+html.dark [type="button"],
+html.dark [type="submit"],
+html.dark [type="reset"],
+html.dark [role="button"] {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  -webkit-text-fill-color: #F8FAFC !important;
+  border: 2px solid #334155 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+html.dark button:hover,
+html.dark [type="button"]:hover,
+html.dark [type="submit"]:hover {
+  background-color: #334155 !important;
+  border-color: #38BDF8 !important;
+  color: #38BDF8 !important;
+  -webkit-text-fill-color: #38BDF8 !important;
+}
+
+html.dark button:active,
+html.dark button[aria-pressed="true"] {
+  background-color: #0284C7 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border-color: #38BDF8 !important;
 }
 
 /* ==========================================================================
@@ -532,10 +459,18 @@ div.inline-flex.overflow-hidden {
   right: 0;
   height: 100vh;
   width: 320px;
-  background-color: #F8FAFC !important;
-  border-left: 2px solid #000000 !important;
   transition: transform 0.3s ease-in-out;
   z-index: 50;
+}
+
+html:not(.dark) .sidebar-drawer {
+  background-color: #F8FAFC !important;
+  border-left: 2px solid #000000 !important;
+}
+
+html.dark .sidebar-drawer {
+  background-color: #0F172A !important;
+  border-left: 2px solid #334155 !important;
 }
 
 .sidebar-drawer.closed {
@@ -555,33 +490,7 @@ div.inline-flex.overflow-hidden {
   text-align: right;
 }
 
-[dir="rtl"] th.text-center,
-[dir="rtl"] td.text-center {
-  text-align: center;
-}
-
-[dir="rtl"] th.text-left,
-[dir="rtl"] td.text-left {
-  text-align: left;
-}
-
-.font-mono,
-.ltr-text,
-code,
-input[type="number"],
-input[type="tel"],
-bdi,
-.bidi-isolate {
-  unicode-bidi: isolate;
-}
-
-.product-code-badge {
-  direction: ltr;
-  display: inline-block;
-  unicode-bidi: isolate;
-}
-
-/* Clean Off-White & Solid Black Custom Scrollbars */
+/* Custom Scrollbars */
 .scroller-sm::-webkit-scrollbar,
 .custom-scrollbar::-webkit-scrollbar,
 table::-webkit-scrollbar,
@@ -590,48 +499,30 @@ table::-webkit-scrollbar,
   height: 7px;
 }
 
-.scroller-sm::-webkit-scrollbar-track,
-.custom-scrollbar::-webkit-scrollbar-track,
-table::-webkit-scrollbar-track,
-.overflow-x-auto::-webkit-scrollbar-track {
+html:not(.dark) .scroller-sm::-webkit-scrollbar-track,
+html:not(.dark) .custom-scrollbar::-webkit-scrollbar-track {
   background: #F8FAFC;
   border: 1px solid #000000;
   border-radius: 9999px;
 }
 
-.scroller-sm::-webkit-scrollbar-thumb,
-.custom-scrollbar::-webkit-scrollbar-thumb,
-table::-webkit-scrollbar-thumb,
-.overflow-x-auto::-webkit-scrollbar-thumb {
+html:not(.dark) .scroller-sm::-webkit-scrollbar-thumb,
+html:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #000000;
   border-radius: 9999px;
 }
 
-.scroller-sm::-webkit-scrollbar-thumb:hover,
-.custom-scrollbar::-webkit-scrollbar-thumb:hover,
-table::-webkit-scrollbar-thumb:hover,
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
-  background: #1E293B;
+html.dark .scroller-sm::-webkit-scrollbar-track,
+html.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #0B0F17;
+  border: 1px solid #334155;
+  border-radius: 9999px;
 }
 
-.scroller-sm {
-  scrollbar-width: thin;
-  scrollbar-color: #000000 #F8FAFC;
-  -webkit-overflow-scrolling: touch;
-}
-
-.platform-card {
-  position: relative;
-  background-color: #F8FAFC !important;
-  border: 2px solid #000000 !important;
-  color: #000000 !important;
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
-}
-
-.platform-card:hover {
-  box-shadow: 0 5px 15px -4px rgba(0, 0, 0, 0.26) !important;
-  border-color: #000000 !important;
-  transform: translateY(-1px);
+html.dark .scroller-sm::-webkit-scrollbar-thumb,
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
 }
 
 @media print {
@@ -655,10 +546,4 @@ table::-webkit-scrollbar-thumb:hover,
   .no-print {
     display: none !important;
   }
-}
-
-/* Off-screen rendering performance optimization */
-.content-visibility-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 500px;
 }

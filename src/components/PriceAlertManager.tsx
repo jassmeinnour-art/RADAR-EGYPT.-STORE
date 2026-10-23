@@ -368,6 +368,15 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
     const targetPhone = alert.recipientContact || waConfig.recipients[0]?.phone || '201012345678';
     const prod = products.find(p => p.id === alert.productId) || activeProduct;
     const competitorPrice = alert.targetPrice ? Math.round(alert.targetPrice * 0.95) : Math.round(prod.currentLowestPrice * 0.9);
+    
+    // Trigger Desktop Notification for background awareness
+    try {
+      const { notifyPricingAlert } = await import('../services/notificationService');
+      notifyPricingAlert(alert.productTitle, competitorPrice, prod.currency || currency);
+    } catch (err) {
+      console.warn('Notification service failed:', err);
+    }
+
     const lowestOffer: MerchantOffer = prod.merchantOffers?.find(o => o.price === prod.currentLowestPrice) || ({
       id: `offer-${Date.now()}`,
       merchantName: 'متجر المنافس (أمازون مصر)',

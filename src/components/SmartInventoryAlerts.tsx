@@ -250,10 +250,19 @@ export const SmartInventoryAlerts: React.FC<SmartInventoryAlertsProps> = ({
   };
 
   // Send WhatsApp Reorder PO to supplier
-  const handleWhatsAppSupplierOrder = (record: ProductInventoryRecord, product?: ProductData) => {
+  const handleWhatsAppSupplierOrder = async (record: ProductInventoryRecord, product?: ProductData) => {
     if (!product) return;
     const msg = renderAutomatedWhatsAppMessage(record, product, record.reorderQuantity);
     const url = getWhatsAppDeepLink(record.supplierPhone, msg);
+    
+    // Trigger Desktop Notification for background awareness
+    try {
+      const { notifyWhatsAppAlert } = await import('../services/notificationService');
+      notifyWhatsAppAlert(record.supplierName, msg.slice(0, 80) + '...');
+    } catch (err) {
+      console.warn('Notification service failed:', err);
+    }
+
     safeOpenUrl(url);
     if (onShowToast) {
       onShowToast(`📲 تم فتح أمر التوريد العاجل للمورد "${record.supplierName}" عبر واتساب`);

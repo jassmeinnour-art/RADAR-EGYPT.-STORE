@@ -63,6 +63,7 @@ import { encryptLwaRefreshToken, decryptLwaRefreshToken } from '../utils/lwaToke
 import { downloadWaybillIcsFile } from '../utils/googleCalendarExport';
 import { ManageMerchantApisModal } from './ManageMerchantApisModal';
 import { MerchantCatalogManager } from './MerchantCatalogManager';
+import { LiveStatusIndicator } from './LiveStatusIndicator';
 import { pullLiveCatalogForMerchant } from '../utils/merchantCatalogManager';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -1837,6 +1838,12 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                           }`}>
                             {merchant.dataMode === 'demo' ? '🧪 وضع تجريبي Sandbox' : '🟢 بيانات حقيقية Live'}
                           </span>
+                          <LiveStatusIndicator 
+                            storeId={merchant.id} 
+                            storeName={merchant.storeName} 
+                            platform={merchant.platformsSubscribed[0] || 'amazon'} 
+                            variant="compact" 
+                          />
                         </div>
                         <p className="text-xs text-slate-500 font-medium">
                           المسؤول: <strong className="text-slate-800">{merchant.contactPerson}</strong> ({merchant.city})

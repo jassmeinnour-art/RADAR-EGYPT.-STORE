@@ -52,6 +52,7 @@ export interface UserMerchantProfile {
   storeName?: string;
   city?: string;
   preferredCurrency?: string;
+  contactPhone?: string;
   sessionCount?: number;
   lastLoginAt?: any;
   lastSeenAt?: any;

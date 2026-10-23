@@ -56,6 +56,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ProductImageABTesting } from './ProductImageABTesting';
+import { ProductTemplateCanvasStudio } from './ProductTemplateCanvasStudio';
+import { ProductTemplatePresetter, VisualPreset } from './ProductTemplatePresetter';
 import { useAuth } from '../context/AuthContext';
 import { 
   saveStudioDesignToCloud, 
@@ -90,6 +92,7 @@ interface MerchantImageStudioProps {
   winningPrice: number;
   selectedDiscount: number;
   onApplyWinningImage?: (imageUrl: string) => void;
+  onShowToast?: (message: string) => void;
 }
 
 export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
@@ -98,9 +101,10 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
   winningPrice,
   selectedDiscount,
   onApplyWinningImage,
+  onShowToast,
 }) => {
-  // Top Level Mode: 3D Studio vs A/B Testing Lab
-  const [activeStudioTab, setActiveStudioTab] = useState<'3d_studio' | 'ab_testing'>('3d_studio');
+  // Top Level Mode: 3D Studio vs A/B Testing Lab vs AI Background
+  const [activeStudioTab, setActiveStudioTab] = useState<'3d_studio' | 'ab_testing' | 'platform_templates' | 'ai_background'>('3d_studio');
 
   // Active Image Source (Product Default, Camera Snapshot, or Uploaded File)
   const defaultImage = product?.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80';
@@ -208,6 +212,17 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
     setShowBeforeAfter(false);
     setAiEnhanceFeedback('تمت استعادة الإضاءة والتباين الأصلي للصورة.');
     setTimeout(() => setAiEnhanceFeedback(null), 3000);
+  };
+
+  const handleApplyVisualPreset = (preset: VisualPreset) => {
+    if (preset.backgroundTheme) setSelectedBackgroundId(preset.backgroundTheme as any);
+    if (typeof preset.shadowIntensity === 'number') setShadowIntensity(preset.shadowIntensity);
+    if (typeof preset.brightness === 'number') setBrightness(preset.brightness);
+    if (typeof preset.contrast === 'number') setContrast(preset.contrast);
+    if (typeof preset.saturation === 'number') setSaturation(preset.saturation);
+    if (typeof preset.showPedestal === 'boolean') setShowPedestal(preset.showPedestal);
+    if (preset.selectedFrame) setSelectedFrameId(preset.selectedFrame as any);
+    confetti({ particleCount: 35, spread: 70, origin: { y: 0.6 } });
   };
 
   // Badges & Marketing Overlays
@@ -1251,15 +1266,27 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
               +71% CTR 🚀
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveStudioTab('ai_background')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+              activeStudioTab === 'ai_background'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Wand2 className="w-4 h-4 text-emerald-400" />
+            <span>إزالة الخلفية وديكور مصري (AI Backdrop) ✨</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 px-2 text-[11px] text-slate-500 hidden md:flex">
           <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-          <span>قارن جاذبية الصورتين ونسبة النقر مع توليد خلفيات موسمية بالذكاء الاصطناعي</span>
+          <span>توليد خلفيات ديكور مصري (خشب وأرابيسك) وإزالة الخلفيات بالذكاء الاصطناعي</span>
         </div>
       </div>
 
-      {/* RENDER A/B TESTING INTERFACE WHEN SELECTED */}
+      {/* RENDER A/B TESTING OR PLATFORM TEMPLATES WHEN SELECTED */}
       {activeStudioTab === 'ab_testing' ? (
         <ProductImageABTesting
           product={product}
@@ -1269,6 +1296,126 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
           onApplyWinningImage={onApplyWinningImage}
           onBackToStudio={() => setActiveStudioTab('3d_studio')}
         />
+      ) : activeStudioTab === 'platform_templates' ? (
+        <ProductTemplateCanvasStudio
+          defaultTitle={product?.title || 'منتج متميز في المتجر'}
+          defaultPrice={`${winningPrice} ${currency}`}
+          defaultImageUrl={product?.imageUrl || activeImageSrc}
+          currency={currency}
+          onShowToast={(msg) => console.log('Toast:', msg)}
+        />
+      ) : activeStudioTab === 'ai_background' ? (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-6 space-y-8 animate-fadeIn">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Left: AI Preview & Canvas */}
+            <div className="flex-1 space-y-4">
+              <div className="relative aspect-square rounded-3xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shadow-inner group">
+                <img 
+                  src={activeImageSrc} 
+                  alt="Product AI Preview" 
+                  className="max-w-[85%] max-h-[85%] object-contain drop-shadow-2xl transition-transform group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Sparkles className="w-12 h-12 text-white/50" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-2">
+                <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> معالجة ذكية آمنة</span>
+                <span>دقة الصورة: 1080×1080 (HD)</span>
+              </div>
+            </div>
+
+            {/* Right: AI Tools & Backgrounds */}
+            <div className="w-full md:w-80 space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <Wand2 className="w-4 h-4 text-indigo-600" />
+                  أدوات الذكاء الاصطناعي للمنتج
+                </h4>
+                <button 
+                  onClick={async () => {
+                    if (onShowToast) onShowToast('⏳ جاري تحليل الصورة وإزالة الخلفية بالذكاء الاصطناعي...');
+                    try {
+                      const res = await fetch('/api/remove-bg-ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageBase64: activeImageSrc, productTitle: product.title })
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        if (onShowToast) onShowToast('✨ تمت إزالة الخلفية بنجاح! يمكنك الآن اختيار ديكور مصري.');
+                        confetti({ particleCount: 40, spread: 70 });
+                      }
+                    } catch (e) {
+                      if (onShowToast) onShowToast('⚠️ فشل الاتصال بمحرك إزالة الخلفية');
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  <Layers className="w-4 h-4" />
+                  إزالة الخلفية فوراً (AI Remove BG)
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <Layout className="w-4 h-4 text-sky-600" />
+                  اختيار طابع ديكوري مصري (Backdrops)
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'warm_wood', name: 'خشب دافئ', icon: '🪵', desc: 'أرابيسك وإضاءة دافئة' },
+                    { id: 'modern_cairo', name: 'مودرن القاهرة', icon: '🌆', desc: 'إضاءة نهارية عصرية' },
+                    { id: 'luxury_marble', name: 'رخام فاخر', icon: '💎', desc: 'طابع ملكي أنيق' },
+                    { id: 'rustic_village', name: 'ريفي أصيل', icon: '🏺', desc: 'فخار ومنسوجات يدوية' }
+                  ].map(style => (
+                    <button
+                      key={style.id}
+                      onClick={async () => {
+                        if (onShowToast) onShowToast(`⏳ جاري توليد خلفية [${style.name}]...`);
+                        try {
+                          const res = await fetch('/api/generate-egyptian-backdrop-ai', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ productTitle: product.title, category: product.category, style: style.id })
+                          });
+                          const data = await res.json();
+                          if (data.success && data.data.backdropUrl) {
+                            if (onShowToast) onShowToast(`🎨 تم تطبيق طابع [${style.name}] بنجاح!`);
+                            confetti({ particleCount: 30, spread: 50 });
+                            setActiveImageSrc(data.data.backdropUrl);
+                          }
+                        } catch (e) {}
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all group cursor-pointer"
+                    >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">{style.icon}</span>
+                      <span className="text-[11px] font-black text-slate-800">{style.name}</span>
+                      <span className="text-[9px] text-slate-500 text-center">{style.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <button 
+                  onClick={handleDownloadSingleImage}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-md cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  حفظ الصورة النهائية (HD)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+            <Info className="w-5 h-5 text-amber-600 shrink-0" />
+            <p className="text-[11px] text-amber-800 font-bold leading-relaxed">
+              ملاحظة: محرك الذكاء الاصطناعي يقوم بتوليد الخلفيات بناءً على طابع "الديكور المصري" الأكثر مبيعاً على منصات أمازون ونون لضمان أعلى نسبة نقر (CTR) لمنتجاتك.
+            </p>
+          </div>
+        </div>
       ) : (
         <>
       {/* ========================================================================= */}
@@ -1531,6 +1678,21 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
         {/* ===================================================================== */}
         <div className="lg:col-span-5 space-y-4">
           
+          {/* ProductTemplatePresetter for Visual Identity Presets */}
+          <ProductTemplatePresetter
+            currentSettings={{
+              backgroundTheme: selectedBackgroundId,
+              shadowIntensity,
+              brightness,
+              contrast,
+              saturation,
+              showPedestal,
+              selectedFrame: selectedFrameId
+            }}
+            onApplyPreset={handleApplyVisualPreset}
+            onShowToast={(msg) => setCloudSaveMessage(msg)}
+          />
+
           {/* 3.1. MULTI-ANGLE PRESETS (6 Angles) */}
           <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
@@ -2656,6 +2818,19 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
                 </div>
 
                 <div>
+                  <label className="block font-bold text-slate-800 mb-2">معالجة الصورة:</label>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-lg hover:bg-indigo-700"
+                    >
+                      إزالة الخلفية تلقائياً ✂️
+                    </button>
+                    <span className="text-[10px] text-slate-500">سيقوم الذكاء الاصطناعي بتحديد المنتج وعزل الخلفية الحالية</span>
+                  </div>
+                </div>
+
+                <div>
                   <label className="block font-bold text-slate-800 mb-1">
                     أو اكتب وصف المشهد المرغوب بحرية (Prompt):
                   </label>
@@ -2663,7 +2838,7 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
                     rows={3}
                     value={aiBackdropPrompt}
                     onChange={(e) => setAiBackdropPrompt(e.target.value)}
-                    placeholder="مثال: منصة خشبية دافئة مع خلفية إضاءة ستوديو متدرجة وظلال واقعية تعكس الفخامة لمشتري السوق المصري..."
+                    placeholder="مثال: خلفية ديكور مصري عريق مع خامات خشب أركيت وإضاءة دافئة هادئة تعكس الفخامة..."
                     className="w-full p-3 rounded-2xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-slate-800 leading-relaxed font-medium text-xs"
                   />
                 </div>

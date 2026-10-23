@@ -1,85 +1,167 @@
-// Service Worker for Merchant Radar Egypt (PWA Builder 100% compliant)
-const CACHE_NAME = 'merchant-radar-cache-v7-pwa-46';
-const OFFLINE_URL = '/';
-const PRECACHE_ASSETS = [
-  '/manifest.json',
-  '/favicon.ico',
-  '/apple-touch-icon.png',
-  '/icon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/pwa-192x192.png',
-  '/pwa-512x512.png',
-  '/pwa-maskable-512x512.png'
-];
+/**
+ * Copyright 2018 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-// Install - Precache
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[PWA SW] Precache partial error:', err);
-      });
-    }).then(() => self.skipWaiting())
-  );
-});
+// If the loader is already loaded, just stop.
+if (!self.define) {
+  let registry = {};
 
-// Activate - Claim clients
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
-    .then(() => self.clients.claim())
-  );
-});
+  // Used for `eval` and `importScripts` where we can't get script URL by other means.
+  // In both cases, it's safe to use a global var because those functions are synchronous.
+  let nextDefineUri;
 
-// Fetch - Offline Support (مهم جداً للـ +2)
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      }).catch(() => caches.match(OFFLINE_URL));
-    })
-  );
-});
+  const singleRequire = (uri, parentUri) => {
+    uri = new URL(uri + ".js", parentUri).href;
+    return registry[uri] || (
+      
+        new Promise(resolve => {
+          if ("document" in self) {
+            const script = document.createElement("script");
+            script.src = uri;
+            script.onload = resolve;
+            document.head.appendChild(script);
+          } else {
+            nextDefineUri = uri;
+            importScripts(uri);
+            resolve();
+          }
+        })
+      
+      .then(() => {
+        let promise = registry[uri];
+        if (!promise) {
+          throw new Error(`Module ${uri} didn’t register its module`);
+        }
+        return promise;
+      })
+    );
+  };
 
-// Background Sync
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-products' || event.tag === 'update-prices') {
-    event.waitUntil(syncProducts());
-  }
-});
-
-// Periodic Sync
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'update-prices' || event.tag === 'content-sync') {
-    event.waitUntil(updatePrices());
-  }
-});
-
-// Push Notifications
-self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : { title: 'رادار التاجر', body: 'تم تحديث الأسعار!' };
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body || 'تحديث جديد في أسعار المنتجات',
-      icon: '/pwa-512x512.png',
-      badge: '/icon-192.png',
-      dir: 'rtl',
-      lang: 'ar'
-    })
-  );
-});
-
-async function syncProducts() {
-  console.log('Background Sync: Products');
-  return Promise.resolve();
+  self.define = (depsNames, factory) => {
+    const uri = nextDefineUri || ("document" in self ? document.currentScript.src : "") || location.href;
+    if (registry[uri]) {
+      // Module is already loading or loaded.
+      return;
+    }
+    let exports = {};
+    const require = depUri => singleRequire(depUri, uri);
+    const specialDeps = {
+      module: { uri },
+      exports,
+      require
+    };
+    registry[uri] = Promise.all(depsNames.map(
+      depName => specialDeps[depName] || require(depName)
+    )).then(deps => {
+      factory(...deps);
+      return exports;
+    });
+  };
 }
+define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
 
-async function updatePrices() {
-  console.log('Periodic Sync: Prices');
-  return Promise.resolve();
-}
+  self.skipWaiting();
+  workbox.clientsClaim();
+  /**
+   * The precacheAndRoute() method efficiently caches and responds to
+   * requests for URLs in the manifest.
+   * See https://goo.gl/S9QRab
+   */
+  workbox.precacheAndRoute([{
+    "url": "service-worker.js",
+    "revision": "59273d2549b4b707737ac8de6906aa6c"
+  }, {
+    "url": "registerSW.js",
+    "revision": "1872c500de691dce40960bb85481de07"
+  }, {
+    "url": "pwa-maskable-512x512.png",
+    "revision": "648883309d5de4525b9ae1da94be1fcc"
+  }, {
+    "url": "pwa-512x512.png",
+    "revision": "71599ab92dac8653e6376b7d580def61"
+  }, {
+    "url": "pwa-192x192.png",
+    "revision": "8651729677c2a751a5c33a3a9cfe2331"
+  }, {
+    "url": "index.html",
+    "revision": "b3000164bc7aabae65efa121e7ee0b0d"
+  }, {
+    "url": "icon.svg",
+    "revision": "c4e4a0098930da2c87d0e9cbb2173dc2"
+  }, {
+    "url": "icon-512.png",
+    "revision": "3a6b3e653a0da2c88429d398d6a99c38"
+  }, {
+    "url": "icon-192.png",
+    "revision": "063dd47b84e20c56231562b340e926f6"
+  }, {
+    "url": "google9fb59f4571d8c5dc.html",
+    "revision": "8c03beec1ba971f2eab5af326c237a6e"
+  }, {
+    "url": "firebase-messaging-sw.js",
+    "revision": "254cca5331c586f2d553a880b58ddbf8"
+  }, {
+    "url": "favicon.ico",
+    "revision": "55a98bd9670143b4df53cb2a013e2c3b"
+  }, {
+    "url": "favicon-32x32.png",
+    "revision": "55a98bd9670143b4df53cb2a013e2c3b"
+  }, {
+    "url": "apple-touch-icon.png",
+    "revision": "3bed2b0539635090d00b588cd178ae30"
+  }, {
+    "url": "screenshots/mobile-720x1280.png",
+    "revision": "d0e990dd662ecce044ab9b1d0fbd18b0"
+  }, {
+    "url": "screenshots/desktop-1280x720.png",
+    "revision": "0e86052875849027aab2710429b9c395"
+  }, {
+    "url": "assets/index-lq8XHiz5.css",
+    "revision": null
+  }, {
+    "url": "assets/index-BVlTuF9t.js",
+    "revision": null
+  }, {
+    "url": "apple-touch-icon.png",
+    "revision": "3bed2b0539635090d00b588cd178ae30"
+  }, {
+    "url": "favicon.ico",
+    "revision": "55a98bd9670143b4df53cb2a013e2c3b"
+  }, {
+    "url": "icon.svg",
+    "revision": "c4e4a0098930da2c87d0e9cbb2173dc2"
+  }, {
+    "url": "pwa-192x192.png",
+    "revision": "8651729677c2a751a5c33a3a9cfe2331"
+  }, {
+    "url": "pwa-512x512.png",
+    "revision": "71599ab92dac8653e6376b7d580def61"
+  }, {
+    "url": "pwa-maskable-512x512.png",
+    "revision": "648883309d5de4525b9ae1da94be1fcc"
+  }, {
+    "url": "manifest.webmanifest",
+    "revision": "ee35780fc6e501d7f9608b48386e42c3"
+  }], {});
+  workbox.cleanupOutdatedCaches();
+  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));
+  workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
+    "cacheName": "google-fonts-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 10,
+      maxAgeSeconds: 31536000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+
+}));
