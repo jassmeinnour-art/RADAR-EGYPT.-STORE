@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { 
   Zap, 
   Sparkles, 
@@ -24,9 +24,11 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { auth, signInWithEmailAndPassword, onAuthStateChanged, firebaseSignOut, googleProvider, signInWithPopup } from './firebase';
-import PaymentModal from './components/PaymentModal';
-import OwnerDashboard from './components/OwnerDashboard';
-import LandingPage from './components/LandingPage';
+
+// Lazy load components
+const PaymentModal = lazy(() => import('./components/PaymentModal'));
+const OwnerDashboard = lazy(() => import('./components/OwnerDashboard'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -159,7 +161,7 @@ export default function App() {
   const isTrialExpired = trialEndDate ? new Date() > trialEndDate : false;
 
   return (
-    <>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">جاري تحميل التطبيق...</div>}>
       {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
       {isAuthenticated ? (
         showOwnerDashboard && isOwner ? (
@@ -254,7 +256,6 @@ export default function App() {
           </div>
         </div>
       )}
-    </>
+    </Suspense>
   );
-
 }
