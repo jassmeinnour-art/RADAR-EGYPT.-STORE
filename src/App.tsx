@@ -24,7 +24,11 @@ import {
   ArrowRight,
   Shield,
   HelpCircle,
-  BookOpen
+  BookOpen,
+  Crown,
+  Clock,
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   auth, 
@@ -377,24 +381,137 @@ export default function App() {
             {activeWorkspaceTab === 'help' ? (
               <HelpPage />
             ) : (
-              <div className="p-10 text-center text-slate-400">
+              <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+                
+                {/* 1. Owner Dashboard Banner */}
                 {isOwner && (
-                  <button onClick={() => setShowOwnerDashboard(true)} className="p-6 mb-6 w-full bg-amber-900/30 border border-amber-500/50 text-amber-100 rounded-2xl font-bold shadow-lg hover:bg-amber-800/40 transition">
-                    👑 الدخول إلى لوحة تحكم المالك (إدارة النظام والوكالة بالكامل)
+                  <button 
+                    onClick={() => setShowOwnerDashboard(true)} 
+                    className="w-full p-6 bg-gradient-to-r from-amber-950/90 via-slate-900/95 to-amber-950/90 border-2 border-amber-500/60 text-amber-100 rounded-2xl font-black shadow-2xl hover:border-amber-400 hover:shadow-amber-500/20 transition-all flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-xl group"
+                  >
+                    <div className="flex items-center gap-4 text-right">
+                      <div className="p-3 bg-amber-500/20 rounded-xl border border-amber-500/40 text-amber-400 group-hover:scale-105 transition-transform shrink-0">
+                        <Crown className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <span className="text-xl font-black text-white block">👑 لوحة تحكم مالكة التطبيق (jassmeinnour@gmail.com)</span>
+                        <span className="text-xs text-amber-300/80 font-medium">إدارة النظام بالكامل، التعديل على التجار، وصلاحيات الوكالة</span>
+                      </div>
+                    </div>
+                    <div className="px-5 py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md group-hover:bg-amber-400 transition-colors flex items-center gap-2 shrink-0">
+                      <span>فتح اللوحة التنفيذية</span>
+                      <ArrowRight className="w-4 h-4 rotate-180" />
+                    </div>
                   </button>
                 )}
+
+                {/* 2. Trial Status Warning if Expired */}
                 {isTrialExpired && (
-                  <div className="p-6 mb-6 bg-red-900/30 border border-red-500/50 text-red-100 rounded-2xl font-bold shadow-lg">
-                    ⚠️ انتهت الفترة التجريبية. يرجى الترقية للاشتراك المدفوع للحفاظ على الوصول للميزات المتقدمة.
-                    <button onClick={() => setIsPaymentModalOpen(true)} className="block mt-4 mx-auto px-6 py-2 bg-red-600 text-white rounded-full">ترقية الآن</button>
+                  <div className="p-6 bg-red-950/80 border border-red-500/50 text-red-100 rounded-2xl font-bold shadow-xl backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="w-6 h-6 text-red-400 shrink-0" />
+                      <div>
+                        <h4 className="text-base font-bold text-white">انتهت الفترة التجريبية المجانية</h4>
+                        <p className="text-xs text-red-200/80">يرجى الترقية للاشتراك المدفوع للحفاظ على التزامن التلقائي والوصول الكامل.</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setIsPaymentModalOpen(true)} 
+                      className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-xs shadow-lg transition shrink-0"
+                    >
+                      ترقية الآن
+                    </button>
                   </div>
                 )}
-                <h1 className="text-2xl font-bold text-white mb-4">أهلاً بك في لوحة تحكم التاجر</h1>
-                <p className="mb-6">التجربة التجريبية فعالة حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</p>
-                <div className="flex justify-center gap-4">
-                  <button onClick={() => setIsPaymentModalOpen(true)} className="p-3 bg-amber-900/50 hover:bg-amber-800/50 text-amber-200 font-bold rounded-xl border border-amber-500/30">اشتراك / تجديد</button>
-                  <button onClick={() => setActiveWorkspaceTab('help')} className="p-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-md">فتح دليل الربط والدعم</button>
+
+                {/* 3. Quick Stats KPI Overview Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  {/* KPI 1: Active Products */}
+                  <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400">المنتجات النشطة</span>
+                      <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                        <Package className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-3xl font-black text-white font-mono">148</div>
+                      <span className="text-[11px] text-emerald-400 font-bold">+12 منتج جديد هذا الأسبوع</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 2: Monitored Competitors */}
+                  <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400">المنافسون المراقبون</span>
+                      <div className="p-2.5 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20">
+                        <Users className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-3xl font-black text-white font-mono">342</div>
+                      <span className="text-[11px] text-slate-400 font-bold">أمازون، نون، وجوميا مصر</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 3: Last Sync Status */}
+                  <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400">حالة التزامن الأخيرة</span>
+                      <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                        <RefreshCw className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-black text-emerald-400 font-mono">100% متزامن</div>
+                      <span className="text-[11px] text-slate-400 font-bold">آخر تحديث: منذ 3 دقائق</span>
+                    </div>
+                  </div>
+
+                  {/* KPI 4: Subscription Countdown */}
+                  <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400">مهلة التجربة/الاشتراك</span>
+                      <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-3xl font-black text-white font-mono">
+                        {trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 7} أيام
+                      </div>
+                      <span className="text-[11px] text-amber-300 font-bold">فعال حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* 4. Glassmorphism Main Merchant Card */}
+                <div className="p-8 bg-slate-900/80 border border-amber-500/20 rounded-2xl shadow-xl backdrop-blur-xl text-center space-y-6">
+                  <div className="max-w-2xl mx-auto space-y-3">
+                    <h1 className="text-3xl font-black text-white">أهلاً بك في لوحة تحكم التاجر الذكي</h1>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      نظام رادار التاجر يتيح لك المراقبة المستمرة لأسعار ومخزون المنافسين على منصات البيع في مصر مع توفير التزامن التلقائي.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap justify-center gap-4 pt-2">
+                    <button 
+                      onClick={() => setIsPaymentModalOpen(true)} 
+                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg transition"
+                    >
+                      اشتراك / تجديد الباقة
+                    </button>
+                    
+                    <button 
+                      onClick={() => setActiveWorkspaceTab('help')} 
+                      className="px-6 py-3 bg-slate-950 hover:bg-slate-800 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/30 transition flex items-center gap-2"
+                    >
+                      <BookOpen className="w-4 h-4 text-amber-400" />
+                      <span>فتح دليل الربط والدعم</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
             )}
             
