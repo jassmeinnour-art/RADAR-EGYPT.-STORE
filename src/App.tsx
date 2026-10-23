@@ -1,287 +1,260 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Store, 
-  TrendingUp, 
-  TrendingDown, 
-  ShieldCheck, 
   Zap, 
-  Package, 
-  ShoppingBag, 
+  Sparkles, 
+  Mail, 
+  Key, 
   Globe, 
-  Building2, 
+  Users, 
+  RefreshCw, 
+  Monitor, 
   Smartphone, 
+  ShieldCheck, 
+  Package, 
+  Bell, 
+  TrendingUp, 
+  ShoppingBag, 
+  Building2, 
   Search, 
   Filter, 
-  RefreshCw, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Bell,
-  Settings,
-  BarChart3,
-  Layers,
-  Sparkles,
-  CheckCircle2,
-  AlertTriangle
+  ChevronDown, 
+  Truck, 
+  Camera, 
+  FileText,
+  ArrowRight
 } from 'lucide-react';
+import { auth, signInWithEmailAndPassword, onAuthStateChanged, firebaseSignOut, googleProvider, signInWithPopup } from './firebase';
+import PaymentModal from './components/PaymentModal';
+import OwnerDashboard from './components/OwnerDashboard';
+import LandingPage from './components/LandingPage';
 
 export default function App() {
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'radar' | 'inventory' | 'sales'>('overview');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [trialEndDate, setTrialEndDate] = useState<Date | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'email' | 'google' | 'landing'>('landing');
+  const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
+  
+  // Dashboard states
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports'>('merchants');
 
-  const stats = [
-    { title: 'إجمالي المنتجات المراقبة', value: '142 منتج', change: '+12.5%', isUp: true, icon: Package, color: 'from-blue-600 to-indigo-700' },
-    { title: 'منتجات متصدرة Buy Box', value: '98 منتج', change: '+8.2%', isUp: true, icon: ShieldCheck, color: 'from-emerald-600 to-teal-700' },
-    { title: 'تنبيهات هبوط الأسعار', value: '14 تنبيه', change: '-3.1%', isUp: false, icon: Bell, color: 'from-amber-600 to-orange-700' },
-    { title: 'إجمالي المبيعات اليومية', value: '78,450 ج.م', change: '+24.6%', isUp: true, icon: TrendingUp, color: 'from-purple-600 to-pink-700' },
-  ];
+  // Auth Constants
+  const OWNER_EMAIL = 'jassmeinnour@gmail.com';
+  const isOwner = user?.email === OWNER_EMAIL;
 
-  const platforms = [
-    { name: 'أمازون مصر (Amazon.eg)', status: 'متصل ومزامنة فورية', products: 86, buyBox: '78%', ping: '120ms', icon: ShoppingBag, color: 'bg-amber-500/10 text-amber-600 border-amber-200' },
-    { name: 'نون مصر (Noon Partner)', status: 'متصل ومزامنة فورية', products: 64, buyBox: '65%', ping: '145ms', icon: Globe, color: 'bg-yellow-500/10 text-yellow-600 border-yellow-200' },
-    { name: 'جوميا مصر (Jumia Mall)', status: 'متصل ومزامنة فورية', products: 42, buyBox: '82%', ping: '180ms', icon: Building2, color: 'bg-orange-500/10 text-orange-600 border-orange-200' },
-  ];
+  useEffect(() => {
+    // 7-day free trial logic
+    const savedInstallDate = localStorage.getItem('radar_install_date');
+    if (!savedInstallDate) {
+      const now = new Date();
+      localStorage.setItem('radar_install_date', now.toISOString());
+      const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      setTrialEndDate(end);
+    } else {
+      setTrialEndDate(new Date(new Date(savedInstallDate).getTime() + 7 * 24 * 60 * 60 * 1000));
+    }
 
-  const sampleProducts = [
-    { id: '1', title: 'سماعة بلوتوث لاسلكية مقاومة للماء TWS', category: 'إلكترونيات', myPrice: 850, competitorPrice: 890, status: 'رَابِح (Buy Box)', platform: 'أمازون مصر', stock: 45 },
-    { id: '2', title: 'شاحن جداري سريع 65 وات قوية Type-C', category: 'إلكترونيات وموبايلات', myPrice: 420, competitorPrice: 399, status: 'تحت المراقبة', platform: 'نون مصر', stock: 12 },
-    { id: '3', title: 'ساعة ذكية رياضية بشاشة AMOLED', category: 'إلكترونيات', myPrice: 1250, competitorPrice: 1250, status: 'تعادل سعري', platform: 'جوميا مصر', stock: 28 },
-    { id: '4', title: 'حقيبة ظهر لاب توب مضادة للسرقة', category: 'مستلزمات شخصية', myPrice: 550, competitorPrice: 590, status: 'رَابِح (Buy Box)', platform: 'أمازون مصر', stock: 60 },
-  ];
+    // Firebase Auth State
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+        setShowOwnerDashboard(false);
+      }
+    });
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1200);
+    // Keyboard Shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isAuthenticated) return;
+      if (e.key.toLowerCase() === 'r') { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }
+      if (e.key.toLowerCase() === 's') { setActiveWorkspaceTab('ai_studio'); setShowOwnerDashboard(false); }
+      if (e.key.toLowerCase() === 'm') { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }
+      if (e.key.toLowerCase() === 'o' && isOwner) setShowOwnerDashboard(true);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthenticated, isOwner]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await signInWithEmailAndPassword(auth, authEmail, authPassword);
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('خطأ في تسجيل الدخول. يرجى التحقق من البيانات.');
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif]" dir="rtl">
-      {/* Top Header */}
-      <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
-            <Zap className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
-              رادار التاجر الذكي مصر <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">بث مباشر ⚡</span>
-            </h1>
-            <p className="text-xs text-slate-400">لوحة تحكم تحليل الأسعار والمنافسة في السوق المصري (أمازون، نون، جوميا)</p>
-          </div>
-        </div>
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('Google login error:', error);
+    }
+  };
 
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleRefresh}
-            className={`px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 flex items-center gap-2 transition-all cursor-pointer ${isRefreshing ? 'opacity-75' : ''}`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-sky-400' : ''}`} />
-            <span>تحديث البيانات</span>
-          </button>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs font-bold text-sky-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>متجر ياسمين نور (معتمد)</span>
-          </div>
-        </div>
-      </header>
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
-          <button 
-            onClick={() => setSelectedTab('overview')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${selectedTab === 'overview' ? 'bg-sky-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>نظرة عامة والملخص</span>
-          </button>
-          <button 
-            onClick={() => setSelectedTab('radar')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${selectedTab === 'radar' ? 'bg-sky-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>رادار المنافسين والأسعار</span>
-          </button>
-          <button 
-            onClick={() => setSelectedTab('inventory')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${selectedTab === 'inventory' ? 'bg-sky-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-          >
-            <Package className="w-4 h-4" />
-            <span>إدارة المخزون</span>
-          </button>
-          <button 
-            onClick={() => setSelectedTab('sales')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${selectedTab === 'sales' ? 'bg-sky-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>تحليلات المبيعات</span>
-          </button>
-        </div>
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
 
-        {/* Overview Tab Content */}
-        {selectedTab === 'overview' && (
-          <div className="space-y-6">
-            
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.map((stat, idx) => {
-                const IconComponent = stat.icon;
-                return (
-                  <div key={idx} className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr ${stat.color} flex items-center justify-center text-white shadow-md`}>
-                        <IconComponent className="w-5 h-5" />
-                      </div>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stat.isUp ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'}`}>
-                        {stat.isUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                        {stat.change}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-400">{stat.title}</h4>
-                      <div className="text-xl sm:text-2xl font-black text-white mt-1">{stat.value}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
-            {/* Platforms Status Overview */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-black text-white flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-sky-400" />
-                    <span>حالة ربط المنصات وقنوات البيع</span>
-                  </h3>
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">3 منصات نشطة</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {platforms.map((plat, idx) => {
-                    const PlatIcon = plat.icon;
-                    return (
-                      <div key={idx} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${plat.color}`}>
-                            <PlatIcon className="w-4 h-4" />
-                          </div>
-                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">{plat.status}</span>
-                        </div>
-                        <div>
-                          <div className="font-bold text-white text-sm">{plat.name}</div>
-                          <div className="text-xs text-slate-400 mt-1 flex items-center justify-between">
-                            <span>المنتجات: {plat.products}</span>
-                            <span className="text-sky-400 font-bold">Buy Box: {plat.buyBox}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+  const handleInstall = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          setDeferredPrompt(null);
+        }
+      });
+    } else {
+      alert('الرجاء تثبيت التطبيق من إعدادات المتصفح (قائمة المشاركة/النقاط الثلاث -> إضافة للشاشة الرئيسية).');
+    }
+  };
 
-              {/* Quick Actions / AI Summary */}
-              <div className="bg-gradient-to-br from-indigo-950/60 to-slate-950/80 border border-indigo-500/30 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-indigo-400">
-                    <Sparkles className="w-5 h-5 animate-pulse" />
-                    <h3 className="font-black text-white text-base">توصيات الذكاء الاصطناعي</h3>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    تم رصد انخفاض سعر المنتج &quot;شاحن جداري سريع&quot; لدى المنافسين في نون بمقدار 21 ج.م. يُنصح بتعديل السعر التلقائي لحماية حصة Buy Box.
-                  </p>
-                </div>
-                <button className="w-full mt-4 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <span>تطبيق التعديل التلقائي الذكي</span>
-                </button>
-              </div>
-            </div>
+  const downloadCertificate = () => {
+    const certContent = '-----BEGIN CERTIFICATE-----\nMIIDATCCAemgAwIBAgIU...\n-----END CERTIFICATE-----';
+    const blob = new Blob([certContent], { type: 'application/x-pem-file' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'radar_cert.crt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-            {/* Sample Competitor Pricing Table */}
-            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-black text-white">رصد أسعار المنافسين الفوري (Live Competitor Pricing)</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">مقارنة لحظية بين أسعار متجرك وأسعار أقوى المنافسين في السوق المصري</p>
-                </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-64">
-                    <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                    <input 
-                      type="text" 
-                      placeholder="بحث عن منتج أو SKU..." 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
-                    />
-                  </div>
-                  <button className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer">
-                    <Filter className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-xs font-extrabold text-slate-400">
-                      <th className="py-3 px-4">المنتج والـ SKU</th>
-                      <th className="py-3 px-4">التصنيف</th>
-                      <th className="py-3 px-4">سعر متجرك</th>
-                      <th className="py-3 px-4">سعر المنافس الأقل</th>
-                      <th className="py-3 px-4">القناة</th>
-                      <th className="py-3 px-4">حالة Buy Box</th>
-                      <th className="py-3 px-4">المخزون</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {sampleProducts.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase())).map((prod) => (
-                      <tr key={prod.id} className="hover:bg-slate-900/60 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-white max-w-xs truncate">{prod.title}</td>
-                        <td className="py-3.5 px-4 text-slate-400">{prod.category}</td>
-                        <td className="py-3.5 px-4 font-extrabold text-sky-400">{prod.myPrice} ج.م</td>
-                        <td className="py-3.5 px-4 font-extrabold text-amber-400">{prod.competitorPrice} ج.م</td>
-                        <td className="py-3.5 px-4 text-slate-300">{prod.platform}</td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 ${prod.status.includes('رَابِح') ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : prod.status.includes('تحت') ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-sky-500/15 text-sky-400 border border-sky-500/30'}`}>
-                            {prod.status.includes('رَابِح') ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                            {prod.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-200">{prod.stock} وحدة</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* Other Tabs Content Fallback */}
-        {selectedTab !== 'overview' && (
-          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-3xl bg-sky-500/15 text-sky-400 flex items-center justify-center mx-auto border border-sky-500/30">
-              <Layers className="w-8 h-8" />
-            </div>
-            <h3 className="text-lg font-black text-white">قسم ({selectedTab === 'radar' ? 'رادار المنافسين والأسعار' : selectedTab === 'inventory' ? 'إدارة المخزون' : 'تحليلات المبيعات'}) نشط وجاهز</h3>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
-              يمكنك التبديل بين أقسام المنظومة المختلفة لمتابعة تفاصيل البوالص، والموردين، وتقارير الأداء اليومية والأسبوعية.
-            </p>
-            <button 
-              onClick={() => setSelectedTab('overview')}
-              className="py-2.5 px-6 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
-            >
-              العودة إلى لوحة التحكم الرئيسية
-            </button>
-          </div>
-        )}
-
-      </main>
+  const InstallationBar = () => (
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-slate-950 border-b border-amber-500/30 shadow-2xl">
+      <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <button onClick={handleInstall} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+          <Monitor className="w-4 h-4 text-sky-400" /> <span>تثبيت الويندوز (Windows)</span>
+        </button>
+        <button onClick={handleInstall} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+          <Smartphone className="w-4 h-4 text-emerald-400" /> <span>تثبيت الهواتف الذكية (Mobile)</span>
+        </button>
+        <button onClick={downloadCertificate} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
+          <ShieldCheck className="w-4 h-4 text-amber-400" /> <span>تحميل شهادة الاعتماد</span>
+        </button>
+      </div>
     </div>
   );
+
+  const isTrialExpired = trialEndDate ? new Date() > trialEndDate : false;
+
+  return (
+    <>
+      {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
+      {isAuthenticated ? (
+        showOwnerDashboard && isOwner ? (
+          <div className="min-h-screen bg-slate-950 text-white font-['Cairo',sans-serif] pt-20" dir="rtl">
+            <button onClick={() => setShowOwnerDashboard(false)} className="m-4 px-4 py-2 bg-slate-800 rounded-full">العودة للوحة التحكم</button>
+            <OwnerDashboard />
+          </div>
+        ) : (
+          <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif] pb-20 pt-20" dir="rtl">
+            <InstallationBar />
+
+            {/* Main Dashboard UI ... */}
+            <div className="p-10 text-center text-slate-400">
+              {isOwner && (
+                <button onClick={() => setShowOwnerDashboard(true)} className="p-6 mb-6 w-full bg-amber-900/30 border border-amber-500/50 text-amber-100 rounded-2xl font-bold shadow-lg hover:bg-amber-800/40 transition">
+                  👑 الدخول إلى لوحة تحكم المالك (إدارة النظام والوكالة بالكامل)
+                </button>
+              )}
+              {isTrialExpired && (
+                <div className="p-6 mb-6 bg-red-900/30 border border-red-500/50 text-red-100 rounded-2xl font-bold shadow-lg">
+                  ⚠️ انتهت الفترة التجريبية. يرجى الترقية للاشتراك المدفوع للحفاظ على الوصول للميزات المتقدمة.
+                  <button onClick={() => setIsPaymentModalOpen(true)} className="block mt-4 mx-auto px-6 py-2 bg-red-600 text-white rounded-full">ترقية الآن</button>
+                </div>
+              )}
+              <h1 className="text-2xl font-bold text-white mb-4">أهلاً بك في لوحة تحكم التاجر</h1>
+              <p>التجربة التجريبية فعالة حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</p>
+              <button onClick={() => setIsPaymentModalOpen(true)} className="mt-4 ml-2 p-2 bg-amber-900/50 rounded-lg hover:bg-amber-800/50">اشتراك / تجديد</button>
+              <button onClick={() => firebaseSignOut(auth)} className="mt-4 p-2 bg-red-900/50 rounded-lg hover:bg-red-800/50">تسجيل الخروج</button>
+            </div>
+            
+            {/* Bottom Tab Bar (Mobile) */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around p-3 z-40">
+              <button onClick={() => setActiveWorkspaceTab('merchants')} className={`flex flex-col items-center ${activeWorkspaceTab === 'merchants' ? 'text-amber-500' : 'text-slate-400'}`}>
+                <Building2 size={24} /> <span className="text-[10px]">الإدارة</span>
+              </button>
+              <button onClick={() => setActiveWorkspaceTab('radar')} className={`flex flex-col items-center ${activeWorkspaceTab === 'radar' ? 'text-amber-500' : 'text-slate-400'}`}>
+                <Globe size={24} /> <span className="text-[10px]">الرادار</span>
+              </button>
+              <button onClick={() => setActiveWorkspaceTab('ai_studio')} className={`flex flex-col items-center ${activeWorkspaceTab === 'ai_studio' ? 'text-amber-500' : 'text-slate-400'}`}>
+                <Sparkles size={24} /> <span className="text-[10px]">الاستوديو</span>
+              </button>
+            </div>
+          </div>
+        )
+      ) : authMode === 'landing' ? (
+        <div className="min-h-screen flex flex-col pt-20">
+          <InstallationBar />
+          <LandingPage onLoginClick={() => setAuthMode('email')} />
+        </div>
+      ) : (
+        /* Modern Executive Login Screen */
+        <div className="min-h-[100dvh] w-full flex flex-col items-center bg-slate-950 text-slate-100 font-['Cairo',sans-serif] pt-20" dir="rtl">
+          <InstallationBar />
+          <div className="flex-grow flex items-center justify-center p-4 w-full">
+            <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden">
+              
+              {/* Left Side: Brand Panel */}
+              <div className="hidden lg:flex p-12 flex-col justify-between bg-gradient-to-br from-amber-950 to-slate-950 border-l border-amber-500/20">
+                <div className="space-y-6">
+                  <img src="/pwa-192x192.png" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
+                  <h1 className="text-4xl font-black text-white">رادار التاجر <span className="text-amber-400">الذكي</span></h1>
+                  <p className="text-amber-100/70 text-lg">تغطية شاملة لأسعار ومخزون أمازون، نون، وجوميا بأعلى معايير الدقة.</p>
+                </div>
+              </div>
+
+              {/* Right Side: Auth Panel */}
+              <div className="p-8 sm:p-12 flex flex-col justify-center">
+                <div className="lg:hidden text-center mb-8">
+                  <img src="/pwa-192x192.png" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
+                </div>
+                
+                <div className="flex gap-4 mb-8">
+                  <button onClick={() => setAuthMode('email')} className={`flex-1 py-2 rounded-lg font-bold ${authMode === 'email' ? 'bg-amber-600' : 'bg-slate-800'}`}>البريد الإلكتروني</button>
+                  <button onClick={() => setAuthMode('google')} className={`flex-1 py-2 rounded-lg font-bold ${authMode === 'google' ? 'bg-amber-600' : 'bg-slate-800'}`}>Google OAuth</button>
+                </div>
+
+                <h3 className="text-2xl font-black text-white mb-6 text-center">تسجيل الدخول</h3>
+                
+                {authMode === 'google' ? (
+                  <button onClick={handleGoogleLogin} className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-100 transition">
+                    <Mail className="w-5 h-5" /> تسجيل الدخول بحساب Google
+                  </button>
+                ) : (
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <input type="email" required placeholder="البريد الإلكتروني" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 transition" />
+                    <input type="password" required placeholder="كلمة المرور" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 transition" />
+                    <button type="submit" className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-extrabold hover:from-amber-400 hover:to-amber-500 transition">تسجيل الدخول للنظام</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
 }

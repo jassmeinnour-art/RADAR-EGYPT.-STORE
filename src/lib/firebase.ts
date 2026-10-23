@@ -228,11 +228,21 @@ if (typeof window !== 'undefined') {
 }
 
 // Initialize Firebase App safely as a singleton instance
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const config = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || 'FALLBACK_API_KEY',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || 'FALLBACK_AUTH_DOMAIN',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || 'FALLBACK_PROJECT_ID',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || 'FALLBACK_STORAGE_BUCKET',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || 'FALLBACK_MESSAGING_SENDER_ID',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || 'FALLBACK_APP_ID',
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId || '(default)'
+};
+
+export const app = getApps().length > 0 ? getApp() : initializeApp(config);
 
 // Initialize Authentication & Firestore with explicit custom databaseId per skill specification
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const db = getFirestore(app, config.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
