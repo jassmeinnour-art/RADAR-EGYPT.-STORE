@@ -28,7 +28,8 @@ import {
   Info,
   ChevronDown,
   Lock,
-  Crown
+  Crown,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   MerchantCatalogProduct, 
@@ -90,6 +91,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshingPricing, setIsRefreshingPricing] = useState(false);
   const [isRunningAutoRepricer, setIsRunningAutoRepricer] = useState(false);
+  const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Automated Repricer Audit Logs & View Toggle
@@ -381,6 +383,48 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       }
     } finally {
       setIsRunningAutoRepricer(false);
+    }
+  };
+
+  const handleOptimizeCatalogImages = async () => {
+    if (products.length === 0) return;
+    setIsOptimizingImages(true);
+    let optimizedCount = 0;
+    
+    try {
+      const updatedProducts = [...products];
+      
+      for (let i = 0; i < updatedProducts.length; i++) {
+        const p = updatedProducts[i];
+        if (!p.imageUrl || !p.imageUrl.startsWith('data:')) continue;
+        
+        try {
+          const res = await fetch('/api/optimize-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: p.imageUrl, maxWidth: 400, quality: 65 })
+          });
+          const result = await res.json();
+          if (result.success && result.data.optimizedBase64) {
+            updatedProducts[i] = { ...p, imageUrl: result.data.optimizedBase64 };
+            optimizedCount++;
+          }
+        } catch (err) {
+          console.warn(`Failed to optimize image for ${p.sku}`, err);
+        }
+      }
+      
+      if (optimizedCount > 0) {
+        setProducts(updatedProducts);
+        saveMerchantCatalog(activeMerchantId, updatedProducts);
+        if (onShowToast) onShowToast(`🖼️ تم ضغط وتحسين ${optimizedCount} صورة منتج بنجاح لتقليل زمن التحميل!`);
+      } else {
+        if (onShowToast) onShowToast('✅ صور الكتالوج محسنة بالفعل أو لا توجد صور للمعالجة.');
+      }
+    } catch (err) {
+      console.error('Image optimization error:', err);
+    } finally {
+      setIsOptimizingImages(false);
     }
   };
 
@@ -825,6 +869,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>سجل التعديل التلقائي ({auditLogs.length}) 📜</span>
+            </button>
+
+            {/* Optimize Images Button */}
+            <button
+              type="button"
+              onClick={handleOptimizeCatalogImages}
+              disabled={isOptimizingImages || products.length === 0}
+              className="h-10 px-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
+              title="ضغط صور المنتجات المخزنة وتحويلها إلى مصغرات (Thumbnails) لتقليل زمن تحميل الواجهة"
+            >
+              <ImageIcon className={`w-3.5 h-3.5 ${isOptimizingImages ? 'animate-pulse' : ''}`} />
+              <span>{isOptimizingImages ? 'جاري الضغط...' : 'ضغط الصور 🖼️'}</span>
             </button>
 
             {/* Add Product Button */}

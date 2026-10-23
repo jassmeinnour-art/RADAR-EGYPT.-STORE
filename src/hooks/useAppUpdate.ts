@@ -223,57 +223,47 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
   // One-Click Clean Update Handler (إصلاح دالة التحديث وتفريغ الكاش بضغطة واحدة)
   const applyUpdate = useCallback(async () => {
     setIsUpdating(true);
-    onShowToast?.('جاري تفريغ الذاكرة المؤقتة (Cache) وتحميل التحديث الجديد... ⚡');
+    onShowToast?.('جاري تفريغ الذاكرة المؤقتة (Cache) وتطبيق التحديث فوراً... ⚡');
 
     try {
-      // 1. مسح كافة ملفات الكاش المخزنة في المتصفح
-      if (typeof window !== 'undefined' && 'caches' in window) {
-        await caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
-      }
-
-      // 2. إزالة وإلغاء تسجيل أي Service Worker قديم
-      clearPWAUpdateState();
+      // 1. إرسال أمر SKIP_WAITING فوراً لجميع الـ Service Workers المسجلين
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          registrations.map(async (reg) => {
-            if (reg.waiting) {
-              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            }
-            return reg.unregister();
-          })
-        );
+        for (const reg of registrations) {
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          // محاولة إلغاء التسجيل أيضاً لضمان التحميل من الخادم مباشرة
+          await reg.unregister();
+        }
       }
 
-      // 3. تحديث رقم الإصدار المخزن في LocalStorage ليطابق رقم الإصدار الحالي للتطبيق
+      // 2. مسح كافة ملفات الكاش المخزنة في المتصفح فوراً
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+      }
+
+      // 3. تحديث رقم الإصدار في LocalStorage
       const targetVersion = serverVersion || CURRENT_APP_VERSION;
       try {
-        localStorage.setItem('app_installed_version', CURRENT_APP_VERSION);
-        if (targetVersion) {
-          localStorage.setItem('app_installed_version', targetVersion);
-        }
+        localStorage.setItem(APP_VERSION_STORAGE_KEY, targetVersion);
         sessionStorage.removeItem(BOOT_TIME_STORAGE_KEY);
         sessionStorage.setItem(DISMISSED_SESSION_KEY, 'true');
-      } catch {
-        // ignore storage errors
+      } catch (e) {
+        console.error('Storage update failed:', e);
       }
 
-      // 4. إغلاق النافذة وإخفاء التنبيه فوراً
+      // 4. إغلاق الواجهة فوراً
       setShowUpdateModal(false);
       setHasUpdate(false);
       setIsBannerDismissed(true);
 
-      // 5. إجبار المتصفح على إعادة التحميل النظيف
+      // 5. إجبار المتصفح على إعادة التحميل فوراً
       window.location.reload();
     } catch (error) {
-      console.error('Error while applying update:', error);
-      try {
-        localStorage.setItem('app_installed_version', CURRENT_APP_VERSION);
-      } catch {
-        // ignore
-      }
-      setShowUpdateModal(false);
-      setHasUpdate(false);
+      console.error('Error during applying update:', error);
+      // إعادة تحميل كخيار أخير في حالة حدوث أي خطأ
       window.location.reload();
     }
   }, [onShowToast, serverVersion]);

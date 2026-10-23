@@ -31,9 +31,10 @@ import {
 
 interface HelpPageProps {
   onNavigateToPlatformsGuide?: () => void;
+  onStartTour?: () => void;
 }
 
-export default function HelpPage({ onNavigateToPlatformsGuide }: HelpPageProps) {
+export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour }: HelpPageProps) {
   const [activeTab, setActiveTab] = useState<'quickstart' | 'amazon' | 'noon' | 'jumia' | 'faq'>('amazon');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -435,6 +436,16 @@ export default function HelpPage({ onNavigateToPlatformsGuide }: HelpPageProps) 
             <Play className="w-4 h-4 fill-slate-950" />
             <span>ابدأ خطوة بخطوة الآن</span>
           </button>
+          
+          {onStartTour && (
+            <button
+              onClick={onStartTour}
+              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs border border-white/10 shadow-lg transition flex items-center gap-2 shrink-0"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>إعادة الجولة التعليمية</span>
+            </button>
+          )}
         </div>
       </div>
 

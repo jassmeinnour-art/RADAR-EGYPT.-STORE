@@ -42,6 +42,16 @@ export const LiveUpdateNotification: React.FC<LiveUpdateNotificationProps> = ({
     applyUpdate,
   } = updateState;
 
+  // Auto-dismiss timeout logic (إخفاء التلقائي بعد 5 ثوانٍ)
+  React.useEffect(() => {
+    if (hasUpdate && showUpdateModal && !isBannerDismissed && variant === 'banner') {
+      const timer = setTimeout(() => {
+        dismissBanner();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasUpdate, showUpdateModal, isBannerDismissed, variant, dismissBanner]);
+
   // 1. Header Button / Pill Variant (Unified with the Update Modal state and One-Click Clean Update handler)
   if (variant === 'header-button') {
     if (!hasUpdate) return null;

@@ -159,6 +159,51 @@ app.get('/api/app-version', (req, res) => {
   });
 });
 
+// Endpoint: Image Optimization & Thumbnail Generation (Cloud Function Alternative)
+app.post('/api/optimize-image', async (req, res) => {
+  try {
+    const { imageBase64, maxWidth = 800, quality = 75 } = req.body;
+
+    if (!imageBase64) {
+      return res.status(400).json({ success: false, error: 'لم يتم توفير صورة للمعالجة' });
+    }
+
+    // Lazy load Jimp to avoid slowing down startup if not used
+    const { Jimp } = await import('jimp');
+
+    // Remove base64 prefix if exists
+    const cleanBase64 = imageBase64.replace(/^data:image\/[^;]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    const image = await Jimp.read(buffer);
+
+    // Resize while maintaining aspect ratio if width is larger than maxWidth
+    if (image.bitmap.width > maxWidth) {
+      image.resize({ w: maxWidth });
+    }
+
+    // Set quality (0-100)
+    const optimizedBuffer = await image.getBuffer('image/jpeg', { quality });
+    const optimizedBase64 = `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`;
+
+    res.json({
+      success: true,
+      data: {
+        optimizedBase64,
+        originalSize: buffer.length,
+        optimizedSize: optimizedBuffer.length,
+        reductionRatio: ((buffer.length - optimizedBuffer.length) / buffer.length * 100).toFixed(2) + '%'
+      }
+    });
+  } catch (error: any) {
+    console.error('Error optimizing image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'فشل في ضغط الصورة وتحويل الحجم'
+    });
+  }
+});
+
 // Endpoint 1: Analyze product for Egyptian Merchant (Competitor Radar, Wholesale Hubs, SEO & Keywords)
 app.post('/api/analyze-product', async (req, res) => {
   try {

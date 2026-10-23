@@ -14,6 +14,7 @@
         "preferredCurrency": { "type": "string", "maxLength": 10 },
         "fcmToken": { "type": "string", "maxLength": 500 },
         "pushNotificationsEnabled": { "type": "boolean" },
+        "hasSeenOnboarding": { "type": "boolean" },
         "lastLoginAt": { "type": "string", "format": "date-time" },
         "lastSeenAt": { "type": "string", "format": "date-time" },
         "sessionCount": { "type": "integer" },

@@ -31,7 +31,9 @@ import {
   AlertTriangle,
   Download,
   FileSpreadsheet,
-  X
+  X,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   auth, 
@@ -41,9 +43,12 @@ import {
   googleProvider, 
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult
+  getRedirectResult,
+  db
 } from './firebase';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
+import { OnboardingTour } from './components/OnboardingTour';
 import PaymentModal from './components/PaymentModal';
 import OwnerDashboard from './components/OwnerDashboard';
 import LandingPage from './components/LandingPage';
@@ -69,9 +74,12 @@ export default function App() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'email' | 'google' | 'landing'>('landing');
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   
   // Dashboard states
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help' | 'platforms_guide' | 'auto_pricing' | 'price_comparison'>('merchants');
+  const [isFocusMode, setIsFocusMode] = useState(false);
 
   // Auth Constants
   const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -127,16 +135,48 @@ export default function App() {
       });
 
     // Firebase Auth State Listener
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         setIsAuthenticated(true);
+        
+        // Fetch User Profile to check for Onboarding
+        setProfileLoading(true);
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const profileData = userDoc.data();
+            if (!profileData.hasSeenOnboarding) {
+              setShowOnboarding(true);
+            }
+          } else {
+            // New User - Create Profile
+            const newProfile = {
+              uid: currentUser.uid,
+              displayName: currentUser.displayName || 'تاجر جديد',
+              email: currentUser.email,
+              photoURL: currentUser.photoURL || '',
+              hasSeenOnboarding: false,
+              createdAt: new Date().toISOString(),
+              lastLoginAt: new Date().toISOString()
+            };
+            await setDoc(userDocRef, newProfile);
+            setShowOnboarding(true);
+          }
+        } catch (err) {
+          console.error('Error fetching user profile:', err);
+        } finally {
+          setProfileLoading(false);
+        }
       } else {
         const stored = localStorage.getItem('radar_user');
         if (!stored) {
           setUser(null);
           setIsAuthenticated(false);
           setShowOwnerDashboard(false);
+          setShowOnboarding(false);
         }
       }
       setAuthLoading(false);
@@ -285,6 +325,7 @@ export default function App() {
       displayName: 'تاجر تجريبي', 
       uid: 'demo_user_123',
       role: 'demo',
+      isDemo: true,
       isAuthenticated: true 
     };
     try {
@@ -296,6 +337,22 @@ export default function App() {
     setUser(demoUser);
     setIsAuthenticated(true);
     setAuthLoading(false);
+    setShowOnboarding(true); // Demo users always see onboarding or we can mock it
+  };
+
+  const handleCompleteOnboarding = async () => {
+    setShowOnboarding(false);
+    if (user && !user.isDemo) {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await updateDoc(userDocRef, {
+          hasSeenOnboarding: true,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Error updating onboarding status:', err);
+      }
+    }
   };
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -305,27 +362,27 @@ export default function App() {
   const handleTriggerUpdate = async () => {
     setIsUpdating(true);
     try {
+      // 1. إرسال SKIP_WAITING فوراً لجميع الـ Service Workers
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          await reg.unregister(); // إلغاء التسجيل لضمان التحميل النظيف
+        }
+      }
+      
+      // 2. مسح الكاش بالكامل
       if (typeof window !== 'undefined' && 'caches' in window) {
         const cacheKeys = await caches.keys();
         await Promise.all(cacheKeys.map(key => caches.delete(key)));
       }
-      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          registrations.map(async (reg) => {
-            if (reg.waiting) {
-              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            }
-            return reg.update();
-          })
-        );
-      }
     } catch (err) {
       console.warn('ServiceWorker update warning:', err);
     } finally {
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // 3. إعادة تحميل فورية
+      window.location.reload();
     }
   };
 
@@ -336,8 +393,20 @@ export default function App() {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
+    
+    // إغلاق تلقائي لتنبيه التحديث بعد 5 ثوانٍ
+    let timer: any;
+    if (hasNewUpdate) {
+      timer = setTimeout(() => {
+        setHasNewUpdate(false);
+      }, 5000);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (timer) clearTimeout(timer);
+    };
+  }, [hasNewUpdate]);
 
   const handleInstall = () => {
     if (deferredPrompt) {
@@ -444,6 +513,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
+      {showOnboarding && <OnboardingTour onComplete={handleCompleteOnboarding} />}
       {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
       {isAuthenticated ? (
         showOwnerDashboard && isOwner ? (
@@ -454,7 +524,7 @@ export default function App() {
         ) : (
           <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif] pb-20 pt-20" dir="rtl">
             <InstallationBar />
-            <DailyTaskListSidebar />
+            {!isFocusMode && <DailyTaskListSidebar />}
 
             {/* Merchant Top Header Navigation Tabs */}
             <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
@@ -573,6 +643,18 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsFocusMode(!isFocusMode)}
+                  title={isFocusMode ? "إيقاف وضع التركيز" : "تفعيل وضع التركيز"}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                    isFocusMode 
+                      ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-lg' 
+                      : 'bg-slate-950 text-slate-300 hover:text-white border-slate-800'
+                  }`}
+                >
+                  {isFocusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  <span className="hidden sm:inline">وضع التركيز</span>
+                </button>
                 <ThemeToggle variant="pill" />
                 <button 
                   onClick={handleSignOut} 
@@ -601,12 +683,15 @@ export default function App() {
                 <PlatformsGuideManager />
               </div>
             ) : activeWorkspaceTab === 'help' ? (
-              <HelpPage onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')} />
+              <HelpPage 
+                onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')} 
+                onStartTour={() => setShowOnboarding(true)}
+              />
             ) : (
-              <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+              <div className={`${isFocusMode ? 'max-w-full' : 'max-w-7xl'} mx-auto px-4 py-8 space-y-8 transition-all duration-300`}>
                 
                 {/* 1. Owner Dashboard Banner */}
-                {isOwner && (
+                {isOwner && !isFocusMode && (
                   <button 
                     onClick={() => setShowOwnerDashboard(true)} 
                     className="w-full p-6 bg-gradient-to-r from-amber-950/90 via-slate-900/95 to-amber-950/90 border-2 border-amber-500/60 text-amber-100 rounded-2xl font-black shadow-2xl hover:border-amber-400 hover:shadow-amber-500/20 transition-all flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-xl group"
@@ -647,7 +732,8 @@ export default function App() {
                 )}
 
                 {/* 3. Quick Stats KPI Overview Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {!isFocusMode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {/* KPI 1: Active Products */}
                   <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
                     <div className="flex items-center justify-between">
@@ -706,9 +792,11 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* 4. Glassmorphism Main Merchant Card */}
-                <div className="p-8 bg-slate-900/80 border border-amber-500/20 rounded-2xl shadow-xl backdrop-blur-xl text-center space-y-6">
+                {!isFocusMode && (
+                  <div className="p-8 bg-slate-900/80 border border-amber-500/20 rounded-2xl shadow-xl backdrop-blur-xl text-center space-y-6">
                   <div className="max-w-2xl mx-auto space-y-3">
                     <h1 className="text-3xl font-black text-white">أهلاً بك في لوحة تحكم التاجر الذكي</h1>
                     <p className="text-slate-300 text-sm leading-relaxed">
@@ -733,6 +821,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* 5. Interactive Shipping Management & Couriers Dashboard */}
                 <ShippingManagementDashboard />
@@ -751,7 +840,7 @@ export default function App() {
 
               </div>
             )}
-            
+
             {/* Bottom Tab Bar (Mobile) */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around items-center p-2.5 z-40">
               <button onClick={() => setActiveWorkspaceTab('merchants')} className={`flex flex-col items-center ${activeWorkspaceTab === 'merchants' ? 'text-amber-500' : 'text-slate-400'}`}>

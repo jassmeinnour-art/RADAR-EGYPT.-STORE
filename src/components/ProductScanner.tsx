@@ -350,7 +350,24 @@ export const ProductScanner: React.FC<ProductScannerProps> = ({
     setDetectedProduct(null);
 
     try {
-      setScanStep('1/4: مسح بيانات المنتج القديم وفحص الصورة الملتقطة بالكاميرا...');
+      setScanStep('1/4: مسح بيانات المنتج القديم وفحص الصورة وتحسينها...');
+      
+      // Automatic Image Optimization & Thumbnail Generation (Server-Side Proxy)
+      let finalImageBase64 = imageBase64;
+      try {
+        const optRes = await fetch('/api/optimize-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64, maxWidth: 600, quality: 70 })
+        });
+        const optResult = await optRes.json();
+        if (optResult.success && optResult.data.optimizedBase64) {
+          finalImageBase64 = optResult.data.optimizedBase64;
+        }
+      } catch (optErr) {
+        console.warn('Image optimization skipped due to server error, using original.', optErr);
+      }
+
       await new Promise(r => setTimeout(r, 450));
       
       setScanStep('2/4: استخراج الموديل ورصد أسعار المنافسين في أمازون مصر ونون وجوميا...');
@@ -362,7 +379,7 @@ export const ProductScanner: React.FC<ProductScannerProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64,
+          imageBase64: finalImageBase64,
           currency: 'EGP',
           country: 'Egypt',
         }),
@@ -375,7 +392,7 @@ export const ProductScanner: React.FC<ProductScannerProps> = ({
       if (result.success && result.data && result.data.title) {
         const freshProduct: ProductData = {
           ...result.data,
-          imageUrl: imageBase64,
+          imageUrl: finalImageBase64,
         };
         setDetectedProduct(freshProduct);
         setCustomTitle(freshProduct.title);

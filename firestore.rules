@@ -43,6 +43,7 @@ service cloud.firestore {
              (!('preferredCurrency' in data) || (data.preferredCurrency is string && data.preferredCurrency.size() <= 10)) &&
              (!('fcmToken' in data) || (data.fcmToken is string && data.fcmToken.size() <= 500)) &&
              (!('pushNotificationsEnabled' in data) || (data.pushNotificationsEnabled is bool)) &&
+             (!('hasSeenOnboarding' in data) || (data.hasSeenOnboarding is bool)) &&
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500));
     }
 
