@@ -4,6 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <script>
+      (function() {
+        function isViteWsError(err) {
+          if (!err) return false;
+          var str = (err.message || '') + ' ' + (err.stack || '') + ' ' + String(err);
+          var lower = str.toLowerCase();
+          return lower.indexOf('websocket') !== -1 ||
+                 lower.indexOf('@vite/client') !== -1 ||
+                 lower.indexOf('modulerunnertransport') !== -1 ||
+                 lower.indexOf('createwebsocketmodulerunnertransport') !== -1 ||
+                 lower.indexOf('ws://') !== -1 ||
+                 lower.indexOf('wss://') !== -1;
+        }
+        window.addEventListener('error', function(e) {
+          if (isViteWsError(e.error) || isViteWsError(e.message)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          if (isViteWsError(e.reason)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+    
     <!-- Critical Preconnects -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

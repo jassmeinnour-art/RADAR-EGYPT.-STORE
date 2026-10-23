@@ -10,20 +10,21 @@ import { AudioNotificationProvider } from "./context/AudioNotificationContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 
-// Hide WebSocket HMR errors in overlay
+// Hide WebSocket HMR errors in overlay and console
 if (typeof window !== 'undefined') {
-  const origError = console.error
+  const origError = console.error;
   console.error = (...args: any[]) => {
-    const msg = String(args[0] || '')
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
     if (
       msg.includes('WebSocket') ||
       msg.includes('ws://') ||
       msg.includes('wss://') ||
       msg.includes('moduleRunnerTransport') ||
+      msg.includes('createWebSocketModuleRunnerTransport') ||
       msg.includes('vite/client')
-    ) return
-    origError(...args)
-  }
+    ) return;
+    origError(...args);
+  };
 }
 
 const root = document.getElementById('root')

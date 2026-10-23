@@ -23,7 +23,16 @@ import {
   FileText,
   ArrowRight
 } from 'lucide-react';
-import { auth, signInWithEmailAndPassword, onAuthStateChanged, firebaseSignOut, googleProvider, signInWithPopup } from './firebase';
+import { 
+  auth, 
+  signInWithEmailAndPassword, 
+  onAuthStateChanged, 
+  firebaseSignOut, 
+  googleProvider, 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
+} from './firebase';
 
 // Lazy load components
 const PaymentModal = lazy(() => import('./components/PaymentModal'));
@@ -32,6 +41,7 @@ const LandingPage = lazy(() => import('./components/LandingPage'));
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -59,7 +69,22 @@ export default function App() {
       setTrialEndDate(new Date(new Date(savedInstallDate).getTime() + 7 * 24 * 60 * 60 * 1000));
     }
 
-    // Firebase Auth State
+    // Process Google OAuth redirect result if returning from redirect
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          setUser(result.user);
+          setIsAuthenticated(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Redirect auth result warning:', err);
+      })
+      .finally(() => {
+        setAuthLoading(false);
+      });
+
+    // Firebase Auth State Listener
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -69,6 +94,7 @@ export default function App() {
         setIsAuthenticated(false);
         setShowOwnerDashboard(false);
       }
+      setAuthLoading(false);
     });
 
     // Keyboard Shortcuts
@@ -89,19 +115,35 @@ export default function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthLoading(true);
     try {
       await signInWithEmailAndPassword(auth, authEmail, authPassword);
     } catch (error) {
       console.error('Login error:', error);
       alert('خطأ في تسجيل الدخول. يرجى التحقق من البيانات.');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
+    setAuthLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Google login error:', error);
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result?.user) {
+        setUser(result.user);
+        setIsAuthenticated(true);
+      }
+    } catch (error: any) {
+      console.warn('Google popup auth error, switching to redirect fallback:', error);
+      try {
+        await signInWithRedirect(auth, googleProvider);
+      } catch (redirectErr) {
+        console.error('Google redirect auth error:', redirectErr);
+        alert('تعذر تسجيل الدخول بـ Google. يرجى استخدام تسجيل الدخول بالبريد الإلكتروني.');
+      }
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -158,10 +200,21 @@ export default function App() {
     </div>
   );
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-amber-400 font-['Cairo',sans-serif] text-lg font-bold" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <span>جاري التحقق من حالة الدخول...</span>
+        </div>
+      </div>
+    );
+  }
+
   const isTrialExpired = trialEndDate ? new Date() > trialEndDate : false;
 
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">جاري تحميل التطبيق...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
       {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
       {isAuthenticated ? (
         showOwnerDashboard && isOwner ? (
@@ -221,7 +274,7 @@ export default function App() {
               {/* Left Side: Brand Panel */}
               <div className="hidden lg:flex p-12 flex-col justify-between bg-gradient-to-br from-amber-950 to-slate-950 border-l border-amber-500/20">
                 <div className="space-y-6">
-                  <img src="/pwa-192x192.png" width="128" height="128" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
+                  <img src="/pwa-192x192.png" width="128" height="128" fetchPriority="high" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
                   <h1 className="text-4xl font-black text-white">رادار التاجر <span className="text-amber-400">الذكي</span></h1>
                   <p className="text-amber-100/70 text-lg">تغطية شاملة لأسعار ومخزون أمازون، نون، وجوميا بأعلى معايير الدقة.</p>
                 </div>
@@ -230,7 +283,7 @@ export default function App() {
               {/* Right Side: Auth Panel */}
               <div className="p-8 sm:p-12 flex flex-col justify-center">
                 <div className="lg:hidden text-center mb-8">
-                  <img src="/pwa-192x192.png" width="80" height="80" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
+                  <img src="/pwa-192x192.png" width="80" height="80" fetchPriority="high" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
                 </div>
                 
                 <div className="flex gap-4 mb-8">

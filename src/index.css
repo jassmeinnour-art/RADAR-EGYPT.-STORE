@@ -656,3 +656,9 @@ table::-webkit-scrollbar-thumb:hover,
     display: none !important;
   }
 }
+
+/* Off-screen rendering performance optimization */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 500px;
+}
