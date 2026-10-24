@@ -45,68 +45,7 @@ export interface ProductProfitItem {
   packagingFee: number;
 }
 
-const DEFAULT_SAMPLE_PRODUCTS: ProductProfitItem[] = [
-  {
-    id: 'PRD-001',
-    title: 'سماعة أنكر لايف كيو 30 اللاسلكية بنظام العزل الصوتي',
-    brand: 'Anker',
-    category: 'إلكترونيات',
-    platform: 'amazon_eg',
-    sellingPrice: 3450,
-    wholesaleCost: 2200,
-    commissionPercent: 12,
-    shippingFee: 35,
-    packagingFee: 15,
-  },
-  {
-    id: 'PRD-002',
-    title: 'ساعة سامسونج جالاكسي واتش 6 كلاسيك 47 ملم',
-    brand: 'Samsung',
-    category: 'ساعات ذكية',
-    platform: 'noon_eg',
-    sellingPrice: 12800,
-    wholesaleCost: 9800,
-    commissionPercent: 13.5,
-    shippingFee: 40,
-    packagingFee: 20,
-  },
-  {
-    id: 'PRD-003',
-    title: 'ماكينة تحضير القهوة ديلونجي ديديكا اسبريسو 15 بار',
-    brand: 'DeLonghi',
-    category: 'أجهزة منزلية',
-    platform: 'jumia_eg',
-    sellingPrice: 8900,
-    wholesaleCost: 6500,
-    commissionPercent: 10,
-    shippingFee: 30,
-    packagingFee: 15,
-  },
-  {
-    id: 'PRD-004',
-    title: 'باور بنك أنكر 20000 مللي أمبير شحن سريع 22.5 واط',
-    brand: 'Anker',
-    category: 'إلكترونيات',
-    platform: 'amazon_eg',
-    sellingPrice: 1650,
-    wholesaleCost: 1100,
-    commissionPercent: 12,
-    shippingFee: 35,
-    packagingFee: 10,
-  },
-  {
-    id: 'PRD-005',
-    title: 'طقم أواني طهي غرانيت سيراميك 10 قطع',
-    brand: 'Neoflam',
-    category: 'أدوات منزلية',
-    platform: 'direct_store',
-    sellingPrice: 4200,
-    wholesaleCost: 2800,
-    commissionPercent: 3,
-    shippingFee: 55,
-    packagingFee: 25,
-  }
-];
+const DEFAULT_SAMPLE_PRODUCTS: ProductProfitItem[] = [];
 
 interface ProfitCalculatorProps {
   initialProducts?: ProductData[];

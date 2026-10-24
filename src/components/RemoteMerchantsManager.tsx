@@ -51,13 +51,14 @@ import {
   CalendarPlus,
   Key,
   Crown,
-  Lock
+  Lock,
+  Store
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { RemoteMerchantClient, MerchantWeeklyReport, ProductData, CustomerOrder, OrderItem } from '../types';
 import { SAMPLE_REMOTE_MERCHANTS, generateWeeklyReportForMerchant, createEmptyMerchantWeeklyReport } from '../data/remoteMerchantsData';
 import { loadAllOrders, saveAllOrders, pullOrdersForMerchant, pullLiveOrdersFromPlatforms, splitMultiItemOrder, splitAllMultiItemOrders, exchangeAmazonLwaTokenRuntime } from '../utils/merchantOrdersManager';
-import { launchSellerPortalByCode, getSellerPortalUrlByCode, loadAllRegisteredMerchants, saveAllRegisteredMerchants, ensureMerchantTrialFields, evaluateMerchantSubscriptionState, validateMerchantAmazonSpApiTokens } from '../utils/platformLaunchHelper';
+import { launchSellerPortalByCode, getSellerPortalUrlByCode, loadAllRegisteredMerchants, saveAllRegisteredMerchants, ensureMerchantTrialFields, evaluateMerchantSubscriptionState, validateMerchantAmazonSpApiTokens, getAmazonSellerCentralConsentUrl, AMAZON_APP_ID } from '../utils/platformLaunchHelper';
 import { saveMerchantStoreCredentialsToFirestore } from '../services/firestoreSync';
 import { encryptLwaRefreshToken, decryptLwaRefreshToken } from '../utils/lwaTokenCrypto';
 import { downloadWaybillIcsFile } from '../utils/googleCalendarExport';
@@ -132,11 +133,30 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
     };
     window.addEventListener('merchant_radar_merchants_bulk_synced', handleBulkSyncEvent);
     window.addEventListener('merchant_credentials_changed', handleBulkSyncEvent);
+
+    const handleOauthMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'AMAZON_OAUTH_SUCCESS') {
+        const { sellerId, merchantId } = e.data;
+        const freshList = loadAllRegisteredMerchants();
+        setMerchants(freshList);
+        if (merchantId) {
+          const match = freshList.find(m => m.id === merchantId);
+          if (match) setSelectedMerchant(match);
+        }
+        onShowToast(`🎉 تم تفويض وربط متجر أمازون بنجاح عبر سيلر سنترال (${sellerId || ''})! المتجر نشط ومربوط 🟢`);
+        try {
+          confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
+        } catch {}
+      }
+    };
+    window.addEventListener('message', handleOauthMessage);
+
     return () => {
       window.removeEventListener('merchant_radar_merchants_bulk_synced', handleBulkSyncEvent);
       window.removeEventListener('merchant_credentials_changed', handleBulkSyncEvent);
+      window.removeEventListener('message', handleOauthMessage);
     };
-  }, [selectedMerchant]);
+  }, [selectedMerchant, onShowToast]);
 
   const handleDownloadBulkMerchantsTemplate = () => {
     downloadMerchantsBulkTemplateCsv();
@@ -3336,87 +3356,87 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                     />
                   </div>
 
-                  {/* Multi-Tenant Amazon SP-API Store Credentials (Seller ID & Refresh Token) */}
-                  <div className="p-2.5 rounded-xl bg-sky-50/70 border border-sky-200/90 space-y-2">
-                    <div className="flex items-center justify-between">
+                  {/* Direct Amazon SP-API Store Binding (Seller ID Only - No Manual Refresh Token) */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-sky-50 via-indigo-50/50 to-sky-50 border border-sky-300 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[11px] font-black text-sky-950 flex items-center gap-1.5">
-                        <span>🔑 إعدادات Amazon SP-API المستقلة لهذا المتجر (Multi-Tenant)</span>
+                        <Store className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>ربط متجر أمازون مصر المباشر (معرّف التاجر فقط - بدون توكن يدوي)</span>
                       </span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-sky-200/80 text-sky-900 text-[9px] font-bold">
-                        يحفظ في Firestore
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-sky-800 leading-relaxed">
-                      يتم جلب <code className="font-mono font-bold">DEFAULT_CLIENT_ID</code> و <code className="font-mono font-bold">DEFAULT_CLIENT_SECRET</code> من ملف الإعدادات الثابتة، بينما يستخدم هذا الـ Token و Seller ID تلقائياً عند اختيار المتجر. وفي حال تركه فارغاً يتم استخدام <code className="font-mono font-bold">DEFAULT_REFRESH_TOKEN</code> كخيار احتياطي.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-700 block">معرف التاجر (SELLER_ID)</label>
-                        <input
-                          type="text"
-                          dir="ltr"
-                          value={editingMerchant.apiCredentials?.amazonSellerId || ''}
-                          onChange={(e) =>
-                            setEditingMerchant({
-                              ...editingMerchant,
-                              apiCredentials: {
-                                dataMode: editingMerchant.dataMode || 'live',
-                                ...(editingMerchant.apiCredentials || {}),
-                                amazonSellerId: e.target.value
-                              }
-                            })
-                          }
-                          placeholder="A1B2C3D4E5F6G7"
-                          className="w-full h-8 px-2.5 rounded-lg bg-white border border-sky-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-sky-600"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-700 block">AMAZON_REFRESH_TOKEN الخاص بالمتجر</label>
-                        <input
-                          type="password"
-                          dir="ltr"
-                          value={editingMerchant.apiCredentials?.amazonRefreshToken || ''}
-                          onChange={(e) =>
-                            setEditingMerchant({
-                              ...editingMerchant,
-                              apiCredentials: {
-                                dataMode: editingMerchant.dataMode || 'live',
-                                ...(editingMerchant.apiCredentials || {}),
-                                amazonRefreshToken: e.target.value
-                              }
-                            })
-                          }
-                          placeholder="Atzr|IwEBIA... (أو اتركه للـ Fallback)"
-                          className="w-full h-8 px-2.5 rounded-lg bg-white border border-sky-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-sky-600"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          disabled={isVerifyingLwaToken}
-                          onClick={handleVerifyMerchantLwaToken}
-                          className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                        >
-                          <Key className={`w-3 h-3 ${isVerifyingLwaToken ? 'animate-spin' : ''}`} />
-                          <span>{isVerifyingLwaToken ? 'جاري فحص التوكن...' : 'فحص وتوليد LWA Token الآن 🔐'}</span>
-                        </button>
-                      </div>
-                      {lwaVerifyStatus && (
-                        <div
-                          className={`p-2 rounded-lg text-[10px] font-bold leading-relaxed border ${
-                            lwaVerifyStatus.success
-                              ? lwaVerifyStatus.fallbackMode
-                                ? 'bg-sky-100/90 text-sky-900 border-sky-300'
-                                : 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                              : 'bg-rose-50 text-rose-800 border-rose-300'
-                          }`}
-                        >
-                          {lwaVerifyStatus.message}
-                        </div>
+                      {editingMerchant.apiCredentials?.amazonSellerId ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>نشط ومربوط (Connected & Active)</span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-300">
+                          بانتظار إدخال المعرّف
+                        </span>
                       )}
                     </div>
+
+                    <p className="text-[10px] text-slate-600 leading-relaxed">
+                      💡 <strong>الربط المباشر المفوّض:</strong> لا حاجة لإدخال مفتاح Refresh Token يدوياً. يكفي كتابة معرّف التاجر (Seller ID) أو الضغط على زر الربط بضغطة واحدة ليتم تفعيل سحب الطلبات والمخزون الحي فوراً.
+                    </p>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-800 block">معرّف التاجر في أمازون (SELLER_ID / Merchant Token) *</label>
+                        <span className="text-[9px] text-slate-500 font-mono">سيلر سنترال ➔ معلومات الحساب ➔ الرمز المميز</span>
+                      </div>
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={editingMerchant.apiCredentials?.amazonSellerId || ''}
+                        onChange={(e) =>
+                          setEditingMerchant({
+                            ...editingMerchant,
+                            apiCredentials: {
+                              dataMode: editingMerchant.dataMode || 'live',
+                              ...(editingMerchant.apiCredentials || {}),
+                              amazonSellerId: e.target.value.trim()
+                            }
+                          })
+                        }
+                        placeholder="مثال: A2EUQ1WTGCTBG2 أو A2STARSTEELEGY2"
+                        className="w-full h-8.5 px-3 rounded-lg bg-white border border-sky-300 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                      />
+                    </div>
+
+                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                      <a
+                        href={getAmazonSellerCentralConsentUrl(editingMerchant.id || editingMerchant.apiCredentials?.amazonSellerId || '')}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="h-7.5 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[10px] font-black inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+                      >
+                        <Sparkles className="w-3 h-3 text-slate-950" />
+                        <span>ربط بضغطة واحدة عبر سيلر سنترال (One-Click) 🔗</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+
+                      <button
+                        type="button"
+                        disabled={isVerifyingLwaToken}
+                        onClick={handleVerifyMerchantLwaToken}
+                        className="h-7.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Key className={`w-3 h-3 ${isVerifyingLwaToken ? 'animate-spin' : ''}`} />
+                        <span>{isVerifyingLwaToken ? 'جاري فحص الاتصال...' : 'فحص حالة الربط وتوليد الرمز ⚡'}</span>
+                      </button>
+                    </div>
+
+                    {lwaVerifyStatus && (
+                      <div
+                        className={`p-2 rounded-lg text-[10px] font-bold leading-relaxed border ${
+                          lwaVerifyStatus.success
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : 'bg-rose-50 text-rose-800 border-rose-300'
+                        }`}
+                      >
+                        {lwaVerifyStatus.message}
+                      </div>
+                    )}
                   </div>
 
                 </div>

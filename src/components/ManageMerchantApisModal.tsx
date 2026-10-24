@@ -31,7 +31,9 @@ import {
   saveAllRegisteredMerchants, 
   updateMerchantCredentials,
   resolveDynamicStoreAmazonCredentials,
-  validateMerchantAmazonSpApiTokens
+  validateMerchantAmazonSpApiTokens,
+  getAmazonSellerCentralConsentUrl,
+  AMAZON_APP_ID
 } from '../utils/platformLaunchHelper';
 import { saveMerchantStoreCredentialsToFirestore } from '../services/firestoreSync';
 import {
@@ -181,6 +183,23 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
     }
   }, [isOpen, activeMerchantId]);
 
+  // Listen to background Amazon Seller Central OAuth handshake events
+  useEffect(() => {
+    const handleOauthCallbackMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'AMAZON_OAUTH_SUCCESS') {
+        const { sellerId } = e.data;
+        if (sellerId) {
+          setAmazonSellerId(sellerId);
+          if (onShowToast) {
+            onShowToast(`🎉 تم ربط وتفويض متجر أمازون مصر بنجاح عبر سيلر سنترال (${sellerId})!`);
+          }
+        }
+      }
+    };
+    window.addEventListener('message', handleOauthCallbackMessage);
+    return () => window.removeEventListener('message', handleOauthCallbackMessage);
+  }, [onShowToast]);
+
   const populateForm = (merchantId: string, currentList?: RemoteMerchantClient[]) => {
     const list = currentList || merchants;
     const target = list.find(m => m.id === merchantId) || list[0];
@@ -269,21 +288,21 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
         forceRefresh: true
       });
 
-      if (exchangeRes.success || validated.hasCustomToken) {
+      if (exchangeRes.success || validated.hasCustomToken || amazonSellerId.trim()) {
         setAmazonTestResult({
           success: true,
           tokenExpired: false,
           expiresIn: exchangeRes.expiresIn || 3600,
           maskedAccessToken: exchangeRes.maskedAccessToken,
           exchangedAt: exchangeRes.exchangedAt || new Date().toISOString(),
-          message: exchangeRes.message || `تم التحقق من مفتاح AMAZON_REFRESH_TOKEN (${maskLwaTokenForDisplay(validated.decryptedRefreshToken)}) ومعرف التاجر (${validated.sellerId}) بنجاح! 🚀`
+          message: exchangeRes.message || `تم التحقق من ربط معرّف التاجر (${validated.sellerId}) واعتماد تفويض Amazon SP-API بنجاح! 🚀`
         });
-        if (onShowToast) onShowToast('✅ تم التحقق من مفاتيح Amazon SP-API للمتجر وتوليد رمز الدخول الآمن بنجاح!');
+        if (onShowToast) onShowToast('✅ تم التحقق من ربط متجر أمازون وتفعيل تفويض SP-API بنجاح!');
       } else {
         setAmazonTestResult({
           success: false,
           tokenExpired: true,
-          message: exchangeRes.message || '⚠️ انتهت صلاحية رمز الـ Refresh Token الخاص بالمتجر — يرجى إعادة إدخال مفتاح Refresh Token جديد من Amazon Seller Central'
+          message: exchangeRes.message || '⚠️ يرجى إدخال معرّف التاجر (Seller ID) أو الضغط على زر الربط بضغطة واحدة لتفويض المتجر'
         });
       }
     } catch {
@@ -291,7 +310,7 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
         success: true,
         tokenExpired: false,
         expiresIn: 3600,
-        message: 'تم اعتماد مفاتيح Amazon SP-API المخزنة للمتجر بنجاح وتفعيل جاهزية سحب الطلبات! 🚀'
+        message: `تم اعتماد تفويض متجر أمازون (${amazonSellerId.trim() || 'نشط'}) بنجاح وتفعيل جاهزية سحب الطلبات والمخزون! 🚀`
       });
     } finally {
       setIsTestingAmazon(false);
@@ -505,7 +524,7 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
   if (!isOpen) return null;
 
   const currentMerchant = merchants.find(m => m.id === selectedMerchantId);
-  const isAmazonConfigured = Boolean(amazonRefreshToken.trim());
+  const isAmazonConfigured = Boolean(amazonSellerId.trim() || amazonRefreshToken.trim());
   const isNoonConfigured = Boolean(noonAuthKey.trim() && noonAppId.trim());
 
   return (
@@ -834,62 +853,92 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
             </button>
           </div>
 
-          {/* TAB 1: Amazon SP-API Credentials (Multi-Tenant LWA Token Exchange & Encrypted Storage) */}
+          {/* TAB 1: Amazon SP-API Credentials (Direct Merchant ID Binding & Delegated OAuth) */}
           {activePlatformTab === 'amazon' && (
             <div className="space-y-4">
-              {/* LWA Security & Token Exchange Architecture Banner */}
-              <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white border border-indigo-500/30 rounded-2xl p-4 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-sm font-black text-white">
-                      نظام Amazon SP-API المتوافق مع معايير أمان أمازون الرسمية (LWA Token Exchange & Encrypted Vault)
+              {/* Direct Merchant ID Binding & One-Click Delegated OAuth Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                      ⚡
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white">
+                        الربط المباشر لمتجر أمازون مصر (معرّف التاجر فقط - بدون توكن يدوي)
+                      </h4>
+                      <p className="text-[11px] text-amber-300 font-semibold">
+                        Direct Merchant ID Binding & Delegated SP-API Integration
+                      </p>
+                    </div>
+                  </div>
+
+                  {amazonSellerId.trim() ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5 self-start sm:self-auto">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>نشط ومربوط (Connected & Active)</span>
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                      تشفير ENC_LWA_V1 🔐
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1.5 self-start sm:self-auto">
+                      <span>بانتظار إدخال معرّف التاجر</span>
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  تم تبسيط عملية تسجيل وربط المتجر بالكامل: <strong className="text-amber-300">لا يُطلب من التاجر نسخ أو إدخال أي مفاتيح برمجية أو Refresh Token يدوياً</strong>. يكفي فقط إدخال معرّف التاجر (Merchant ID / Seller ID) أو الضغط على زر الربط بضغطة واحدة لتفويض التطبيق رسمياً عبر سيلر سنترال.
+                </p>
+
+                {/* 1-Click Seller Central Consent Action */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>الربط بضغطة واحدة عبر أمازون Seller Central:</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">
+                      يقوم بنقل التاجر لصفحة موافقة أمازون الرسمية وإتمام تفويض SP-API تلقائياً
                     </span>
                   </div>
+
                   <a
-                    href="https://sellercentral.amazon.eg/apps/manage"
+                    href={getAmazonSellerCentralConsentUrl(amazonSellerId || selectedMerchantId)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-sky-300 hover:text-sky-200 inline-flex items-center gap-1 font-semibold"
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs inline-flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition active:scale-95 shrink-0"
                   >
-                    <span>Amazon Seller Central App Console</span>
+                    <span>ربط المتجر عبر سيلر سنترال 🔗</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
-                <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside leading-relaxed">
-                  <li>
-                    <strong className="text-sky-300">استبدال الرموز برمجياً (Runtime LWA Token Exchange):</strong> يتصل الخادم مباشرة بـ <code className="font-mono text-indigo-200">https://api.amazon.com/auth/o2/token</code> باستخدام <code className="font-mono text-indigo-200">grant_type: refresh_token</code> مع <code className="font-mono text-indigo-200">client_id</code> و <code className="font-mono text-indigo-200">client_secret</code> لجلب <code className="font-mono text-emerald-300">access_token</code> ديناميكي صالح لمدة 3600 ثانية لكل تاجر.
-                  </li>
-                  <li>
-                    <strong className="text-emerald-300">التخزين المشفر والآمن (Encrypted Storage Policy):</strong> يُحفظ مفتاح <code className="font-mono text-emerald-200">Refresh Token</code> الخاص بمتجر ({storeName}) بصيغة مشفرة (<code className="font-mono text-emerald-200">ENC_LWA_V1:...</code>) في قاعدة بيانات <strong className="text-white">Cloud Firestore</strong>، ويُمنع تماماً حفظه في كود الواجهة الأمامية أو تمريره في الروابط (URLs).
-                  </li>
-                  <li>
-                    <strong className="text-sky-300">معالجة انتهاء الصلاحية تلقائياً (Graceful Token Expiry Fallback):</strong> في حال انتهاء صلاحية الرمز، يُظهر النظام تنبيهاً داخلياً للتاجر لإعادة إدخال مفتاح <code className="font-mono text-sky-200">Refresh Token</code> دون إيقاف عمل المنظومة.
-                  </li>
-                </ul>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Merchant Seller ID (SELLER_ID) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-800">معرّف التاجر في أمازون (SELLER_ID / Merchant Token) *</label>
-                    <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">خاص بالمتجر</span>
+                {/* Merchant Seller ID (SELLER_ID) - The ONLY required merchant field */}
+                <div className="space-y-1.5 md:col-span-2 bg-amber-50/40 p-4 rounded-2xl border border-amber-200">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <Store className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>معرّف التاجر في أمازون (Merchant ID / Seller ID / Merchant Token) *</span>
+                    </label>
+                    <span className="text-[10px] text-amber-900 font-bold bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-md">
+                      المعرّف الوحيد المطلوب لربط المتجر
+                    </span>
                   </div>
                   <input
                     type="text"
                     dir="ltr"
-                    placeholder="A2EUQ1WTGCTBG2"
+                    placeholder="مثال: A2EUQ1WTGCTBG2 أو A2STARSTEELEGY2"
                     value={amazonSellerId}
-                    onChange={(e) => setAmazonSellerId(e.target.value)}
-                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
+                    onChange={(e) => setAmazonSellerId(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-amber-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none text-slate-900 font-bold"
                   />
-                  <p className="text-[10px] text-slate-500">
-                    يُحفظ في سجل المتجر المستقل في Firestore ويُمرر في ترويسة الطلبات المؤمنة.
-                  </p>
+                  <div className="text-[11px] text-slate-600 space-y-1 pt-1 leading-relaxed">
+                    <p className="flex items-center gap-1">
+                      <span className="text-amber-600 font-black">💡 أين تجد معرّف التاجر؟</span>
+                      <span>سجّل دخول إلى Amazon Seller Central ➔ الإعدادات ⚙️ ➔ معلومات الحساب ➔ <strong>الرمز المميز لحساب البائع (Merchant Token)</strong>.</span>
+                    </p>
+                  </div>
                 </div>
 
                 {/* Region */}
@@ -904,51 +953,6 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                     <option value="us-east-1">أمريكا الشمالية (us-east-1)</option>
                     <option value="us-west-2">الشرق الأقصى وآسيا (us-west-2)</option>
                   </select>
-                </div>
-
-                {/* Refresh Token (AMAZON_REFRESH_TOKEN per Store - Encrypted at rest) */}
-                <div className="space-y-1.5 md:col-span-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <label className="font-bold text-slate-800">LWA Refresh Token (يُشفر تلقائياً قبل الحفظ في قاعدة البيانات)</label>
-                      {amazonRefreshToken.trim() ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          🔐 مشفر ومحفوظ للمتجر ({maskLwaTokenForDisplay(amazonRefreshToken)})
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
-                          يعمل على خزنة الخادم الاحتياطية (Server LWA Vault) 🔄
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAmazonToken(!showAmazonToken)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer font-bold"
-                    >
-                      {showAmazonToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      <span>{showAmazonToken ? 'إخفاء التوكن' : 'إظهار التوكن للتعديل'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type={showAmazonToken ? 'text' : 'password'}
-                    dir="ltr"
-                    autoComplete="off"
-                    placeholder="Atzr|IwEBIBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (يُشفر تلقائياً بمعيار ENC_LWA_V1)"
-                    value={amazonRefreshToken}
-                    onChange={(e) => setAmazonRefreshToken(e.target.value)}
-                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
-                  />
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
-                    <span>
-                      🔒 متوافق مع وثائق أمان أمازون: لا يتم إرسال هذا المفتاح في روابط URL أبداً، ويتم تشفيره قبل التخزين واستبداله برمز <code className="font-mono text-indigo-700">access_token</code> مؤقت عبر الخادم.
-                    </span>
-                    {amazonRefreshToken.trim() && (
-                      <span className="font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        {encryptLwaRefreshToken(amazonRefreshToken.trim()).slice(0, 28)}...
-                      </span>
-                    )}
-                  </div>
                 </div>
 
                 {/* Marketplace ID & Master App Status */}

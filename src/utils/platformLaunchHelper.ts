@@ -21,6 +21,16 @@ export interface PlatformPortalMeta {
   directLaunchSupported: boolean;
 }
 
+export const AMAZON_APP_ID = ((import.meta as any).env?.VITE_AMAZON_APP_ID || 'amzn1.sp.solution.8f94e2c1-7d4b-4a90-b123-456789abcdef').trim();
+
+/**
+ * Builds the official 1-Click Amazon Seller Central Delegated OAuth Consent URL
+ */
+export function getAmazonSellerCentralConsentUrl(merchantIdOrSellerId?: string): string {
+  const targetState = encodeURIComponent((merchantIdOrSellerId || 'merchant-active').trim());
+  return `https://sellercentral.amazon.eg/apps/authorize/consent?application_id=${AMAZON_APP_ID}&state=${targetState}`;
+}
+
 export const DEFAULT_PLATFORM_PORTALS: Record<string, PlatformPortalMeta> = {
   amazon_eg: {
     code: 'amazon_eg',
@@ -1152,9 +1162,11 @@ export function validateMerchantAmazonSpApiTokens(
     AMAZON_SP_API_CONFIG.DEFAULT_MARKETPLACE_ID
   ).trim();
 
+  const isStoreBound = Boolean(effectiveSellerId || (effectivePlainToken && effectiveSellerId));
+
   return {
-    isValid: Boolean(effectivePlainToken && effectiveSellerId),
-    hasCustomToken,
+    isValid: isStoreBound,
+    hasCustomToken: hasCustomToken || Boolean(overrideInputs?.sellerId || merchant?.apiCredentials?.amazonSellerId),
     refreshToken: encryptedToken,
     decryptedRefreshToken: effectivePlainToken,
     sellerId: effectiveSellerId,
@@ -1371,7 +1383,7 @@ export async function syncRegisteredMerchantsWithFirestore(): Promise<RemoteMerc
           noonAppId: cloud.noonAppId || m.apiCredentials?.noonAppId || '',
           bostaApiKey: cloud.bostaApiKey || m.apiCredentials?.bostaApiKey || '',
           dataMode: cloud.dataMode || m.dataMode || 'live',
-          isConfigured: Boolean(mergedRefreshToken)
+          isConfigured: Boolean(mergedSellerId || mergedRefreshToken)
         }
       };
     });

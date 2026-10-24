@@ -12,8 +12,12 @@
           var lower = str.toLowerCase();
           return lower.indexOf('websocket') !== -1 ||
                  lower.indexOf('@vite/client') !== -1 ||
+                 lower.indexOf('modulerunner') !== -1 ||
                  lower.indexOf('modulerunnertransport') !== -1 ||
                  lower.indexOf('createwebsocketmodulerunnertransport') !== -1 ||
+                 lower.indexOf('failed to connect to websocket') !== -1 ||
+                 lower.indexOf('vite:ws') !== -1 ||
+                 lower.indexOf('closed without opened') !== -1 ||
                  lower.indexOf('ws://') !== -1 ||
                  lower.indexOf('wss://') !== -1;
         }
@@ -48,22 +52,60 @@
           }
         }, true);
 
-        // Safe WebSocket wrapper to prevent unhandled WebSocket errors when HMR is disabled or in Cloud iframe
+        var prevOnError = window.onerror;
+        window.onerror = function(msg, url, lineNo, colNo, err) {
+          if (isViteWsError(msg) || isViteWsError(url) || isViteWsError(err)) {
+            return true;
+          }
+          if (typeof prevOnError === 'function') {
+            return prevOnError.apply(this, arguments);
+          }
+          return false;
+        };
+
+        var prevOnUnhandledRejection = window.onunhandledrejection;
+        window.onunhandledrejection = function(e) {
+          if (isViteWsError(e && (e.reason || e))) {
+            if (e && e.preventDefault) e.preventDefault();
+            return true;
+          }
+          if (typeof prevOnUnhandledRejection === 'function') {
+            return prevOnUnhandledRejection.apply(this, arguments);
+          }
+        };
+
+        // Safe WebSocket wrapper to prevent unhandled WebSocket errors when HMR is disabled in Cloud iframe
         if (typeof window !== 'undefined' && 'WebSocket' in window) {
           var RealWebSocket = window.WebSocket;
-          window.WebSocket = function(url, protocols) {
+
+          function isViteOrHmrWs(url, protocols) {
             var urlStr = String(url || '').toLowerCase();
-            if (urlStr.indexOf('vite') !== -1 || urlStr.indexOf('hmr') !== -1 || urlStr.indexOf('modulerunner') !== -1) {
+            var protoStr = (Array.isArray(protocols) ? protocols.join(',') : String(protocols || '')).toLowerCase();
+            return protoStr.indexOf('vite') !== -1 ||
+                   protoStr.indexOf('hmr') !== -1 ||
+                   urlStr.indexOf('vite') !== -1 ||
+                   urlStr.indexOf('hmr') !== -1 ||
+                   urlStr.indexOf('token=') !== -1 ||
+                   urlStr.indexOf('24678') !== -1 ||
+                   urlStr.indexOf('modulerunner') !== -1;
+          }
+
+          window.WebSocket = function(url, protocols) {
+            if (isViteOrHmrWs(url, protocols)) {
               var noop = function() {};
               var listeners = {};
-              return {
+              var fakeWs = {
                 url: url,
-                readyState: 3, // CLOSED
+                readyState: 1, // WebSocket.OPEN
+                CONNECTING: 0,
+                OPEN: 1,
+                CLOSING: 2,
+                CLOSED: 3,
                 bufferedAmount: 0,
                 extensions: '',
-                protocol: '',
+                protocol: typeof protocols === 'string' ? protocols : (Array.isArray(protocols) ? protocols[0] : ''),
                 binaryType: 'blob',
-                close: noop,
+                close: function() { fakeWs.readyState = 3; },
                 send: noop,
                 onopen: null,
                 onclose: null,
@@ -72,22 +114,41 @@
                 addEventListener: function(type, fn) {
                   listeners[type] = listeners[type] || [];
                   listeners[type].push(fn);
+                  if (type === 'open') {
+                    setTimeout(function() {
+                      try {
+                        if (typeof fakeWs.onopen === 'function') fakeWs.onopen({ type: 'open', target: fakeWs });
+                        fn({ type: 'open', target: fakeWs });
+                      } catch(e) {}
+                    }, 0);
+                  }
                 },
                 removeEventListener: function(type, fn) {
                   if (listeners[type]) {
                     listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
                   }
                 },
-                dispatchEvent: function() { return true; }
+                dispatchEvent: function(event) {
+                  var type = (event && event.type) || '';
+                  var list = listeners[type] || [];
+                  for (var i = 0; i < list.length; i++) {
+                    try { list[i](event); } catch(e) {}
+                  }
+                  return true;
+                }
               };
+              try {
+                Object.setPrototypeOf(fakeWs, RealWebSocket.prototype);
+              } catch(e) {}
+              return fakeWs;
             }
             return new RealWebSocket(url, protocols);
           };
           window.WebSocket.prototype = RealWebSocket.prototype;
-          window.WebSocket.CONNECTING = RealWebSocket.CONNECTING;
-          window.WebSocket.OPEN = RealWebSocket.OPEN;
-          window.WebSocket.CLOSING = RealWebSocket.CLOSING;
-          window.WebSocket.CLOSED = RealWebSocket.CLOSED;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
         }
 
         // Early theme detection to prevent flash of unstyled content
@@ -154,11 +215,12 @@
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" href="/pwa-512x512.png" />
-    <script type="module" crossorigin src="/assets/index-CqtfxiMD.js"></script>
+    <script type="module" crossorigin src="/assets/index-Bdg6iB-j.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-BhcwN3y-.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-firebase-D3nr0SYJ.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-BR6ffB7-.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-DRVSZRsO.css">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-firebase-DhuY2J8G.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-DEGNRlZD.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-B3xJhFIC.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DQd_X7z1.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>

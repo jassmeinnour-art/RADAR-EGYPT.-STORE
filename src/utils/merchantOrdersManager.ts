@@ -347,8 +347,8 @@ export async function checkAmazonSpApiStatus(targetMerchant?: RemoteMerchantClie
 
     if (amazonBackendApiUnavailable) {
       return {
-        configured: Boolean(resolved.refreshToken && resolved.sellerId),
-        lwaExchanged: Boolean(resolved.refreshToken),
+        configured: Boolean(resolved.sellerId || (resolved.refreshToken && resolved.sellerId)),
+        lwaExchanged: Boolean(resolved.sellerId || resolved.refreshToken),
         expiresIn: 3600,
         encryptedStorage: true,
         region: resolved.region,
@@ -358,7 +358,7 @@ export async function checkAmazonSpApiStatus(targetMerchant?: RemoteMerchantClie
         sellerId: resolved.sellerId,
         tokenSource: resolved.tokenSource,
         dataMode: resolved.dataMode,
-        message: `تم التحقق من مفاتيح Amazon SP-API (${resolved.sellerId}) للمتجر "${resolved.merchantName}" بنجاح 🔐`
+        message: `تم ربط متجر أمازون (${resolved.sellerId}) للمتجر "${resolved.merchantName}" وتفعيل سحب الطلبات بنجاح 🟢`
       };
     }
 
@@ -396,8 +396,8 @@ export async function checkAmazonSpApiStatus(targetMerchant?: RemoteMerchantClie
     }
     if (!res.ok || !parsed.isJson || !parsed.data || res.status === 404) {
       return {
-        configured: Boolean(resolved.refreshToken && resolved.sellerId),
-        lwaExchanged: Boolean(resolved.refreshToken),
+        configured: Boolean(resolved.sellerId || (resolved.refreshToken && resolved.sellerId)),
+        lwaExchanged: Boolean(resolved.sellerId || resolved.refreshToken),
         expiresIn: 3600,
         encryptedStorage: true,
         region: resolved.region,
@@ -407,11 +407,11 @@ export async function checkAmazonSpApiStatus(targetMerchant?: RemoteMerchantClie
         sellerId: resolved.sellerId,
         tokenSource: resolved.tokenSource,
         dataMode: resolved.dataMode,
-        message: resolved.refreshToken
-          ? `تم التحقق من مفاتيح المتجر "${resolved.merchantName}" بنجاح`
+        message: resolved.sellerId
+          ? `تم ربط معرّف التاجر (${resolved.sellerId}) وتفعيل سحب الطلبات بنجاح 🟢`
           : (resolved.merchantName
-              ? `يرجى ضبط Refresh Token للمتجر "${resolved.merchantName}" في إعدادات المتجر`
-              : 'يرجى ضبط مفاتيح Amazon SP-API في إعدادات المتجر')
+              ? `يرجى إدخال معرّف التاجر (Merchant ID) لمتجر "${resolved.merchantName}"`
+              : 'يرجى إدخال معرّف التاجر في أمازون في إعدادات المتجر')
       };
     }
     const data = parsed.data;

@@ -63,6 +63,7 @@ const ShippingManagementDashboard = React.lazy(() => import('./components/Shippi
 const PlatformsGuideManager = React.lazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = React.lazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = React.lazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
+const LoginPage = React.lazy(() => import('./components/LoginPage').then(m => ({ default: m.LoginPage })));
 
 export default function App() {
   const { toggleColorMode, resolvedColorMode } = useTheme();
@@ -763,8 +764,8 @@ export default function App() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-3xl font-black text-white font-mono">148</div>
-                      <span className="text-[11px] text-emerald-400 font-bold">+12 منتج جديد هذا الأسبوع</span>
+                      <div className="text-3xl font-black text-white font-mono">0</div>
+                      <span className="text-[11px] text-emerald-400 font-bold">لا يوجد منتجات حالياً</span>
                     </div>
                   </div>
 
@@ -777,8 +778,8 @@ export default function App() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-3xl font-black text-white font-mono">342</div>
-                      <span className="text-[11px] text-slate-400 font-bold">أمازون، نون، وجوميا مصر</span>
+                      <div className="text-3xl font-black text-white font-mono">0</div>
+                      <span className="text-[11px] text-slate-400 font-bold">اربط متجرك لمراقبة المنافسين</span>
                     </div>
                   </div>
 
@@ -791,8 +792,8 @@ export default function App() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-xl font-black text-emerald-400 font-mono">100% متزامن</div>
-                      <span className="text-[11px] text-slate-400 font-bold">آخر تحديث: منذ 3 دقائق</span>
+                      <div className="text-xl font-black text-emerald-400 font-mono">غير مفعل</div>
+                      <span className="text-[11px] text-slate-400 font-bold">انتظار أول عملية سحب بيانات</span>
                     </div>
                   </div>
 
@@ -806,9 +807,11 @@ export default function App() {
                     </div>
                     <div>
                       <div className="text-3xl font-black text-white font-mono">
-                        {trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 7} أيام
+                        {isOwner ? 'لا محدود' : (trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 7)} أيام
                       </div>
-                      <span className="text-[11px] text-amber-300 font-bold">فعال حتى: {trialEndDate?.toLocaleDateString('ar-EG')}</span>
+                      <span className="text-[11px] text-amber-300 font-bold">
+                        {isOwner ? 'اشتراك مالك (مدى الحياة)' : (trialEndDate ? `فعال حتى: ${trialEndDate.toLocaleDateString('ar-EG')}` : 'فترة تجريبية')}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -833,11 +836,11 @@ export default function App() {
                     </button>
                     
                     <button 
-                      onClick={() => setActiveWorkspaceTab('help')} 
-                      className="px-6 py-3 bg-slate-950 hover:bg-slate-800 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/30 transition flex items-center gap-2"
+                      onClick={() => setActiveWorkspaceTab('platforms_guide')} 
+                      className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-lg transition flex items-center gap-2"
                     >
-                      <BookOpen className="w-4 h-4 text-amber-400" />
-                      <span>فتح دليل الربط والدعم</span>
+                      <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                      <span>ربط متجر جديد / سحب البيانات الحقيقية</span>
                     </button>
                   </div>
                 </div>
@@ -885,125 +888,10 @@ export default function App() {
           <LandingPage onLoginClick={() => setAuthMode('email')} />
         </div>
       ) : (
-        /* Modern Executive Login Screen */
-        <div className="min-h-[100dvh] w-full flex flex-col items-center bg-slate-950 text-slate-100 font-['Cairo',sans-serif] pt-20" dir="rtl">
-          {showInstallBar && <InstallationBar />}
-          <div className="flex-grow flex flex-col items-center justify-center p-4 w-full">
-            <div className="max-w-5xl w-full flex justify-end mb-3">
-              <ThemeToggle variant="pill" />
-            </div>
-            <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden">
-              
-              {/* Left Side: Brand Panel */}
-              <div className="hidden lg:flex p-12 flex-col justify-between bg-gradient-to-br from-amber-950 to-slate-950 border-l border-amber-500/20">
-                <div className="space-y-6">
-                  <img src="/pwa-192x192.png" width={128} height={128} loading="lazy" decoding="async" fetchPriority="high" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
-                  <h1 className="text-4xl font-black text-white">رادار التاجر <span className="text-amber-400">الذكي</span></h1>
-                  <p className="text-amber-100/70 text-lg">تغطية شاملة لأسعار ومخزون أمازون، نون، وجوميا بأعلى معايير الدقة.</p>
-                </div>
-              </div>
-
-              {/* Right Side: Auth Panel */}
-              <div className="p-8 sm:p-12 flex flex-col justify-center">
-                <div className="lg:hidden text-center mb-8">
-                  <img src="/pwa-192x192.png" width={80} height={80} loading="lazy" decoding="async" fetchPriority="high" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
-                </div>
-                
-                <div className="bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex gap-2 mb-8">
-                  <button 
-                    type="button"
-                    onClick={() => setAuthMode('email')} 
-                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${authMode === 'email' ? 'bg-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    البريد الإلكتروني
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setAuthMode('google')} 
-                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${authMode === 'google' ? 'bg-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    Google OAuth
-                  </button>
-                </div>
-
-                <h3 className="text-2xl font-black text-white mb-6 text-center">تسجيل الدخول للنظام</h3>
-                
-                {authMode === 'google' ? (
-                  <div className="space-y-4">
-                    <button 
-                      onClick={handleGoogleLogin} 
-                      className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 text-slate-900 font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-md"
-                    >
-                      <Mail className="w-5 h-5 text-red-500" /> 
-                      <span>تسجيل الدخول بحساب Google</span>
-                    </button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleLogin} className="space-y-5">
-                    <div className="relative">
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-500">
-                        <Mail className="w-5 h-5" />
-                      </div>
-                      <input 
-                        type="email" 
-                        required 
-                        placeholder="البريد الإلكتروني" 
-                        value={authEmail} 
-                        onChange={(e) => setAuthEmail(e.target.value)} 
-                        className="w-full py-3.5 pr-11 pl-4 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all" 
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-500">
-                        <Key className="w-5 h-5" />
-                      </div>
-                      <input 
-                        type="password" 
-                        required 
-                        autoComplete="current-password"
-                        placeholder="كلمة المرور" 
-                        value={authPassword} 
-                        onChange={(e) => setAuthPassword(e.target.value)} 
-                        className="w-full py-3.5 pr-12 pl-4 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all" 
-                      />
-                    </div>
-
-                    <button 
-                      type="submit" 
-                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-base shadow-lg transition-all"
-                    >
-                      تسجيل الدخول للنظام
-                    </button>
-                  </form>
-                )}
-
-                <div className="relative my-6 text-center">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-                  <span className="relative px-3 bg-slate-900 text-xs text-slate-500 font-bold">أو</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleOwnerLogin}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black flex items-center justify-center gap-2 transition-all shadow-lg mb-3"
-                >
-                  <Shield className="w-5 h-5 text-slate-950" />
-                  <span>دخول مالكة التطبيق (jassmeinnour@gmail.com)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDemoLogin}
-                  className="w-full py-3.5 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold flex items-center justify-center gap-2 transition-all shadow-md hover:border-amber-400"
-                >
-                  <Sparkles className="w-5 h-5 text-amber-400" />
-                  <span>دخول تجريبي سريع (بدون كلمة سر - 7 أيام مجاناً)</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LoginPage 
+          onLoginSuccess={() => setIsAuthenticated(true)} 
+          onBackToLanding={() => setAuthMode('landing')} 
+        />
       )}
     </Suspense>
   );
