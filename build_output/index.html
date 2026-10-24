@@ -8,7 +8,7 @@
       (function() {
         function isViteWsError(err) {
           if (!err) return false;
-          var str = (err.message || '') + ' ' + (err.stack || '') + ' ' + String(err);
+          var str = (err.message || '') + ' ' + (err.stack || '') + ' ' + (err.filename || '') + ' ' + String(err);
           var lower = str.toLowerCase();
           return lower.indexOf('websocket') !== -1 ||
                  lower.indexOf('@vite/client') !== -1 ||
@@ -17,20 +17,78 @@
                  lower.indexOf('ws://') !== -1 ||
                  lower.indexOf('wss://') !== -1;
         }
+
+        // Intercept console.error to prevent Vite HMR connection logs from triggering applet error alerts
+        var origConsoleError = console.error;
+        console.error = function() {
+          var str = '';
+          for (var i = 0; i < arguments.length; i++) {
+            var arg = arguments[i];
+            str += ' ' + ((arg && arg.message) || (arg && arg.stack) || String(arg || ''));
+          }
+          if (isViteWsError(str)) {
+            return;
+          }
+          return origConsoleError.apply(console, arguments);
+        };
+
         window.addEventListener('error', function(e) {
-          if (isViteWsError(e.error) || isViteWsError(e.message)) {
+          if (isViteWsError(e.error) || isViteWsError(e.message) || isViteWsError(e.filename) || (e.filename && e.filename.indexOf('@vite/client') !== -1)) {
             e.preventDefault();
             e.stopImmediatePropagation();
             return true;
           }
         }, true);
+
         window.addEventListener('unhandledrejection', function(e) {
-          if (isViteWsError(e.reason)) {
+          if (isViteWsError(e.reason) || isViteWsError(e)) {
             e.preventDefault();
             e.stopImmediatePropagation();
             return true;
           }
         }, true);
+
+        // Safe WebSocket wrapper to prevent unhandled WebSocket errors when HMR is disabled or in Cloud iframe
+        if (typeof window !== 'undefined' && 'WebSocket' in window) {
+          var RealWebSocket = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var urlStr = String(url || '').toLowerCase();
+            if (urlStr.indexOf('vite') !== -1 || urlStr.indexOf('hmr') !== -1 || urlStr.indexOf('modulerunner') !== -1) {
+              var noop = function() {};
+              var listeners = {};
+              return {
+                url: url,
+                readyState: 3, // CLOSED
+                bufferedAmount: 0,
+                extensions: '',
+                protocol: '',
+                binaryType: 'blob',
+                close: noop,
+                send: noop,
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+                addEventListener: function(type, fn) {
+                  listeners[type] = listeners[type] || [];
+                  listeners[type].push(fn);
+                },
+                removeEventListener: function(type, fn) {
+                  if (listeners[type]) {
+                    listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
+                  }
+                },
+                dispatchEvent: function() { return true; }
+              };
+            }
+            return new RealWebSocket(url, protocols);
+          };
+          window.WebSocket.prototype = RealWebSocket.prototype;
+          window.WebSocket.CONNECTING = RealWebSocket.CONNECTING;
+          window.WebSocket.OPEN = RealWebSocket.OPEN;
+          window.WebSocket.CLOSING = RealWebSocket.CLOSING;
+          window.WebSocket.CLOSED = RealWebSocket.CLOSED;
+        }
 
         // Early theme detection to prevent flash of unstyled content
         try {
@@ -44,6 +102,30 @@
             document.documentElement.classList.remove('dark', 'theme-dark');
           }
         } catch(e) {}
+
+        // FORCE UNREGISTER OLD SERVICE WORKERS & CLEAR CACHE
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+            }
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (var i = 0; i < names.length; i++) {
+              caches.delete(names[i]);
+            }
+          });
+        }
+
+        // AUTO-RELOAD ON CHUNK LOAD FAILURE
+        window.addEventListener('error', function(e) {
+          if (e && e.message && (e.message.indexOf('Loading chunk') !== -1 || e.message.indexOf('unexpected token <') !== -1)) {
+            console.warn('Chunk load failure detected, forcing reload...');
+            window.location.reload();
+          }
+        }, true);
       })();
     </script>
     
@@ -72,8 +154,11 @@
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" href="/pwa-512x512.png" />
-    <script type="module" crossorigin src="/assets/index-BVlTuF9t.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-lq8XHiz5.css">
+    <script type="module" crossorigin src="/assets/index-Dkwokqcp.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-BhcwN3y-.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-firebase-D3nr0SYJ.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-BR6ffB7-.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DRVSZRsO.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>

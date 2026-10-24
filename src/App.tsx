@@ -48,20 +48,21 @@ import {
 } from './firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-import { OnboardingTour } from './components/OnboardingTour';
-import PaymentModal from './components/PaymentModal';
-import OwnerDashboard from './components/OwnerDashboard';
-import LandingPage from './components/LandingPage';
-import HelpPage from './components/HelpPage';
-import ShippingOrdersTable from './components/ShippingOrdersTable';
-import ProfitCalculator from './components/ProfitCalculator';
-import ShippingManagementDashboard from './components/ShippingManagementDashboard';
-import PlatformsGuideManager from './components/PlatformsGuideManager';
-import AutoPricingEngine from './components/AutoPricingEngine';
 import { ThemeToggle } from './components/ThemeToggle';
 import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
-import { PriceComparisonEngine } from './components/PriceComparisonEngine';
 import { useTheme } from './context/ThemeContext';
+
+const OnboardingTour = React.lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const PaymentModal = React.lazy(() => import('./components/PaymentModal'));
+const OwnerDashboard = React.lazy(() => import('./components/OwnerDashboard'));
+const LandingPage = React.lazy(() => import('./components/LandingPage'));
+const HelpPage = React.lazy(() => import('./components/HelpPage'));
+const ShippingOrdersTable = React.lazy(() => import('./components/ShippingOrdersTable'));
+const ProfitCalculator = React.lazy(() => import('./components/ProfitCalculator'));
+const ShippingManagementDashboard = React.lazy(() => import('./components/ShippingManagementDashboard'));
+const PlatformsGuideManager = React.lazy(() => import('./components/PlatformsGuideManager'));
+const AutoPricingEngine = React.lazy(() => import('./components/AutoPricingEngine'));
+const PriceComparisonEngine = React.lazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
 
 export default function App() {
   const { toggleColorMode, resolvedColorMode } = useTheme();
@@ -356,7 +357,7 @@ export default function App() {
   };
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [hasNewUpdate, setHasNewUpdate] = useState(true);
+  const [hasNewUpdate, setHasNewUpdate] = useState(false); // Disabled persistent banner per request
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleTriggerUpdate = async () => {
@@ -385,6 +386,15 @@ export default function App() {
       window.location.reload();
     }
   };
+
+  const [showInstallBar, setShowInstallBar] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowInstallBar(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -444,45 +454,8 @@ export default function App() {
 
   const InstallationBar = () => (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-slate-950 border-b border-amber-500/30 shadow-2xl">
-      {hasNewUpdate && (
-        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between shadow-xl border-b border-amber-600/30">
-          <div className="flex items-center gap-2.5 max-w-4xl">
-            <span className="flex h-2.5 w-2.5 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-950"></span>
-            </span>
-            <Sparkles className="w-4 h-4 text-slate-950 shrink-0" />
-            <span>إصدار جديد متاح من منصة رادار التاجر (v2.4.5) — تم تحسين سرعة طباعة البوالص الحرارية والأسعار!</span>
-          </div>
+      {/* Persistent update banner removed per request to prevent hanging UI */}
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleTriggerUpdate}
-              disabled={isUpdating}
-              className="px-3.5 py-1 bg-slate-950 hover:bg-slate-900 text-amber-300 rounded-lg font-black text-xs shadow-md transition flex items-center gap-1.5 active:scale-95"
-            >
-              {isUpdating ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>جاري التحديث...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>تحديث الآن</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setHasNewUpdate(false)}
-              className="p-1 text-slate-950/80 hover:text-slate-950 font-bold rounded transition"
-              title="إغلاق التنبيه"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-4 py-2.5 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
         <button onClick={handleInstall} className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-amber-900/30 border border-amber-500/20 flex items-center justify-center gap-2 transition-all font-bold text-amber-100">
@@ -523,7 +496,7 @@ export default function App() {
           </div>
         ) : (
           <div className="min-h-screen bg-slate-900 text-slate-100 font-['Cairo',sans-serif] pb-20 pt-20" dir="rtl">
-            <InstallationBar />
+            {showInstallBar && <InstallationBar />}
             {!isFocusMode && <DailyTaskListSidebar />}
 
             {/* Merchant Top Header Navigation Tabs */}
@@ -861,13 +834,13 @@ export default function App() {
         )
       ) : authMode === 'landing' ? (
         <div className="min-h-screen flex flex-col pt-20">
-          <InstallationBar />
+          {showInstallBar && <InstallationBar />}
           <LandingPage onLoginClick={() => setAuthMode('email')} />
         </div>
       ) : (
         /* Modern Executive Login Screen */
         <div className="min-h-[100dvh] w-full flex flex-col items-center bg-slate-950 text-slate-100 font-['Cairo',sans-serif] pt-20" dir="rtl">
-          <InstallationBar />
+          {showInstallBar && <InstallationBar />}
           <div className="flex-grow flex flex-col items-center justify-center p-4 w-full">
             <div className="max-w-5xl w-full flex justify-end mb-3">
               <ThemeToggle variant="pill" />
@@ -877,7 +850,7 @@ export default function App() {
               {/* Left Side: Brand Panel */}
               <div className="hidden lg:flex p-12 flex-col justify-between bg-gradient-to-br from-amber-950 to-slate-950 border-l border-amber-500/20">
                 <div className="space-y-6">
-                  <img src="/pwa-192x192.png" width="128" height="128" fetchPriority="high" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
+                  <img src="/pwa-192x192.png" width={128} height={128} loading="lazy" decoding="async" fetchPriority="high" alt="رادار التاجر" className="w-32 h-32 rounded-3xl shadow-2xl border-4 border-amber-500/20 p-2 bg-slate-950" />
                   <h1 className="text-4xl font-black text-white">رادار التاجر <span className="text-amber-400">الذكي</span></h1>
                   <p className="text-amber-100/70 text-lg">تغطية شاملة لأسعار ومخزون أمازون، نون، وجوميا بأعلى معايير الدقة.</p>
                 </div>
@@ -886,7 +859,7 @@ export default function App() {
               {/* Right Side: Auth Panel */}
               <div className="p-8 sm:p-12 flex flex-col justify-center">
                 <div className="lg:hidden text-center mb-8">
-                  <img src="/pwa-192x192.png" width="80" height="80" fetchPriority="high" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
+                  <img src="/pwa-192x192.png" width={80} height={80} loading="lazy" decoding="async" fetchPriority="high" alt="رادار التاجر" className="w-20 h-20 mx-auto mb-4" />
                 </div>
                 
                 <div className="bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex gap-2 mb-8">

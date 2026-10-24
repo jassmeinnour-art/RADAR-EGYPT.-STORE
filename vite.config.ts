@@ -46,6 +46,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
@@ -104,12 +105,21 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     reportCompressedSize: false,
-    chunkSizeWarningLimit: 8000,
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('firebase')) return 'vendor-firebase';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('framer-motion') || id.includes('motion')) return 'vendor-motion';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-is')) return 'vendor-react';
+          }
+        },
       },
     },
   },

@@ -169,7 +169,7 @@ app.post('/api/optimize-image', async (req, res) => {
     }
 
     // Lazy load Jimp to avoid slowing down startup if not used
-    const { Jimp } = await import('jimp');
+    const Jimp = (await import('jimp')).default;
 
     // Remove base64 prefix if exists
     const cleanBase64 = imageBase64.replace(/^data:image\/[^;]+;base64,/, '');
@@ -179,11 +179,12 @@ app.post('/api/optimize-image', async (req, res) => {
 
     // Resize while maintaining aspect ratio if width is larger than maxWidth
     if (image.bitmap.width > maxWidth) {
-      image.resize({ w: maxWidth });
+      image.resize(maxWidth, (Jimp as any).AUTO);
     }
 
     // Set quality (0-100)
-    const optimizedBuffer = await image.getBuffer('image/jpeg', { quality });
+    image.quality(quality);
+    const optimizedBuffer = await image.getBufferAsync('image/jpeg');
     const optimizedBase64 = `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`;
 
     res.json({

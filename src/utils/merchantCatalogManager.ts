@@ -703,7 +703,8 @@ export function calculateCatalogSummary(products: MerchantCatalogProduct[]): Mer
       totalCatalogValueEGP: 0,
       averagePriceGapPercent: 0,
       autoRepricerEnabledCount: 0,
-      floorPriceReachedCount: 0
+      floorPriceReachedCount: 0,
+      lowStockCount: 0
     };
   }
 
@@ -718,6 +719,10 @@ export function calculateCatalogSummary(products: MerchantCatalogProduct[]): Mer
   const avgGap = Number((products.reduce((acc, p) => acc + p.priceGapPercent, 0) / total).toFixed(1));
   const autoRepricerEnabledCount = products.filter(p => p.repricingRule?.enabled).length;
   const floorPriceReachedCount = products.filter(p => p.repricingRule?.floorPriceReached).length;
+  const lowStockCount = products.filter(p => {
+    const threshold = p.lowStockThreshold ?? 5;
+    return (p.stockQuantity ?? 0) <= threshold;
+  }).length;
 
   return {
     totalProducts: total,
@@ -731,7 +736,8 @@ export function calculateCatalogSummary(products: MerchantCatalogProduct[]): Mer
     totalCatalogValueEGP: totalValue,
     averagePriceGapPercent: avgGap,
     autoRepricerEnabledCount,
-    floorPriceReachedCount
+    floorPriceReachedCount,
+    lowStockCount
   };
 }
 

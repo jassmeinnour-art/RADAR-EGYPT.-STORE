@@ -411,6 +411,31 @@ html.dark table, html.dark th, html.dark td {
   border-color: #334155 !important;
 }
 
+/* Enhanced Table Contrast in Dark Mode */
+html.dark thead {
+  background-color: #0B0F17 !important;
+  border-bottom: 2px solid #334155 !important;
+}
+
+html.dark tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.3) !important;
+}
+
+html.dark tr:hover {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+html.dark th {
+  color: #38BDF8 !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+html.dark td {
+  color: #E2E8F0 !important;
+}
+
 html.dark svg.lucide {
   color: #38BDF8 !important;
   stroke: #38BDF8 !important;

@@ -93,7 +93,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8651729677c2a751a5c33a3a9cfe2331"
   }, {
     "url": "index.html",
-    "revision": "b3000164bc7aabae65efa121e7ee0b0d"
+    "revision": "a55eb330856889768e074325d77b4f71"
   }, {
     "url": "icon.svg",
     "revision": "c4e4a0098930da2c87d0e9cbb2173dc2"
@@ -125,10 +125,64 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "screenshots/desktop-1280x720.png",
     "revision": "0e86052875849027aab2710429b9c395"
   }, {
-    "url": "assets/index-lq8XHiz5.css",
+    "url": "assets/vendor-xlsx-D9yR3_kW.js",
     "revision": null
   }, {
-    "url": "assets/index-BVlTuF9t.js",
+    "url": "assets/vendor-react-BhcwN3y-.js",
+    "revision": null
+  }, {
+    "url": "assets/vendor-motion-BpsU_EWu.js",
+    "revision": null
+  }, {
+    "url": "assets/vendor-icons-BR6ffB7-.js",
+    "revision": null
+  }, {
+    "url": "assets/vendor-firebase-D3nr0SYJ.js",
+    "revision": null
+  }, {
+    "url": "assets/index-Dkwokqcp.js",
+    "revision": null
+  }, {
+    "url": "assets/index-DRVSZRsO.css",
+    "revision": null
+  }, {
+    "url": "assets/competitorPriceExport-34GOMcYz.js",
+    "revision": null
+  }, {
+    "url": "assets/autoPricingEngineData-CQirK-8N.js",
+    "revision": null
+  }, {
+    "url": "assets/ShippingOrdersTable-BQabSx_y.js",
+    "revision": null
+  }, {
+    "url": "assets/ShippingManagementDashboard-BLfqNKDH.js",
+    "revision": null
+  }, {
+    "url": "assets/ProfitCalculator-CWcuMOTW.js",
+    "revision": null
+  }, {
+    "url": "assets/PriceComparisonEngine-CTSdzOnm.js",
+    "revision": null
+  }, {
+    "url": "assets/PlatformsGuideManager-C6XiYoXl.js",
+    "revision": null
+  }, {
+    "url": "assets/PaymentModal-CS7sywCd.js",
+    "revision": null
+  }, {
+    "url": "assets/OwnerDashboard-KqjLs5AI.js",
+    "revision": null
+  }, {
+    "url": "assets/OnboardingTour-wYNypZuO.js",
+    "revision": null
+  }, {
+    "url": "assets/LandingPage-CQxGVfaB.js",
+    "revision": null
+  }, {
+    "url": "assets/HelpPage-CQJFuRs0.js",
+    "revision": null
+  }, {
+    "url": "assets/AutoPricingEngine-BZ-lvrUt.js",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",

@@ -50,7 +50,8 @@ import {
   loadMerchantRepricingAuditLog,
   updateProductRepricingRule,
   toggleProductRepricer,
-  executeAutomatedRepricingForMerchant
+  executeAutomatedRepricingForMerchant,
+  ensureDefaultRepricingRule
 } from '../utils/merchantCatalogManager';
 import { loadAllRegisteredMerchants, evaluateMerchantSubscriptionState } from '../utils/platformLaunchHelper';
 import { ExportReportsButton } from './ExportReportsButton';
@@ -61,6 +62,28 @@ interface MerchantCatalogManagerProps {
   onOpenManageApisModal?: (merchantId?: string) => void;
   onShowToast?: (message: string) => void;
 }
+
+const HighlightedText: React.FC<{ text: string; highlight: string }> = ({ text, highlight }) => {
+  if (!highlight.trim()) return <span>{text}</span>;
+  try {
+    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === highlight.toLowerCase() ? (
+            <mark key={i} className="bg-amber-200 text-amber-900 rounded px-0.5 font-bold shadow-xs">
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  } catch (e) {
+    return <span>{text}</span>;
+  }
+};
 
 export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   selectedMerchant,
@@ -107,6 +130,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [ruleMaxPrice, setRuleMaxPrice] = useState(5000);
   const [ruleBeatBy, setRuleBeatBy] = useState(1);
   const [ruleBenchmark, setRuleBenchmark] = useState<'buybox' | 'lowest_competitor'>('buybox');
+  const [editStockThreshold, setEditStockThreshold] = useState<number>(5);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,6 +158,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [newStock, setNewStock] = useState<number>(20);
   const [newCategory, setNewCategory] = useState('أثاث ومفروشات');
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [newLowStockThreshold, setNewLowStockThreshold] = useState<number>(5);
 
   // Reload catalog when merchant changes, and auto-fetch real catalog if empty
   useEffect(() => {
@@ -304,6 +329,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     setRuleMaxPrice(rule.maxPrice);
     setRuleBeatBy(rule.beatCompetitorBy);
     setRuleBenchmark(rule.targetBenchmark || 'buybox');
+    setEditStockThreshold(prod.lowStockThreshold ?? 5);
   };
 
   // Save Repricing Rules for product
@@ -325,6 +351,15 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     };
 
     updateProductRepricingRule(activeMerchantId, ruleModalProduct.id, updatedRule);
+
+    // Save low stock threshold
+    const catalog = loadMerchantCatalog(activeMerchantId);
+    const idx = catalog.findIndex(p => p.id === ruleModalProduct.id);
+    if (idx !== -1) {
+      catalog[idx].lowStockThreshold = Number(editStockThreshold);
+      catalog[idx].isCriticalStock = (catalog[idx].stockQuantity ?? 0) <= Number(editStockThreshold);
+      saveMerchantCatalog(activeMerchantId, catalog);
+    }
 
     // If enabled, immediately run automated repricer for this product so price updates right away
     if (ruleEnabled) {
@@ -440,7 +475,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     const buyBox = Math.round(newPrice * 0.97);
     const evalRes = evaluatePricingCompetitiveness(newPrice, lowestComp, buyBox);
 
-    const newProd: MerchantCatalogProduct = {
+    const tempProd = {
       id: `prod-${Date.now()}`,
       merchantId: activeMerchantId,
       merchantStoreName: currentMerchant?.storeName,
@@ -478,6 +513,16 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       priceGapPercent: evalRes.priceGapPercent,
       pricingStatus: evalRes.pricingStatus,
       suggestedAction: evalRes.suggestedAction,
+    };
+
+    const newProd: MerchantCatalogProduct = {
+      ...(tempProd as any),
+      repricingRule: {
+        ...ensureDefaultRepricingRule(tempProd as any).repricingRule!,
+        enabled: true
+      },
+      lowStockThreshold: Number(newLowStockThreshold),
+      isCriticalStock: Number(newStock) <= Number(newLowStockThreshold),
       dataMode: currentMerchant?.dataMode || 'live',
       lastRefreshedAt: new Date().toISOString()
     };
@@ -684,7 +729,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       </div>
 
       {/* KPI Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         
         {/* Total Products */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
@@ -729,6 +774,24 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
           </div>
           <div className="text-[11px] text-rose-700 font-medium mt-1">
             فارق السعر أعلى من 10%
+          </div>
+        </div>
+
+        {/* Low Stock Alert */}
+        <div className={`border rounded-2xl p-4 shadow-xs ${
+          summary.lowStockCount > 0 
+            ? 'bg-amber-50/70 border-amber-200 text-amber-900' 
+            : 'bg-white border-slate-200 text-slate-900'
+        }`}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold">مخزون منخفض</span>
+            <AlertTriangle className={`w-4 h-4 ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+          </div>
+          <div className={`text-xl font-black font-mono ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+            {summary.lowStockCount} <span className="text-xs font-normal">منتجات</span>
+          </div>
+          <div className="text-[11px] text-amber-700 font-medium mt-1">
+            أقل من حد التنبيه
           </div>
         </div>
 
@@ -795,6 +858,46 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             className="px-3.5 py-2 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-black text-xs transition cursor-pointer shrink-0"
           >
             عرض سجل التعديلات والتنبيهات 📜
+          </button>
+        </div>
+      )}
+
+      {/* Critical Stock Alert Banner (تنبيه المخزون الحرج) */}
+      {products.some(p => (p.stockQuantity ?? 0) <= (p.lowStockThreshold ?? 5)) && (
+        <div className="bg-amber-950/90 border-2 border-amber-500/80 rounded-3xl p-4 sm:p-5 text-amber-100 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0 text-amber-300">
+              <Package className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-amber-300 font-['Alexandria']">
+                  تنبيه المخزون الحرج: منتجات أوشكت على النفاد ⚠️
+                </h3>
+                <span className="text-xs font-mono text-amber-200">
+                  ({products.filter(p => (p.stockQuantity ?? 0) <= (p.lowStockThreshold ?? 5)).length} منتج بحاجة لإعادة توريد)
+                </span>
+              </div>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                هناك منتجات وصل مخزونها للحد الحرج الذي حددته. يرجى مراجعة الموردين لتجنب فقدان الـ Buy Box بسبب نفاد الكمية:
+                {' '}
+                {products
+                  .filter(p => (p.stockQuantity ?? 0) <= (p.lowStockThreshold ?? 5))
+                  .map(p => `${p.sku} (المتبقي: ${p.stockQuantity} قطعة | الحد: ${p.lowStockThreshold ?? 5})`)
+                  .join(' ، ')}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSortBy('stock');
+              setSearchQuery('');
+            }}
+            className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer shrink-0"
+          >
+            ترتيب حسب المخزون 📦
           </button>
         </div>
       )}
@@ -1281,7 +1384,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                   const isWinning = prod.isBuyBoxWinner;
 
                   return (
-                    <tr key={prod.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={prod.id} className={`hover:bg-slate-50/70 transition-colors ${
+                      (prod.stockQuantity ?? 0) <= (prod.lowStockThreshold ?? 5) 
+                        ? 'bg-amber-50/30 border-r-4 border-r-amber-500' 
+                        : ''
+                    }`}>
                       
                       {/* Product Info */}
                       <td className="py-3.5 px-4 min-w-[240px]">
@@ -1296,12 +1403,14 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                           />
                           <div className="min-w-0 space-y-0.5">
                             <h4 className="font-bold text-slate-900 line-clamp-1 text-xs" title={prod.title}>
-                              {prod.title}
+                              <HighlightedText text={prod.title} highlight={searchQuery} />
                             </h4>
                             <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-slate-600">{prod.brand}</span>
                               <span>·</span>
-                              <span>{prod.category}</span>
+                              <span>
+                                <HighlightedText text={prod.category} highlight={searchQuery} />
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1459,11 +1568,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                         </div>
                       </td>
 
-                      {/* Stock & Fulfillment */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        <div className="text-xs font-bold font-mono text-slate-800">
+                        <div className={`text-xs font-bold font-mono ${
+                          (prod.stockQuantity ?? 0) <= (prod.lowStockThreshold ?? 5) ? 'text-amber-600' : 'text-slate-800'
+                        }`}>
                           {prod.stockQuantity} قطعة
                         </div>
+                        {(prod.stockQuantity ?? 0) <= (prod.lowStockThreshold ?? 5) && (
+                          <div className="text-[10px] font-black text-amber-700 animate-pulse">
+                            ⚠️ نفاد وشيك
+                          </div>
+                        )}
                         <div className="text-[10px] text-slate-400">
                           {prod.fulfillmentType === 'fba' ? 'FBA Prime' : (prod.fulfillmentType === 'fbn_express' ? 'Noon Express' : 'شحن مباشر')}
                         </div>
@@ -1929,6 +2044,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                     className="w-full font-mono px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+
+                <div>
+                  <label className="font-bold text-amber-700 block mb-1">حد التنبيه للمخزون</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newLowStockThreshold}
+                    onChange={(e) => setNewLowStockThreshold(Number(e.target.value))}
+                    className="w-full font-mono px-3 py-2 rounded-xl border border-amber-300 bg-amber-50/30 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-[9px] text-slate-400">سيتم تمييز المنتج باللون الأصفر عند الوصول لهذا العدد</span>
+                </div>
               </div>
 
               <div>
@@ -2040,10 +2167,10 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               </div>
 
               {/* Min Price (Floor Price) & Max Price (Ceiling Price) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">
-                    الحد الأدنى للسعر (Min / Floor Price) *
+                    الحد الأدنى للسعر (Min) *
                   </label>
                   <input
                     type="number"
@@ -2053,14 +2180,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                     onChange={(e) => setRuleMinPrice(Number(e.target.value))}
                     className="w-full font-mono font-bold text-sm px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    حماية التاجر من الخسارة (لا ينخفض السعر تحته أبداً)
-                  </span>
                 </div>
 
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">
-                    الحد الأقصى للسعر (Max / Ceiling Price) *
+                    الحد الأقصى (Max) *
                   </label>
                   <input
                     type="number"
@@ -2070,9 +2194,20 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                     onChange={(e) => setRuleMaxPrice(Number(e.target.value))}
                     className="w-full font-mono font-bold text-sm px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    السقف الأعلى للسعر عند غياب المنافسين
-                  </span>
+                </div>
+
+                <div>
+                  <label className="font-bold text-amber-700 block mb-1">
+                    حد تنبيه المخزون *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editStockThreshold}
+                    onChange={(e) => setEditStockThreshold(Number(e.target.value))}
+                    className="w-full font-mono font-bold text-sm px-3.5 py-2 rounded-xl border border-amber-300 bg-amber-50/20 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
                 </div>
               </div>
 

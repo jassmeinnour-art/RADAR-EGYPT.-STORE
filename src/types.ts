@@ -815,6 +815,8 @@ export interface MerchantCatalogProduct {
   // Operational Details
   dataMode?: 'live' | 'demo';
   productUrl?: string;
+  lowStockThreshold?: number; // حد المخزون المنخفض المخصص
+  isCriticalStock?: boolean; // علامة تمييز المخزون الحرج
   lastRefreshedAt: string;
 }
 
@@ -831,6 +833,7 @@ export interface MerchantCatalogSummary {
   averagePriceGapPercent: number;
   autoRepricerEnabledCount?: number;
   floorPriceReachedCount?: number;
+  lowStockCount: number;
 }
 
 // Bulk Price Update & Strategy Engine Types
