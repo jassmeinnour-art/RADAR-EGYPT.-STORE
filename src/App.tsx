@@ -82,12 +82,11 @@ export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help' | 'platforms_guide' | 'auto_pricing' | 'price_comparison'>('merchants');
   const [isFocusMode, setIsFocusMode] = useState(false);
 
-  // Auth Constants
   const OWNER_EMAIL = 'jassmeinnour@gmail.com';
-  const isOwner = user?.email === OWNER_EMAIL;
+  const isOwner = user?.email === OWNER_EMAIL || user?.role === 'super_admin' || user?.systemRole === 'SYSTEM_ADMIN_MARKETER';
 
   useEffect(() => {
-    // 7-day free trial logic
+    // 7-day free trial logic (bypassed for owner)
     const savedInstallDate = localStorage.getItem('radar_install_date');
     if (!savedInstallDate) {
       const now = new Date();
@@ -104,9 +103,14 @@ export default function App() {
       try {
         const parsedUser = JSON.parse(savedUserStr);
         if (parsedUser && parsedUser.email) {
+          if (parsedUser.email === OWNER_EMAIL) {
+            parsedUser.role = 'super_admin';
+            parsedUser.systemRole = 'SYSTEM_ADMIN_MARKETER';
+            parsedUser.isLifetime = true;
+          }
           setUser(parsedUser);
           setIsAuthenticated(true);
-          if (parsedUser.email === OWNER_EMAIL) {
+          if (parsedUser.email === OWNER_EMAIL || parsedUser.role === 'super_admin') {
             setShowOwnerDashboard(true);
           }
         }
@@ -124,8 +128,17 @@ export default function App() {
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          setUser(result.user);
+          let u: any = result.user;
+          if (u.email === OWNER_EMAIL) {
+            u.role = 'super_admin';
+            u.systemRole = 'SYSTEM_ADMIN_MARKETER';
+            u.isLifetime = true;
+          }
+          setUser(u);
           setIsAuthenticated(true);
+          if (u.email === OWNER_EMAIL) {
+            setShowOwnerDashboard(true);
+          }
         }
       })
       .catch((err) => {
@@ -138,8 +151,20 @@ export default function App() {
     // Firebase Auth State Listener
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        setUser(currentUser);
+        let activeUsr: any = currentUser;
+        if (currentUser.email === OWNER_EMAIL) {
+          activeUsr = {
+            ...currentUser,
+            role: 'super_admin',
+            systemRole: 'SYSTEM_ADMIN_MARKETER',
+            isLifetime: true
+          };
+        }
+        setUser(activeUsr);
         setIsAuthenticated(true);
+        if (currentUser.email === OWNER_EMAIL) {
+          setShowOwnerDashboard(true);
+        }
         
         // Fetch User Profile to check for Onboarding
         setProfileLoading(true);
@@ -149,7 +174,7 @@ export default function App() {
           
           if (userDoc.exists()) {
             const profileData = userDoc.data();
-            if (!profileData.hasSeenOnboarding) {
+            if (!profileData.hasSeenOnboarding && currentUser.email !== OWNER_EMAIL) {
               setShowOnboarding(true);
             }
           } else {
@@ -159,12 +184,17 @@ export default function App() {
               displayName: currentUser.displayName || 'تاجر جديد',
               email: currentUser.email,
               photoURL: currentUser.photoURL || '',
-              hasSeenOnboarding: false,
+              role: currentUser.email === OWNER_EMAIL ? 'super_admin' : 'merchant',
+              systemRole: currentUser.email === OWNER_EMAIL ? 'SYSTEM_ADMIN_MARKETER' : 'MERCHANT',
+              isLifetime: currentUser.email === OWNER_EMAIL,
+              hasSeenOnboarding: currentUser.email === OWNER_EMAIL,
               createdAt: new Date().toISOString(),
               lastLoginAt: new Date().toISOString()
             };
             await setDoc(userDocRef, newProfile);
-            setShowOnboarding(true);
+            if (currentUser.email !== OWNER_EMAIL) {
+              setShowOnboarding(true);
+            }
           }
         } catch (err) {
           console.error('Error fetching user profile:', err);
@@ -266,7 +296,15 @@ export default function App() {
     try {
       const cred = await signInWithEmailAndPassword(auth, authEmail, authPassword);
       if (cred.user) {
-        localStorage.setItem('radar_user', JSON.stringify({ email: cred.user.email, uid: cred.user.uid }));
+        const uEmail = cred.user.email;
+        const userData = { 
+          email: uEmail, 
+          uid: cred.user.uid,
+          role: uEmail === OWNER_EMAIL ? 'super_admin' : 'merchant',
+          systemRole: uEmail === OWNER_EMAIL ? 'SYSTEM_ADMIN_MARKETER' : 'MERCHANT',
+          isLifetime: uEmail === OWNER_EMAIL
+        };
+        localStorage.setItem('radar_user', JSON.stringify(userData));
         localStorage.setItem('radar_auth_token', 'firebase_token_' + Date.now());
       }
     } catch (error) {
@@ -280,9 +318,11 @@ export default function App() {
   const handleOwnerLogin = () => {
     const ownerUser = { 
       email: OWNER_EMAIL, 
-      displayName: 'جاسمين نور (مالكة التطبيق)', 
+      displayName: 'جاسمين نور (مالكة التطبيق ومدير التسويق - SYSTEM_ADMIN_MARKETER)', 
       uid: 'owner_user_999', 
-      role: 'owner',
+      role: 'super_admin',
+      systemRole: 'SYSTEM_ADMIN_MARKETER',
+      isLifetime: true,
       isAuthenticated: true 
     };
     try {
