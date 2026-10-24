@@ -78,6 +78,13 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   
+  // PURGE DEMO DATA ON LOAD
+  useEffect(() => {
+    localStorage.removeItem('radar_mock_products');
+    localStorage.removeItem('radar_demo_merchants');
+    sessionStorage.clear();
+  }, []);
+  
   // Dashboard states
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'merchants' | 'radar' | 'shipping' | 'ai_studio' | 'trending' | 'reports' | 'help' | 'platforms_guide' | 'auto_pricing' | 'price_comparison'>('merchants');
   const [isFocusMode, setIsFocusMode] = useState(false);
