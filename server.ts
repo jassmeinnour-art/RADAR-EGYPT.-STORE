@@ -1272,6 +1272,7 @@ app.post('/api/publish-to-platforms', async (req, res) => {
         twob_eg: '2B مصر (2B Computer & Tech Store)',
         shopify_salla: 'المتجر الإلكتروني الخاص (Shopify / Salla / WooCommerce)',
         tiktok_shop: 'تيك توك شوب مصر (TikTok Shop)',
+        bayyaa_marketplace: 'بياع ماركت (Bayyaa Marketplace)',
       };
 
       const name = platformNames[platformId] || platformId;

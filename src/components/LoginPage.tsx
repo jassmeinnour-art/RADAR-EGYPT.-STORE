@@ -449,23 +449,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           </div>
 
           {/* Bayyaa Platform Promotional Banner & Logo */}
-          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-2 border-[#FF6B00] rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden text-right" dir="rtl">
-            <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-[#FF6B00]/15 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-xl pointer-events-none" />
+          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_10px_35px_rgba(15,42,74,0.5)] relative overflow-hidden text-right" dir="rtl">
+            <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-[#FF6B00]/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/15 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-5 relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#FF6B00] p-1 flex items-center justify-center shrink-0 shadow-xl border-2 border-white/30 overflow-hidden">
-                  <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-xl" />
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+              <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
+                {/* Prominent Enlarged Exact Bayyaa Logo Image */}
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#0F2A4A] p-1.5 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(255,107,0,0.6)] border-4 border-[#FF6B00] overflow-hidden transform hover:scale-105 transition-transform duration-300">
+                  <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-2xl" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#FF6B00] text-white font-black text-[10px] tracking-wider uppercase shadow-xs">
+                  <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
+                    <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/20">
                       منصة بياع (Bayyaa) الرسمية
                     </span>
-                    <span className="text-xs text-[#FFFFFF] font-bold opacity-90">شريك التسوق والبيع الجديد</span>
+                    <span className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide">شريك التسوق والبيع الجديد</span>
                   </div>
-                  <h3 className="text-base sm:text-lg font-black text-[#FFFFFF] tracking-tight font-['Alexandria']">
+                  <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-[#FFFFFF] tracking-tight font-['Alexandria'] leading-tight">
                     🚀 انضم الآن إلى منصة بياع (Bayyaa) - ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
                   </h3>
                 </div>

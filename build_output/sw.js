@@ -93,7 +93,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8651729677c2a751a5c33a3a9cfe2331"
   }, {
     "url": "index.html",
-    "revision": "49a3a2b5b535083dbe733153f2f4b99c"
+    "revision": "a546bd95786ce17c965ca7536c47c12c"
   }, {
     "url": "icon.svg",
     "revision": "c4e4a0098930da2c87d0e9cbb2173dc2"
@@ -143,13 +143,13 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/vendor-firebase-CvryEZwB.js",
     "revision": null
   }, {
-    "url": "assets/index-Bmsw0HYL.js",
+    "url": "assets/index-CqZAuJL1.css",
     "revision": null
   }, {
-    "url": "assets/index-8QnMhQ75.css",
+    "url": "assets/index-BOjKQ5F4.js",
     "revision": null
   }, {
-    "url": "assets/competitorPriceExport-B8kQhBgf.js",
+    "url": "assets/competitorPriceExport-Kw98dL-z.js",
     "revision": null
   }, {
     "url": "assets/autoPricingEngineData-Dke87TOr.js",
@@ -161,7 +161,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/ShippingManagementDashboard-Ci0WSq25.js",
     "revision": null
   }, {
-    "url": "assets/ProfitCalculator-D6p-L-Og.js",
+    "url": "assets/ProfitCalculator-CUyQOUpp.js",
     "revision": null
   }, {
     "url": "assets/PriceComparisonEngine-DctuiqTq.js",
@@ -179,16 +179,16 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/OnboardingTour-CWzFEJVR.js",
     "revision": null
   }, {
-    "url": "assets/LoginPage-Cg3_qun3.js",
+    "url": "assets/LoginPage-COsI-B79.js",
     "revision": null
   }, {
-    "url": "assets/LandingPage-BTJIZ9uI.js",
+    "url": "assets/LandingPage-_jWRW5Sz.js",
     "revision": null
   }, {
     "url": "assets/HelpPage-C0PJWp2B.js",
     "revision": null
   }, {
-    "url": "assets/AutoPricingEngine-BzCd4ZdA.js",
+    "url": "assets/AutoPricingEngine-BSswgNv_.js",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",

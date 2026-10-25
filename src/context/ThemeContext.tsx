@@ -171,7 +171,7 @@ const LOCAL_STORAGE_THEME_KEY = 'radar_global_primary_theme_v7_offwhite_black';
 const LOCAL_STORAGE_COLOR_MODE_KEY = 'radar_global_color_mode_v7_offwhite_black';
 const THEME_CACHE_PURGE_KEY = 'radar_soft_offwhite_black_cache_purged_v7';
 
-export type ColorModePreference = 'system' | 'light' | 'dark';
+export type ColorModePreference = 'system' | 'light' | 'dark' | 'scheduled';
 export type ResolvedColorMode = 'light' | 'dark';
 
 interface ThemeContextType {
@@ -191,6 +191,11 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+export const THEME_SCHEDULE = {
+  lightStart: 6, // 6:00 AM
+  darkStart: 18, // 6:00 PM
+};
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
@@ -243,7 +248,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(LOCAL_STORAGE_COLOR_MODE_KEY);
-        if (saved === 'dark' || saved === 'light' || saved === 'system') {
+        if (saved === 'dark' || saved === 'light' || saved === 'system' || saved === 'scheduled') {
           return saved as ColorModePreference;
         }
       } catch {}
@@ -257,6 +262,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return 'light';
   });
+
+  const getScheduledMode = (): ResolvedColorMode => {
+    const hour = new Date().getHours();
+    return (hour >= THEME_SCHEDULE.lightStart && hour < THEME_SCHEDULE.darkStart) ? 'light' : 'dark';
+  };
+
+  const [scheduledColorScheme, setScheduledColorScheme] = useState<ResolvedColorMode>(getScheduledMode());
 
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
 
@@ -273,14 +285,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  // Timer for scheduled mode
+  useEffect(() => {
+    if (colorMode !== 'scheduled') return;
+    
+    const interval = setInterval(() => {
+      const mode = getScheduledMode();
+      if (mode !== scheduledColorScheme) {
+        setScheduledColorScheme(mode);
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [colorMode, scheduledColorScheme]);
+
   const currentTheme = THEME_PRESETS.find(t => t.id === currentThemeId) || THEME_PRESETS[0];
 
   const resolvedColorMode: ResolvedColorMode = useMemo(() => {
     if (colorMode === 'system') {
       return systemColorScheme;
     }
+    if (colorMode === 'scheduled') {
+      return scheduledColorScheme;
+    }
     return colorMode;
-  }, [colorMode, systemColorScheme]);
+  }, [colorMode, systemColorScheme, scheduledColorScheme]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -357,6 +386,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setColorMode = (mode: ColorModePreference) => {
     setColorModeState(mode);
+    if (mode === 'scheduled') {
+      setScheduledColorScheme(getScheduledMode());
+    }
   };
 
   const toggleColorMode = () => {
@@ -367,9 +399,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let next: ColorModePreference = 'light';
     if (colorMode === 'light') next = 'dark';
     else if (colorMode === 'dark') next = 'system';
+    else if (colorMode === 'system') next = 'scheduled';
     else next = 'light';
 
     setColorModeState(next);
+    if (next === 'scheduled') {
+      setScheduledColorScheme(getScheduledMode());
+    }
     return next;
   };
 

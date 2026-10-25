@@ -4,12 +4,16 @@ export type AutoPricingTriggerCondition =
   | 'competitor_out_of_stock'   // نفاد مخزون المنافس الرئيسي
   | 'lowest_competitor_increases' // ارتفاع سعر أرخص منافس
   | 'price_gap_greater_than'   // فارق السعر أكبر من قيمة محددة
-  | 'margin_exceeds_target';    // هامش الربح أعلى من المستهدف
+  | 'margin_exceeds_target'    // هامش الربح أعلى من المستهدف
+  | 'competitor_price_changed_by_percent'; // إذا تغير سعر المنافس بنسبة X%
 
 export type AutoPricingActionType =
   | 'undercut_fixed'           // تخفيض السعر بمبلغ محدد تحت المنافس (مثلاً: -5 ج.م)
   | 'undercut_percent'         // تخفيض السعر بنسبة مئوية تحت المنافس (مثلاً: -2%)
   | 'match_competitor'         // مطابقة سعر المنافس تماماً
+  | 'competitor_plus_fixed'    // سعر المنافس + Y مبلغ ثابت (ج.م)
+  | 'competitor_plus_percent'  // سعر المنافس + Y نسبة مئوية (%)
+  | 'set_competitor_plus_offset' // تعديل لسعر المنافس + قيمة محددة Y
   | 'raise_fixed'              // رفع السعر بمبلغ محدد
   | 'raise_percent'            // رفع السعر بنسبة مئوية
   | 'raise_to_ceiling'         // رفع السعر إلى السقف الأقصى المسموح
@@ -29,10 +33,12 @@ export interface AutoPricingRule {
   title: string;
   description: string;
   conditionType: AutoPricingTriggerCondition;
-  conditionValue?: number;         // القيمة المحددة للشرط إذا وجد (مثلاً فارق 20 ج.م)
+  conditionValue?: number;         // القيمة المحددة للشرط X (مثلاً تغير 5% أو فارق 20 ج.م)
   conditionPlatformFilter: 'all' | 'amazon_eg' | 'noon_eg' | 'jumia_eg';
   actionType: AutoPricingActionType;
-  actionValue: number;             // قيمة الإجراء (مثلاً 5 في حالة 5 جنيهات، أو 2 في حالة 2%)
+  actionValue: number;             // قيمة الإجراء Y (مثلاً 10 جنيهات أوفست فوق المنافس، أو 5 جنيهات تخفيض)
+  actionOffsetType?: 'fixed_egp' | 'percent'; // نوع قيمة الإجراء (مبلغ ثابت ج.م أو نسبة مئوية %)
+  instantNotification?: boolean;   // إرسال إشعار فوري عند تنفيذ هذه القاعدة
   guardrails: AutoPricingGuardrails;
   isActive: boolean;
   priority: number;

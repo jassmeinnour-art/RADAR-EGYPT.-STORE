@@ -66,6 +66,7 @@ const PlatformsGuideManager = React.lazy(() => import('./components/PlatformsGui
 const AutoPricingEngine = React.lazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = React.lazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
 const LoginPage = React.lazy(() => import('./components/LoginPage').then(m => ({ default: m.LoginPage })));
+const AIProductStudio = React.lazy(() => import('./components/AIProductStudio').then(m => ({ default: m.AIProductStudio })));
 
 export default function App() {
   const { toggleColorMode, resolvedColorMode } = useTheme();
@@ -609,7 +610,7 @@ export default function App() {
                   }`}
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>استوديو الذكاء الاصطناعي</span>
+                  <span>أستوديو المنتجات الذكي</span>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
                     activeWorkspaceTab === 'ai_studio' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-amber-300'
                   }`}>Ctrl+3</span>
@@ -719,6 +720,10 @@ export default function App() {
             ) : activeWorkspaceTab === 'platforms_guide' ? (
               <div className="max-w-7xl mx-auto px-4 py-8">
                 <PlatformsGuideManager />
+              </div>
+            ) : activeWorkspaceTab === 'ai_studio' ? (
+              <div className="max-w-7xl mx-auto px-4 py-8">
+                <AIProductStudio onShowToast={(msg) => alert(msg)} />
               </div>
             ) : activeWorkspaceTab === 'help' ? (
               <HelpPage 

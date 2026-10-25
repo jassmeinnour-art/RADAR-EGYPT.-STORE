@@ -318,10 +318,12 @@ button:not(.block):not(.grid):not(.hidden),
 }
 
 /* ==========================================================================
-   3. DARK MODE (#0F2A4A DEEP NAVY & #FF6B00 VIVID ORANGE & #FFFFFF CLEAN WHITE)
+   3. DARK MODE (DEEP NAVY GRADIENT #0B132B / #0F172A / #1C2541 FOR NIGHT MONITORING)
    ========================================================================== */
 html.dark {
-  background-color: #0F2A4A !important;
+  background-color: #0B132B !important;
+  background-image: linear-gradient(135deg, #0B132B 0%, #0F172A 50%, #1C2541 100%) !important;
+  background-attachment: fixed !important;
   color: #FFFFFF !important;
 }
 
@@ -329,19 +331,28 @@ html.dark body,
 html.dark #root,
 html.dark #root > div,
 html.dark main {
-  background-color: #0F2A4A !important;
+  background-color: transparent !important;
+  background-image: none !important;
   color: #FFFFFF !important;
 }
 
+/* Deep Navy Sidebar Drawer & Navigation */
+html.dark .sidebar-drawer,
+html.dark aside,
+html.dark nav {
+  background-color: #0B132B !important;
+  background-image: linear-gradient(180deg, #0B132B 0%, #0F1935 60%, #070D1E 100%) !important;
+  border-color: #1E293B !important;
+  box-shadow: -10px 0 30px rgba(7, 13, 30, 0.6) !important;
+}
+
+/* Deep Navy Cards, Panels, Modals, Headers & Surfaces */
 html.dark header,
 html.dark footer,
-html.dark aside,
-html.dark nav,
 html.dark section,
 html.dark article,
 html.dark dialog,
 html.dark table,
-html.dark .sidebar-drawer,
 html.dark [role="dialog"] div[class*="rounded-3xl"],
 html.dark [role="dialog"] div[class*="rounded-2xl"],
 html.dark .radar-luxury-card,
@@ -354,10 +365,11 @@ html.dark #header-operations-toolbar,
 html.dark #radar-global-hero-visual,
 html.dark .bg-white,
 html.dark [class*="bg-white"] {
-  background-color: #0F2A4A !important;
-  background-image: none !important;
+  background-color: #0B132B !important;
+  background-image: linear-gradient(135deg, #0B132B 0%, #0F1935 50%, #070D1E 100%) !important;
   color: #FFFFFF !important;
-  border-color: #FF6B00 !important;
+  border-color: #1E293B !important;
+  box-shadow: 0 10px 25px -5px rgba(11, 19, 43, 0.5) !important;
 }
 
 html.dark [class*="bg-slate-50"],
@@ -365,22 +377,29 @@ html.dark [class*="bg-slate-100"],
 html.dark [class*="bg-slate-200"],
 html.dark [class*="bg-[#F8FAFC]"],
 html.dark [class*="bg-[#f8fafc]"] {
-  background-color: #0F2A4A !important;
+  background-color: #0F172A !important;
   color: #FFFFFF !important;
 }
 
 html.dark [class*="bg-slate-800"],
 html.dark [class*="bg-slate-900"],
 html.dark [class*="bg-slate-950"] {
-  background-color: #0F2A4A !important;
+  background-color: #0B132B !important;
   color: #FFFFFF !important;
+  border-color: #1E293B !important;
 }
 
+/* High-Legibility Glare-Free Typography */
 html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
-html.dark p, html.dark span, html.dark div, html.dark a, html.dark label,
-html.dark li, html.dark td, html.dark th, html.dark dt, html.dark dd, html.dark strong {
+html.dark strong, html.dark b, html.dark th {
   color: #FFFFFF !important;
   -webkit-text-fill-color: #FFFFFF !important;
+}
+
+html.dark p, html.dark span, html.dark div, html.dark a, html.dark label,
+html.dark li, html.dark td, html.dark dt, html.dark dd {
+  color: #F1F5F9 !important;
+  -webkit-text-fill-color: #F1F5F9 !important;
 }
 
 html.dark [class*="text-slate-400"],
@@ -388,22 +407,23 @@ html.dark [class*="text-slate-500"],
 html.dark [class*="text-slate-600"],
 html.dark [class*="text-gray-400"],
 html.dark [class*="text-gray-500"] {
-  color: #FF6B00 !important;
-  -webkit-text-fill-color: #FF6B00 !important;
+  color: #94A3B8 !important;
+  -webkit-text-fill-color: #94A3B8 !important;
 }
 
+/* Deep Navy Form Inputs */
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 html.dark select,
 html.dark textarea {
-  background-color: #0F2A4A !important;
+  background-color: #070D1E !important;
   color: #FFFFFF !important;
-  border-color: #FF6B00 !important;
+  border: 1px solid #334155 !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: rgba(255, 255, 255, 0.6) !important;
-  -webkit-text-fill-color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(148, 163, 184, 0.7) !important;
+  -webkit-text-fill-color: rgba(148, 163, 184, 0.7) !important;
 }
 
 html.dark div[class*="border-"],
@@ -411,67 +431,67 @@ html.dark section[class*="border-"],
 html.dark header[class*="border-"],
 html.dark aside[class*="border-"],
 html.dark table, html.dark th, html.dark td {
-  border-color: #FF6B00 !important;
+  border-color: #1E293B !important;
 }
 
-/* Enhanced Table Contrast in Dark Mode */
+/* Enhanced Table Contrast for Night Monitoring */
 html.dark thead {
-  background-color: #0F2A4A !important;
-  border-bottom: 2px solid #FF6B00 !important;
+  background-color: #070D1E !important;
+  border-bottom: 2px solid #334155 !important;
 }
 
 html.dark tr:nth-child(even) {
-  background-color: rgba(15, 42, 74, 0.5) !important;
+  background-color: rgba(15, 25, 53, 0.6) !important;
 }
 
 html.dark tr:hover {
-  background-color: rgba(255, 107, 0, 0.15) !important;
+  background-color: rgba(59, 130, 246, 0.12) !important;
 }
 
 html.dark th {
-  color: #FF6B00 !important;
+  color: #38BDF8 !important;
   font-weight: 800 !important;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 html.dark td {
-  color: #FFFFFF !important;
+  color: #F8FAFC !important;
 }
 
 html.dark svg.lucide {
-  color: #FF6B00 !important;
-  stroke: #FF6B00 !important;
-  stroke-width: 2.2px;
+  color: #60A5FA !important;
+  stroke: #60A5FA !important;
+  stroke-width: 2px;
 }
 
+/* Deep Navy Buttons */
 html.dark button,
 html.dark [type="button"],
 html.dark [type="submit"],
 html.dark [type="reset"],
 html.dark [role="button"] {
-  background-color: #0F2A4A !important;
+  background-color: #0F172A !important;
   color: #FFFFFF !important;
   -webkit-text-fill-color: #FFFFFF !important;
-  border: 2px solid #FF6B00 !important;
-  box-shadow: 0 0 12px rgba(255, 107, 0, 0.3) !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 4px 12px rgba(11, 19, 43, 0.4) !important;
 }
 
 html.dark button:hover,
 html.dark [type="button"]:hover,
 html.dark [type="submit"]:hover {
-  background-color: #FF6B00 !important;
-  border-color: #FFFFFF !important;
-  color: #FFFFFF !important;
-  -webkit-text-fill-color: #FFFFFF !important;
+  background-color: #1E293B !important;
+  border-color: #38BDF8 !important;
+  color: #38BDF8 !important;
+  -webkit-text-fill-color: #38BDF8 !important;
 }
 
 html.dark button:active,
 html.dark button[aria-pressed="true"] {
-  background-color: #FF6B00 !important;
+  background-color: #2563EB !important;
   color: #FFFFFF !important;
   -webkit-text-fill-color: #FFFFFF !important;
-  border-color: #FFFFFF !important;
+  border-color: #60A5FA !important;
 }
 
 /* ==========================================================================

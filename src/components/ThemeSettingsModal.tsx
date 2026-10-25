@@ -23,7 +23,8 @@ import {
   Info,
   Sun,
   Moon,
-  Monitor
+  Monitor,
+  Clock
 } from 'lucide-react';
 import { useTheme, PrimaryThemeConfig } from '../context/ThemeContext';
 import { useAudioNotifications, PitchOption } from '../context/AudioNotificationContext';
@@ -710,7 +711,7 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                   يتعرف التطبيق تلقائياً على إعدادات نظام تشغيل جهازك لتفعيل الوضع الليلي أو النهاري، كما يمكنك التبديل يدوياً في أي وقت من هنا أو من شريط الأدوات العلوي:
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
                   <button
                     type="button"
                     id="btn-modal-color-mode-system"
@@ -730,9 +731,29 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                   >
                     <span className="flex items-center gap-2 text-xs">
                       <Monitor className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>تلقائي (حسب النظام)</span>
+                      <span>تلقائي (النظام)</span>
                     </span>
                     {colorMode === 'system' && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-modal-color-mode-scheduled"
+                    onClick={() => {
+                      setColorMode('scheduled');
+                      onShowToast?.('⏰ تم تفعيل الوضع المجدول (تلقائي حسب الوقت)');
+                    }}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
+                      colorMode === 'scheduled'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 font-black'
+                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-xs">
+                      <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>مجدول (بالوقت)</span>
+                    </span>
+                    {colorMode === 'scheduled' && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
                   </button>
 
                   <button
@@ -750,7 +771,7 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                   >
                     <span className="flex items-center gap-2 text-xs">
                       <Moon className="w-4 h-4 text-sky-400 shrink-0" />
-                      <span>الوضع الليلي (Dark)</span>
+                      <span>ليلي (Dark)</span>
                     </span>
                     {colorMode === 'dark' && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
                   </button>
@@ -770,7 +791,7 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                   >
                     <span className="flex items-center gap-2 text-xs">
                       <Sun className="w-4 h-4 text-sky-500 shrink-0" />
-                      <span>الوضع النهاري (Light)</span>
+                      <span>نهاري (Light)</span>
                     </span>
                     {colorMode === 'light' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
                   </button>

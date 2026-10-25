@@ -1047,6 +1047,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
                         إذا حدث X:
                       </span>
                       <span className="text-slate-200 font-medium leading-relaxed">
+                        {rule.conditionType === 'competitor_price_changed_by_percent' && `إذا تغير سعر المنافس بنسبة ${rule.conditionValue || 5}% أو أكثر`}
                         {rule.conditionType === 'competitor_undercuts' && 'أي منافس يبيع بسعر أقل مني (خسارة الـ Buy Box)'}
                         {rule.conditionType === 'competitor_drops' && 'انخفاض سعر السوق لأي منافس'}
                         {rule.conditionType === 'competitor_out_of_stock' && 'نفاد مخزون المنافس الرئيسي بالكامل'}
@@ -1061,6 +1062,9 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
                         قم بـ Y:
                       </span>
                       <span className="text-emerald-300 font-bold leading-relaxed">
+                        {rule.actionType === 'competitor_plus_fixed' && `تعديل السعر إلى (سعر المنافس + ${rule.actionValue} ج.م)`}
+                        {rule.actionType === 'competitor_plus_percent' && `تعديل السعر إلى (سعر المنافس + ${rule.actionValue}%)`}
+                        {rule.actionType === 'set_competitor_plus_offset' && `تعديل السعر إلى (سعر المنافس + ${rule.actionValue} ${rule.actionOffsetType === 'percent' ? '%' : 'ج.م'})`}
                         {rule.actionType === 'undercut_fixed' && `تخفيض السعر بمقدار ${rule.actionValue} جنيهات تحت سعر المنافس`}
                         {rule.actionType === 'undercut_percent' && `تخفيض السعر بنسبة ${rule.actionValue}% تحت سعر المنافس`}
                         {rule.actionType === 'match_competitor' && 'مطابقة سعر المنافس الأرخص تماماً'}
@@ -1072,7 +1076,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
                     </div>
                   </div>
 
-                  {/* Guardrails Pill Specs */}
+                  {/* Guardrails & Notifications Pill Specs */}
                   <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
                     <span className="px-2 py-1 bg-slate-800 rounded-lg flex items-center gap-1 font-mono">
                       <ShieldCheck className="w-3 h-3 text-emerald-400" />
@@ -1086,6 +1090,11 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
                       <Clock className="w-3 h-3 text-sky-400" />
                       أقصى تعديل يومي: {rule.guardrails.maxDailyPriceChanges} مرات
                     </span>
+                    {rule.instantNotification && (
+                      <span className="px-2 py-1 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg flex items-center gap-1 font-bold">
+                        🔔 إشعار فوري عند التنفيذ
+                      </span>
+                    )}
                   </div>
 
                   {/* Actions Bar */}
@@ -1441,17 +1450,19 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
 
   const [title, setTitle] = useState(rule?.title || '');
   const [description, setDescription] = useState(rule?.description || '');
-  const [conditionType, setConditionType] = useState<AutoPricingTriggerCondition>(rule?.conditionType || 'competitor_undercuts');
-  const [conditionValue, setConditionValue] = useState<number>(rule?.conditionValue || 20);
+  const [conditionType, setConditionType] = useState<AutoPricingTriggerCondition>(rule?.conditionType || 'competitor_price_changed_by_percent');
+  const [conditionValue, setConditionValue] = useState<number>(rule?.conditionValue || 5);
   const [conditionPlatformFilter, setConditionPlatformFilter] = useState<'all' | 'amazon_eg' | 'noon_eg' | 'jumia_eg'>(rule?.conditionPlatformFilter || 'all');
-  const [actionType, setActionType] = useState<AutoPricingActionType>(rule?.actionType || 'undercut_fixed');
-  const [actionValue, setActionValue] = useState<number>(rule?.actionValue || 5);
+  const [actionType, setActionType] = useState<AutoPricingActionType>(rule?.actionType || 'competitor_plus_fixed');
+  const [actionValue, setActionValue] = useState<number>(rule?.actionValue || 10);
+  const [actionOffsetType, setActionOffsetType] = useState<'fixed_egp' | 'percent'>(rule?.actionOffsetType || 'fixed_egp');
+  const [instantNotification, setInstantNotification] = useState<boolean>(rule?.instantNotification ?? true);
 
   // Guardrails
-  const [minFloorPriceEGP, setMinFloorPriceEGP] = useState<number>(rule?.guardrails.minFloorPriceEGP || 2000);
-  const [maxCeilingPriceEGP, setMaxCeilingPriceEGP] = useState<number>(rule?.guardrails.maxCeilingPriceEGP || 4500);
-  const [minNetMarginPercent, setMinNetMarginPercent] = useState<number>(rule?.guardrails.minNetMarginPercent || 10);
-  const [maxDailyPriceChanges, setMaxDailyPriceChanges] = useState<number>(rule?.guardrails.maxDailyPriceChanges || 8);
+  const [minFloorPriceEGP, setMinFloorPriceEGP] = useState<number>(rule?.guardrails.minFloorPriceEGP || 150);
+  const [maxCeilingPriceEGP, setMaxCeilingPriceEGP] = useState<number>(rule?.guardrails.maxCeilingPriceEGP || 5000);
+  const [minNetMarginPercent, setMinNetMarginPercent] = useState<number>(rule?.guardrails.minNetMarginPercent || 12);
+  const [maxDailyPriceChanges, setMaxDailyPriceChanges] = useState<number>(rule?.guardrails.maxDailyPriceChanges || 10);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1466,6 +1477,8 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
       conditionPlatformFilter,
       actionType,
       actionValue: Number(actionValue),
+      actionOffsetType,
+      instantNotification,
       guardrails: {
         minFloorPriceEGP: Number(minFloorPriceEGP),
         maxCeilingPriceEGP: Number(maxCeilingPriceEGP),
@@ -1537,6 +1550,7 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
                   onChange={(e) => setConditionType(e.target.value as any)}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
                 >
+                  <option value="competitor_price_changed_by_percent">إذا تغير سعر المنافس بنسبة X%</option>
                   <option value="competitor_undercuts">منافس يبيع بسعر أقل مني (خسارة الـ Buy Box)</option>
                   <option value="competitor_drops">انخفاض سعر السوق لأي منافس</option>
                   <option value="competitor_out_of_stock">نفاد مخزون المنافس الرئيسي</option>
@@ -1546,17 +1560,22 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
                 </select>
               </div>
 
-              {(conditionType === 'price_gap_greater_than' || conditionType === 'margin_exceeds_target') && (
+              {(conditionType === 'competitor_price_changed_by_percent' || conditionType === 'price_gap_greater_than' || conditionType === 'margin_exceeds_target') && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-300">
-                    {conditionType === 'price_gap_greater_than' ? `قيمة فارق السعر (${currency})` : 'نسبة الهامش المستهدفة %'}
+                    {conditionType === 'competitor_price_changed_by_percent'
+                      ? 'نسبة تغير سعر المنافس % (X)'
+                      : conditionType === 'price_gap_greater_than'
+                      ? `قيمة فارق السعر (${currency})`
+                      : 'نسبة الهامش المستهدفة %'}
                   </label>
                   <input
                     type="number"
                     min="1"
+                    step="0.5"
                     value={conditionValue}
                     onChange={(e) => setConditionValue(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold font-mono focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
@@ -1579,6 +1598,8 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
                   onChange={(e) => setActionType(e.target.value as any)}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
                 >
+                  <option value="competitor_plus_fixed">سعر المنافس + Y مبلغ ثابت (ج.م)</option>
+                  <option value="competitor_plus_percent">سعر المنافس + Y نسبة مئوية (%)</option>
                   <option value="undercut_fixed">تخفيض بمبلغ ثابت تحت المنافس (ج.م)</option>
                   <option value="undercut_percent">تخفيض بنسبة مئوية تحت المنافس (%)</option>
                   <option value="match_competitor">مطابقة سعر المنافس تماماً (Match Price)</option>
@@ -1592,19 +1613,40 @@ const RuleBuilderModal: React.FC<RuleBuilderModalProps> = ({
               {actionType !== 'match_competitor' && actionType !== 'raise_to_ceiling' && (
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-300">
-                    {actionType.includes('percent') || actionType === 'target_margin' ? 'النسبة المئوية %' : `المبلغ (${currency})`}
+                    {actionType.includes('percent') || actionType === 'target_margin' ? 'النسبة المئوية % (Y)' : `المبلغ Y (${currency})`}
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     step="0.5"
                     value={actionValue}
                     onChange={(e) => setActionValue(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Section: Instant Notification Toggle */}
+          <div className="p-4 bg-slate-950/80 rounded-2xl border border-sky-500/20 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>🔔 الإشعارات والتنبيهات الفورية</span>
+              </span>
+              <p className="text-[11px] text-slate-400">
+                إرسال تنبيه فوري وصوتي فور قيام المحرك بتطبيق هذه القاعدة على أي منتج.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={instantNotification}
+                onChange={(e) => setInstantNotification(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
           </div>
 
           {/* Section: Safety Guardrails */}
