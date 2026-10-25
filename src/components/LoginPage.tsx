@@ -288,8 +288,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           {/* Standalone Official Bayyaa Logo Graphic */}
           <div className="flex items-center gap-3.5">
             <div className="relative w-14 h-14 rounded-2xl bg-[#FF6B00] p-1 flex items-center justify-center shadow-xl border-2 border-white ring-2 ring-[#FF6B00]/40 shrink-0 overflow-hidden" title="منصة بياع الرسمية (Bayyaa Platform)">
-              <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center">
-                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+              <div className="w-full h-full rounded-xl overflow-hidden bg-[#FF6B00] flex items-center justify-center">
+                <img
+                  src="/bayyaa-logo.jpg"
+                  alt="منصة بياع الرسمية (Bayyaa Platform)"
+                  className="w-full h-full object-contain select-none"
+                  loading="eager"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.triedWhatsapp) {
+                      target.dataset.triedWhatsapp = 'true';
+                      target.src = '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg';
+                    } else {
+                      target.src = '/bayyaa-logo.png';
+                    }
+                  }}
+                />
               </div>
             </div>
             <div>
@@ -453,7 +467,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
-                <BayyaaLogo variant="banner" showText={true} className="shrink-0" />
+                {/* Official Uploaded Bayyaa Logo Graphic - Directly injected & Hardcoded */}
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#FF6B00] p-1.5 shadow-2xl shadow-[#FF6B00]/40 shrink-0 flex items-center justify-center overflow-hidden border-3 border-white ring-4 ring-[#FF6B00]/30 hover:scale-105 transition-all">
+                    <div className="w-full h-full rounded-2xl overflow-hidden bg-[#FF6B00] flex items-center justify-center">
+                      <img
+                        src="/36909.jpg"
+                        alt="شعار منصة بياع الرسمي - Official Bayyaa Logo"
+                        className="w-full h-full object-contain select-none transition-transform duration-300"
+                        loading="eager"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="font-black text-white text-xl sm:text-3xl leading-tight tracking-tight font-['Alexandria'] drop-shadow-md">
+                      منصة بياع
+                    </span>
+                    <span className="text-sm sm:text-base text-amber-300 font-black tracking-[0.25em] uppercase drop-shadow-sm font-mono">
+                      Bayyaa Marketplace
+                    </span>
+                  </div>
+                </div>
                 <div>
                   <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
                     <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/30">
@@ -1096,3 +1130,5 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
     </div>
   );
 };
+
+export default LoginPage;

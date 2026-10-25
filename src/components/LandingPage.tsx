@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Zap, TrendingUp, ShieldCheck, Smartphone, Download } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { LanguageToggle } from './LanguageToggle';
 
 export default function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   const downloadApk = () => {
@@ -20,6 +21,7 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
         <div className="text-2xl font-black text-amber-500">رادار التاجر</div>
         <div className="flex items-center gap-3">
           <ThemeToggle variant="pill" />
+          <LanguageToggle />
           <button 
             onClick={downloadApk}
             className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-full font-bold border border-emerald-500/40 text-xs flex items-center gap-2 transition"

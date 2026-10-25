@@ -7,6 +7,7 @@ import { AuthProvider } from "./context/AuthContext"
 import { ThemeProvider } from "./context/ThemeContext"
 import { AsyncOperationsProvider } from "./context/AsyncOperationsContext"
 import { AudioNotificationProvider } from "./context/AudioNotificationContext"
+import { LanguageProvider } from "./context/LanguageContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 
@@ -34,13 +35,15 @@ if (root) {
       <ErrorBoundary sectionName="رادار التاجر الذكي">
         <AuthProvider>
           <ThemeProvider>
-            <AsyncOperationsProvider>
-              <AudioNotificationProvider>
-                <App />
-                <Analytics />
-                <SpeedInsights />
-              </AudioNotificationProvider>
-            </AsyncOperationsProvider>
+            <LanguageProvider>
+              <AsyncOperationsProvider>
+                <AudioNotificationProvider>
+                  <App />
+                  <Analytics />
+                  <SpeedInsights />
+                </AudioNotificationProvider>
+              </AsyncOperationsProvider>
+            </LanguageProvider>
           </ThemeProvider>
         </AuthProvider>
       </ErrorBoundary>

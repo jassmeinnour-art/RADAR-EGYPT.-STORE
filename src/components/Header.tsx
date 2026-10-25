@@ -597,7 +597,21 @@ export const Header: React.FC<HeaderProps> = ({
               title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
             >
               <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
-                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+                <img
+                  src="/bayyaa-logo.jpg"
+                  alt="منصة بياع الرسمية"
+                  className="w-full h-full object-contain select-none"
+                  loading="eager"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.triedWhatsapp) {
+                      target.dataset.triedWhatsapp = 'true';
+                      target.src = '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg';
+                    } else {
+                      target.src = '/bayyaa-logo.png';
+                    }
+                  }}
+                />
               </div>
               <div className="flex flex-col text-right">
                 <div className="flex items-center gap-1">

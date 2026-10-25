@@ -24,8 +24,9 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
 }) => {
   // Ordered sources prioritizing the exact uploaded asset name followed by standard fallbacks
   const imageSources = [
-    '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg',
     '/bayyaa-logo.jpg',
+    '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg',
+    '/bayyaa-official-logo.jpg',
     '/bayyaa-logo.png',
   ];
 

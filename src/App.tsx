@@ -50,6 +50,7 @@ import {
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { ThemeToggle } from './components/ThemeToggle';
+import { LanguageToggle } from './components/LanguageToggle';
 import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
 import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryDrawer';
 import { useTheme } from './context/ThemeContext';
@@ -67,7 +68,7 @@ const ShippingManagementDashboard = React.lazy(() => import('./components/Shippi
 const PlatformsGuideManager = React.lazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = React.lazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = React.lazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
-const LoginPage = React.lazy(() => import('./components/LoginPage').then(m => ({ default: m.LoginPage })));
+const LoginPage = React.lazy(() => import('./components/LoginPage'));
 const AIProductStudio = React.lazy(() => import('./components/AIProductStudio').then(m => ({ default: m.AIProductStudio })));
 
 export default function App() {
@@ -552,6 +553,34 @@ export default function App() {
 
   return (
     <AudioNotificationProvider>
+      {/* Official Radar Logo Full-Page Watermark Layer */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden flex items-center justify-center opacity-25">
+        <svg
+          viewBox="0 0 500 500"
+          className="w-[85vw] h-[85vw] max-w-[900px] max-h-[900px] select-none"
+          fill="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="watermarkGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F59E0B" />
+              <stop offset="50%" stopColor="#D4AF37" />
+              <stop offset="100%" stopColor="#926F23" />
+            </linearGradient>
+          </defs>
+          <circle cx="250" cy="250" r="180" stroke="url(#watermarkGoldGrad)" strokeWidth="6" strokeDasharray="8 12" strokeOpacity="0.4" />
+          <circle cx="250" cy="250" r="130" stroke="url(#watermarkGoldGrad)" strokeWidth="3" strokeOpacity="0.3" />
+          <path d="M 250 50 A 200 200 0 1 1 100 120" stroke="url(#watermarkGoldGrad)" strokeWidth="14" strokeLinecap="round" strokeOpacity="0.85" />
+          <line x1="70" y1="250" x2="430" y2="250" stroke="#D4AF37" strokeWidth="2" strokeOpacity="0.5" />
+          <line x1="250" y1="70" x2="250" y2="430" stroke="#D4AF37" strokeWidth="2" strokeOpacity="0.5" />
+          <circle cx="340" cy="160" r="18" fill="#F59E0B" fillOpacity="0.6" />
+          <circle cx="340" cy="160" r="8" fill="#FEF3C7" />
+          <text x="250" y="475" textAnchor="middle" fill="url(#watermarkGoldGrad)" fontSize="32" fontWeight="900" letterSpacing="12" fontFamily="sans-serif" opacity="0.9">
+            RADAR
+          </text>
+        </svg>
+      </div>
+
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
       {showOnboarding && <OnboardingTour onComplete={handleCompleteOnboarding} />}
       {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
@@ -581,7 +610,21 @@ export default function App() {
                   title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
                 >
                   <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
-                    <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+                    <img
+                      src="/bayyaa-logo.jpg"
+                      alt="منصة بياع الرسمية"
+                      className="w-full h-full object-contain select-none"
+                      loading="eager"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.triedWhatsapp) {
+                          target.dataset.triedWhatsapp = 'true';
+                          target.src = '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg';
+                        } else {
+                          target.src = '/bayyaa-logo.png';
+                        }
+                      }}
+                    />
                   </div>
                   <div className="flex flex-col text-right">
                     <div className="flex items-center gap-1">
@@ -733,6 +776,7 @@ export default function App() {
                   <span className="hidden sm:inline">وضع التركيز</span>
                 </button>
                 <ThemeToggle variant="pill" />
+                <LanguageToggle />
                 <button 
                   onClick={handleSignOut} 
                   className="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-500/30 rounded-lg text-xs font-bold transition"
@@ -779,7 +823,27 @@ export default function App() {
 
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
                       <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
-                        <BayyaaLogo variant="banner" showText={true} className="shrink-0" />
+                        {/* Official Uploaded Bayyaa Logo Graphic - Directly injected & Hardcoded */}
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#FF6B00] p-1.5 shadow-2xl shadow-[#FF6B00]/40 shrink-0 flex items-center justify-center overflow-hidden border-3 border-white ring-4 ring-[#FF6B00]/30 hover:scale-105 transition-all">
+                            <div className="w-full h-full rounded-2xl overflow-hidden bg-[#FF6B00] flex items-center justify-center">
+                              <img
+                                src="/36909.jpg"
+                                alt="شعار منصة بياع الرسمي - Official Bayyaa Logo"
+                                className="w-full h-full object-contain select-none transition-transform duration-300"
+                                loading="eager"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col text-right">
+                            <span className="font-black text-white text-xl sm:text-3xl leading-tight tracking-tight font-['Alexandria'] drop-shadow-md">
+                              منصة بياع
+                            </span>
+                            <span className="text-sm sm:text-base text-amber-300 font-black tracking-[0.25em] uppercase drop-shadow-sm font-mono">
+                              Bayyaa Marketplace
+                            </span>
+                          </div>
+                        </div>
                         <div>
                           <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
                             <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/30">
