@@ -1,0 +1,18 @@
+{
+  "type": "AdaptiveCard",
+  "body": [
+    {
+      "type": "TextBlock",
+      "size": "Medium",
+      "weight": "Bolder",
+      "text": "رادار التاجر الذكي - مؤشرات الأسعار"
+    },
+    {
+      "type": "TextBlock",
+      "text": "تتبع أحدث تحديثات وتغيرات الأسعار في السوق المصري",
+      "wrap": true
+    }
+  ],
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5"
+}

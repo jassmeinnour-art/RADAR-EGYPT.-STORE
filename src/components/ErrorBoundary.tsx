@@ -24,6 +24,21 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    // Auto-recover from dynamic module import or chunk load errors
+    if (typeof window !== 'undefined' && error) {
+      const errMsg = error.message || String(error);
+      if (
+        errMsg.includes('Failed to fetch dynamically imported module') ||
+        errMsg.includes('Loading chunk') ||
+        errMsg.includes('dynamically imported module')
+      ) {
+        const lastReload = sessionStorage.getItem('chunk_error_reload');
+        if (!lastReload || Date.now() - parseInt(lastReload, 10) > 8000) {
+          sessionStorage.setItem('chunk_error_reload', Date.now().toString());
+          window.location.reload();
+        }
+      }
+    }
     return { hasError: true, error, errorInfo: null };
   }
 

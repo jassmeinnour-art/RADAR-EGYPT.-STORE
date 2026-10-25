@@ -11,7 +11,39 @@
   "theme_color": "#FF6B00",
   "dir": "rtl",
   "lang": "ar-EG",
-  "iarc_rating_id": "IARC-4A73-1994",
+  "iarc_rating_id": "urn:iarc:pegi:3",
+  "edge_side_panel": {
+    "preferred_width": 480
+  },
+  "widgets": [
+    {
+      "name": "مؤشر أسعار رادار التاجر",
+      "short_name": "رادار الأسعار",
+      "description": "قطعة ذكية لعرض تحديثات ومؤشرات أداء وتغيرات أسعار السوق المصري في الوقت الفعلي",
+      "tag": "radar-price-tracker",
+      "template": "radar-widget-template",
+      "ms_ac_template": "/widgets/price-tracker.json",
+      "data": "/api/widget-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/pwa-512x512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "label": "معاينة القطعة الذكية لمراقبة الأسعار"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update_interval": 3600
+    }
+  ],
   "icons": [
     {
       "src": "/pwa-192x192.png",

@@ -164,19 +164,16 @@
           }
         } catch(e) {}
 
-        // FORCE UNREGISTER OLD SERVICE WORKERS & CLEAR CACHE
+        // REGISTER SERVICE WORKER FOR OFFLINE & SPEED
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (var i = 0; i < registrations.length; i++) {
-              registrations[i].unregister();
-            }
-          });
-        }
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            for (var i = 0; i < names.length; i++) {
-              caches.delete(names[i]);
-            }
+          window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+              .then(function(reg) {
+                console.log('ServiceWorker registered with scope:', reg.scope);
+              })
+              .catch(function(err) {
+                console.warn('ServiceWorker registration failed:', err);
+              });
           });
         }
 

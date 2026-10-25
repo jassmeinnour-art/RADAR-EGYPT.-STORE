@@ -56,20 +56,46 @@ import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryD
 import { useTheme } from './context/ThemeContext';
 import { AudioNotificationProvider } from './context/AudioNotificationContext';
 import { BayyaaLogo } from './components/BayyaaLogo';
+import LandingPage from './components/LandingPage';
+import { LoginPage } from './components/LoginPage';
 
-const OnboardingTour = React.lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
-const PaymentModal = React.lazy(() => import('./components/PaymentModal'));
-const OwnerDashboard = React.lazy(() => import('./components/OwnerDashboard'));
-const LandingPage = React.lazy(() => import('./components/LandingPage'));
-const HelpPage = React.lazy(() => import('./components/HelpPage'));
-const ShippingOrdersTable = React.lazy(() => import('./components/ShippingOrdersTable'));
-const ProfitCalculator = React.lazy(() => import('./components/ProfitCalculator'));
-const ShippingManagementDashboard = React.lazy(() => import('./components/ShippingManagementDashboard'));
-const PlatformsGuideManager = React.lazy(() => import('./components/PlatformsGuideManager'));
-const AutoPricingEngine = React.lazy(() => import('./components/AutoPricingEngine'));
-const PriceComparisonEngine = React.lazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
-const LoginPage = React.lazy(() => import('./components/LoginPage'));
-const AIProductStudio = React.lazy(() => import('./components/AIProductStudio').then(m => ({ default: m.AIProductStudio })));
+function safeLazy<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T } | any>
+) {
+  return React.lazy(async () => {
+    try {
+      const module = await factory();
+      return module.default ? module : { default: module };
+    } catch (error) {
+      console.warn('Dynamic module import failed, retrying once...', error);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const module = await factory();
+        return module.default ? module : { default: module };
+      } catch (retryError) {
+        console.error('Dynamic module import failed after retry:', retryError);
+        const lastReload = sessionStorage.getItem('last_chunk_reload');
+        if (!lastReload || Date.now() - parseInt(lastReload, 10) > 10000) {
+          sessionStorage.setItem('last_chunk_reload', Date.now().toString());
+          window.location.reload();
+        }
+        throw retryError;
+      }
+    }
+  });
+}
+
+const OnboardingTour = safeLazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const PaymentModal = safeLazy(() => import('./components/PaymentModal'));
+const OwnerDashboard = safeLazy(() => import('./components/OwnerDashboard'));
+const HelpPage = safeLazy(() => import('./components/HelpPage'));
+const ShippingOrdersTable = safeLazy(() => import('./components/ShippingOrdersTable'));
+const ProfitCalculator = safeLazy(() => import('./components/ProfitCalculator'));
+const ShippingManagementDashboard = safeLazy(() => import('./components/ShippingManagementDashboard'));
+const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuideManager'));
+const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
+const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
+const AIProductStudio = safeLazy(() => import('./components/AIProductStudio').then(m => ({ default: m.AIProductStudio })));
 
 export default function App() {
   const { toggleColorMode, resolvedColorMode } = useTheme();
