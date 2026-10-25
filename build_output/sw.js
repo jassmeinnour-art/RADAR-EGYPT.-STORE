@@ -93,7 +93,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8651729677c2a751a5c33a3a9cfe2331"
   }, {
     "url": "index.html",
-    "revision": "be4e466715cb1fe9ba93890032b22f03"
+    "revision": "49a3a2b5b535083dbe733153f2f4b99c"
   }, {
     "url": "icon.svg",
     "revision": "c4e4a0098930da2c87d0e9cbb2173dc2"
@@ -116,6 +116,9 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "favicon-32x32.png",
     "revision": "55a98bd9670143b4df53cb2a013e2c3b"
   }, {
+    "url": "bayyaa-logo.png",
+    "revision": "87dd41e4472080b7e12248c60c26b2f6"
+  }, {
     "url": "apple-touch-icon.png",
     "revision": "3bed2b0539635090d00b588cd178ae30"
   }, {
@@ -125,67 +128,67 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "screenshots/desktop-1280x720.png",
     "revision": "0e86052875849027aab2710429b9c395"
   }, {
-    "url": "assets/vendor-xlsx-D9yR3_kW.js",
+    "url": "assets/vendor-xlsx-CQTSpp95.js",
     "revision": null
   }, {
-    "url": "assets/vendor-react-BhcwN3y-.js",
+    "url": "assets/vendor-react-DhOViuGJ.js",
     "revision": null
   }, {
-    "url": "assets/vendor-motion-B3xJhFIC.js",
+    "url": "assets/vendor-motion-6cdluwMY.js",
     "revision": null
   }, {
-    "url": "assets/vendor-icons-DEGNRlZD.js",
+    "url": "assets/vendor-icons-gacP0dRq.js",
     "revision": null
   }, {
-    "url": "assets/vendor-firebase-DhuY2J8G.js",
+    "url": "assets/vendor-firebase-CvryEZwB.js",
     "revision": null
   }, {
-    "url": "assets/index-DQd_X7z1.css",
+    "url": "assets/index-Bmsw0HYL.js",
     "revision": null
   }, {
-    "url": "assets/index-Bdg6iB-j.js",
+    "url": "assets/index-8QnMhQ75.css",
     "revision": null
   }, {
-    "url": "assets/competitorPriceExport-GW-5HCjV.js",
+    "url": "assets/competitorPriceExport-B8kQhBgf.js",
     "revision": null
   }, {
     "url": "assets/autoPricingEngineData-Dke87TOr.js",
     "revision": null
   }, {
-    "url": "assets/ShippingOrdersTable-L7I4k3wH.js",
+    "url": "assets/ShippingOrdersTable-CM5M7lQq.js",
     "revision": null
   }, {
-    "url": "assets/ShippingManagementDashboard-B52Wml7w.js",
+    "url": "assets/ShippingManagementDashboard-Ci0WSq25.js",
     "revision": null
   }, {
-    "url": "assets/ProfitCalculator-C4BusXs5.js",
+    "url": "assets/ProfitCalculator-D6p-L-Og.js",
     "revision": null
   }, {
-    "url": "assets/PriceComparisonEngine-C8vzmcjV.js",
+    "url": "assets/PriceComparisonEngine-DctuiqTq.js",
     "revision": null
   }, {
-    "url": "assets/PlatformsGuideManager-mKWcAjgo.js",
+    "url": "assets/PlatformsGuideManager-BS7RXDHV.js",
     "revision": null
   }, {
-    "url": "assets/PaymentModal-BeGeOcZJ.js",
+    "url": "assets/PaymentModal-gEgAIi_u.js",
     "revision": null
   }, {
-    "url": "assets/OwnerDashboard-CuIUkE6x.js",
+    "url": "assets/OwnerDashboard-BZx9hGGn.js",
     "revision": null
   }, {
-    "url": "assets/OnboardingTour-DJb9Io-Q.js",
+    "url": "assets/OnboardingTour-CWzFEJVR.js",
     "revision": null
   }, {
-    "url": "assets/LoginPage-B9PMFxIP.js",
+    "url": "assets/LoginPage-Cg3_qun3.js",
     "revision": null
   }, {
-    "url": "assets/LandingPage-DNPxEqqR.js",
+    "url": "assets/LandingPage-BTJIZ9uI.js",
     "revision": null
   }, {
-    "url": "assets/HelpPage-C5x-TZd-.js",
+    "url": "assets/HelpPage-C0PJWp2B.js",
     "revision": null
   }, {
-    "url": "assets/AutoPricingEngine-DA3qWa_Z.js",
+    "url": "assets/AutoPricingEngine-BzCd4ZdA.js",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",

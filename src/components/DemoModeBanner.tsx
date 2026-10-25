@@ -13,6 +13,7 @@ import {
   Zap
 } from 'lucide-react';
 import { exportFallbackCatalogCsv, exportFallbackManifestCsv } from '../data/fallbackDemoData';
+import { BayyaaLogo } from './BayyaaLogo';
 
 interface DemoModeBannerProps {
   isDemoMode: boolean;
@@ -75,8 +76,8 @@ export const DemoModeBanner: React.FC<DemoModeBannerProps> = ({
         
         {/* Left Side (RTL Right side): Notice Message */}
         <div className="flex items-start sm:items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#000000] text-amber-300 flex items-center justify-center shrink-0 border border-[#000000] mt-0.5 sm:mt-0 shadow-2xs">
-            <Key className="w-4 h-4 text-amber-300" />
+          <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 border border-[#000000] mt-0.5 sm:mt-0 shadow-2xs overflow-hidden">
+            <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-lg" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">

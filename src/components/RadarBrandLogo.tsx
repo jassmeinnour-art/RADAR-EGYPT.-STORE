@@ -1,19 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface RadarBrandLogoProps {
   className?: string;
   size?: number;
   animated?: boolean;
+  useImageLogo?: boolean;
 }
 
 /**
- * Self-contained Inline SVG RADAR Brand Emblem (Original Metallic Gold Radar Ring + Target Node).
- * Guarantees zero external file dependencies and preserves original brand identity.
+ * Self-contained RADAR & Bayyaa Brand Emblem.
+ * Supports rendering the actual uploaded Bayyaa brand logo image file (/bayyaa-logo.jpg)
+ * while preserving fallback SVG vector graphics with zero broken dependencies.
  */
 export const RadarBrandLogo: React.FC<RadarBrandLogoProps> = ({
   className = 'w-9 h-9',
   animated = false,
+  useImageLogo = true,
 }) => {
+  const [imgError, setImgError] = useState(false);
+
+  if (useImageLogo && !imgError) {
+    return (
+      <img
+        src="/bayyaa-logo.jpg"
+        alt="شعار بياع ورادار التاجر الذكي - Bayyaa Logo"
+        onError={() => setImgError(true)}
+        className={`select-none rounded-xl object-contain shrink-0 max-w-full max-h-full ${className}`}
+        loading="eager"
+      />
+    );
+  }
+
   return (
     <svg
       viewBox="0 0 100 100"
@@ -22,7 +39,7 @@ export const RadarBrandLogo: React.FC<RadarBrandLogoProps> = ({
       width="100%"
       height="100%"
       role="img"
-      aria-label="RADAR — Global Marketplaces Real-Time Tracking"
+      aria-label="RADAR & Bayyaa — Global Marketplaces Tracking"
     >
       <defs>
         <linearGradient id="radarInlineGoldRing" x1="0%" y1="0%" x2="100%" y2="100%">

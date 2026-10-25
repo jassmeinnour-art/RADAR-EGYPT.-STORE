@@ -79,6 +79,7 @@ import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { RadarBrandLogo } from './RadarBrandLogo';
+import { BayyaaLogo } from './BayyaaLogo';
 
 interface HeaderProps {
   activeTab: string;
@@ -574,20 +575,20 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
-              <div className="w-10 h-10 rounded-xl bg-[#F8FAFC] p-0.5 flex items-center justify-center shadow-xs border-2 border-[#000000] shrink-0 group-hover:scale-105 transition-transform">
-                <RadarBrandLogo className="w-8 h-8" />
+              <div className="w-10 h-10 rounded-xl bg-[#F8FAFC] p-0.5 flex items-center justify-center shadow-xs border-2 border-[#000000] shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain rounded-lg" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold text-[#000000]">
-                    رادار التاجر الذكي
+                    رادار التاجر الذكي &amp; منصة بياع
                   </h1>
-                  <span className="text-[10px] font-extrabold bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] px-2 py-0.5 rounded-md hidden lg:inline-block font-mono" dir="ltr">
-                    RADAR EGYPT
+                  <span className="text-[10px] font-extrabold bg-[#FF6B00] text-white border border-[#FF6B00] px-2 py-0.5 rounded-md hidden lg:inline-block font-mono" dir="ltr">
+                    BAYYAA &amp; RADAR
                   </span>
                 </div>
                 <p className="text-[11px] text-[#000000] font-semibold hidden sm:block">
-                  Amazon.eg · Noon · Jumia — العمليات اليومية السريعة
+                  Amazon.eg · Noon · Jumia · Bayyaa — العمليات اليومية السريعة
                 </p>
               </div>
             </div>

@@ -29,6 +29,7 @@ import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { PWAInstallButton } from './PWAInstallButton';
 import { InvestorPitchDeckModal } from './InvestorPitchDeckModal';
 import { RadarBrandLogo } from './RadarBrandLogo';
+import { BayyaaLogo } from './BayyaaLogo';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface LoginPageProps {
@@ -290,8 +291,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
               <RadarBrandLogo className="w-6 h-6 text-slate-950" />
             </div>
-            <div className="w-8 h-8 rounded-xl bg-[#FF6B00] flex items-center justify-center text-white font-black shadow-md shrink-0 text-sm" title="منصة بياع (Bayyaa)">
-              🛒
+            <div className="w-8 h-8 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shadow-md shrink-0 border border-white/20 overflow-hidden" title="منصة بياع (Bayyaa)">
+              <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-lg" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -454,8 +455,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-5 relative z-10">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#FF6B00] p-2.5 flex items-center justify-center shrink-0 shadow-lg border-2 border-white/20 text-white font-black text-xl">
-                  🛒
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#FF6B00] p-1 flex items-center justify-center shrink-0 shadow-xl border-2 border-white/30 overflow-hidden">
+                  <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-xl" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
