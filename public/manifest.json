@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "رادار التاجر الذكي | Merchant Radar & Bayyaa",
+  "name": "رادار التاجر الذكي | Merchant Radar &amp; Bayyaa",
   "short_name": "رادار التاجر",
   "description": "منصة ذكية لمتابعة السلع والأسعار والمنافسة وتحليل الأسواق في مصر مع ربط مباشر لمنصة بياع وأمازون ونون",
   "start_url": "/",
@@ -16,10 +16,7 @@
   "theme_color": "#FF6B00",
   "dir": "rtl",
   "lang": "ar-EG",
-  "iarc_rating_id": "urn:iarc:pegi:3",
-  "edge_side_panel": {
-    "preferred_width": 480
-  },
+  "iarc_rating_id": "PEGI 3",
   "note_taking": {
     "new_note_url": "/?action=new_note"
   },
@@ -143,9 +140,15 @@
       "action": "/?import=catalog",
       "name": "سجل أسعار وكتالوج المنتجات",
       "accept": {
-        "text/csv": [".csv"],
-        "application/vnd.ms-excel": [".xls"],
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+        "text/csv": [
+          ".csv"
+        ],
+        "application/vnd.ms-excel": [
+          ".xls"
+        ],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+          ".xlsx"
+        ]
       },
       "icons": [
         {
