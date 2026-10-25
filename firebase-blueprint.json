@@ -38,7 +38,8 @@
         "currentLowestPrice": { "type": "number" },
         "imageUrl": { "type": "string", "maxLength": 1000 },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "title", "createdAt"]
     },
@@ -250,6 +251,20 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "storeName"]
+    },
+    "WhatsAppSettings": {
+      "title": "WhatsAppSettings",
+      "description": "User WhatsApp configuration for alerts",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "phoneNumber": { "type": "string", "maxLength": 60 },
+        "isEnabled": { "type": "boolean" },
+        "notifyOnPriceChange": { "type": "boolean" },
+        "notifyOnInventoryLow": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId"]
     }
   },
   "firestore": {
@@ -312,6 +327,10 @@
     "/users/{userId}/platforms/{platformId}": {
       "schema": "PlatformConnectionDocument",
       "description": "Connected platforms and Gmail-linked credentials for merchant"
+    },
+    "/users/{userId}/whatsapp_settings/{settingsId}": {
+      "schema": "WhatsAppSettings",
+      "description": "User WhatsApp configuration for alerts"
     }
   }
 }

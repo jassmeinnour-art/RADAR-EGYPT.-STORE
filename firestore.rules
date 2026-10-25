@@ -56,7 +56,8 @@ service cloud.firestore {
              (!('suggestedRetailPrice' in data) || (data.suggestedRetailPrice is number)) &&
              (!('estimatedWholesaleCost' in data) || (data.estimatedWholesaleCost is number)) &&
              (!('currentLowestPrice' in data) || (data.currentLowestPrice is number)) &&
-             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000));
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             (!('lastUpdated' in data) || (data.lastUpdated is string && data.lastUpdated.size() <= 64));
     }
 
     function isValidWatchlistItem(data) {
@@ -147,6 +148,14 @@ service cloud.firestore {
              (!('amazonMarketplaceId' in data) || (data.amazonMarketplaceId is string && data.amazonMarketplaceId.size() <= 50));
     }
 
+    function isValidWhatsAppSettings(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 60)) &&
+             (!('isEnabled' in data) || (data.isEnabled is bool)) &&
+             (!('notifyOnPriceChange' in data) || (data.notifyOnPriceChange is bool)) &&
+             (!('notifyOnInventoryLow' in data) || (data.notifyOnInventoryLow is bool));
+    }
+
     // Multi-Tenant Merchant Store Records & Dynamic Amazon SP-API Credentials
     match /merchant_stores/{merchantId} {
       allow read: if true;
@@ -235,6 +244,12 @@ service cloud.firestore {
       match /platforms/{platformId} {
         allow get, list, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) && isValidId(platformId);
+      }
+
+      // Sub-collection: WhatsApp Settings
+      match /whatsapp_settings/{settingsId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(settingsId) && isValidWhatsAppSettings(incoming());
       }
 
       // Sub-collection: Activity Logs (سجل عمليات المستخدم)

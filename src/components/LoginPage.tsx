@@ -290,17 +290,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
               <RadarBrandLogo className="w-6 h-6 text-slate-950" />
             </div>
+            <div className="w-8 h-8 rounded-xl bg-[#FF6B00] flex items-center justify-center text-white font-black shadow-md shrink-0 text-sm" title="منصة بياع (Bayyaa)">
+              🛒
+            </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-black text-sm text-white font-['Alexandria'] tracking-wide">
-                  رادار التاجر الذكي
+                  رادار التاجر &amp; منصة بياع (Bayyaa)
                 </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  Dual Login
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF6B00] text-white">
+                  Bayyaa Hub
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                بوابة الدخول المزدوجة المتناسقة لجميع الشاشات والأجهزة
+                بوابة التاجر الموحدة لإدارة المتاجر والبيع عبر بياع وأمازون ونون
               </p>
             </div>
           </div>
@@ -442,6 +445,45 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
               اختر نوع الحساب للمتابعة لمساحة العمل المخصصة لمتابعة المبيعات والأسعار
             </p>
+          </div>
+
+          {/* Bayyaa Platform Promotional Banner & Logo */}
+          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-2 border-[#FF6B00] rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden text-right" dir="rtl">
+            <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-[#FF6B00]/15 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-xl pointer-events-none" />
+
+            <div className="flex flex-col md:flex-row items-center justify-between gap-5 relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#FF6B00] p-2.5 flex items-center justify-center shrink-0 shadow-lg border-2 border-white/20 text-white font-black text-xl">
+                  🛒
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#FF6B00] text-white font-black text-[10px] tracking-wider uppercase shadow-xs">
+                      منصة بياع (Bayyaa) الرسمية
+                    </span>
+                    <span className="text-xs text-[#FFFFFF] font-bold opacity-90">شريك التسوق والبيع الجديد</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-[#FFFFFF] tracking-tight font-['Alexandria']">
+                    🚀 انضم الآن إلى منصة بياع (Bayyaa) - ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 w-full md:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMerchantAuthMode('signup');
+                    showToast('تم اختيار التسجيل في منصة بياع - أكمل بيانات المتجر أدناه 🛒');
+                  }}
+                  className="w-full md:w-auto px-5 py-3 rounded-2xl bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black text-xs sm:text-sm shadow-xl shadow-[#FF6B00]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-white/20"
+                >
+                  <span>اشترك الآن وأضف منتجاتك في منصة بياع 🛍️</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Global Error Banner */}

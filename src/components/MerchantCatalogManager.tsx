@@ -1375,6 +1375,8 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                   <th className="py-3.5 px-3">معدِّل الأسعار التلقائي (Repricer)</th>
                   <th className="py-3.5 px-3">المخزون والشحن</th>
                   <th className="py-3.5 px-3">حالة السعر</th>
+                  <th className="py-3.5 px-3">آخر تحديث</th>
+                  <th className="py-3.5 px-3">آخر تحديث</th>
                   <th className="py-3.5 px-4 text-center">إجراءات سريعة</th>
                 </tr>
               </thead>
@@ -1606,6 +1608,16 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                             🔴 بحاجة لتعديل السعر
                           </span>
                         )}
+                      </td>
+
+                      {/* Last Updated */}
+                      <td className="py-3.5 px-3 text-[10px] text-slate-500 font-mono whitespace-nowrap">
+                        {prod.lastUpdated ? new Date(prod.lastUpdated).toLocaleString('ar-EG', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : '-'}
                       </td>
 
                       {/* Actions */}

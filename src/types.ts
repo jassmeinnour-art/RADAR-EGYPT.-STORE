@@ -572,6 +572,7 @@ export interface MerchantApiCredentials {
   // Mode: Live API Data vs Demo Data
   dataMode: 'live' | 'demo';
   isConfigured?: boolean;
+  tokenExpired?: boolean;
   lastTestedAt?: string;
   lastTestStatus?: 'success' | 'failed';
   lastTestMessage?: string;
@@ -623,6 +624,7 @@ export interface RemoteMerchantClient {
   city: string; // e.g. "القاهرة - التجمع"
   platformsSubscribed: RemoteMerchantPlatformCode[];
   assignedProductIds: string[]; // Product IDs tracked for this merchant
+  trackedProductsCount?: number;
   weeklySalesTargetEGP: number; // e.g. 150000 EGP
   currentWeeklySalesEGP: number; // e.g. 168400 EGP
   currentWeeklyOrdersCount: number; // e.g. 112 orders
@@ -818,6 +820,7 @@ export interface MerchantCatalogProduct {
   lowStockThreshold?: number; // حد المخزون المنخفض المخصص
   isCriticalStock?: boolean; // علامة تمييز المخزون الحرج
   lastRefreshedAt: string;
+  lastUpdated?: string;
 }
 
 export interface MerchantCatalogSummary {

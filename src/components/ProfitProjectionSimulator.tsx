@@ -145,23 +145,25 @@ export const ProfitProjectionSimulator: React.FC<ProfitProjectionSimulatorProps>
   ]);
 
   // Handle Strategy Preset Selection
-  const handleSelectStrategy = (stratId: StrategyPresetId) => {
+  const handleSelectStrategy = (stratId: any) => {
     setSelectedStrategyId(stratId);
     const preset = STRATEGY_PRESETS[stratId];
-    setPriceAdjustmentPercent(preset.priceAdjustmentPercent);
-    setImageQualityScore(preset.imageQualityScore);
-    setMarketingSpendMonthly(preset.marketingSpendMonthlyEGP);
+    if (preset) {
+      setPriceAdjustmentPercent(preset.priceAdjustmentPercent);
+      setImageQualityScore(preset.imageQualityScore);
+      setMarketingSpendMonthly(preset.marketingSpendMonthlyEGP);
 
-    if (onShowToast) {
-      onShowToast(`تم تطبيق استراتيجية: ${preset.label} 🚀`);
+      if (onShowToast) {
+        onShowToast(`تم تطبيق استراتيجية: ${preset.label} 🚀`);
+      }
     }
   };
 
   // Handle Scenario Selection
-  const handleSelectScenario = (scenId: MarketScenarioId) => {
+  const handleSelectScenario = (scenId: any) => {
     setSelectedScenarioId(scenId);
     const scenario = MARKET_SCENARIOS[scenId];
-    if (onShowToast) {
+    if (scenario && onShowToast) {
       onShowToast(`تم ضبط ظروف السوق على: ${scenario.label} 📈`);
     }
   };

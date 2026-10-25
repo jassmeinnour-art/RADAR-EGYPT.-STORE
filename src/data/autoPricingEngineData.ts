@@ -5,6 +5,8 @@ import {
   RuleEvaluationResult
 } from '../types/autoPricing';
 
+export type { RuleEvaluationResult };
+
 export const AUTO_PRICING_RULES_STORAGE_KEY = 'merchant_radar_auto_pricing_rules_v1';
 export const AUTO_PRICING_PRODUCTS_STORAGE_KEY = 'merchant_radar_auto_pricing_products_v1';
 export const AUTO_PRICING_LOGS_STORAGE_KEY = 'merchant_radar_auto_pricing_logs_v1';

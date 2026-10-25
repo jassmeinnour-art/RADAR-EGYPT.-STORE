@@ -413,9 +413,13 @@ const FALLBACK_THEME_CONTEXT: ThemeContextType = {
 };
 
 export const useTheme = (): ThemeContextType => {
-  const context = useContext(ThemeContext);
-  if (!context) {
+  try {
+    const context = useContext(ThemeContext);
+    if (!context) {
+      return FALLBACK_THEME_CONTEXT;
+    }
+    return context;
+  } catch {
     return FALLBACK_THEME_CONTEXT;
   }
-  return context;
 };

@@ -50,7 +50,9 @@ import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firest
 
 import { ThemeToggle } from './components/ThemeToggle';
 import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
+import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryDrawer';
 import { useTheme } from './context/ThemeContext';
+import { AudioNotificationProvider } from './context/AudioNotificationContext';
 
 const OnboardingTour = React.lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 const PaymentModal = React.lazy(() => import('./components/PaymentModal'));
@@ -74,10 +76,19 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [trialEndDate, setTrialEndDate] = useState<Date | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isAllMerchantsHubOpen, setIsAllMerchantsHubOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'email' | 'google' | 'landing'>('landing');
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+
+  useEffect(() => {
+    const handleOpenHub = () => setIsAllMerchantsHubOpen(true);
+    window.addEventListener('open-all-merchants-hub', handleOpenHub as EventListener);
+    return () => {
+      window.removeEventListener('open-all-merchants-hub', handleOpenHub as EventListener);
+    };
+  }, []);
   
   // PURGE DEMO DATA ON LOAD
   useEffect(() => {
@@ -533,9 +544,15 @@ export default function App() {
   const isTrialExpired = trialEndDate ? new Date() > trialEndDate : false;
 
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
+    <AudioNotificationProvider>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
       {showOnboarding && <OnboardingTour onComplete={handleCompleteOnboarding} />}
       {isPaymentModalOpen && <PaymentModal onClose={() => setIsPaymentModalOpen(false)} />}
+      <AllMerchantsDirectoryDrawer 
+        isOpen={isAllMerchantsHubOpen} 
+        onClose={() => setIsAllMerchantsHubOpen(false)} 
+        onShowToast={(msg) => alert(msg)} 
+      />
       {isAuthenticated ? (
         showOwnerDashboard && isOwner ? (
           <div className="min-h-screen bg-slate-950 text-white font-['Cairo',sans-serif] pt-20" dir="rtl">
@@ -894,5 +911,6 @@ export default function App() {
         />
       )}
     </Suspense>
+    </AudioNotificationProvider>
   );
 }

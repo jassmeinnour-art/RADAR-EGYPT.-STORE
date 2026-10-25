@@ -52,8 +52,6 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   );
 
   const handleInstallClick = async () => {
-    window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
-    setShowInstallGuide(true);
     if (isInstallable) {
       setIsInstalling(true);
       const success = await install();
@@ -66,6 +64,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         });
         onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على جهازك! 🎉');
       }
+    } else {
+      openInNewWindow();
     }
   };
 

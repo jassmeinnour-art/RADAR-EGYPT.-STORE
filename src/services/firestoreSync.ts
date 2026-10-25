@@ -417,6 +417,7 @@ export async function saveLiveProductsToCloud(userId: string, products: ProductD
         specs: p.specs || [],
         seoListing: p.seoListing || null,
         updatedAt: serverTimestamp(),
+        lastUpdated: serverTimestamp(),
       }, { merge: true });
     }
     triggerGlobalAsyncEnd(opId, true, 'تم حفظ المنتجات الفعلية بالسحابة', 'database');

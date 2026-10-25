@@ -29,6 +29,10 @@ import {
   Check,
   Package
 } from 'lucide-react';
+import { SalesTrendsWidget } from './SalesTrendsWidget';
+import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface MerchantRecord {
   id: string;
@@ -124,11 +128,28 @@ const DEFAULT_MERCHANTS: MerchantRecord[] = [
   }
 ];
 
+const SortableWidget = ({ id, children, onClick }: { id: string, children: React.ReactNode, onClick: () => void }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1 : 0,
+    opacity: isDragging ? 0.5 : 1
+  };
+  
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={onClick}>
+      {children}
+    </div>
+  );
+};
+
 export default function OwnerDashboard() {
-  // Always default open 'merchants'
   const [activeTab, setActiveTab] = useState<'merchants' | 'subscriptions' | 'reports'>('merchants');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingMerchant, setEditingMerchant] = useState<MerchantRecord | null>(null);
+  const [widgetOrder, setWidgetOrder] = useState(['merchants', 'subscriptions', 'reports', 'sales']);
 
   // Inline Form State
   const [storeName, setStoreName] = useState('');
@@ -280,6 +301,114 @@ export default function OwnerDashboard() {
   const activePaidCount = merchants.filter(m => m.role === 'merchant_paid' && m.status === 'active').length;
   const activeTrialCount = merchants.filter(m => m.role === 'merchant_trial' && m.status === 'active').length;
 
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (active.id !== over.id) {
+      setWidgetOrder((items) => {
+        const oldIndex = items.indexOf(active.id);
+        const newIndex = items.indexOf(over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const renderWidget = (id: string) => {
+    switch (id) {
+      case 'merchants':
+        return (
+          <button
+            onClick={() => setActiveTab('merchants')}
+            className={`p-6 rounded-2xl text-right transition-all cursor-pointer w-full h-full ${
+              activeTab === 'merchants' 
+                ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
+                : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl ${activeTab === 'merchants' ? 'bg-amber-500 text-slate-950' : 'bg-sky-500/10 text-sky-400'}`}>
+                <Users className="w-7 h-7" />
+              </div>
+              {activeTab === 'merchants' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">نشط الآن</span>
+              )}
+            </div>
+            <h2 className="text-xl font-bold mb-1 text-white">إدارة المستخدمين والتجار</h2>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              التحكم الكامل في دليل حسابات التجار والمسوقين والمنصات المرتبطة.
+            </p>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-amber-400 flex justify-between">
+              <span>إجمالي التجار المسجلين:</span>
+              <span>{merchants.length} تاجر</span>
+            </div>
+          </button>
+        );
+      case 'subscriptions':
+        return (
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`p-6 rounded-2xl text-right transition-all cursor-pointer w-full h-full ${
+              activeTab === 'subscriptions' 
+                ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
+                : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl ${activeTab === 'subscriptions' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                <CreditCard className="w-7 h-7" />
+              </div>
+              {activeTab === 'subscriptions' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">نشط الآن</span>
+              )}
+            </div>
+            <h2 className="text-xl font-bold mb-1 text-white">متابعة الاشتراكات والمدفوعات</h2>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              مراقبة مدفوعات التجديد، إحصائيات التجربة المجانية، وتأكيد تحصيل الرسوم.
+            </p>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-emerald-400 flex justify-between">
+              <span>الاشتراكات النشطة:</span>
+              <span>{activePaidCount} مدفوع / {activeTrialCount} تجريبي</span>
+            </div>
+          </button>
+        );
+      case 'reports':
+        return (
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`p-6 rounded-2xl text-right transition-all cursor-pointer w-full h-full ${
+              activeTab === 'reports' 
+                ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
+                : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl ${activeTab === 'reports' ? 'bg-amber-500 text-slate-950' : 'bg-amber-500/10 text-amber-400'}`}>
+                <FileText className="w-7 h-7" />
+              </div>
+              {activeTab === 'reports' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">نشط الآن</span>
+              )}
+            </div>
+            <h2 className="text-xl font-bold mb-1 text-white">التقارير المالية والوكالة</h2>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              تحليل الإيرادات الشهيرة المتوقعة MRR ومتوسط عائد التاجر ARPU.
+            </p>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-amber-400 flex justify-between">
+              <span>الإيراد الشهري (MRR):</span>
+              <span>{totalMRR.toLocaleString()} ج.م</span>
+            </div>
+          </button>
+        );
+      case 'sales':
+        return (
+          <div className="w-full h-full cursor-default">
+            <SalesTrendsWidget />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 font-['Cairo',sans-serif] text-slate-100" dir="rtl">
       
@@ -304,91 +433,18 @@ export default function OwnerDashboard() {
         </button>
       </div>
 
-      {/* 3 Main Owner Interactive Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
-        {/* Card 1: إدارة المستخدمين */}
-        <button
-          onClick={() => setActiveTab('merchants')}
-          className={`p-6 rounded-2xl text-right transition-all cursor-pointer ${
-            activeTab === 'merchants' 
-              ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
-              : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl ${activeTab === 'merchants' ? 'bg-amber-500 text-slate-950' : 'bg-sky-500/10 text-sky-400'}`}>
-              <Users className="w-7 h-7" />
-            </div>
-            {activeTab === 'merchants' && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">مفتوح افتراضياً</span>
-            )}
+      {/* 3 Main Owner Interactive Cards (Sortable) */}
+      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={widgetOrder} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {widgetOrder.map((id) => (
+              <SortableWidget key={id} id={id} onClick={() => {}}>
+                {renderWidget(id)}
+              </SortableWidget>
+            ))}
           </div>
-          <h2 className="text-xl font-bold mb-1 text-white">إدارة المستخدمين والتجار</h2>
-          <p className="text-slate-400 text-xs leading-relaxed">
-            التحكم الكامل في دليل حسابات التجار والمسوقين والمنصات المرتبطة.
-          </p>
-          <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-amber-400 flex justify-between">
-            <span>إجمالي التجار المسجلين:</span>
-            <span>{merchants.length} تاجر</span>
-          </div>
-        </button>
-
-        {/* Card 2: متابعة الاشتراكات */}
-        <button
-          onClick={() => setActiveTab('subscriptions')}
-          className={`p-6 rounded-2xl text-right transition-all cursor-pointer ${
-            activeTab === 'subscriptions' 
-              ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
-              : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl ${activeTab === 'subscriptions' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500/10 text-emerald-400'}`}>
-              <CreditCard className="w-7 h-7" />
-            </div>
-            {activeTab === 'subscriptions' && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">نشط الآن</span>
-            )}
-          </div>
-          <h2 className="text-xl font-bold mb-1 text-white">متابعة الاشتراكات والمدفوعات</h2>
-          <p className="text-slate-400 text-xs leading-relaxed">
-            مراقبة مدفوعات التجديد، إحصائيات التجربة المجانية، وتأكيد تحصيل الرسوم.
-          </p>
-          <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-emerald-400 flex justify-between">
-            <span>الاشتراكات النشطة:</span>
-            <span>{activePaidCount} مدفوع / {activeTrialCount} تجريبي</span>
-          </div>
-        </button>
-
-        {/* Card 3: التقارير المالية */}
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`p-6 rounded-2xl text-right transition-all cursor-pointer ${
-            activeTab === 'reports' 
-              ? 'bg-amber-500/10 border-2 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30' 
-              : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl ${activeTab === 'reports' ? 'bg-amber-500 text-slate-950' : 'bg-amber-500/10 text-amber-400'}`}>
-              <FileText className="w-7 h-7" />
-            </div>
-            {activeTab === 'reports' && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">نشط الآن</span>
-            )}
-          </div>
-          <h2 className="text-xl font-bold mb-1 text-white">التقارير المالية والوكالة</h2>
-          <p className="text-slate-400 text-xs leading-relaxed">
-            تحليل الإيرادات الشهيرة المتوقعة MRR ومتوسط عائد التاجر ARPU.
-          </p>
-          <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono font-bold text-amber-400 flex justify-between">
-            <span>الإيراد الشهري (MRR):</span>
-            <span>{totalMRR.toLocaleString()} ج.م</span>
-          </div>
-        </button>
-
-      </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Main Merchants Section */}
       {activeTab === 'merchants' && (
@@ -775,3 +831,4 @@ export default function OwnerDashboard() {
     </div>
   );
 }
+

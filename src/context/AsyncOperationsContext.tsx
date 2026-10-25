@@ -198,9 +198,13 @@ const FALLBACK_ASYNC_OPS_CONTEXT: AsyncOperationsContextType = {
 };
 
 export function useAsyncOperations(): AsyncOperationsContextType {
-  const ctx = useContext(AsyncOperationsContext);
-  if (!ctx) {
+  try {
+    const ctx = useContext(AsyncOperationsContext);
+    if (!ctx) {
+      return FALLBACK_ASYNC_OPS_CONTEXT;
+    }
+    return ctx;
+  } catch {
     return FALLBACK_ASYNC_OPS_CONTEXT;
   }
-  return ctx;
 }

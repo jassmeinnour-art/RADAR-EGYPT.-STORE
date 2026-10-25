@@ -92,7 +92,31 @@ export interface AutoPricingExecutionLog {
   estimatedNetProfit: number;
   estimatedNetMarginPercent: number;
   guardrailStatus: AutoPricingGuardrailStatus;
-  guardrailStatusLabelAr: string;
+  guardrailStatusLabelAr?: string;
   platformsAffected: string[];
   executionMode: 'automated' | 'manual_simulation' | 'one_click_apply';
 }
+
+export interface RuleEvaluationResult {
+  ruleId?: string;
+  ruleTitle?: string;
+  recommendedPrice?: number;
+  finalPrice?: number;
+  newPrice?: number;
+  previousPrice?: number;
+  priceDelta: number;
+  appliedGuardrail?: AutoPricingGuardrailStatus;
+  statusLabelAr?: string;
+  reason?: string;
+  isTriggered: boolean;
+  triggerReasonAr?: string;
+  actionTakenAr?: string;
+  floorPrice?: number;
+  ceilingPrice?: number;
+  netProfitEGP?: number;
+  netMarginPercent?: number;
+  guardrailStatus?: string;
+  guardrailStatusLabelAr?: string;
+}
+
+

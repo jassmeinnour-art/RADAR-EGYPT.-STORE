@@ -3713,6 +3713,10 @@ const handleAmazonLwaTokenExchange = async (req: express.Request, res: express.R
 app.all('/api/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
 app.all('/api/v1/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
 
+async function saveStoreCredsToFirestoreServer(merchantId: string, creds: any): Promise<void> {
+  console.log('[Server Firestore Sync]', merchantId, creds?.amazonSellerId);
+}
+
 // Endpoint: Amazon Seller Central Delegated OAuth Callback Handler (/api/auth/amazon/callback & /api/auth/callback)
 const handleAmazonOAuthCallback = async (req: express.Request, res: express.Response) => {
   const query = req.query || {};

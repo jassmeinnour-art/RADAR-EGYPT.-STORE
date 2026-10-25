@@ -317,7 +317,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
             ceilingPrice: evalResult.ceilingPrice,
             estimatedNetProfit: evalResult.netProfitEGP,
             estimatedNetMarginPercent: evalResult.netMarginPercent,
-            guardrailStatus: evalResult.guardrailStatus,
+            guardrailStatus: (evalResult.guardrailStatus as AutoPricingGuardrailStatus) || 'safe',
             guardrailStatusLabelAr: evalResult.guardrailStatusLabelAr,
             platformsAffected: ['أمازون مصر', 'نون مصر', 'جوميا'],
             executionMode: 'automated'
@@ -384,7 +384,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
         ceilingPrice: evalResult.ceilingPrice,
         estimatedNetProfit: evalResult.netProfitEGP,
         estimatedNetMarginPercent: evalResult.netMarginPercent,
-        guardrailStatus: evalResult.guardrailStatus,
+        guardrailStatus: (evalResult.guardrailStatus as AutoPricingGuardrailStatus) || 'safe',
         guardrailStatusLabelAr: evalResult.guardrailStatusLabelAr,
         platformsAffected: ['أمازون مصر', 'نون مصر'],
         executionMode: 'one_click_apply'

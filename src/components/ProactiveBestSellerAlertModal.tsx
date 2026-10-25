@@ -25,8 +25,9 @@ import confetti from 'canvas-confetti';
 import { ProductData, WatchlistItem } from '../types';
 import {
   BEST_SELLER_CATEGORIES,
-  PROACTIVE_BEST_SELLER_RECOMMENDATIONS} from '../data/bestSellerRecommendationsData';
-import { BestSellerRecommendation } from '@/data/BestSellerRecommendation';
+  PROACTIVE_BEST_SELLER_RECOMMENDATIONS,
+  type BestSellerRecommendation
+} from '../data/bestSellerRecommendationsData';
 
 interface ProactiveBestSellerAlertModalProps {
   isOpen: boolean;

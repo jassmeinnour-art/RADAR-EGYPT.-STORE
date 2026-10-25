@@ -38,6 +38,7 @@ import {
   List
 } from 'lucide-react';
 import { ProductData, WatchlistItem } from '../types';
+import { AddWatchlistManualModal } from './AddWatchlistManualModal';
 
 interface WatchlistManagerProps {
   watchlist: WatchlistItem[];
@@ -46,6 +47,7 @@ interface WatchlistManagerProps {
   onAddNote: (productId: string, note: string) => void;
   onUpdateTargetAlertPrice?: (productId: string, newTargetPrice: number) => void;
   onBulkUpdateTargetAlertPrices?: (updates: { productId: string; targetAlertPrice: number }[], syncWithActiveAlerts?: boolean) => void;
+  onAddManualProduct?: (newItem: WatchlistItem) => void;
   onOpenAlertModal: (product: ProductData) => void;
   onOpenScanner: () => void;
   currency: string;
@@ -67,6 +69,7 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   onAddNote,
   onUpdateTargetAlertPrice,
   onBulkUpdateTargetAlertPrices,
+  onAddManualProduct,
   onOpenAlertModal,
   onOpenScanner,
   currency,
@@ -76,6 +79,9 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   const [layoutViewMode, setLayoutViewMode] = useState<'cards' | 'list'>('cards');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+
+  // Manual Add Product Modal State
+  const [isAddManualModalOpen, setIsAddManualModalOpen] = useState(false);
 
   // Single Item Target Price Quick-Edit state
   const [editingTargetPriceId, setEditingTargetPriceId] = useState<string | null>(null);
@@ -289,13 +295,20 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={onOpenScanner}
-              className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              onClick={() => setIsAddManualModalOpen(true)}
+              className="h-10 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 active:scale-95 text-white text-xs font-black flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>إضافة منتج جديد للمتابعة</span>
+              <span>إضافة منتج يدوياً</span>
+            </button>
+            <button
+              onClick={onOpenScanner}
+              className="h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+            >
+              <Zap className="w-3.5 h-3.5 text-indigo-600" />
+              <span>مسح الكاميرا / الرادار</span>
             </button>
           </div>
         </div>
@@ -532,13 +545,22 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             يمكنك حفظ أي منتج في قائمة المتابعة من شاشة الرادار أو مسح منتج جديد بالكاميرا لمراقبة أسعار منافسيه بشكل دوري.
           </p>
-          <button
-            onClick={onOpenScanner}
-            className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>مسح منتج وإضافته للمتابعة</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => setIsAddManualModalOpen(true)}
+              className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black inline-flex items-center gap-2 shadow-md cursor-pointer transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة منتج يدوياً (رابط وسعر مستهدف)</span>
+            </button>
+            <button
+              onClick={onOpenScanner}
+              className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-all border border-slate-200"
+            >
+              <Zap className="w-4 h-4 text-indigo-600" />
+              <span>مسح منتج بالكاميرا</span>
+            </button>
+          </div>
         </div>
       ) : layoutViewMode === 'cards' ? (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4.5">
@@ -1483,6 +1505,18 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Manual Add Product Modal */}
+      <AddWatchlistManualModal
+        isOpen={isAddManualModalOpen}
+        onClose={() => setIsAddManualModalOpen(false)}
+        onAdd={(newItem) => {
+          if (onAddManualProduct) {
+            onAddManualProduct(newItem);
+          }
+        }}
+        currency={currency}
+      />
 
     </div>
   );

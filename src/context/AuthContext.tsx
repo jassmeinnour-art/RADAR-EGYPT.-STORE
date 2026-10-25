@@ -819,9 +819,13 @@ const FALLBACK_AUTH_CONTEXT: AuthContextType = {
 };
 
 export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
+  try {
+    const context = useContext(AuthContext);
+    if (!context) {
+      return FALLBACK_AUTH_CONTEXT;
+    }
+    return context;
+  } catch {
     return FALLBACK_AUTH_CONTEXT;
   }
-  return context;
 };

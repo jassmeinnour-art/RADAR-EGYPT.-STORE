@@ -58,6 +58,8 @@ import confetti from 'canvas-confetti';
 import { ProductImageABTesting } from './ProductImageABTesting';
 import { ProductTemplateCanvasStudio } from './ProductTemplateCanvasStudio';
 import { ProductTemplatePresetter, VisualPreset } from './ProductTemplatePresetter';
+import { ProductImageAnalyzer } from './ProductImageAnalyzer';
+import { SocialMediaOverlayPreviewModal } from './SocialMediaOverlayPreviewModal';
 import { useAuth } from '../context/AuthContext';
 import { 
   saveStudioDesignToCloud, 
@@ -104,7 +106,7 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
   onShowToast,
 }) => {
   // Top Level Mode: 3D Studio vs A/B Testing Lab vs AI Background
-  const [activeStudioTab, setActiveStudioTab] = useState<'3d_studio' | 'ab_testing' | 'platform_templates' | 'ai_background'>('3d_studio');
+  const [activeStudioTab, setActiveStudioTab] = useState<'3d_studio' | 'ab_testing' | 'platform_templates' | 'ai_background' | 'ai_analysis'>('3d_studio');
 
   // Active Image Source (Product Default, Camera Snapshot, or Uploaded File)
   const defaultImage = product?.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80';
@@ -256,6 +258,89 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
   const [showCallouts, setShowCallouts] = useState<boolean>(false);
   const [featureCallouts, setFeatureCallouts] = useState<ProductFeatureCallout[]>(DEFAULT_FEATURE_CALLOUTS);
   const [newCalloutText, setNewCalloutText] = useState<string>('');
+  const [isSocialMediaPreviewOpen, setIsSocialMediaPreviewOpen] = useState<boolean>(false);
+
+  // Undo History State
+  interface StudioStateSnapshot {
+    activeImageSrc: string;
+    selectedRatio: PlatformAspectRatio;
+    selectedAngle: ProductAngleType;
+    rotationX: number;
+    rotationY: number;
+    rotationZ: number;
+    zoomScale: number;
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    selectedBackgroundId: DecorativeBackgroundId;
+    selectedFrameId: SocialMediaFrameId;
+  }
+  const [history, setHistory] = useState<StudioStateSnapshot[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  const saveToHistory = () => {
+    const currentState: StudioStateSnapshot = {
+      activeImageSrc, selectedRatio, selectedAngle, rotationX, rotationY, rotationZ, 
+      zoomScale, brightness, contrast, saturation, selectedBackgroundId, selectedFrameId
+    };
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(currentState);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      const prevState = history[prevIndex];
+      setActiveImageSrc(prevState.activeImageSrc);
+      setSelectedRatio(prevState.selectedRatio);
+      setSelectedAngle(prevState.selectedAngle);
+      setRotationX(prevState.rotationX);
+      setRotationY(prevState.rotationY);
+      setRotationZ(prevState.rotationZ);
+      setZoomScale(prevState.zoomScale);
+      setBrightness(prevState.brightness);
+      setContrast(prevState.contrast);
+      setSaturation(prevState.saturation);
+      setSelectedBackgroundId(prevState.selectedBackgroundId);
+      setSelectedFrameId(prevState.selectedFrameId);
+      setHistoryIndex(prevIndex);
+      if (onShowToast) onShowToast('⏪ تم التراجع عن آخر تعديل!');
+    }
+  };
+
+  const handleResetDesign = () => {
+    setActiveImageSrc(product?.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80');
+    setImageSourceType('product_default');
+    setSelectedRatio('1:1');
+    setSelectedAngle('front_hero');
+    setRotationX(0);
+    setRotationY(0);
+    setRotationZ(0);
+    setZoomScale(1.0);
+    setPanX(0);
+    setPanY(0);
+    setShadowIntensity(50);
+    setShowPedestal(false);
+    setSelectedBackgroundId('pure_white');
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setIsAiEnhanceActive(false);
+    setAiLightingPreset('none');
+    setShowPriceBadge(false);
+    setShowDiscountBadge(false);
+    setShowWatermark(false);
+    setShowWarrantyBadge(false);
+    setShowShippingBadge(false);
+    setSelectedFrameId('none');
+    setFeatureCallouts(DEFAULT_FEATURE_CALLOUTS);
+    setShowCallouts(false);
+    setHistory([]);
+    setHistoryIndex(-1);
+    if (onShowToast) onShowToast('↺ تم إعادة تعيين التصميم بالكامل!');
+  };
 
   // Export State
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -1278,6 +1363,30 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
             <Wand2 className="w-4 h-4 text-emerald-400" />
             <span>إزالة الخلفية وديكور مصري (AI Backdrop) ✨</span>
           </button>
+
+          <button
+            onClick={() => setActiveStudioTab('ai_analysis')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+              activeStudioTab === 'ai_analysis'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span>تحليل AI للمنتج (Category/Tags) 🧠</span>
+          </button>
+
+          <button
+            onClick={() => setActiveStudioTab('platform_templates')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+              activeStudioTab === 'platform_templates'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Layout className="w-4 h-4 text-amber-500" />
+            <span>قوالب إنستجرام/فيسبوك وخلفيات ديكورية 📱🎨</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 px-2 text-[11px] text-slate-500 hidden md:flex">
@@ -1296,6 +1405,10 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
           onApplyWinningImage={onApplyWinningImage}
           onBackToStudio={() => setActiveStudioTab('3d_studio')}
         />
+      ) : activeStudioTab === 'ai_analysis' ? (
+        <div className="max-w-2xl mx-auto animate-fadeIn">
+          <ProductImageAnalyzer />
+        </div>
       ) : activeStudioTab === 'platform_templates' ? (
         <ProductTemplateCanvasStudio
           defaultTitle={product?.title || 'منتج متميز في المتجر'}
@@ -1445,9 +1558,37 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Undo Action */}
+            <button
+              onClick={() => {
+                undo();
+              }}
+              disabled={historyIndex <= 0}
+              id="btn-studio-undo"
+              className="h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              title="التراجع عن آخر تعديل"
+            >
+              <RotateCw className="w-4 h-4" />
+              <span>تراجع ⏪</span>
+            </button>
+
+            {/* Reset Design Action */}
+            <button
+              onClick={handleResetDesign}
+              id="btn-studio-reset"
+              className="h-10 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-800 text-xs font-black flex items-center gap-1.5 shadow-sm border border-amber-200 transition-all cursor-pointer"
+              title="إعادة تعيين التصميم"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>إعادة تعيين ↺</span>
+            </button>
+
             {/* AI Studio Backdrop Generator */}
             <button
-              onClick={() => setIsAiBackdropModalOpen(true)}
+              onClick={() => {
+                saveToHistory();
+                setIsAiBackdropModalOpen(true);
+              }}
               id="btn-ai-backdrop-studio"
               className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-indigo-100 transition-all cursor-pointer"
               title="توليد خلفية استوديو ذكية بالذكاء الاصطناعي مع أنماط مخصصة"
@@ -1458,7 +1599,10 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
 
             {/* AI Intelligent Retouch & Lighting Editor */}
             <button
-              onClick={() => setIsAiRetouchModalOpen(true)}
+              onClick={() => {
+                saveToHistory();
+                setIsAiRetouchModalOpen(true);
+              }}
               id="btn-ai-retouch-studio"
               className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-100 transition-all cursor-pointer"
               title="تعديل وتلميع الصورة تلقائياً بالذكاء الاصطناعي"
@@ -1477,6 +1621,17 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
             >
               <Cloud className="w-4 h-4" />
               <span>{isSavingToCloud ? 'جاري الحفظ...' : 'حفظ سحابياً 💾'}</span>
+            </button>
+
+            {/* Instant Social Media Overlay Preview (Story / Post / Reel) */}
+            <button
+              onClick={() => setIsSocialMediaPreviewOpen(true)}
+              id="btn-social-media-preview"
+              className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-purple-100 transition-all cursor-pointer"
+              title="معاينة فورية لتصميم المنتج على أبعاد السوشيال ميديا (Story/Post/Reel)"
+            >
+              <Smartphone className="w-4 h-4 text-purple-200" />
+              <span>معاينة سوشيال ميديا (Story/Post/Reel) 📱</span>
             </button>
 
             {/* Cloud Saved Gallery */}
@@ -3066,6 +3221,22 @@ export const MerchantImageStudio: React.FC<MerchantImageStudioProps> = ({
 
         </>
       )}
+
+      <SocialMediaOverlayPreviewModal
+        isOpen={isSocialMediaPreviewOpen}
+        onClose={() => setIsSocialMediaPreviewOpen(false)}
+        product={product}
+        currentImageSrc={activeImageSrc}
+        productTitle={product?.title || 'منتج متميز'}
+        productPrice={String(winningPrice || product?.targetPrice || 1000)}
+        currency={currency}
+        selectedBadgeText={frameBadgeText}
+        onShowToast={onShowToast}
+        onExportRatio={(ratio) => {
+          setSelectedRatio(ratio);
+          if (onShowToast) onShowToast(`تم ضبط الأبعاد إلى ${ratio} بنجاح!`);
+        }}
+      />
 
     </div>
   );

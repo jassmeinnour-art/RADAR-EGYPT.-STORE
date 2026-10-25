@@ -7,6 +7,9 @@ img, svg { max-width: 100%; height: auto; }
    Calibrated High-Clarity Typography Scale (Comfortable Low-Vision Sizing)
    ========================================================================== */
 @theme {
+  --color-deep-navy: #0F2A4A;
+  --color-vivid-orange: #FF6B00;
+  --color-clean-white: #FFFFFF;
   --text-2xs: 0.76rem;
   --text-2xs--line-height: 1.42;
   --text-xs: 0.82rem;
@@ -315,19 +318,19 @@ button:not(.block):not(.grid):not(.hidden),
 }
 
 /* ==========================================================================
-   3. DARK MODE (#0B0F17 / #0F172A / #1E293B) - EYE COMFORT CHARCOAL PALETTE
+   3. DARK MODE (#0F2A4A DEEP NAVY & #FF6B00 VIVID ORANGE & #FFFFFF CLEAN WHITE)
    ========================================================================== */
 html.dark {
-  background-color: #0B0F17 !important;
-  color: #F8FAFC !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
 }
 
 html.dark body,
 html.dark #root,
 html.dark #root > div,
 html.dark main {
-  background-color: #0B0F17 !important;
-  color: #F8FAFC !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
 }
 
 html.dark header,
@@ -351,10 +354,10 @@ html.dark #header-operations-toolbar,
 html.dark #radar-global-hero-visual,
 html.dark .bg-white,
 html.dark [class*="bg-white"] {
-  background-color: #0F172A !important;
+  background-color: #0F2A4A !important;
   background-image: none !important;
-  color: #F8FAFC !important;
-  border-color: #334155 !important;
+  color: #FFFFFF !important;
+  border-color: #FF6B00 !important;
 }
 
 html.dark [class*="bg-slate-50"],
@@ -362,22 +365,22 @@ html.dark [class*="bg-slate-100"],
 html.dark [class*="bg-slate-200"],
 html.dark [class*="bg-[#F8FAFC]"],
 html.dark [class*="bg-[#f8fafc]"] {
-  background-color: #1E293B !important;
-  color: #F8FAFC !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
 }
 
 html.dark [class*="bg-slate-800"],
 html.dark [class*="bg-slate-900"],
 html.dark [class*="bg-slate-950"] {
-  background-color: #0B0F17 !important;
-  color: #F8FAFC !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
 }
 
 html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
 html.dark p, html.dark span, html.dark div, html.dark a, html.dark label,
 html.dark li, html.dark td, html.dark th, html.dark dt, html.dark dd, html.dark strong {
-  color: #F8FAFC !important;
-  -webkit-text-fill-color: #F8FAFC !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
 }
 
 html.dark [class*="text-slate-400"],
@@ -385,22 +388,22 @@ html.dark [class*="text-slate-500"],
 html.dark [class*="text-slate-600"],
 html.dark [class*="text-gray-400"],
 html.dark [class*="text-gray-500"] {
-  color: #94A3B8 !important;
-  -webkit-text-fill-color: #94A3B8 !important;
+  color: #FF6B00 !important;
+  -webkit-text-fill-color: #FF6B00 !important;
 }
 
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 html.dark select,
 html.dark textarea {
-  background-color: #0F172A !important;
-  color: #F8FAFC !important;
-  border-color: #334155 !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
+  border-color: #FF6B00 !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: #64748B !important;
-  -webkit-text-fill-color: #64748B !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 html.dark div[class*="border-"],
@@ -408,38 +411,38 @@ html.dark section[class*="border-"],
 html.dark header[class*="border-"],
 html.dark aside[class*="border-"],
 html.dark table, html.dark th, html.dark td {
-  border-color: #334155 !important;
+  border-color: #FF6B00 !important;
 }
 
 /* Enhanced Table Contrast in Dark Mode */
 html.dark thead {
-  background-color: #0B0F17 !important;
-  border-bottom: 2px solid #334155 !important;
+  background-color: #0F2A4A !important;
+  border-bottom: 2px solid #FF6B00 !important;
 }
 
 html.dark tr:nth-child(even) {
-  background-color: rgba(30, 41, 59, 0.3) !important;
+  background-color: rgba(15, 42, 74, 0.5) !important;
 }
 
 html.dark tr:hover {
-  background-color: rgba(30, 41, 59, 0.6) !important;
+  background-color: rgba(255, 107, 0, 0.15) !important;
 }
 
 html.dark th {
-  color: #38BDF8 !important;
+  color: #FF6B00 !important;
   font-weight: 800 !important;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 html.dark td {
-  color: #E2E8F0 !important;
+  color: #FFFFFF !important;
 }
 
 html.dark svg.lucide {
-  color: #38BDF8 !important;
-  stroke: #38BDF8 !important;
-  stroke-width: 2px;
+  color: #FF6B00 !important;
+  stroke: #FF6B00 !important;
+  stroke-width: 2.2px;
 }
 
 html.dark button,
@@ -447,28 +450,28 @@ html.dark [type="button"],
 html.dark [type="submit"],
 html.dark [type="reset"],
 html.dark [role="button"] {
-  background-color: #1E293B !important;
-  color: #F8FAFC !important;
-  -webkit-text-fill-color: #F8FAFC !important;
-  border: 2px solid #334155 !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+  background-color: #0F2A4A !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border: 2px solid #FF6B00 !important;
+  box-shadow: 0 0 12px rgba(255, 107, 0, 0.3) !important;
 }
 
 html.dark button:hover,
 html.dark [type="button"]:hover,
 html.dark [type="submit"]:hover {
-  background-color: #334155 !important;
-  border-color: #38BDF8 !important;
-  color: #38BDF8 !important;
-  -webkit-text-fill-color: #38BDF8 !important;
+  background-color: #FF6B00 !important;
+  border-color: #FFFFFF !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
 }
 
 html.dark button:active,
 html.dark button[aria-pressed="true"] {
-  background-color: #0284C7 !important;
+  background-color: #FF6B00 !important;
   color: #FFFFFF !important;
   -webkit-text-fill-color: #FFFFFF !important;
-  border-color: #38BDF8 !important;
+  border-color: #FFFFFF !important;
 }
 
 /* ==========================================================================
