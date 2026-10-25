@@ -78,7 +78,6 @@ import { LiveStatusIndicator } from './LiveStatusIndicator';
 import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
-import { RadarBrandLogo } from './RadarBrandLogo';
 import { BayyaaLogo } from './BayyaaLogo';
 
 interface HeaderProps {

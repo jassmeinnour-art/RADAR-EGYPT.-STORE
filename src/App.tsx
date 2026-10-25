@@ -54,6 +54,7 @@ import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
 import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryDrawer';
 import { useTheme } from './context/ThemeContext';
 import { AudioNotificationProvider } from './context/AudioNotificationContext';
+import { BayyaaLogo } from './components/BayyaaLogo';
 
 const OnboardingTour = React.lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 const PaymentModal = React.lazy(() => import('./components/PaymentModal'));
@@ -573,6 +574,30 @@ export default function App() {
             {/* Merchant Top Header Navigation Tabs */}
             <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
               <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
+                {/* Standalone Official Bayyaa Marketplace Header Graphic */}
+                <div 
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-2xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-md shadow-[#0F2A4A]/30 shrink-0 hover:scale-105 transition-all cursor-pointer"
+                  onClick={() => setActiveWorkspaceTab('merchants')}
+                  title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
+                    <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-black text-white font-['Alexandria']">
+                        منصة بياع
+                      </span>
+                      <span className="text-[8px] font-black bg-[#FF6B00] text-white px-1 py-0.2 rounded">
+                        رسمي
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-amber-400 font-extrabold tracking-wider uppercase font-mono">
+                      Bayyaa EG
+                    </span>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => setActiveWorkspaceTab('merchants')}
                   title="لوحة التاجر (اختصار: Ctrl+1)"
@@ -746,6 +771,50 @@ export default function App() {
             ) : (
               <div className={`${isFocusMode ? 'max-w-full' : 'max-w-7xl'} mx-auto px-4 py-8 space-y-8 transition-all duration-300`}>
                 
+                {/* Standalone Official Bayyaa Marketplace Promotional Banner */}
+                {!isFocusMode && (
+                  <div className="w-full bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_12px_45px_rgba(15,42,74,0.65)] relative overflow-hidden text-right ring-4 ring-[#FF6B00]/25" dir="rtl">
+                    <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-[#FF6B00]/25 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/20 rounded-full blur-2xl pointer-events-none" />
+
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                      <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
+                        <BayyaaLogo variant="banner" showText={true} className="shrink-0" />
+                        <div>
+                          <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
+                            <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/30">
+                              منصة بياع (Bayyaa) الرسمية
+                            </span>
+                            <span className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide">
+                              سوق إلكتروني متكامل للتاجر المصري
+                            </span>
+                          </div>
+                          <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-[#FFFFFF] tracking-tight font-['Alexandria'] leading-tight">
+                            🚀 انضم الآن إلى منصة بياع (Bayyaa) - ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
+                          </h3>
+                          <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1.5">
+                            عمولة تنافسية، تحويل فوري للأرباح، ربط شامل للمخزون، ولوحة تحكم ذكية مدعومة بالذكاء الاصطناعي.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 w-full md:w-auto justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveWorkspaceTab('merchants');
+                            showToast('مرحباً بك في منصة بياع - استعرض كتالوج المنتجات وابدأ البيع 🛍️');
+                          }}
+                          className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black text-sm shadow-xl shadow-[#FF6B00]/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border-2 border-white ring-2 ring-[#FF6B00]/30 whitespace-nowrap"
+                        >
+                          <span>اشترك الآن وأضف منتجاتك في منصة بياع 🛍️</span>
+                          <ArrowRight className="w-4 h-4 rotate-180" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 1. Owner Dashboard Banner */}
                 {isOwner && !isFocusMode && (
                   <button 

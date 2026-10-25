@@ -28,7 +28,6 @@ import {
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { PWAInstallButton } from './PWAInstallButton';
 import { InvestorPitchDeckModal } from './InvestorPitchDeckModal';
-import { RadarBrandLogo } from './RadarBrandLogo';
 import { BayyaaLogo } from './BayyaaLogo';
 import { ErrorBoundary } from './ErrorBoundary';
 
