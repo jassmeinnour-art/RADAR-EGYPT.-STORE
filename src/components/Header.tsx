@@ -575,8 +575,8 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
-              <div className="w-10 h-10 rounded-xl bg-[#F8FAFC] p-0.5 flex items-center justify-center shadow-xs border-2 border-[#000000] shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
-                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain rounded-lg" />
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-md border-2 border-[#FF6B00] shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
               </div>
               <div>
                 <div className="flex items-center gap-2">

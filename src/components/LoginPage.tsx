@@ -288,11 +288,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           
           {/* Logo & Platform Info */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
-              <RadarBrandLogo className="w-6 h-6 text-slate-950" />
-            </div>
-            <div className="w-8 h-8 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shadow-md shrink-0 border border-white/20 overflow-hidden" title="منصة بياع (Bayyaa)">
-              <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-lg" />
+            <div className="w-12 h-12 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-lg border-2 border-[#FF6B00] shrink-0 overflow-hidden" title="منصة بياع (Bayyaa)">
+              <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -455,10 +452,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
-                {/* Prominent Enlarged Exact Bayyaa Logo Image */}
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#0F2A4A] p-1.5 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(255,107,0,0.6)] border-4 border-[#FF6B00] overflow-hidden transform hover:scale-105 transition-transform duration-300">
-                  <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-cover rounded-2xl" />
-                </div>
+                <BayyaaLogo variant="banner" showText={false} className="shrink-0" />
                 <div>
                   <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
                     <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/20">

@@ -70,17 +70,18 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
 
   if (variant === 'banner') {
     return (
-      <div className={`flex items-center gap-3 shrink-0 ${className}`}>
-        <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#FF6B00] to-[#E05E00] p-1 shadow-lg shadow-[#FF6B00]/30 border-2 border-white/20 shrink-0 flex items-center justify-center overflow-hidden group">
+      <div className={`flex items-center gap-4 shrink-0 ${className}`}>
+        {/* Exact Standalone Bayyaa Logo - Prominent & Distinct */}
+        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white p-0.5 shadow-xl shadow-black/10 shrink-0 flex items-center justify-center overflow-hidden group border border-slate-100">
           {renderImageOrFallback()}
         </div>
         {showText && (
           <div className="flex flex-col text-right">
-            <span className="font-extrabold text-white text-base sm:text-lg leading-tight tracking-tight font-['Alexandria']">
+            <span className="font-black text-white text-lg sm:text-2xl leading-tight tracking-tight font-['Alexandria']">
               منصة بياع
             </span>
-            <span className="text-xs text-amber-300 font-bold font-mono tracking-wider">
-              BAYYAA PLATFORM
+            <span className="text-sm text-amber-400 font-black tracking-[0.2em] uppercase">
+              Bayyaa Platform
             </span>
           </div>
         )}
@@ -90,8 +91,8 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
 
   if (variant === 'badge') {
     return (
-      <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-[#0F2A4A] border border-[#FF6B00]/50 shadow-sm shrink-0 ${className}`}>
-        <div className="w-6 h-6 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-[#FF6B00] p-0.5">
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-sm shrink-0 ${className}`}>
+        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-white p-0.5">
           {renderImageOrFallback()}
         </div>
         <span className="text-xs font-black text-white font-['Alexandria']">

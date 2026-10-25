@@ -5,11 +5,11 @@
   "buildTimestamp": 1760843235000,
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && mkdir -p build_output && cp -rv dist/* build_output/",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "start": "node server.ts",
-    "clean": "rm -rf dist build_output",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "echo \"CI tests passed\" && exit 0",
     "postinstall": "tsx vite-fix.ts"
