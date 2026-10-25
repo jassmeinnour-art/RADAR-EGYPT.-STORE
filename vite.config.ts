@@ -17,13 +17,16 @@ export default defineConfig({
         id: '/',
         name: 'Merchant Radar Egypt | رادار التاجر المصري',
         short_name: 'Radar Egypt',
-        description: 'منصة ذكية لمتابعة المنتجات والأسعار في السوق المصري مع تحليلات ذكية - رادار التاجر',
-        theme_color: '#F8FAFC',
-        background_color: '#F8FAFC',
+        description: 'منصة ذكية لمتابعة المنتجات والأسعار في السوق المصري مع تحليلات ذكية - رادار التاجر منصة بياع',
+        theme_color: '#FF6B00',
+        background_color: '#0F2A4A',
         display: 'standalone',
-        orientation: 'portrait',
+        orientation: 'any',
         start_url: '/',
         scope: '/',
+        dir: 'rtl',
+        lang: 'ar-EG',
+        iarc_rating_id: 'IARC-4A73-1994',
         icons: [
           {
             src: '/pwa-192x192.png',
@@ -43,7 +46,55 @@ export default defineConfig({
             type: 'image/png',
             purpose: 'maskable'
           }
-        ]
+        ],
+        file_handlers: [
+          {
+            action: '/?import=catalog',
+            name: 'سجل أسعار وكتالوج المنتجات',
+            accept: {
+              'text/csv': ['.csv'],
+              'application/vnd.ms-excel': ['.xls'],
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+            },
+            icons: [
+              {
+                src: '/pwa-192x192.png',
+                sizes: '192x192',
+                type: 'image/png'
+              }
+            ]
+          }
+        ],
+        protocol_handlers: [
+          {
+            protocol: 'web+radar',
+            url: '/?product_link=%s'
+          },
+          {
+            protocol: 'web+bayyaa',
+            url: '/?merchant_id=%s'
+          }
+        ],
+        scope_extensions: [
+          {
+            origin: 'https://radaregypt.store'
+          },
+          {
+            origin: '*.bayyaa.eg'
+          }
+        ],
+        related_applications: [
+          {
+            platform: 'play',
+            url: 'https://play.google.com/store/apps/details?id=com.merchantradaregy.app',
+            id: 'com.merchantradaregy.app'
+          },
+          {
+            platform: 'webapp',
+            url: 'https://radaregypt.store/manifest.json'
+          }
+        ],
+        prefer_related_applications: false
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,

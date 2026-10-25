@@ -1,16 +1,17 @@
 {
-  "name": "رادار التاجر الذكي",
-  "short_name": "رادار التاجر",
-  "description": "منصة ذكية للتجار لتحليل الأسعار والمنافسة في السوق المصري",
   "id": "/",
+  "name": "رادار التاجر الذكي | Merchant Radar & Bayyaa",
+  "short_name": "رادار التاجر",
+  "description": "منصة ذكية لمتابعة السلع والأسعار والمنافسة وتحليل الأسواق في مصر مع ربط مباشر لمنصة بياع وأمازون ونون",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#ffffff",
-  "theme_color": "#0f172a",
+  "background_color": "#0F2A4A",
+  "theme_color": "#FF6B00",
   "dir": "rtl",
   "lang": "ar-EG",
+  "iarc_rating_id": "IARC-4A73-1994",
   "icons": [
     {
       "src": "/pwa-192x192.png",
@@ -22,7 +23,13 @@
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
@@ -31,7 +38,7 @@
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "رادار التاجر الذكي - لوحة التحكم"
+      "label": "رادار التاجر الذكي - لوحة أداء التجارة والتسعير"
     },
     {
       "src": "/pwa-512x512.png",
@@ -43,7 +50,7 @@
   ],
   "shortcuts": [
     {
-      "name": "البحث عن منتج",
+      "name": "البحث الفوري عن منتج",
       "short_name": "بحث",
       "description": "ابحث عن أي منتج في السوق المصري",
       "url": "/?action=search",
@@ -55,10 +62,22 @@
       ]
     },
     {
-      "name": "الأسعار اليوم",
+      "name": "رادار أسعار اليوم",
       "short_name": "الأسعار",
-      "description": "شاهد أسعار اليوم",
+      "description": "مقارنة حية لأسعار أمازون ونون وجوميا",
       "url": "/?action=prices",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "شبكة عروض الموردين",
+      "short_name": "الموردين",
+      "description": "عروض خامات ومصانع الأثاث والجملة",
+      "url": "/?action=suppliers",
       "icons": [
         {
           "src": "/pwa-192x192.png",
@@ -70,7 +89,8 @@
   "categories": [
     "business",
     "shopping",
-    "productivity"
+    "productivity",
+    "finance"
   ],
   "display_override": [
     "window-controls-overlay",
@@ -83,13 +103,40 @@
       "auto"
     ]
   },
-  "handle_links": "preferred",
-  "edge_side_panel": {
-    "preferred_width": 400
-  },
+  "file_handlers": [
+    {
+      "action": "/?import=catalog",
+      "name": "سجل أسعار وكتالوج المنتجات",
+      "accept": {
+        "text/csv": [".csv"],
+        "application/vnd.ms-excel": [".xls"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+      },
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+radar",
+      "url": "/?product_link=%s"
+    },
+    {
+      "protocol": "web+bayyaa",
+      "url": "/?merchant_id=%s"
+    }
+  ],
   "scope_extensions": [
     {
       "origin": "https://radaregypt.store"
+    },
+    {
+      "origin": "*.bayyaa.eg"
     }
   ],
   "share_target": {
@@ -101,6 +148,16 @@
       "url": "url"
     }
   },
-  "related_applications": [],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.merchantradaregy.app",
+      "id": "com.merchantradaregy.app"
+    },
+    {
+      "platform": "webapp",
+      "url": "https://radaregypt.store/manifest.json"
+    }
+  ],
   "prefer_related_applications": false
 }
