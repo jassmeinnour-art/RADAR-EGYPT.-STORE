@@ -21,6 +21,7 @@ export default defineConfig({
         theme_color: '#FF6B00',
         background_color: '#0F2A4A',
         display: 'standalone',
+        display_override: ['tabbed', 'standalone', 'window-controls-overlay'],
         orientation: 'any',
         start_url: '/',
         scope: '/',
@@ -29,6 +30,9 @@ export default defineConfig({
         iarc_rating_id: 'urn:iarc:pegi:3',
         edge_side_panel: {
           preferred_width: 480
+        },
+        note_taking: {
+          new_note_url: '/?action=new_note'
         },
         widgets: [
           {

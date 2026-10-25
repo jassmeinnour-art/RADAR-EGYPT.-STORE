@@ -6,6 +6,11 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "tabbed",
+    "standalone",
+    "window-controls-overlay"
+  ],
   "orientation": "any",
   "background_color": "#0F2A4A",
   "theme_color": "#FF6B00",
@@ -14,6 +19,9 @@
   "iarc_rating_id": "urn:iarc:pegi:3",
   "edge_side_panel": {
     "preferred_width": 480
+  },
+  "note_taking": {
+    "new_note_url": "/?action=new_note"
   },
   "widgets": [
     {
@@ -124,11 +132,6 @@
     "productivity",
     "finance"
   ],
-  "display_override": [
-    "window-controls-overlay",
-    "standalone",
-    "browser"
-  ],
   "launch_handler": {
     "client_mode": [
       "navigate-existing",
@@ -169,6 +172,9 @@
     },
     {
       "origin": "*.bayyaa.eg"
+    },
+    {
+      "origin": "*.radaregypt.store"
     }
   ],
   "share_target": {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'radar-egypt-v49';
+const CACHE_NAME = 'radar-egypt-v50';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -31,6 +31,53 @@ self.addEventListener('activate', event => {
     })
   );
   self.clients.claim();
+});
+
+// Periodic Background Sync Event Handler (Refreshes market price data in background)
+self.addEventListener('periodicsync', event => {
+  if (event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh') {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(cache => {
+        return fetch('/widgets/price-tracker.json').then(res => {
+          if (res && res.status === 200) {
+            cache.put('/widgets/price-tracker.json', res.clone());
+            return self.clients.matchAll().then(clients => {
+              clients.forEach(client => {
+                client.postMessage({ type: 'PERIODIC_SYNC_UPDATE', tag: event.tag, timestamp: Date.now() });
+              });
+            });
+          }
+        }).catch(() => {});
+      })
+    );
+  }
+});
+
+// One-shot Background Sync Event Handler (Syncs offline merchant actions when reconnected)
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-merchant-data' || event.tag === 'radar-price-sync') {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(cache => {
+        return fetch('/manifest.json').then(res => {
+          if (res && res.status === 200) {
+            cache.put('/manifest.json', res.clone());
+            return self.clients.matchAll().then(clients => {
+              clients.forEach(client => {
+                client.postMessage({ type: 'BACKGROUND_SYNC_COMPLETE', tag: event.tag, timestamp: Date.now() });
+              });
+            });
+          }
+        }).catch(() => {});
+      })
+    );
+  }
+});
+
+// Message Event Handler for Client Commands
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch Event: Network-First for navigation, Cache-First with Stale-While-Revalidate for static assets

@@ -170,6 +170,17 @@
             navigator.serviceWorker.register('/sw.js', { scope: '/' })
               .then(function(reg) {
                 console.log('ServiceWorker registered with scope:', reg.scope);
+                if ('periodicSync' in reg) {
+                  try {
+                    navigator.permissions.query({ name: 'periodic-background-sync' }).then(function(status) {
+                      if (status.state === 'granted') {
+                        reg.periodicSync.register('radar-price-update', {
+                          minInterval: 24 * 60 * 60 * 1000
+                        }).catch(function() {});
+                      }
+                    }).catch(function() {});
+                  } catch(e) {}
+                }
               })
               .catch(function(err) {
                 console.warn('ServiceWorker registration failed:', err);
