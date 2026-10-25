@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "رادار التاجر الذكي | Merchant Radar &amp; Bayyaa",
+  "name": "رادار التاجر الذكي | Merchant Radar &amp;amp; Bayyaa",
   "short_name": "رادار التاجر",
   "description": "منصة ذكية لمتابعة السلع والأسعار والمنافسة وتحليل الأسواق في مصر مع ربط مباشر لمنصة بياع وأمازون ونون",
   "start_url": "/",
@@ -193,11 +193,37 @@
     {
       "platform": "play",
       "url": "https://play.google.com/store/apps/details?id=com.merchantradaregy.app",
-      "id": "com.merchantradaregy.app"
+      "id": "radaregypt.store"
     },
     {
       "platform": "webapp",
-      "url": "https://radaregypt.store/manifest.json"
+      "url": "https://radaregypt.store/manifest.json",
+      "id": "radaregypt.store"
+    },
+    {
+      "platform": "windows",
+      "url": "https://radaregypt.store/",
+      "id": "radaregypt.store"
+    },
+    {
+      "platform": "chrome_web_store",
+      "url": "https://radaregypt.store/",
+      "id": "radaregypt.store"
+    },
+    {
+      "platform": "amazon",
+      "url": "https://radaregypt.store/",
+      "id": "radaregypt.store"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://radaregypt.store/",
+      "id": "radaregypt.store"
+    },
+    {
+      "platform": "f-droid",
+      "url": "https://radaregypt.store/",
+      "id": "radaregypt.store"
     }
   ],
   "prefer_related_applications": false
