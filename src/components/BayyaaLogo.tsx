@@ -3,42 +3,52 @@ import React, { useState } from 'react';
 interface BayyaaLogoProps {
   className?: string;
   imgClassName?: string;
-  variant?: 'icon' | 'full' | 'banner' | 'badge';
+  variant?: 'icon' | 'full' | 'banner' | 'badge' | 'header' | 'standalone';
   alt?: string;
   showText?: boolean;
 }
 
 /**
- * Bayyaa Logo Component (منصة بياع - Bayyaa Logo)
- * Renders the actual uploaded Bayyaa brand image logo file with responsive scaling,
- * maintaining proper aspect ratio and visual clarity across mobile and desktop views.
+ * Bayyaa Logo Component (منصة بياع - Official Bayyaa Standalone Logo)
+ * Completely isolated from 'Radar' branding.
+ * Renders the exact official uploaded Bayyaa logo image (orange background with shopping cart and 'Bayyaa / بياع' text)
+ * as a standalone, prominent brand element with responsive scaling.
  */
 export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
   className = '',
   imgClassName = 'w-full h-full object-contain',
   variant = 'icon',
-  alt = 'منصة بياع - Bayyaa Logo',
+  alt = 'منصة بياع الرسمية - Official Bayyaa Platform',
   showText = false
 }) => {
   const [imgError, setImgError] = useState(false);
+  const [usePngFallback, setUsePngFallback] = useState(false);
 
   // Preferred public image paths for the actual Bayyaa logo image
-  const logoSrc = '/bayyaa-logo.jpg';
+  const logoSrc = usePngFallback ? '/bayyaa-logo.png' : '/bayyaa-logo.jpg';
 
-  const renderImageOrFallback = () => {
+  const handleImageError = () => {
+    if (!usePngFallback) {
+      setUsePngFallback(true);
+    } else {
+      setImgError(true);
+    }
+  };
+
+  const renderLogoImage = () => {
     if (!imgError) {
       return (
         <img
           src={logoSrc}
           alt={alt}
-          onError={() => setImgError(true)}
-          className={`select-none rounded-xl ${imgClassName}`}
+          onError={handleImageError}
+          className={`select-none transition-transform duration-300 ${imgClassName}`}
           loading="eager"
         />
       );
     }
 
-    // Elegant Vector SVG Fallback with Bayyaa branding typography & emblem
+    // High-fidelity Vector SVG Fallback with exact Bayyaa branding colors (#FF6B00, #0F2A4A, #FFFFFF)
     return (
       <svg
         viewBox="0 0 200 200"
@@ -50,20 +60,15 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
           <linearGradient id="bayyaaOrangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#FF8C00" />
             <stop offset="50%" stopColor="#FF6B00" />
-            <stop offset="100%" stopColor="#D94100" />
+            <stop offset="100%" stopColor="#E05E00" />
           </linearGradient>
-          <radialGradient id="bayyaaDarkGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#1E293B" />
-            <stop offset="100%" stopColor="#0F172A" />
-          </radialGradient>
         </defs>
-        <rect width="200" height="200" rx="44" fill="url(#bayyaaDarkGlow)" stroke="url(#bayyaaOrangeGrad)" strokeWidth="6" />
-        {/* Shopping Cart & Speed Slash Icon */}
-        <path d="M 50 65 L 70 65 L 85 125 L 155 125 L 168 80 L 78 80" fill="none" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="95" cy="148" r="12" fill="#FF6B00" />
-        <circle cx="145" cy="148" r="12" fill="#FF6B00" />
-        {/* Bayyaa Arabic Typography Emblem Accent */}
-        <path d="M 120 45 Q 140 25 160 45" fill="none" stroke="#FF8C00" strokeWidth="6" strokeLinecap="round" />
+        <rect width="200" height="200" rx="36" fill="url(#bayyaaOrangeGrad)" />
+        {/* Shopping Cart & Movement Speed Slashes */}
+        <path d="M 45 65 L 68 65 L 85 125 L 155 125 L 168 80 L 76 80" fill="none" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="95" cy="150" r="13" fill="#FFFFFF" />
+        <circle cx="145" cy="150" r="13" fill="#FFFFFF" />
+        <text x="100" y="45" fill="#FFFFFF" fontSize="24" fontWeight="900" fontFamily="sans-serif" textAnchor="middle">بياع • BAYYAA</text>
       </svg>
     );
   };
@@ -71,17 +76,46 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
   if (variant === 'banner') {
     return (
       <div className={`flex items-center gap-4 shrink-0 ${className}`}>
-        {/* Exact Standalone Bayyaa Logo - Prominent & Distinct */}
-        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white p-0.5 shadow-xl shadow-black/10 shrink-0 flex items-center justify-center overflow-hidden group border border-slate-100">
-          {renderImageOrFallback()}
+        {/* Exact Standalone Bayyaa Logo - Large, Prominent & Distinct */}
+        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#FF6B00] p-1.5 shadow-2xl shadow-[#FF6B00]/40 shrink-0 flex items-center justify-center overflow-hidden border-3 border-white ring-4 ring-[#FF6B00]/30 hover:scale-105 transition-all">
+          <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
+            {renderLogoImage()}
+          </div>
         </div>
         {showText && (
           <div className="flex flex-col text-right">
-            <span className="font-black text-white text-lg sm:text-2xl leading-tight tracking-tight font-['Alexandria']">
+            <span className="font-black text-white text-xl sm:text-3xl leading-tight tracking-tight font-['Alexandria'] drop-shadow-md">
               منصة بياع
             </span>
-            <span className="text-sm text-amber-400 font-black tracking-[0.2em] uppercase">
-              Bayyaa Platform
+            <span className="text-sm sm:text-base text-amber-300 font-black tracking-[0.25em] uppercase drop-shadow-sm">
+              Bayyaa Marketplace
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (variant === 'header') {
+    return (
+      <div className={`flex items-center gap-3 shrink-0 ${className}`}>
+        <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#FF6B00] p-1 shadow-lg shadow-[#FF6B00]/30 shrink-0 flex items-center justify-center overflow-hidden border-2 border-white ring-2 ring-[#FF6B00]/40 hover:scale-105 transition-all">
+          <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center">
+            {renderLogoImage()}
+          </div>
+        </div>
+        {showText && (
+          <div className="flex flex-col text-right">
+            <div className="flex items-center gap-1.5">
+              <span className="font-black text-sm sm:text-base text-slate-900 dark:text-white font-['Alexandria']">
+                منصة بياع
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-[#FF6B00] text-white">
+                رسمي
+              </span>
+            </div>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-extrabold tracking-wider uppercase font-mono">
+              Bayyaa EG
             </span>
           </div>
         )}
@@ -91,20 +125,35 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
 
   if (variant === 'badge') {
     return (
-      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-sm shrink-0 ${className}`}>
-        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-white p-0.5">
-          {renderImageOrFallback()}
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-md shadow-[#0F2A4A]/40 shrink-0 ${className}`}>
+        <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-white p-0.5 border border-[#FF6B00]/40">
+          {renderLogoImage()}
         </div>
-        <span className="text-xs font-black text-white font-['Alexandria']">
-          منصة بياع (Bayyaa)
-        </span>
+        <div className="flex flex-col text-right">
+          <span className="text-xs font-black text-white font-['Alexandria']">
+            منصة بياع
+          </span>
+          <span className="text-[9px] text-amber-400 font-bold tracking-wider uppercase">
+            Bayyaa Hub
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'standalone') {
+    return (
+      <div className={`relative rounded-3xl bg-[#FF6B00] p-2 shadow-2xl shadow-[#FF6B00]/40 border-3 border-white ring-4 ring-[#FF6B00]/30 shrink-0 flex items-center justify-center overflow-hidden ${className}`}>
+        <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center p-1">
+          {renderLogoImage()}
+        </div>
       </div>
     );
   }
 
   return (
     <div className={`relative shrink-0 flex items-center justify-center ${className}`}>
-      {renderImageOrFallback()}
+      {renderLogoImage()}
     </div>
   );
 };

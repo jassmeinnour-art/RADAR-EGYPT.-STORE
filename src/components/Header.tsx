@@ -571,25 +571,47 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-xs sm:text-sm font-bold hidden md:inline">جميع الأقسام والشاشات</span>
             </button>
 
+            {/* Main Radar Brand Identity */}
             <div
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-md border-2 border-[#FF6B00] shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
-                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
-              </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold text-[#000000]">
-                    رادار التاجر الذكي &amp; منصة بياع
+                    رادار التاجر الذكي
                   </h1>
-                  <span className="text-[10px] font-extrabold bg-[#FF6B00] text-white border border-[#FF6B00] px-2 py-0.5 rounded-md hidden lg:inline-block font-mono" dir="ltr">
-                    BAYYAA &amp; RADAR
+                  <span className="text-[10px] font-extrabold bg-[#000000] text-amber-300 border border-[#000000] px-2 py-0.5 rounded-md hidden lg:inline-block font-mono" dir="ltr">
+                    RADAR EG
                   </span>
                 </div>
                 <p className="text-[11px] text-[#000000] font-semibold hidden sm:block">
-                  Amazon.eg · Noon · Jumia · Bayyaa — العمليات اليومية السريعة
+                  Amazon.eg · Noon · Jumia — منصة تتبع الأسعار والعمليات اليومية
                 </p>
+              </div>
+            </div>
+
+            {/* Standalone Official Bayyaa Marketplace Header Graphic */}
+            <div
+              className="flex items-center gap-2 px-2.5 py-1 rounded-2xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-md shadow-[#0F2A4A]/20 cursor-pointer hover:scale-105 transition-all"
+              onClick={() => setActiveTab('products')}
+              title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
+            >
+              <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
+                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+              </div>
+              <div className="flex flex-col text-right">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-black text-white font-['Alexandria']">
+                    منصة بياع
+                  </span>
+                  <span className="text-[8px] font-black bg-[#FF6B00] text-white px-1 py-0.2 rounded">
+                    رسمي
+                  </span>
+                </div>
+                <span className="text-[9px] text-amber-400 font-extrabold tracking-wider uppercase font-mono">
+                  Bayyaa
+                </span>
               </div>
             </div>
           </div>

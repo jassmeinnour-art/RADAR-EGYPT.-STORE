@@ -33,7 +33,8 @@ import {
   FileSpreadsheet,
   X,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Store
 } from 'lucide-react';
 import { 
   auth, 
@@ -82,6 +83,14 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  };
 
   useEffect(() => {
     const handleOpenHub = () => setIsAllMerchantsHubOpen(true);
@@ -329,7 +338,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      alert('خطأ في تسجيل الدخول. يرجى التحقق من البيانات.');
+      showToast('خطأ في تسجيل الدخول. يرجى التحقق من البيانات.');
     } finally {
       setAuthLoading(false);
     }
@@ -487,7 +496,7 @@ export default function App() {
         }
       });
     } else {
-      alert('الرجاء تثبيت التطبيق من إعدادات المتصفح (قائمة المشاركة/النقاط الثلاث -> إضافة للشاشة الرئيسية).');
+      showToast('الرجاء تثبيت التطبيق من إعدادات المتصفح (قائمة المشاركة/النقاط الثلاث -> إضافة للشاشة الرئيسية).');
     }
   };
 
@@ -504,12 +513,8 @@ export default function App() {
   };
 
   const downloadApk = () => {
-    const link = document.createElement('a');
-    link.href = '/radar-al-tajer-signed.apk';
-    link.download = 'radar-al-tajer-signed.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Direct location invocation triggers Android native DownloadManager with APK package headers
+    window.location.href = '/radar-al-tajer-signed.apk';
   };
 
   const InstallationBar = () => (
@@ -552,7 +557,7 @@ export default function App() {
       <AllMerchantsDirectoryDrawer 
         isOpen={isAllMerchantsHubOpen} 
         onClose={() => setIsAllMerchantsHubOpen(false)} 
-        onShowToast={(msg) => alert(msg)} 
+        onShowToast={showToast} 
       />
       {isAuthenticated ? (
         showOwnerDashboard && isOwner ? (
@@ -683,6 +688,14 @@ export default function App() {
 
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => setIsAllMerchantsHubOpen(true)}
+                  title="دليل كافة التجار والمتاجر في السوق المصري"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-950/70 text-emerald-300 hover:text-emerald-100 border border-emerald-500/40 shadow-sm hover:scale-105 active:scale-95"
+                >
+                  <Store className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline">دليل التجار</span>
+                </button>
+                <button
                   onClick={() => setIsFocusMode(!isFocusMode)}
                   title={isFocusMode ? "إيقاف وضع التركيز" : "تفعيل وضع التركيز"}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
@@ -723,7 +736,7 @@ export default function App() {
               </div>
             ) : activeWorkspaceTab === 'ai_studio' ? (
               <div className="max-w-7xl mx-auto px-4 py-8">
-                <AIProductStudio onShowToast={(msg) => alert(msg)} />
+                <AIProductStudio onShowToast={showToast} />
               </div>
             ) : activeWorkspaceTab === 'help' ? (
               <HelpPage 
@@ -914,6 +927,23 @@ export default function App() {
           onLoginSuccess={() => setIsAuthenticated(true)} 
           onBackToLanding={() => setAuthMode('landing')} 
         />
+      )}
+
+      {/* Floating Animated Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] max-w-md bg-[#0F2A4A] text-white border-2 border-[#FF6B00] px-5 py-3.5 rounded-2xl shadow-2xl shadow-black/70 flex items-center gap-3 transition-all animate-bounce-subtle ring-4 ring-[#FF6B00]/20" dir="rtl">
+          <div className="w-8 h-8 rounded-xl bg-[#FF6B00] text-white flex items-center justify-center shrink-0 shadow-md">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-xs sm:text-sm font-black flex-1 leading-snug">{toastMessage}</span>
+          <button 
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer transition-colors"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </Suspense>
     </AudioNotificationProvider>

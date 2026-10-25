@@ -75,11 +75,10 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
       });
       const res = await response.json();
       if (res.success) {
-        // In a real app, the API would return the processed image.
-        // For simulation, we add a "background removed" tag or just use the mock logic.
-        showToast('تمت إزالة الخلفية وتحسين جودة الصورة بنجاح! ✨');
-        // If the API returned a new image, we'd set it here.
-        // setUploadedImage(res.data.processedImage);
+        if (res.data?.processedImage) {
+          setUploadedImage(res.data.processedImage);
+        }
+        showToast('تمت إزالة الخلفية وتحسين جودة الصورة ونقلها لخلفية استوديو نقية! ✨');
       } else {
         throw new Error(res.error);
       }

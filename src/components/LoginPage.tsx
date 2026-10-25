@@ -286,22 +286,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           
-          {/* Logo & Platform Info */}
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-lg border-2 border-[#FF6B00] shrink-0 overflow-hidden" title="منصة بياع (Bayyaa)">
-              <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+          {/* Standalone Official Bayyaa Logo Graphic */}
+          <div className="flex items-center gap-3.5">
+            <div className="relative w-14 h-14 rounded-2xl bg-[#FF6B00] p-1 flex items-center justify-center shadow-xl border-2 border-white ring-2 ring-[#FF6B00]/40 shrink-0 overflow-hidden" title="منصة بياع الرسمية (Bayyaa Platform)">
+              <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center">
+                <BayyaaLogo variant="icon" className="w-full h-full" imgClassName="w-full h-full object-contain" />
+              </div>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-sm text-white font-['Alexandria'] tracking-wide">
-                  رادار التاجر &amp; منصة بياع (Bayyaa)
+                <span className="font-black text-base text-white font-['Alexandria'] tracking-wide">
+                  منصة بياع (Bayyaa)
                 </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF6B00] text-white">
-                  Bayyaa Hub
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#FF6B00] text-white shadow-sm border border-white/30">
+                  شريك التسوق الرسمي
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                بوابة التاجر الموحدة لإدارة المتاجر والبيع عبر بياع وأمازون ونون
+              <p className="text-[12px] text-amber-300 font-bold hidden sm:block">
+                بوابة التاجر المعتمدة للربط والبيع عبر منصة بياع وأسواق أمازون ونون
               </p>
             </div>
           </div>
@@ -445,24 +447,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             </p>
           </div>
 
-          {/* Bayyaa Platform Promotional Banner & Logo */}
-          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_10px_35px_rgba(15,42,74,0.5)] relative overflow-hidden text-right" dir="rtl">
-            <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-[#FF6B00]/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/15 rounded-full blur-2xl pointer-events-none" />
+          {/* Bayyaa Platform Promotional Banner & Standalone Logo */}
+          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_12px_45px_rgba(15,42,74,0.65)] relative overflow-hidden text-right ring-4 ring-[#FF6B00]/25" dir="rtl">
+            <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-[#FF6B00]/25 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/20 rounded-full blur-2xl pointer-events-none" />
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
-                <BayyaaLogo variant="banner" showText={false} className="shrink-0" />
+                <BayyaaLogo variant="banner" showText={true} className="shrink-0" />
                 <div>
                   <div className="flex items-center justify-center sm:justify-start gap-2.5 flex-wrap mb-2">
-                    <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/20">
+                    <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/30">
                       منصة بياع (Bayyaa) الرسمية
                     </span>
-                    <span className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide">شريك التسوق والبيع الجديد</span>
+                    <span className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide">
+                      سوق إلكتروني متكامل للتاجر المصري
+                    </span>
                   </div>
                   <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-[#FFFFFF] tracking-tight font-['Alexandria'] leading-tight">
                     🚀 انضم الآن إلى منصة بياع (Bayyaa) - ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
                   </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1.5">
+                    عمولة تنافسية، تحويل فوري للأرباح، ربط شامل للمخزون، ولوحة تحكم ذكية مدعومة بالذكاء الاصطناعي.
+                  </p>
                 </div>
               </div>
 
@@ -473,7 +480,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
                     setMerchantAuthMode('signup');
                     showToast('تم اختيار التسجيل في منصة بياع - أكمل بيانات المتجر أدناه 🛒');
                   }}
-                  className="w-full md:w-auto px-5 py-3 rounded-2xl bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black text-xs sm:text-sm shadow-xl shadow-[#FF6B00]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-white/20"
+                  className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black text-sm shadow-xl shadow-[#FF6B00]/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border-2 border-white ring-2 ring-[#FF6B00]/30"
                 >
                   <span>اشترك الآن وأضف منتجاتك في منصة بياع 🛍️</span>
                   <ArrowLeft className="w-4 h-4" />

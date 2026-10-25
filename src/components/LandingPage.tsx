@@ -4,12 +4,8 @@ import { ThemeToggle } from './ThemeToggle';
 
 export default function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   const downloadApk = () => {
-    const link = document.createElement('a');
-    link.href = '/radar-al-tajer-signed.apk';
-    link.download = 'radar-al-tajer-signed.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Direct location invocation triggers Android native DownloadManager with APK package headers
+    window.location.href = '/radar-al-tajer-signed.apk';
   };
 
   const features = [
