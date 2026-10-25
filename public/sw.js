@@ -1,4 +1,4 @@
-const CACHE_NAME = 'radar-egypt-v50';
+const CACHE_NAME = 'radar-egypt-v51';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -80,7 +80,7 @@ self.addEventListener('message', event => {
   }
 });
 
-// Fetch Event: Network-First for navigation, Cache-First with Stale-While-Revalidate for static assets
+// Fetch Event: Cache-First strategy for static assets, Network-First for navigation
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   
@@ -100,34 +100,44 @@ self.addEventListener('fetch', event => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
-        .then(networkResponse => {
+        .then(async networkResponse => {
           if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         })
-        .catch(() => {
-          return caches.match('/index.html') || caches.match(event.request);
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          const cached = await cache.match('/index.html');
+          return cached || fetch(event.request);
         })
     );
     return;
   }
 
-  // Static Assets & Resources: Serve from cache, update in background
-  event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      const fetchPromise = fetch(event.request)
-        .then(networkResponse => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
+  // Cache-First strategy for static assets and cached resources
+  event.respondWith(async () => {
+    const cache = await caches.open(CACHE_NAME);
 
-      return cachedResponse || fetchPromise;
-    })
-  );
+    // match the request to our cache
+    const cachedResponse = await cache.match(event.request);
+
+    // check if we got a valid response
+    if (cachedResponse !== undefined) {
+      // Cache hit, return the resource
+      return cachedResponse;
+    } else {
+      // Otherwise, go to the network and populate cache
+      try {
+        const networkResponse = await fetch(event.request);
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          cache.put(event.request, networkResponse.clone());
+        }
+        return networkResponse;
+      } catch (err) {
+        return cachedResponse;
+      }
+    }
+  });
 });
