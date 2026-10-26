@@ -27,7 +27,11 @@
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
-    "noEmit": true
+    "noEmit": true,
+    "types": [
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ]
   },
   "include": [
     "src",

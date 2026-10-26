@@ -1,21 +1,31 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    tailwindcss()
+  ],
+  server: {
+    port: 3000,
+    host: true,
+    strictPort: true,
+    hmr: false,
+  },
+  preview: {
+    port: 3000,
+    host: true,
+  },
   build: {
     minify: 'esbuild',
-    cssMinify: 'esbuild',
     sourcemap: false,
-    target: 'es2015',
-    rollupOptions: {
-      output: {
-        manualChunks: { vendor: ['react', 'react-dom'] },
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-      },
-    },
+    chunkSizeWarningLimit: 3000,
   },
-  esbuild: { legalComments: 'none', minifyIdentifiers: true, minifySyntax: true, minifyWhitespace: true, drop: ['console','debugger'] },
-})
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/tests/setup.ts'],
+    css: true,
+  },
+});
