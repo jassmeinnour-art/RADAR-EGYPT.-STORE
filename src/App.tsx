@@ -90,24 +90,41 @@ const Header = React.memo(function Header({
   const { soundEnabled, toggleSound } = useContext(AudioContext);
 
   return (
-    <header style={{ background: '#0f172a', color: '#fff', padding: '12px 20px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => setPath('/')} role="button" tabIndex={0}>
-        <div style={{ fontWeight: 800, fontSize: 18 }}>رادار التاجر الذكي</div>
+    <header style={{ 
+      background: '#0f172a', 
+      color: '#fff', 
+      padding: '16px 24px', 
+      position: 'sticky', 
+      top: 0, 
+      zIndex: 50, 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setPath('/')}>
+        <div style={{ background: '#3b82f6', color: '#fff', padding: '8px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px' }}>رادار</div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '18px' }}>رادار التاجر الذكي</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8' }}>RADAR EGYPT</div>
+        </div>
       </div>
 
-      <nav aria-label="الرئيسية" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <nav style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {PAGES.map(p => (
           <button
             key={p.path}
             onClick={() => setPath(p.path)}
             style={{
-              background: currentPath === p.path ? '#2563eb' : 'transparent',
+              background: currentPath === p.path ? '#2563eb' : '#1e293b',
               color: '#fff',
-              border: 'none',
-              padding: '6px 14px',
-              borderRadius: '6px',
+              border: currentPath === p.path ? '2px solid #60a5fa' : '1px solid #334155',
+              padding: '8px 16px',
+              borderRadius: '8px',
               cursor: 'pointer',
-              fontWeight: currentPath === p.path ? 700 : 400
+              fontWeight: currentPath === p.path ? 700 : 500,
+              fontSize: '14px',
+              transition: 'all 0.2s'
             }}
           >
             {p.label}
@@ -117,7 +134,16 @@ const Header = React.memo(function Header({
 
       <button
         onClick={toggleSound}
-        style={{ background: '#1e293b', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+        style={{ 
+          background: '#334155', 
+          border: '1px solid #475569', 
+          color: '#fff', 
+          padding: '8px 14px', 
+          borderRadius: '8px', 
+          cursor: 'pointer', 
+          fontSize: '13px',
+          fontWeight: 'bold'
+        }}
       >
         {soundEnabled ? '🔔 الصوت مفعل' : '🔕 مكتوم'}
       </button>
@@ -131,50 +157,50 @@ export default function App() {
   return (
     <WatchlistProvider>
       <AudioNotificationProvider>
-        <div dir="rtl" style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, sans-serif' }}>
+        <div dir="rtl" style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           <Header currentPath={currentPath} setPath={setPath} />
 
-          <main style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+          <main style={{ padding: '40px 20px', maxWidth: '1000px', margin: '0 auto' }}>
             {currentPath === '/' && (
-              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>رادار التاجر الذكي</h1>
-                <p style={{ fontSize: '18px', color: '#64748b', marginBottom: '24px' }}>
-                  منصة ذكية لتحليل السوق المصري
+              <div style={{ textAlign: 'center', background: '#fff', padding: '50px 30px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h1 style={{ fontSize: '36px', marginBottom: '16px', color: '#0f172a' }}>رادار التاجر الذكي</h1>
+                <p style={{ fontSize: '18px', color: '#64748b', marginBottom: '30px' }}>
+                  منصة ذكية متكاملة لتحليل السوق المصري ومتابعة المنافسين على أمازون ونون
                 </p>
                 <button
                   onClick={() => setPath('/dashboard')}
-                  style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
+                  style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '14px 32px', borderRadius: '10px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
                 >
-                  🚀 لوحة التحكم
+                  🚀 الدخول إلى لوحة التحكم
                 </button>
               </div>
             )}
 
             {currentPath === '/dashboard' && (
-              <div>
-                <h2>📊 لوحة التحكم الرئيسية</h2>
-                <p style={{ color: '#64748b' }}>أهلاً بك في رادار التاجر! متابعة تحليلات السوق والمبيعات.</p>
+              <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h2 style={{ fontSize: '24px', marginBottom: '12px', color: '#0f172a' }}>📊 لوحة التحكم الرئيسية</h2>
+                <p style={{ color: '#64748b', fontSize: '16px' }}>أهلاً بك يا جاسمين! هنا يتم متابعة تحليلات السوق، والمبيعات، وحالة المنتجات مباشرة.</p>
               </div>
             )}
 
             {currentPath === '/search' && (
-              <div>
-                <h2>🔍 بحث السوق والمنتجات</h2>
-                <p style={{ color: '#64748b' }}>مراقبة المنافسين وتحليل المنتجات والأقسام.</p>
+              <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h2 style={{ fontSize: '24px', marginBottom: '12px', color: '#0f172a' }}>🔍 بحث السوق والمنتجات</h2>
+                <p style={{ color: '#64748b', fontSize: '16px' }}>أداة البحث المتقدم لمراقبة المنافسين وتحليل أسعار الفئات المختلفة.</p>
               </div>
             )}
 
             {currentPath === '/pricing' && (
-              <div>
-                <h2>💰 خطط الأسعار والاشتراكات</h2>
-                <p style={{ color: '#64748b' }}>اختر الخطة المناسبة لحجم تجارتك.</p>
+              <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h2 style={{ fontSize: '24px', marginBottom: '12px', color: '#0f172a' }}>💰 خطط الأسعار والاشتراكات</h2>
+                <p style={{ color: '#64748b', fontSize: '16px' }}>استعرض الباقات المتاحة لتطوير أعمالك وتجارتك الإلكترونية.</p>
               </div>
             )}
 
             {currentPath === '/features' && (
-              <div>
-                <h2>⭐ مميزات المنصة</h2>
-                <p style={{ color: '#64748b' }}>تعرف على الأدوات الذكية المتاحة لك.</p>
+              <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h2 style={{ fontSize: '24px', marginBottom: '12px', color: '#0f172a' }}>⭐ مميزات المنصة</h2>
+                <p style={{ color: '#64748b', fontSize: '16px' }}>تعرف على الخصائص والأدوات الذكية المصممة خصيصاً لتجار السوق المصري.</p>
               </div>
             )}
           </main>
