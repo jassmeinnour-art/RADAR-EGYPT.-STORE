@@ -16,7 +16,10 @@
   "theme_color": "#FF6B00",
   "dir": "rtl",
   "lang": "ar-EG",
-  "iarc_rating_id": "PEGI 3",
+  "iarc_rating_id": "e58c67c5-5555-4444-9999-radaregypt",
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "note_taking": {
     "new_note_url": "/?action=new_note"
   },

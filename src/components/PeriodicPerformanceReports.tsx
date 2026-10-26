@@ -68,6 +68,8 @@ import {
 } from '../types';
 import { generatePeriodicReport } from '../data/periodicReportsData';
 import { safeOpenUrl } from '../utils/safeWindowOpen';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface PeriodicPerformanceReportsProps {
   allProducts: ProductData[];
@@ -242,6 +244,58 @@ ${report.aiExecutiveSummary}
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(`*تقرير الأداء والمبيعات الدوري (${report.periodLabel})* 📊\n\n• إجمالي المبيعات: *${report.totalSalesVolumeEGP.toLocaleString()} ${currency}* (+${report.totalSalesVolumeGrowth}%)\n• صافي الربح: *${report.totalNetProfitEGP.toLocaleString()} ${currency}* (${report.overallProfitMarginPercent}%)\n• نسبة الفوز بالـ Buy Box: *${report.overallBuyBoxWinRatePercent}%*\n• عدد الطلبات: *${report.totalOrdersCount} طلب*\n\n_تفاصيل المنصات:_\n- أمازون: ${report.platformBreakdown[0]?.salesVolumeEGP.toLocaleString()} ج.م (${report.platformBreakdown[0]?.buyBoxWinRatePercent}% Buy Box)\n- نون: ${report.platformBreakdown[1]?.salesVolumeEGP.toLocaleString()} ج.م (${report.platformBreakdown[1]?.buyBoxWinRatePercent}% Buy Box)\n- جوميا: ${report.platformBreakdown[2]?.salesVolumeEGP.toLocaleString()} ج.م\n\n_تم الاستخراج والاعتماد عبر رادار التاجر الذكي_ ✅`);
     safeOpenUrl(`https://wa.me/?text=${text}`);
+  };
+
+  // Export formatted PDF using jsPDF and html2canvas
+  const handleExportJsPdf = async () => {
+    if (!reportPrintRef.current) {
+      if (onShowToast) onShowToast('عذراً، عنصر التقرير غير جاهز للتصدير');
+      return;
+    }
+
+    if (onShowToast) onShowToast('جاري توليد ملف الـ PDF الاحترافي بتنسيق A4... 📄');
+
+    try {
+      const canvas = await html2canvas(reportPrintRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      let heightLeft = pdfHeight;
+      let position = 0;
+      let pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`periodic_performance_report_${report.periodType}_${Date.now()}.pdf`);
+
+      if (onShowToast) {
+        onShowToast('تم تصدير وحفظ التقرير بصيغة PDF الاحترافية بنجاح! 📥');
+      }
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      if (onShowToast) onShowToast('حدث خطأ أثناء تصدير ملف الـ PDF');
+    }
   };
 
   // Print Report
@@ -1085,6 +1139,14 @@ ${report.aiExecutiveSummary}
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportJsPdf}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>تصدير PDF احترافي (jsPDF) 📑</span>
+                </button>
+
                 <button
                   onClick={handlePrint}
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs"
