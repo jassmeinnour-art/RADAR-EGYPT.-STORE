@@ -13,6 +13,9 @@ export default defineConfig({
     strictPort: true,
     hmr: false,
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-dom/client', 'lucide-react', 'canvas-confetti'],
+  },
   preview: {
     port: 3000,
     host: true,

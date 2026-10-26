@@ -60,19 +60,33 @@ import { BayyaaLogo } from './components/BayyaaLogo';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
 
+function extractComponent(module: any): React.ComponentType<any> {
+  if (!module) return (() => null) as any;
+  if (typeof module === 'function') return module;
+  if (module.default) {
+    if (typeof module.default === 'function') return module.default;
+    return extractComponent(module.default);
+  }
+  const keys = Object.keys(module);
+  for (const k of keys) {
+    if (typeof module[k] === 'function') return module[k];
+  }
+  return module;
+}
+
 function safeLazy<T extends React.ComponentType<any>>(
-  factory: () => Promise<{ default: T } | any>
+  factory: () => Promise<any>
 ) {
   return React.lazy(async () => {
     try {
       const module = await factory();
-      return module.default ? module : { default: module };
+      return { default: extractComponent(module) };
     } catch (error) {
       console.warn('Dynamic module import failed, retrying once...', error);
       try {
         await new Promise((resolve) => setTimeout(resolve, 300));
         const module = await factory();
-        return module.default ? module : { default: module };
+        return { default: extractComponent(module) };
       } catch (retryError) {
         console.error('Dynamic module import failed after retry:', retryError);
         throw retryError;
