@@ -8,6 +8,7 @@ import { ThemeProvider } from "./context/ThemeContext"
 import { AsyncOperationsProvider } from "./context/AsyncOperationsContext"
 import { AudioNotificationProvider } from "./context/AudioNotificationContext"
 import { LanguageProvider } from "./context/LanguageContext"
+import { VisualCustomizerProvider } from "./context/VisualCustomizerContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 
@@ -53,9 +54,11 @@ if (root) {
             <LanguageProvider>
               <AsyncOperationsProvider>
                 <AudioNotificationProvider>
-                  <App />
-                  <Analytics />
-                  <SpeedInsights />
+                  <VisualCustomizerProvider>
+                    <App />
+                    <Analytics />
+                    <SpeedInsights />
+                  </VisualCustomizerProvider>
                 </AudioNotificationProvider>
               </AsyncOperationsProvider>
             </LanguageProvider>

@@ -79,6 +79,8 @@ import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { BayyaaLogo } from './BayyaaLogo';
+import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import headerBrandLogo from '../assets/images/regenerated_image_1793023955535.png';
 
 interface HeaderProps {
   activeTab: string;
@@ -222,6 +224,7 @@ export const Header: React.FC<HeaderProps> = ({
   onPullOrders,
 }) => {
   const { isPlatformSyncing, isCsvExporting, isDatabaseBusy } = useAsyncOperations();
+  const { toggleCustomizer } = useVisualCustomizer();
   const { settings: audioSettings, setActiveGlobalSettingsTab } = useAudioNotifications();
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isExportOverdue, setIsExportOverdue] = useState<boolean>(false);
@@ -598,7 +601,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
                 <img
-                  src="/bayyaa-logo.jpg"
+                  src={headerBrandLogo}
                   alt="منصة بياع الرسمية"
                   className="w-full h-full object-contain select-none"
                   loading="eager"
@@ -606,7 +609,7 @@ export const Header: React.FC<HeaderProps> = ({
                     const target = e.currentTarget;
                     if (!target.dataset.triedWhatsapp) {
                       target.dataset.triedWhatsapp = 'true';
-                      target.src = '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg';
+                      target.src = '/bayyaa-logo.jpg';
                     } else {
                       target.src = '/bayyaa-logo.png';
                     }
@@ -699,6 +702,19 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="whitespace-nowrap">دليل ملفات جميع التجار 👥</span>
               </button>
             </div>
+
+            {/* زر تنسيق الأزرار والواجهة (Visual Style Control Panel) */}
+            <button
+              type="button"
+              id="btn-header-visual-customizer-toolbar"
+              onClick={toggleCustomizer}
+              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-black rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group hover:bg-amber-100/70 shrink-0 select-none whitespace-nowrap"
+              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
+            >
+              <Palette className="w-4 h-4 shrink-0 text-[#FF6B00] group-hover:scale-110 transition-transform" />
+              <span className="font-extrabold whitespace-nowrap">🎨 تنسيق الأزرار والواجهة</span>
+            </button>
+
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (
               <button

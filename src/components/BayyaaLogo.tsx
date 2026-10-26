@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import headerBrandLogo from '../assets/images/regenerated_image_1793023955535.png';
+import officialBayyaaImage from '../assets/images/regenerated_image_1792996566255.jpg';
 
 interface BayyaaLogoProps {
   className?: string;
@@ -22,8 +24,13 @@ export const BayyaaLogo: React.FC<BayyaaLogoProps> = ({
   alt = 'منصة بياع الرسمية - Official Bayyaa Marketplace Logo',
   showText = false
 }) => {
-  // Ordered sources prioritizing the exact uploaded asset name followed by standard fallbacks
+  // Ordered sources prioritizing the newly regenerated official asset
   const imageSources = [
+    headerBrandLogo,
+    officialBayyaaImage,
+    '/regenerated_image_1793023955535.png',
+    '/regenerated_image_1792996566255.jpg',
+    '/36909.jpg',
     '/bayyaa-logo.jpg',
     '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg',
     '/bayyaa-official-logo.jpg',

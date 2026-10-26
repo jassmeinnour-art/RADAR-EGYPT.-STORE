@@ -23,13 +23,18 @@ import {
   Monitor,
   Tablet,
   RotateCcw,
-  Key
+  Key,
+  Sliders,
+  Palette
 } from 'lucide-react';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { PWAInstallButton } from './PWAInstallButton';
 import { InvestorPitchDeckModal } from './InvestorPitchDeckModal';
 import { BayyaaLogo } from './BayyaaLogo';
 import { ErrorBoundary } from './ErrorBoundary';
+import { useVisualCustomizer, DEFAULT_VISUAL_SETTINGS } from '../context/VisualCustomizerContext';
+import { VisualCustomizerModal } from './VisualCustomizerModal';
+import officialBayyaaImage from '../assets/images/regenerated_image_1792996566255.jpg';
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -51,6 +56,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
     clearLoginError,
     isDbConnected
   } = useAuth();
+
+  const { settings: visualSettings, toggleCustomizer } = useVisualCustomizer();
 
   // Mode and form states
   const [activeMobileTab, setActiveMobileTab] = useState<'merchant' | 'owner'>('merchant');
@@ -413,6 +420,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
               <span className="hidden xl:inline">{isDbConnected ? 'Firebase متصل' : 'تهيئة النطاقات'}</span>
             </button>
 
+            {/* Visual Style Control Panel Launch Button */}
+            <button
+              type="button"
+              onClick={toggleCustomizer}
+              id="btn-open-visual-customizer-login"
+              className="h-8 px-3 rounded-lg bg-gradient-to-r from-amber-500/20 via-[#FF6B00]/25 to-amber-500/20 hover:from-amber-500/35 hover:to-[#FF6B00]/40 border border-amber-400/40 text-amber-300 font-extrabold flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 whitespace-nowrap"
+              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <span>🎨 تنسيق الأزرار والواجهة</span>
+            </button>
+
             <PWAInstallButton variant="header" />
           </div>
         </div>
@@ -461,18 +480,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           </div>
 
           {/* Bayyaa Platform Promotional Banner & Standalone Logo */}
-          <div className="w-full max-w-4xl mb-6 bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_12px_45px_rgba(15,42,74,0.65)] relative overflow-hidden text-right ring-4 ring-[#FF6B00]/25" dir="rtl">
+          <div 
+            className="w-full mb-6 bg-[#0F2A4A] border-3 border-[#FF6B00] rounded-3xl p-6 sm:p-8 shadow-[0_12px_45px_rgba(15,42,74,0.65)] relative overflow-hidden text-right ring-4 ring-[#FF6B00]/25 transition-all duration-300"
+            style={{ maxWidth: `${visualSettings.cardMaxWidth}px` }} 
+            dir="rtl"
+          >
             <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-[#FF6B00]/25 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/20 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-              <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-right">
+            <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 relative z-10">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-right">
                 {/* Official Uploaded Bayyaa Logo Graphic - Directly injected & Hardcoded */}
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#FF6B00] p-1.5 shadow-2xl shadow-[#FF6B00]/40 shrink-0 flex items-center justify-center overflow-hidden border-3 border-white ring-4 ring-[#FF6B00]/30 hover:scale-105 transition-all">
                     <div className="w-full h-full rounded-2xl overflow-hidden bg-[#FF6B00] flex items-center justify-center">
                       <img
-                        src="/36909.jpg"
+                        src={officialBayyaaImage}
                         alt="شعار منصة بياع الرسمي - Official Bayyaa Logo"
                         className="w-full h-full object-contain select-none transition-transform duration-300"
                         loading="eager"
@@ -493,29 +516,101 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
                     <span className="px-3 py-1 rounded-full bg-[#FF6B00] text-white font-black text-xs tracking-wider uppercase shadow-md border border-white/30">
                       منصة بياع (Bayyaa) الرسمية
                     </span>
-                    <span className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide">
-                      سوق إلكتروني متكامل للتاجر المصري
-                    </span>
                   </div>
-                  <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-[#FFFFFF] tracking-tight font-['Alexandria'] leading-tight">
-                    🚀 انضم الآن إلى منصة بياع (Bayyaa) - ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1.5">
-                    عمولة تنافسية، تحويل فوري للأرباح، ربط شامل للمخزون، ولوحة تحكم ذكية مدعومة بالذكاء الاصطناعي.
-                  </p>
+                  <div className="space-y-1">
+                    <h3 
+                      className="font-black text-[#FFFFFF] tracking-tight font-['Alexandria']"
+                      style={{ 
+                        fontSize: `${visualSettings.titleFontSize}px`,
+                        whiteSpace: visualSettings.textWrapMode 
+                      }}
+                    >
+                      🚀 انضم الآن إلى منصة بياع
+                    </h3>
+                    <div className="text-base sm:text-lg font-black text-[#FF6B00] font-mono tracking-widest uppercase">
+                      (Bayyaa)
+                    </div>
+                    <p 
+                      className="text-amber-200 font-bold"
+                      style={{ 
+                        fontSize: `${visualSettings.bodyFontSize}px`,
+                        whiteSpace: visualSettings.textWrapMode 
+                      }}
+                    >
+                      ابدأ بإدراج منتجاتك وتوسيع مبيعاتك عبر منصتنا الجديدة!
+                    </p>
+                    <p 
+                      className="text-xs text-slate-300 font-medium pt-1 text-right"
+                      style={{ 
+                        whiteSpace: visualSettings.textWrapMode,
+                        transform: 'translateX(3px)'
+                      }}
+                    >
+                      عمولة تنافسية، تحويل فوري للأرباح، ربط شامل للمخزون، ولوحة تحكم ذكية مدعومة بالذكاء الاصطناعي.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0 w-full md:w-auto justify-end">
+              <div 
+                className="flex flex-col items-center md:items-end shrink-0 w-full md:w-auto"
+                style={{
+                  justifyContent: visualSettings.buttonAlignment === 'right' 
+                    ? 'flex-start' 
+                    : visualSettings.buttonAlignment === 'left' 
+                    ? 'flex-end' 
+                    : 'center',
+                  marginTop: `${visualSettings.buttonMarginTop}px`
+                }}
+              >
+                <div 
+                  className="w-full flex items-center justify-center md:justify-end mb-1.5 px-1"
+                  style={{
+                    width: visualSettings.buttonWidthMode === 'full' 
+                      ? '100%' 
+                      : visualSettings.buttonWidthMode === 'custom' 
+                      ? `${visualSettings.buttonCustomWidth}px` 
+                      : 'auto',
+                    transform: `translateX(${visualSettings.buttonTranslateX}px)`,
+                    marginLeft: `${visualSettings.buttonMarginLeft}px`,
+                    marginRight: `${visualSettings.buttonMarginRight}px`,
+                  }}
+                >
+                  <span 
+                    className="text-xs sm:text-sm text-amber-300 font-extrabold tracking-wide"
+                    style={{ textAlign: 'justify' }}
+                  >
+                    سوق إلكتروني متكامل للتاجر المصري
+                  </span>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => {
                     setMerchantAuthMode('signup');
                     showToast('تم اختيار التسجيل في منصة بياع - أكمل بيانات المتجر أدناه 🛒');
                   }}
-                  className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black text-sm shadow-xl shadow-[#FF6B00]/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border-2 border-white ring-2 ring-[#FF6B00]/30"
+                  style={{
+                    width: visualSettings.buttonWidthMode === 'full' 
+                      ? '100%' 
+                      : visualSettings.buttonWidthMode === 'custom' 
+                      ? `${visualSettings.buttonCustomWidth}px` 
+                      : undefined,
+                    padding: `${visualSettings.buttonPaddingY}px ${visualSettings.buttonPaddingX}px`,
+                    marginTop: 0,
+                    marginLeft: `${visualSettings.buttonMarginLeft}px`,
+                    marginRight: `${visualSettings.buttonMarginRight}px`,
+                    transform: `translateX(${visualSettings.buttonTranslateX}px)`,
+                    borderRadius: `${visualSettings.buttonBorderRadius}px`,
+                    fontSize: `${visualSettings.buttonFontSize}px`,
+                    fontWeight: visualSettings.buttonFontWeight,
+                    whiteSpace: visualSettings.textWrapMode,
+                    background: `linear-gradient(135deg, ${visualSettings.buttonColorStart} 0%, ${visualSettings.buttonColorEnd} 100%)`,
+                    color: visualSettings.buttonTextColor
+                  }}
+                  className="w-full md:w-auto bg-[#FF6B00] hover:bg-[#e05e00] text-[#FFFFFF] font-black shadow-xl shadow-[#FF6B00]/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 border-2 border-white ring-2 ring-[#FF6B00]/30"
                 >
-                  <span>اشترك الآن وأضف منتجاتك في منصة بياع 🛍️</span>
+                  <span style={{ textAlign: 'right' }}>اشترك الآن وأضف منتجاتك في منصة بياع 🛍️</span>
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               </div>
@@ -1127,6 +1222,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
         </div>
       </footer>
 
+      {/* Visual Customizer Modal */}
+      <VisualCustomizerModal />
     </div>
   );
 };

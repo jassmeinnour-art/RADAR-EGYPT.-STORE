@@ -39,12 +39,14 @@ import {
   BarChart3,
   DollarSign,
   Printer,
-  Compass
+  Compass,
+  Palette
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
 import { useLanguage } from './context/LanguageContext';
 import { useSubscription } from './hooks/useSubscription';
+import { useVisualCustomizer } from './context/VisualCustomizerContext';
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -55,6 +57,8 @@ import { StatsMonitor } from './components/StatsMonitor';
 import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
+import { VisualCustomizerModal } from './components/VisualCustomizerModal';
+import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
 
 function safeLazy<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T } | any>
@@ -111,6 +115,7 @@ export type WorkspaceTab =
 
 export default function App() {
   const { toggleColorMode } = useTheme();
+  const { toggleCustomizer } = useVisualCustomizer();
   const { user, profile, isOwner: authIsOwner, signOut, isLoading: authLoading } = useAuth();
   
   // Local auth fallback for stored sessions
@@ -396,12 +401,17 @@ export default function App() {
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF6B00] to-amber-600 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20">
                 <img 
-                  src="/bayyaa-logo.jpg" 
+                  src={headerBrandLogo} 
                   alt="رادار التاجر - بياع" 
                   className="w-full h-full object-cover rounded-lg"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    target.src = '/pwa-192x192.png';
+                    if (!target.dataset.triedFallback) {
+                      target.dataset.triedFallback = 'true';
+                      target.src = '/bayyaa-logo.jpg';
+                    } else {
+                      target.src = '/pwa-192x192.png';
+                    }
                   }}
                 />
               </div>
@@ -440,6 +450,18 @@ export default function App() {
             >
               <Store className="w-3.5 h-3.5 text-emerald-400" />
               <span>دليل التجار</span>
+            </button>
+
+            {/* Visual Style Control Panel Launch Button */}
+            <button
+              type="button"
+              id="btn-header-visual-customizer-app"
+              onClick={toggleCustomizer}
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 via-[#FF6B00]/25 to-amber-500/20 hover:from-amber-500/35 hover:to-[#FF6B00]/40 border border-amber-400/40 text-amber-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <span>🎨 تنسيق الأزرار والواجهة</span>
             </button>
 
             <button
@@ -868,6 +890,8 @@ export default function App() {
           </div>
         </div>
       </footer>
+      {/* Visual Customizer Modal */}
+      <VisualCustomizerModal />
     </div>
   );
 }

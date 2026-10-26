@@ -176,6 +176,9 @@ export function generateCompetitorPriceDropMessage(params: {
   currency?: string;
   productId?: string;
   recommendedPrice?: number;
+  merchantName?: string;
+  storeName?: string;
+  region?: string;
 }): string {
   const {
     productTitle,
@@ -187,8 +190,32 @@ export function generateCompetitorPriceDropMessage(params: {
     currentMerchantPrice,
     currency = 'ج.م',
     productId,
-    recommendedPrice = Math.max(1, competitorNewPrice - 5)
+    recommendedPrice = Math.max(1, competitorNewPrice - 5),
+    merchantName,
+    storeName,
+    region
   } = params;
+
+  // Resolve active profile details if not passed explicitly
+  let activeMerchant = merchantName;
+  let activeStore = storeName;
+  let activeRegion = region;
+
+  if (typeof window !== 'undefined' && (!activeMerchant || !activeRegion)) {
+    try {
+      const activeId = localStorage.getItem('merchant_radar_active_profile_id_v1');
+      const profilesRaw = localStorage.getItem('merchant_radar_merchant_profiles_v1');
+      if (profilesRaw) {
+        const profiles = JSON.parse(profilesRaw);
+        const match = (Array.isArray(profiles) && activeId) ? profiles.find((p: any) => p.id === activeId) : null;
+        if (match) {
+          activeMerchant = activeMerchant || match.merchantName;
+          activeStore = activeStore || match.storeName;
+          activeRegion = activeRegion || match.region;
+        }
+      }
+    } catch {}
+  }
 
   const dropBelowTarget = Math.max(0, targetPrice - competitorNewPrice);
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://merchant-radar.duckdns.org';
@@ -196,6 +223,8 @@ export function generateCompetitorPriceDropMessage(params: {
 
   return [
     `🚨 *تنبيه رادار التاجر: هبوط سعر منافس دون السعر المستهدف!* 🚨`,
+    activeMerchant ? `👤 *التاجر المعتمد:* ${activeMerchant}${activeRegion ? ` (${activeRegion})` : ''}` : '',
+    activeStore ? `🏬 *المتجر:* ${activeStore}` : '',
     `━━━━━━━━━━━━━━━━━━━━`,
     `📦 *المنتج:* ${productTitle}`,
     sku ? `🏷️ *الكود (SKU):* ${sku}` : '',

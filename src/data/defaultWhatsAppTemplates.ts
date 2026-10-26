@@ -74,6 +74,18 @@ export const WHATSAPP_TEMPLATE_VARIABLES: WhatsAppTemplateVariable[] = [
     description: 'العملة المحلية (ج.م)'
   },
   {
+    key: '{merchant_phone}',
+    label: 'رقم واتساب التاجر النشط',
+    exampleValue: '01097751352',
+    description: 'رقم الواتساب المسجل لملف التاجر النشط لاستقبال الإشعارات'
+  },
+  {
+    key: '{region}',
+    label: 'المنطقة / المحافظة',
+    exampleValue: 'القاهرة - العتبة وشارع عبد العزيز',
+    description: 'المنطقة أو المحافظة التابع لها ملف التاجر النشط'
+  },
+  {
     key: '{reprice_direct_url}',
     label: 'رابط تعديل المنتج المباشر',
     exampleValue: 'https://merchant-radar.eg/reprice?id=B09FURNCHR1&target=3450',
@@ -245,10 +257,14 @@ export function fillTemplateVariables(
     currency?: string;
     includeRepriceUrl?: boolean;
     customRepriceUrl?: string;
+    merchantPhone?: string;
+    region?: string;
   }
 ): string {
   const currency = params.currency || 'ج.م';
   const merchantName = params.merchantName || 'متجر الصفوة للتجارة';
+  const merchantPhone = params.merchantPhone || '01097751352';
+  const region = params.region || 'القاهرة - العتبة وشارع عبد العزيز';
   const productTitle = params.productTitle || 'كرسي مكتب طبي هيدروليك مريح داعم للفقرات القطنية';
   const productId = params.productId || 'B09FURNCHR1';
   const oldPrice = params.oldPrice !== undefined ? params.oldPrice.toLocaleString() : '3,650';
@@ -270,6 +286,9 @@ export function fillTemplateVariables(
 
   let result = templateText;
   result = result.replace(/{merchant_name}/g, merchantName);
+  result = result.replace(/{merchant_phone}/g, merchantPhone);
+  result = result.replace(/{region}/g, region);
+  result = result.replace(/{merchant_region}/g, region);
   result = result.replace(/{product_name}/g, productTitle);
   result = result.replace(/{old_price}/g, oldPrice);
   result = result.replace(/{new_price}/g, newPrice);

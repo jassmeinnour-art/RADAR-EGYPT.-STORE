@@ -62,6 +62,15 @@ import {
 import { loadAllRegisteredMerchants, evaluateMerchantSubscriptionState } from '../utils/platformLaunchHelper';
 import { ExportReportsButton } from './ExportReportsButton';
 import { exportMerchantCatalogPricesToSpreadsheet } from '../utils/competitorPriceExport';
+import {
+  MerchantProfile,
+  getMerchantProfiles,
+  getActiveMerchantProfile,
+  setActiveMerchantProfile
+} from '../services/merchantProfileService';
+import { MerchantProfilesModal } from './MerchantProfilesModal';
+import { sendWhatsAppMessageToPhone } from '../services/whatsappService';
+import { SortableDashboardGrid, SortableDashboardCard } from './SortableDashboardGrid';
 
 interface MerchantCatalogManagerProps {
   selectedMerchant?: RemoteMerchantClient | null;
@@ -123,6 +132,64 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [isRunningAutoRepricer, setIsRunningAutoRepricer] = useState(false);
   const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Merchant Multi-Profiles State & Dialog
+  const [isProfilesModalOpen, setIsProfilesModalOpen] = useState(false);
+  const [activeMerchantProfile, setActiveMerchantProfileState] = useState<MerchantProfile>(() => getActiveMerchantProfile());
+  const [allProfiles, setAllProfiles] = useState<MerchantProfile[]>(() => getMerchantProfiles());
+  const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
+
+  // Sync profile when switched from any component or modal
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail?.profile) {
+        setActiveMerchantProfileState(e.detail.profile);
+        setAllProfiles(getMerchantProfiles());
+      }
+    };
+    window.addEventListener('merchant_profile_changed', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('merchant_profile_changed', handleProfileUpdate);
+    };
+  }, []);
+
+  const handleQuickSwitchProfile = (profileId: string) => {
+    try {
+      const updated = setActiveMerchantProfile(profileId);
+      setActiveMerchantProfileState(updated);
+      setAllProfiles(getMerchantProfiles());
+      if (onShowToast) {
+        onShowToast(`🎯 تم تبديل ملف التاجر النشط للتنبيهات إلى "${updated.profileName}"! رقم الواتساب: ${updated.whatsappNumber} (${updated.region})`);
+      }
+    } catch (err: any) {
+      if (onShowToast) onShowToast(err.message || 'تعذر تبديل الملف');
+    }
+  };
+
+  const handleQuickTestWhatsAppAlert = async () => {
+    setIsTestingWhatsApp(true);
+    try {
+      const msg = [
+        `🚨 *تنبيه تجريبي من رادار التاجر الذكي - مصر* 🇪🇬`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `👤 *التاجر المعتمد:* ${activeMerchantProfile.merchantName}`,
+        `🏬 *المتجر:* ${activeMerchantProfile.storeName}`,
+        `📍 *المنطقة:* ${activeMerchantProfile.region}`,
+        `📱 *رقم الواتساب النشط للتنبيهات:* ${activeMerchantProfile.whatsappNumber}`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `✅ يعمل نظام توجيه التنبيهات اللحظية وتبديل الأرقام بنجاح!`
+      ].join('\n');
+
+      await sendWhatsAppMessageToPhone(activeMerchantProfile.whatsappNumber, msg);
+      if (onShowToast) {
+        onShowToast(`📲 تم إرسال رسالة الاختبار بنجاح لواتساب (${activeMerchantProfile.whatsappNumber})!`);
+      }
+    } catch {
+      if (onShowToast) onShowToast('تعذر إرسال رسالة الاختبار');
+    } finally {
+      setIsTestingWhatsApp(false);
+    }
+  };
 
   // Automated Repricer Audit Logs & View Toggle
   const [auditLogs, setAuditLogs] = useState<RepricingAuditLogEntry[]>(() =>
@@ -799,102 +866,133 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         </div>
       </div>
 
-      {/* KPI Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        
-        {/* Total Products */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold">إجمالي الكتالوج</span>
-            <Package className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="text-xl font-black text-slate-900 font-mono">
-            {summary.totalProducts} <span className="text-xs font-normal text-slate-500">منتج</span>
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            {summary.amazonProductsCount} أمازون · {summary.noonProductsCount} نون
-          </div>
-        </div>
+      {/* KPI Overview Cards with Drag & Drop Reordering */}
+      <SortableDashboardGrid
+        storageKey={`radar_dashboard_kpi_order_${activeMerchantId}`}
+        defaultOrder={['total_products', 'buy_box_rate', 'needs_repricing', 'low_stock', 'price_gap', 'total_inventory']}
+        renderCard={(id) => {
+          switch (id) {
+            case 'total_products':
+              return (
+                <SortableDashboardCard key="total_products" id="total_products" title="إجمالي الكتالوج">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs h-full">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-bold">إجمالي الكتالوج</span>
+                      <Package className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="text-xl font-black text-slate-900 font-mono">
+                      {summary.totalProducts} <span className="text-xs font-normal text-slate-500">منتج</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      {summary.amazonProductsCount} أمازون · {summary.noonProductsCount} نون
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-        {/* Buy Box Win Rate */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold">الاستحواذ على Buy Box</span>
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-xl font-black text-emerald-600 font-mono">
-            {summary.buyBoxWinRatePercent}%
-          </div>
-          <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-            {summary.winningBuyBoxCount} من أصل {summary.totalProducts} منتج
-          </div>
-        </div>
+            case 'buy_box_rate':
+              return (
+                <SortableDashboardCard key="buy_box_rate" id="buy_box_rate" title="الاستحواذ على Buy Box">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs h-full">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-bold">الاستحواذ على Buy Box</span>
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="text-xl font-black text-emerald-600 font-mono">
+                      {summary.buyBoxWinRatePercent}%
+                    </div>
+                    <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                      {summary.winningBuyBoxCount} من أصل {summary.totalProducts} منتج
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-        {/* Needs Repricing Warning */}
-        <div className={`border rounded-2xl p-4 shadow-xs ${
-          summary.needsRepricingCount > 0 
-            ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
-            : 'bg-white border-slate-200 text-slate-900'
-        }`}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold">بحاجة لتعديل السعر</span>
-            <AlertTriangle className={`w-4 h-4 ${summary.needsRepricingCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-xl font-black font-mono ${summary.needsRepricingCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-            {summary.needsRepricingCount} <span className="text-xs font-normal">منتجات</span>
-          </div>
-          <div className="text-[11px] text-rose-700 font-medium mt-1">
-            فارق السعر أعلى من 10%
-          </div>
-        </div>
+            case 'needs_repricing':
+              return (
+                <SortableDashboardCard key="needs_repricing" id="needs_repricing" title="بحاجة لتعديل السعر">
+                  <div className={`border rounded-2xl p-4 shadow-xs h-full ${
+                    summary.needsRepricingCount > 0 
+                      ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
+                      : 'bg-white border-slate-200 text-slate-900'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold">بحاجة لتعديل السعر</span>
+                      <AlertTriangle className={`w-4 h-4 ${summary.needsRepricingCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+                    </div>
+                    <div className={`text-xl font-black font-mono ${summary.needsRepricingCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                      {summary.needsRepricingCount} <span className="text-xs font-normal">منتجات</span>
+                    </div>
+                    <div className="text-[11px] text-rose-700 font-medium mt-1">
+                      فارق السعر أعلى من 10%
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-        {/* Low Stock Alert */}
-        <div className={`border rounded-2xl p-4 shadow-xs ${
-          summary.lowStockCount > 0 
-            ? 'bg-amber-50/70 border-amber-200 text-amber-900' 
-            : 'bg-white border-slate-200 text-slate-900'
-        }`}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold">مخزون منخفض</span>
-            <AlertTriangle className={`w-4 h-4 ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-xl font-black font-mono ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-            {summary.lowStockCount} <span className="text-xs font-normal">منتجات</span>
-          </div>
-          <div className="text-[11px] text-amber-700 font-medium mt-1">
-            أقل من حد التنبيه
-          </div>
-        </div>
+            case 'low_stock':
+              return (
+                <SortableDashboardCard key="low_stock" id="low_stock" title="مخزون منخفض">
+                  <div className={`border rounded-2xl p-4 shadow-xs h-full ${
+                    summary.lowStockCount > 0 
+                      ? 'bg-amber-50/70 border-amber-200 text-amber-900' 
+                      : 'bg-white border-slate-200 text-slate-900'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold">مخزون منخفض</span>
+                      <AlertTriangle className={`w-4 h-4 ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+                    </div>
+                    <div className={`text-xl font-black font-mono ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                      {summary.lowStockCount} <span className="text-xs font-normal">منتجات</span>
+                    </div>
+                    <div className="text-[11px] text-amber-700 font-medium mt-1">
+                      أقل من حد التنبيه
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-        {/* Average Price Gap */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold">متوسط الفارق بالسوق</span>
-            <ArrowUpDown className="w-4 h-4 text-sky-600" />
-          </div>
-          <div className={`text-xl font-black font-mono ${summary.averagePriceGapPercent > 0 ? 'text-sky-600' : 'text-emerald-600'}`}>
-            {summary.averagePriceGapPercent > 0 ? `+${summary.averagePriceGapPercent}%` : `${summary.averagePriceGapPercent}%`}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            مقارنة بأدنى سعر منافس
-          </div>
-        </div>
+            case 'price_gap':
+              return (
+                <SortableDashboardCard key="price_gap" id="price_gap" title="متوسط الفارق بالسوق">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs h-full">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-bold">متوسط الفارق بالسوق</span>
+                      <ArrowUpDown className="w-4 h-4 text-sky-600" />
+                    </div>
+                    <div className={`text-xl font-black font-mono ${summary.averagePriceGapPercent > 0 ? 'text-sky-600' : 'text-emerald-600'}`}>
+                      {summary.averagePriceGapPercent > 0 ? `+${summary.averagePriceGapPercent}%` : `${summary.averagePriceGapPercent}%`}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      مقارنة بأدنى سعر منافس
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-        {/* Total Inventory Value */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold">إجمالي المخزون</span>
-            <DollarSign className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="text-xl font-black text-indigo-700 font-mono truncate">
-            {summary.totalCatalogValueEGP.toLocaleString('ar-EG')} <span className="text-xs font-normal">ج.م</span>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            {summary.totalInventoryQuantity.toLocaleString('ar-EG')} قطعة بالمستودع
-          </div>
-        </div>
+            case 'total_inventory':
+              return (
+                <SortableDashboardCard key="total_inventory" id="total_inventory" title="إجمالي المخزون" className="col-span-2 sm:col-span-1">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs h-full">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-bold">إجمالي المخزون</span>
+                      <DollarSign className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="text-xl font-black text-indigo-700 font-mono truncate">
+                      {summary.totalCatalogValueEGP.toLocaleString('ar-EG')} <span className="text-xs font-normal">ج.م</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      {summary.totalInventoryQuantity.toLocaleString('ar-EG')} قطعة بالمستودع
+                    </div>
+                  </div>
+                </SortableDashboardCard>
+              );
 
-      </div>
+            default:
+              return null;
+          }
+        }}
+      />
 
       {/* Floor Price Reached Warning Banner (تنبيه الوصول للحد الأدنى للسعر) */}
       {products.some(p => p.repricingRule?.floorPriceReached) && (
