@@ -160,21 +160,32 @@ export const AudioNotificationProvider: React.FC<{ children: React.ReactNode }> 
     });
   }, [settings.volume]);
 
+  const contextValue = React.useMemo(() => ({
+    settings,
+    updateSettings,
+    resetSettings,
+    playPriceAlertSound,
+    playCompetitorStatusSound,
+    playTonePreview,
+    isAudioModalOpen,
+    setIsAudioModalOpen,
+    activeGlobalSettingsTab,
+    setActiveGlobalSettingsTab
+  }), [
+    settings,
+    updateSettings,
+    resetSettings,
+    playPriceAlertSound,
+    playCompetitorStatusSound,
+    playTonePreview,
+    isAudioModalOpen,
+    setIsAudioModalOpen,
+    activeGlobalSettingsTab,
+    setActiveGlobalSettingsTab
+  ]);
+
   return (
-    <AudioNotificationContext.Provider
-      value={{
-        settings,
-        updateSettings,
-        resetSettings,
-        playPriceAlertSound,
-        playCompetitorStatusSound,
-        playTonePreview,
-        isAudioModalOpen,
-        setIsAudioModalOpen,
-        activeGlobalSettingsTab,
-        setActiveGlobalSettingsTab
-      }}
-    >
+    <AudioNotificationContext.Provider value={contextValue}>
       {children}
     </AudioNotificationContext.Provider>
   );

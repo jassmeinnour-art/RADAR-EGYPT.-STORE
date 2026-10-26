@@ -164,20 +164,30 @@ export const AsyncOperationsProvider: React.FC<{ children: React.ReactNode }> = 
   const isDatabaseBusy = activeOperations.some((op) => op.category === 'database');
   const isAnyBusy = activeOperations.length > 0;
 
+  const contextValue = React.useMemo(() => ({
+    activeOperations,
+    recentCompleted,
+    isPlatformSyncing,
+    isCsvExporting,
+    isDatabaseBusy,
+    isAnyBusy,
+    startOperation,
+    runWithLoading,
+    clearCompleted
+  }), [
+    activeOperations,
+    recentCompleted,
+    isPlatformSyncing,
+    isCsvExporting,
+    isDatabaseBusy,
+    isAnyBusy,
+    startOperation,
+    runWithLoading,
+    clearCompleted
+  ]);
+
   return (
-    <AsyncOperationsContext.Provider
-      value={{
-        activeOperations,
-        recentCompleted,
-        isPlatformSyncing,
-        isCsvExporting,
-        isDatabaseBusy,
-        isAnyBusy,
-        startOperation,
-        runWithLoading,
-        clearCompleted
-      }}
-    >
+    <AsyncOperationsContext.Provider value={contextValue}>
       {children}
     </AsyncOperationsContext.Provider>
   );

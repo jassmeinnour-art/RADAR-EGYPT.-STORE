@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "رادار التاجر الذكي | Merchant Radar &amp;amp; Bayyaa",
+  "name": "رادار التاجر الذكي | Merchant Radar & Bayyaa",
   "short_name": "رادار التاجر",
   "description": "منصة ذكية لمتابعة السلع والأسعار والمنافسة وتحليل الأسواق في مصر مع ربط مباشر لمنصة بياع وأمازون ونون",
   "start_url": "/",
@@ -67,25 +67,84 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "https://www.pwabuilder.com/assets/icons/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://www.pwabuilder.com/assets/icons/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/pwa-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/screenshot.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "رادار التاجر الذكي - لوحة أداء التجارة والتسعير"
+      "platform": "wide",
+      "label": "رادار التاجر الذكي - لوحة القيادة وتحليل الأسواق"
     },
     {
-      "src": "/pwa-512x512.png",
-      "sizes": "512x512",
+      "src": "/screenshots/desktop-1280x720.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "رادار التاجر الذكي - مراقبة أسعار المنافسين"
+    },
+    {
+      "src": "/screenshots/mobile-720x1280.png",
+      "sizes": "720x1280",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "رادار التاجر الذكي على الموبايل"
     }
   ],
   "shortcuts": [
+    {
+      "name": "لوحة التحكم الرئيسية",
+      "short_name": "الرئيسية",
+      "description": "الانتقال المباشر إلى لوحة قيادة رادار التاجر",
+      "url": "/?action=dashboard",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "تسجيل الدخول / الحساب",
+      "short_name": "دخول",
+      "description": "تسجيل الدخول الحساب أو إدارة الاشتراك",
+      "url": "/?action=login",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "كتالوج المنتجات والأسعار",
+      "short_name": "المنتجات",
+      "description": "استعراض ومتابعة قائمة المنتجات والأسعار",
+      "url": "/?action=products",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
     {
       "name": "البحث الفوري عن منتج",
       "short_name": "بحث",
@@ -94,19 +153,8 @@
       "icons": [
         {
           "src": "/pwa-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
-      "name": "رادار أسعار اليوم",
-      "short_name": "الأسعار",
-      "description": "مقارنة حية لأسعار أمازون ونون وجوميا",
-      "url": "/?action=prices",
-      "icons": [
-        {
-          "src": "/pwa-192x192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -118,7 +166,8 @@
       "icons": [
         {
           "src": "/pwa-192x192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
@@ -140,15 +189,9 @@
       "action": "/?import=catalog",
       "name": "سجل أسعار وكتالوج المنتجات",
       "accept": {
-        "text/csv": [
-          ".csv"
-        ],
-        "application/vnd.ms-excel": [
-          ".xls"
-        ],
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-          ".xlsx"
-        ]
+        "text/csv": [".csv"],
+        "application/vnd.ms-excel": [".xls"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
       },
       "icons": [
         {
@@ -157,6 +200,37 @@
           "type": "image/png"
         }
       ]
+    },
+    {
+      "action": "/open-pdf",
+      "name": "مستندات وبيانات المنتجات PDF",
+      "accept": {
+        "application/pdf": [".pdf"]
+      },
+      "icons": [
+        {
+          "src": "/pdf-icon.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    },
+    {
+      "action": "/show-model",
+      "name": "نماذج المنتجات ثلاثية الأبعاد",
+      "accept": {
+        "application/sla": [".stl"],
+        "application/octet-stream": [".fbx"]
+      },
+      "icons": [
+        {
+          "src": "/3d-printer-icon.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "multiple-clients"
     }
   ],
   "protocol_handlers": [
@@ -181,12 +255,19 @@
     }
   ],
   "share_target": {
-    "action": "/?share=true",
-    "method": "GET",
+    "action": "/collect-files",
+    "method": "POST",
+    "enctype": "multipart/form-data",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url"
+      "url": "url",
+      "files": [
+        {
+          "name": "lists",
+          "accept": ["text/csv", ".csv", "application/pdf", ".pdf"]
+        }
+      ]
     }
   },
   "related_applications": [

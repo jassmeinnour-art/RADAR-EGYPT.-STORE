@@ -39,7 +39,7 @@
         "imageUrl": { "type": "string", "maxLength": 1000 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
-        "lastUpdated": { "type": "string", "format": "date-time" }
+        "lastUpdated": { "type": "string", "format": "date-time" }, "alertThreshold": { "type": "number" }
       },
       "required": ["id", "userId", "title", "createdAt"]
     },

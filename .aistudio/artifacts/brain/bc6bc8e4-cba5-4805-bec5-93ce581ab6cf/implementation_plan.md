@@ -1,29 +1,28 @@
-# Implementation Plan: Enhancing Platform Features and Resilience
+# Implementation Plan - Fix Startup Entry Point & Preview Loading
 
-This plan addresses the accumulated requests, prioritized for foundation, security, and administrative efficiency.
+Verify and refine the application entry point script tags in `index.html`, review `vite.config.ts` configuration for preview and dev servers, and verify full compilation.
 
-## Phase 1: Legal and Onboarding (Foundation)
-- [ ] Create `TermsOfServiceModal` with mandatory consent for compliance.
-- [ ] Implement `InteractiveFeatureTour` inside `HelpCenterDrawer` for onboarding.
+## User Intent & Requirements
+1. **Entry Point Verification**: Ensure `index.html` references `/src/main.tsx` accurately with standard `<script type="module" src="/src/main.tsx"></script>` (removing redundant `defer` attribute on module script).
+2. **Preview & Server Configuration**: Ensure `vite.config.ts` has proper root paths, alias resolutions, base (`/`), CORS, and preview settings (`port: 3000`, `host: true`).
+3. **Build Verification**: Run compilation and lint checks (`compile_applet` / `lint_applet`) to ensure clean output.
 
-## Phase 2: Administration and API Resilience
-- [ ] Build `AdminApiErrorDashboard`:
-    - [ ] Tabular API error monitoring.
-    - [ ] Bulk retry functionality for failed requests.
-    - [ ] CSV export of error logs.
-    - [ ] Smart bulk fix for `Session Timeouts`.
-- [ ] Implement Token Expiry Monitoring (proactive alert 48h before).
+## Proposed Changes
 
-## Phase 3: Security and Data Management
-- [ ] Develop encrypted storage for platform credentials/2FA in `ManageMerchantApisModal`.
-- [ ] Implement `Multi-Merchant RBAC` and `Audit Trail` in `MarketerRbacAndAuditHub`.
+### 1. Entry Point Optimization
+- Update `index.html`:
+  - Ensure `<script type="module" src="/src/main.tsx"></script>` is formatted cleanly without redundant attributes.
+  - Verify container `<div id="root"></div>` matches `main.tsx` mount selector.
 
-## Phase 4: Feature Enhancements and UI/UX
-- [ ] `SeoKeywordIntelligence`: Add 6-month historical search trends chart.
-- [ ] `InventoryTracker`: Visual charts and warehouse subfolders.
-- [ ] `SalesDashboard`: PDF export for strategic KPIs.
-- [ ] `DirectCompetitorsTab`: Buy Box streak and dynamic row coloring.
-- [ ] General UI: Quick Search, Quick Compare, Platform categories auto-suggest.
+### 2. Vite & Preview Configuration
+- Check `/vite.config.ts`:
+  - Confirm `base: '/'` and `build.outDir: 'dist'`.
+  - Ensure `@` alias points to `./src`.
+  - Confirm `server` and `preview` settings run cleanly on port 3000 with `host: true`.
 
----
-*Status: Ready to begin Phase 1.*
+### 3. Build & Typecheck Verification
+- Execute `compile_applet` to verify zero build errors and valid output.
+
+## Verification Plan
+1. Run `compile_applet` to confirm Vite build completes successfully.
+2. Run `lint_applet` (`tsc --noEmit`) to verify zero TypeScript errors.

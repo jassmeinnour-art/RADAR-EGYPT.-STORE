@@ -6,7 +6,10 @@ export function useOnlineStatus() {
   );
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      window.dispatchEvent(new CustomEvent('app_network_online'));
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);

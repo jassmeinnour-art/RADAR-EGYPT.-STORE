@@ -33,9 +33,9 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Periodic Background Sync Event Handler (Refreshes market price data in background)
+// Periodic Background Sync Event Handler (Refreshes market price data & new content in background)
 self.addEventListener('periodicsync', event => {
-  if (event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh') {
+  if (event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh' || event.tag === 'fetch-new-content') {
     event.waitUntil(
       caches.open(CACHE_NAME).then(cache => {
         return fetch('/widgets/price-tracker.json').then(res => {
@@ -55,7 +55,12 @@ self.addEventListener('periodicsync', event => {
 
 // One-shot Background Sync Event Handler (Syncs offline merchant actions when reconnected)
 self.addEventListener('sync', event => {
-  if (event.tag === 'sync-merchant-data' || event.tag === 'radar-price-sync') {
+  if (
+    event.tag === 'sync-merchant-data' ||
+    event.tag === 'radar-price-sync' ||
+    event.tag === 'sync-messages' ||
+    event.tag === 'sync-data'
+  ) {
     event.waitUntil(
       caches.open(CACHE_NAME).then(cache => {
         return fetch('/manifest.json').then(res => {

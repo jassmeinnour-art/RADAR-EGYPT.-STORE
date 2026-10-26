@@ -58,6 +58,7 @@ import { AudioNotificationProvider } from './context/AudioNotificationContext';
 import { BayyaaLogo } from './components/BayyaaLogo';
 import LandingPage from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
+import { StatsMonitor } from './components/StatsMonitor';
 
 function safeLazy<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T } | any>
@@ -948,7 +949,9 @@ export default function App() {
 
                 {/* 3. Quick Stats KPI Overview Cards */}
                 {!isFocusMode && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  <>
+                    <StatsMonitor />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {/* KPI 1: Active Products */}
                   <div className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-xl backdrop-blur-xl space-y-3 hover:border-amber-500/40 transition">
                     <div className="flex items-center justify-between">
@@ -1009,6 +1012,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+                </>
                 )}
 
                 {/* 4. Glassmorphism Main Merchant Card */}

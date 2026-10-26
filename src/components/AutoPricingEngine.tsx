@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   Zap,
   SlidersHorizontal,
@@ -91,6 +92,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
   // Products State
   const [products, setProducts] = useState<AutoPricingProductItem[]>(() => loadAutoPricingProducts());
   const [productSearch, setProductSearch] = useState('');
+  const debouncedProductSearch = useDebounce(productSearch, 300);
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'enabled' | 'disabled' | 'undercut' | 'stockout'>('all');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -99,6 +101,7 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
   // History Logs State
   const [logs, setLogs] = useState<AutoPricingExecutionLog[]>(() => loadAutoPricingLogs());
   const [historySearch, setHistorySearch] = useState('');
+  const debouncedHistorySearch = useDebounce(historySearch, 300);
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('all');
   const [historyRuleFilter, setHistoryRuleFilter] = useState<string>('all');
 
@@ -438,10 +441,10 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchSearch = productSearch === '' || 
-        p.title.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.lowestCompetitorName.toLowerCase().includes(productSearch.toLowerCase());
+      const matchSearch = debouncedProductSearch === '' || 
+        p.title.toLowerCase().includes(debouncedProductSearch.toLowerCase()) ||
+        p.sku.toLowerCase().includes(debouncedProductSearch.toLowerCase()) ||
+        p.lowestCompetitorName.toLowerCase().includes(debouncedProductSearch.toLowerCase());
 
       const matchCategory = productCategoryFilter === 'all' || p.category === productCategoryFilter;
 
@@ -453,23 +456,23 @@ export const AutoPricingEngine: React.FC<AutoPricingEngineProps> = ({
 
       return matchSearch && matchCategory && matchStatus;
     });
-  }, [products, productSearch, productCategoryFilter, productStatusFilter]);
+  }, [products, debouncedProductSearch, productCategoryFilter, productStatusFilter]);
 
   // Filtered Logs
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
-      const matchSearch = historySearch === '' ||
-        log.productTitle.toLowerCase().includes(historySearch.toLowerCase()) ||
-        log.sku.toLowerCase().includes(historySearch.toLowerCase()) ||
-        log.competitorName.toLowerCase().includes(historySearch.toLowerCase()) ||
-        log.ruleTitle.toLowerCase().includes(historySearch.toLowerCase());
+      const matchSearch = debouncedHistorySearch === '' ||
+        log.productTitle.toLowerCase().includes(debouncedHistorySearch.toLowerCase()) ||
+        log.sku.toLowerCase().includes(debouncedHistorySearch.toLowerCase()) ||
+        log.competitorName.toLowerCase().includes(debouncedHistorySearch.toLowerCase()) ||
+        log.ruleTitle.toLowerCase().includes(debouncedHistorySearch.toLowerCase());
 
       const matchStatus = historyStatusFilter === 'all' || log.guardrailStatus === historyStatusFilter;
       const matchRule = historyRuleFilter === 'all' || log.ruleId === historyRuleFilter;
 
       return matchSearch && matchStatus && matchRule;
     });
-  }, [logs, historySearch, historyStatusFilter, historyRuleFilter]);
+  }, [logs, debouncedHistorySearch, historyStatusFilter, historyRuleFilter]);
 
   // Summary Metrics
   const metrics = useMemo(() => {

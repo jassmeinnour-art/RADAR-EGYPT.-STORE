@@ -71,6 +71,7 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
   // Chart state
   const [timeRange, setTimeRange] = useState<TimeRangeFilter>('60d');
   const [displayMode, setDisplayMode] = useState<ChartDisplayMode>('multi_line');
+  const [showDetailedLogTable, setShowDetailedLogTable] = useState<boolean>(true);
   
   // Platform toggles
   const [showAmazon, setShowAmazon] = useState(true);
@@ -901,6 +902,71 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Detailed Price Change Log Table (سجل تغيرات وتاريخ الأسعار اللحظي) */}
+      <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-slate-900 text-white">
+              <Clock className="w-4 h-4" />
+            </span>
+            <h4 className="text-sm font-bold text-slate-900 font-['Alexandria']">
+              جدول سجل تغيرات وتقلبات الأسعار اللحظية (Price Change Audit Trail)
+            </h4>
+            <span className="text-xs text-slate-500 font-mono font-bold">
+              ({filteredData.length} سجل زمني)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowDetailedLogTable(!showDetailedLogTable)}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-all cursor-pointer shadow-2xs"
+          >
+            {showDetailedLogTable ? 'إخفاء الجدول 🔼' : 'عرض السجل التفصيلي 🔽'}
+          </button>
+        </div>
+
+        {showDetailedLogTable && (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-xs text-right">
+              <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <tr>
+                  <th className="p-2.5">التاريخ</th>
+                  <th className="p-2.5">أمازون مصر</th>
+                  <th className="p-2.5">نون مصر</th>
+                  <th className="p-2.5">جوميا</th>
+                  <th className="p-2.5">بي تك</th>
+                  <th className="p-2.5">أقل سعر للسوق</th>
+                  <th className="p-2.5">متوسط السوق</th>
+                  <th className="p-2.5">الحدث / السبب</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono">
+                {filteredData.slice().reverse().map((pt, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/80 transition-all">
+                    <td className="p-2.5 font-bold text-slate-900 font-sans">{pt.dateLabel} ({pt.date})</td>
+                    <td className="p-2.5 text-sky-700 font-bold">{pt.amazon ? `${pt.amazon.toLocaleString()} ${currency}` : '-'}</td>
+                    <td className="p-2.5 text-sky-600 font-bold">{pt.noon ? `${pt.noon.toLocaleString()} ${currency}` : '-'}</td>
+                    <td className="p-2.5 text-orange-600 font-bold">{pt.jumia ? `${pt.jumia.toLocaleString()} ${currency}` : '-'}</td>
+                    <td className="p-2.5 text-blue-600 font-bold">{pt.btech ? `${pt.btech.toLocaleString()} ${currency}` : '-'}</td>
+                    <td className="p-2.5 text-emerald-700 font-black bg-emerald-50/50">{pt.lowestPrice.toLocaleString()} {currency}</td>
+                    <td className="p-2.5 text-slate-700 font-semibold">{pt.marketAverage.toLocaleString()} {currency}</td>
+                    <td className="p-2.5 font-sans text-slate-600 font-medium">
+                      {pt.eventNote ? (
+                        <span className="inline-block bg-indigo-50 text-indigo-700 text-[11px] px-2 py-0.5 rounded-md border border-indigo-100">
+                          {pt.eventNote}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">تحديث دوري للرادار</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Manual Price Check Modal */}

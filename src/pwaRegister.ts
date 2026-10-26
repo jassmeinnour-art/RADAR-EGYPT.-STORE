@@ -63,6 +63,15 @@ export function setupPWA(onNeedRefresh?: () => void) {
               }
             };
 
+            // Safely initialize background sync and periodic sync without throwing errors on iOS Safari or Firefox
+            import('./utils/backgroundSyncManager').then(({ registerBackgroundSyncSafely, registerPeriodicSyncSafely }) => {
+              registerBackgroundSyncSafely('sync-data');
+              registerBackgroundSyncSafely('radar-price-sync');
+              registerPeriodicSyncSafely('fetch-new-content', 24 * 60 * 60 * 1000);
+            }).catch(() => {
+              // safe fallback
+            });
+
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               if (!newWorker) return;

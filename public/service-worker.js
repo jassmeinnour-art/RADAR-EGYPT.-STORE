@@ -38,6 +38,51 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Periodic Background Sync Event Handler
+self.addEventListener('periodicsync', event => {
+  if (event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh' || event.tag === 'fetch-new-content') {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(cache => {
+        return fetch('/manifest.json').then(res => {
+          if (res && res.status === 200) {
+            cache.put('/manifest.json', res.clone());
+            return self.clients.matchAll().then(clients => {
+              clients.forEach(client => {
+                client.postMessage({ type: 'PERIODIC_SYNC_UPDATE', tag: event.tag, timestamp: Date.now() });
+              });
+            });
+          }
+        }).catch(() => {});
+      })
+    );
+  }
+});
+
+// One-shot Background Sync Event Handler
+self.addEventListener('sync', event => {
+  if (
+    event.tag === 'sync-merchant-data' ||
+    event.tag === 'radar-price-sync' ||
+    event.tag === 'sync-messages' ||
+    event.tag === 'sync-data'
+  ) {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(cache => {
+        return fetch('/manifest.json').then(res => {
+          if (res && res.status === 200) {
+            cache.put('/manifest.json', res.clone());
+            return self.clients.matchAll().then(clients => {
+              clients.forEach(client => {
+                client.postMessage({ type: 'BACKGROUND_SYNC_COMPLETE', tag: event.tag, timestamp: Date.now() });
+              });
+            });
+          }
+        }).catch(() => {});
+      })
+    );
+  }
+});
+
 // Fetch Event - Network First for HTML/JS/CSS to prevent stale bundle white screens
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {

@@ -49,7 +49,9 @@ export async function parseSafeJsonResponse(
     !trimmed.toLowerCase().startsWith('<html');
 
   if (!looksLikeJson) {
-    const statusLabel = res.status === 404
+    const statusLabel = res.status === 429
+      ? 'تم تجاوز حد الطلبات (429 Too Many Requests) — يرجى الانتظار قليلاً'
+      : res.status === 404
       ? 'مسار الـ API غير موجود (404 Not Found)'
       : `استجابة غير صالحة من الخادم (${res.status} ${res.statusText || ''})`;
     return {
@@ -526,6 +528,9 @@ export async function pullLiveCatalogForMerchant(
         const data = parsedResponse.data;
 
         if (!res.ok && (data.error || data.message)) {
+          if (res.status === 429) {
+            throw new Error('RATE_LIMITED');
+          }
           // Check if we have a fallback catalog before throwing
           const fallbackItems = buildVerifiedMerchantCatalogFallback(merchantId, merchantName, platformFilter);
           if (fallbackItems.length > 0) {

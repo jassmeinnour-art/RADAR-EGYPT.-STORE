@@ -821,6 +821,8 @@ export interface MerchantCatalogProduct {
   isCriticalStock?: boolean; // علامة تمييز المخزون الحرج
   lastRefreshedAt: string;
   lastUpdated?: string;
+  tags?: string[];
+  autoTags?: any[];
 }
 
 export interface MerchantCatalogSummary {

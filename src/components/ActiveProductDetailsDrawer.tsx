@@ -22,10 +22,13 @@ import {
   Award,
   Sparkles,
   ShieldCheck,
-  MapPin
+  MapPin,
+  QrCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProductData } from '../types';
+import { ProductPriceHistoryLoggerModal } from './ProductPriceHistoryLoggerModal';
+import { ProductQRCodeModal } from './ProductQRCodeModal';
 
 interface ActiveProductDetailsDrawerProps {
   isOpen: boolean;
@@ -56,6 +59,8 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'specs' | 'price_history' | 'offers'>('overview');
   const [copiedSku, setCopiedSku] = useState(false);
+  const [isLoggerModalOpen, setIsLoggerModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   // Close drawer on Escape key
   useEffect(() => {
@@ -239,6 +244,15 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
                       <Barcode className="w-3 h-3" />
                       <span>SKU: {product.sku || product.id}</span>
                       {copiedSku ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-2.5 h-2.5 text-slate-400" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsQrModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 cursor-pointer transition-colors shadow-xs"
+                      title="إنشاء رمز QR للوصول المباشر من الموبايل"
+                    >
+                      <QrCode className="w-3 h-3 text-indigo-400" />
+                      <span>رمز QR 📱</span>
                     </button>
                   </div>
 
@@ -506,14 +520,23 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
                 <div className="space-y-4">
                   {/* Summary Banner for Price History */}
                   <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
                         <History className="w-4 h-4 text-emerald-400" />
                         <span>تحليل المسار الزمني وتغيرات أسعار المنتج</span>
                       </h4>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">
-                        {priceHistoryItems.length} نقاط رصد زمنية
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsLoggerModalOpen(true)}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                        >
+                          <Zap className="w-3 h-3" />
+                          <span>الشارت التفاعلي وتسجيل تغير سعر 📈</span>
+                        </button>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">
+                          {priceHistoryItems.length} نقاط رصد
+                        </span>
+                      </div>
                     </div>
 
                     {/* Visual Bar Chart of Historical Prices */}
@@ -754,6 +777,24 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
           </motion.aside>
         </div>
       )}
+
+      {/* Product Price History Logger Modal */}
+      <ProductPriceHistoryLoggerModal
+        product={product}
+        isOpen={isLoggerModalOpen}
+        onClose={() => setIsLoggerModalOpen(false)}
+        currency={currency}
+        onShowToast={onShowToast}
+      />
+
+      {/* Product Mobile QR Code Modal */}
+      <ProductQRCodeModal
+        product={product}
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        currency={currency}
+        onShowToast={onShowToast}
+      />
     </AnimatePresence>
   );
 };

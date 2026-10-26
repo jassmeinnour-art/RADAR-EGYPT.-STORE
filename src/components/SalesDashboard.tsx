@@ -69,6 +69,7 @@ import {
   Cell
 } from 'recharts';
 import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
+import { StatsMonitor } from './StatsMonitor';
 import {
   ProductData,
   WatchlistItem,
@@ -1467,6 +1468,8 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
             )}
           </div>
         </div>
+
+        <StatsMonitor />
 
         {/* 5 High-Impact Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 mt-6">

@@ -1,0 +1,278 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Health / Test Connection endpoint for diagnostic validation
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // Security Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Helpers
+    function isValidUserProfile(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 120 &&
+             data.email is string && data.email.size() <= 120 &&
+             (!('storeName' in data) || (data.storeName is string && data.storeName.size() <= 150)) &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 80)) &&
+             (!('preferredCurrency' in data) || (data.preferredCurrency is string && data.preferredCurrency.size() <= 10)) &&
+             (!('fcmToken' in data) || (data.fcmToken is string && data.fcmToken.size() <= 500)) &&
+             (!('pushNotificationsEnabled' in data) || (data.pushNotificationsEnabled is bool)) &&
+             (!('hasSeenOnboarding' in data) || (data.hasSeenOnboarding is bool)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500));
+    }
+
+    function isValidMerchantProduct(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 250 &&
+             (!('brand' in data) || (data.brand is string && data.brand.size() <= 100)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+             (!('suggestedRetailPrice' in data) || (data.suggestedRetailPrice is number)) &&
+             (!('estimatedWholesaleCost' in data) || (data.estimatedWholesaleCost is number)) &&
+             (!('currentLowestPrice' in data) || (data.currentLowestPrice is number)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             (!('lastUpdated' in data) || (data.lastUpdated is string && data.lastUpdated.size() <= 64));
+    }
+
+    function isValidWatchlistItem(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.productId is string && data.productId.size() <= 128 &&
+             (!('productTitle' in data) || (data.productTitle is string && data.productTitle.size() <= 250)) &&
+             (!('targetPrice' in data) || (data.targetPrice is number)) &&
+             (!('currentPrice' in data) || (data.currentPrice is number)) &&
+             (!('competitor' in data) || (data.competitor is string && data.competitor.size() <= 100));
+    }
+
+    function isValidPriceAlert(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.productId is string && data.productId.size() <= 128 &&
+             (!('condition' in data) || (data.condition is string && data.condition.size() <= 50)) &&
+             (!('targetPrice' in data) || (data.targetPrice is number)) &&
+             (!('isActive' in data) || (data.isActive is bool));
+    }
+
+    function isValidInventoryItem(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.productId is string && data.productId.size() <= 128 &&
+             (!('sku' in data) || (data.sku is string && data.sku.size() <= 100)) &&
+             (!('currentStock' in data) || (data.currentStock is number)) &&
+             (!('minReorderLevel' in data) || (data.minReorderLevel is number)) &&
+             (!('maxStockLevel' in data) || (data.maxStockLevel is number)) &&
+             (!('costPerUnitEGP' in data) || (data.costPerUnitEGP is number)) &&
+             (!('minStockLevel' in data) || (data.minStockLevel is number)) &&
+             (!('unitCost' in data) || (data.unitCost is number)) &&
+             (!('sellingPrice' in data) || (data.sellingPrice is number));
+    }
+
+    function isValidStudioDesign(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             (!('productId' in data) || (data.productId is string && data.productId.size() <= 128)) &&
+             (!('aspectRatio' in data) || (data.aspectRatio is string && data.aspectRatio.size() <= 20)) &&
+             (!('backgroundTheme' in data) || (data.backgroundTheme is string && data.backgroundTheme.size() <= 100)) &&
+             (!('imageData' in data) || (data.imageData is string && data.imageData.size() <= 1000000));
+    }
+
+    function isValidApiSyncError(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.platform is string && data.platform.size() <= 64 &&
+             data.errorCode is string && data.errorCode.size() <= 100 &&
+             data.errorMessage is string && data.errorMessage.size() <= 2000 &&
+             (!('platformName' in data) || (data.platformName is string && data.platformName.size() <= 100)) &&
+             (!('endpoint' in data) || (data.endpoint is string && data.endpoint.size() <= 500)) &&
+             (!('errorDetails' in data) || (data.errorDetails is string && data.errorDetails.size() <= 10000)) &&
+             (!('severity' in data) || (data.severity is string && data.severity.size() <= 32)) &&
+             (!('status' in data) || (data.status is string && data.status.size() <= 32)) &&
+             (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 150)) &&
+             (!('retryCount' in data) || (data.retryCount is number)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
+             (!('resolvedAt' in data) || (data.resolvedAt is string && data.resolvedAt.size() <= 64)) &&
+             (!('resolvedBy' in data) || (data.resolvedBy is string && data.resolvedBy.size() <= 150)) &&
+             (!('resolutionNotes' in data) || (data.resolutionNotes is string && data.resolutionNotes.size() <= 1000));
+    }
+
+    function isValidOwnerDebugLog(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.ownerEmail is string && data.ownerEmail.size() <= 150 &&
+             data.logType is string && data.logType.size() <= 64 &&
+             data.message is string && data.message.size() <= 4000 &&
+             (!('ownerUid' in data) || (data.ownerUid is string && data.ownerUid.size() <= 128)) &&
+             (!('severity' in data) || (data.severity is string && data.severity.size() <= 32)) &&
+             (!('stackOrDetails' in data) || (data.stackOrDetails is string && data.stackOrDetails.size() <= 10000)) &&
+             (!('affectedComponent' in data) || (data.affectedComponent is string && data.affectedComponent.size() <= 300)) &&
+             (!('activeTab' in data) || (data.activeTab is string && data.activeTab.size() <= 100)) &&
+             (!('appStateSnapshot' in data) || (data.appStateSnapshot is string && data.appStateSnapshot.size() <= 10000)) &&
+             (!('userAgent' in data) || (data.userAgent is string && data.userAgent.size() <= 500)) &&
+             (!('url' in data) || (data.url is string && data.url.size() <= 1000)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidMerchantStoreCredentials(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.storeName is string && data.storeName.size() <= 200 &&
+             (!('amazonRefreshToken' in data) || (data.amazonRefreshToken is string && data.amazonRefreshToken.size() <= 2000)) &&
+             (!('amazonSellerId' in data) || (data.amazonSellerId is string && data.amazonSellerId.size() <= 128)) &&
+             (!('amazonRegion' in data) || (data.amazonRegion is string && data.amazonRegion.size() <= 50)) &&
+             (!('amazonMarketplaceId' in data) || (data.amazonMarketplaceId is string && data.amazonMarketplaceId.size() <= 50));
+    }
+
+    function isValidWhatsAppSettings(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 60)) &&
+             (!('isEnabled' in data) || (data.isEnabled is bool)) &&
+             (!('notifyOnPriceChange' in data) || (data.notifyOnPriceChange is bool)) &&
+             (!('notifyOnInventoryLow' in data) || (data.notifyOnInventoryLow is bool));
+    }
+
+    // Multi-Tenant Merchant Store Records & Dynamic Amazon SP-API Credentials
+    match /merchant_stores/{merchantId} {
+      allow read: if true;
+      allow create, update: if isValidId(merchantId) && isValidMerchantStoreCredentials(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    // Top-level Owner Real-Time Debug Logs Collection (owner_debug_logs)
+    match /owner_debug_logs/{logId} {
+      allow read: if true;
+      allow create: if isValidId(logId) && isValidOwnerDebugLog(incoming()) && incoming().ownerEmail == 'jassmeinnour@gmail.com';
+      allow update: if isValidId(logId) && isValidOwnerDebugLog(incoming()) && incoming().ownerEmail == 'jassmeinnour@gmail.com';
+      allow delete: if isSignedIn() || resource.data.ownerEmail == 'jassmeinnour@gmail.com';
+    }
+
+    // Top-level API Sync Errors Collection for Admin Dashboard & Merchant Auditing
+    match /api_sync_errors/{errorId} {
+      allow read: if true;
+      allow create: if isValidId(errorId) && isValidApiSyncError(incoming());
+      allow update: if isValidId(errorId) && isValidApiSyncError(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    // Top-level Products Catalog
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Top-level Analytics
+    match /analytics/{analyticsId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // User Profile Document & Tenant Root
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) &&
+                      incoming().uid == existing().uid;
+      allow delete: if isOwner(userId);
+
+      // Sub-collection: Products
+      match /products/{productId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(productId) && isValidMerchantProduct(incoming());
+        allow update: if isOwner(userId) && isValidMerchantProduct(incoming()) &&
+                        incoming().userId == existing().userId;
+      }
+
+      // Sub-collection: Watchlist
+      match /watchlist/{itemId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(itemId) && isValidWatchlistItem(incoming());
+        allow update: if isOwner(userId) && isValidWatchlistItem(incoming()) &&
+                        incoming().userId == existing().userId;
+      }
+
+      // Sub-collection: Price Alerts
+      match /alerts/{alertId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(alertId) && isValidPriceAlert(incoming());
+        allow update: if isOwner(userId) && isValidPriceAlert(incoming()) &&
+                        incoming().userId == existing().userId;
+      }
+
+      // Sub-collection: Inventory
+      match /inventory/{inventoryId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(inventoryId) && isValidInventoryItem(incoming());
+        allow update: if isOwner(userId) && isValidInventoryItem(incoming()) &&
+                        incoming().userId == existing().userId;
+      }
+
+      // Sub-collection: Saved Studio Designs
+      match /studio_designs/{designId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(designId) && isValidStudioDesign(incoming());
+        allow update: if isOwner(userId) && isValidStudioDesign(incoming()) &&
+                        incoming().userId == existing().userId;
+      }
+
+      // Sub-collection: Connected Platforms & Gmail Linked Accounts
+      match /platforms/{platformId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(platformId);
+      }
+
+      // Sub-collection: WhatsApp Settings
+      match /whatsapp_settings/{settingsId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(settingsId) && isValidWhatsAppSettings(incoming());
+      }
+
+      // Sub-collection: Activity Logs (سجل عمليات المستخدم)
+      match /activity_logs/{logId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(logId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Sub-collection: Wishlists (قائمة أمنيات التاجر)
+      match /wishlists/{itemId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(itemId);
+        allow update: if isOwner(userId);
+      }
+    }
+
+    // Top-level User Activity & System Audit Logs
+    match /user_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(logId);
+      allow update, delete: if false;
+    }
+  }
+}
+

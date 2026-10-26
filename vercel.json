@@ -1,7 +1,7 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "outputDirectory": "dist",
+  "outputDirectory": "build",
   "headers": [
     {
       "source": "/manifest.json",

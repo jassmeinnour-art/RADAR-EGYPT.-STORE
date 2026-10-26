@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com;" />
     <script>
       (function() {
         function isViteWsError(err) {
@@ -74,10 +75,9 @@
           }
         };
 
-        // Safe WebSocket wrapper to prevent unhandled WebSocket errors when HMR is disabled in Cloud iframe
+        // Safe WebSocket wrapper
         if (typeof window !== 'undefined' && 'WebSocket' in window) {
           var RealWebSocket = window.WebSocket;
-
           function isViteOrHmrWs(url, protocols) {
             var urlStr = String(url || '').toLowerCase();
             var protoStr = (Array.isArray(protocols) ? protocols.join(',') : String(protocols || '')).toLowerCase();
@@ -89,14 +89,13 @@
                    urlStr.indexOf('24678') !== -1 ||
                    urlStr.indexOf('modulerunner') !== -1;
           }
-
           window.WebSocket = function(url, protocols) {
             if (isViteOrHmrWs(url, protocols)) {
               var noop = function() {};
               var listeners = {};
               var fakeWs = {
                 url: url,
-                readyState: 1, // WebSocket.OPEN
+                readyState: 1, 
                 CONNECTING: 0,
                 OPEN: 1,
                 CLOSING: 2,
@@ -151,7 +150,7 @@
           window.WebSocket.CLOSED = 3;
         }
 
-        // Early theme detection to prevent flash of unstyled content
+        // Early theme detection
         try {
           var savedMode = localStorage.getItem('radar_global_color_mode_v7_offwhite_black') || 'light';
           var isDark = savedMode === 'dark' || (savedMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -164,29 +163,6 @@
           }
         } catch(e) {}
 
-        // REGISTER SERVICE WORKER FOR OFFLINE & SPEED
-        if ('serviceWorker' in navigator) {
-          window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' })
-              .then(function(reg) {
-                console.log('ServiceWorker registered with scope:', reg.scope);
-                if ('periodicSync' in reg) {
-                  try {
-                    navigator.permissions.query({ name: 'periodic-background-sync' }).then(function(status) {
-                      if (status.state === 'granted') {
-                        reg.periodicSync.register('radar-price-update', {
-                          minInterval: 24 * 60 * 60 * 1000
-                        }).catch(function() {});
-                      }
-                    }).catch(function() {});
-                  } catch(e) {}
-                }
-              })
-              .catch(function(err) {
-                console.warn('ServiceWorker registration failed:', err);
-              });
-          });
-        }
 
         // AUTO-RELOAD ON CHUNK LOAD FAILURE
         window.addEventListener('error', function(e) {
@@ -226,6 +202,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx" defer></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

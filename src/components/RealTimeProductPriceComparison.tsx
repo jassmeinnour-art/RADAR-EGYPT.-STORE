@@ -30,11 +30,13 @@ import {
   PackageCheck,
   Building2,
   Boxes,
-  Truck
+  Truck,
+  QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ProductData, MerchantOffer, PlatformCategoryConfig, ConnectedMerchantPlatform } from '../types';
 import { getCategoryIconComponent } from './CategoryModal';
+import { ProductQRCodeModal } from './ProductQRCodeModal';
 
 interface RealTimeProductPriceComparisonProps {
   products: ProductData[];
@@ -110,6 +112,10 @@ export const RealTimeProductPriceComparison: React.FC<RealTimeProductPriceCompar
   const [alertTargetProduct, setAlertTargetProduct] = useState<ProductData | null>(null);
   const [discountThreshold, setDiscountThreshold] = useState<number>(5);
   const [alertSuccessProduct, setAlertSuccessProduct] = useState<string | null>(null);
+
+  // Modal State for QR Code Generation
+  const [qrTargetProduct, setQrTargetProduct] = useState<ProductData | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
 
   // Mapping from platform code to category key
   const platformToCategoryMap = useMemo(() => {
@@ -1199,6 +1205,21 @@ export const RealTimeProductPriceComparison: React.FC<RealTimeProductPriceCompar
                         </button>
                       )}
 
+                      {/* QR Code Mobile Generator Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQrTargetProduct(p);
+                          setIsQrModalOpen(true);
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-slate-700 hover:border-indigo-500/50 text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                        title="رمز QR للموبايل 📱"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="hidden xl:inline">QR</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={(e) => openDiscountModalForProduct(p, e)}
@@ -1578,6 +1599,17 @@ export const RealTimeProductPriceComparison: React.FC<RealTimeProductPriceCompar
         </div>
       )}
 
+      {/* QR Code Modal Generator */}
+      <ProductQRCodeModal
+        product={qrTargetProduct}
+        isOpen={isQrModalOpen}
+        onClose={() => {
+          setIsQrModalOpen(false);
+          setQrTargetProduct(null);
+        }}
+        currency={currency}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };

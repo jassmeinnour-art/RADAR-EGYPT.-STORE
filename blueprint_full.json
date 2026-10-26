@@ -1,0 +1,336 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered merchant profile and store settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 120 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "storeName": { "type": "string", "maxLength": 150 },
+        "city": { "type": "string", "maxLength": 80 },
+        "preferredCurrency": { "type": "string", "maxLength": 10 },
+        "fcmToken": { "type": "string", "maxLength": 500 },
+        "pushNotificationsEnabled": { "type": "boolean" },
+        "hasSeenOnboarding": { "type": "boolean" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "lastSeenAt": { "type": "string", "format": "date-time" },
+        "sessionCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "createdAt"]
+    },
+    "MerchantProduct": {
+      "title": "MerchantProduct",
+      "description": "Products managed or scanned by the merchant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 250 },
+        "brand": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 100 },
+        "suggestedRetailPrice": { "type": "number" },
+        "estimatedWholesaleCost": { "type": "number" },
+        "currentLowestPrice": { "type": "number" },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "createdAt"]
+    },
+    "WatchlistDocument": {
+      "title": "WatchlistDocument",
+      "description": "Products watched by the merchant for price drops and competitor moves",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productTitle": { "type": "string", "maxLength": 250 },
+        "targetPrice": { "type": "number" },
+        "currentPrice": { "type": "number" },
+        "competitor": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "productId", "createdAt"]
+    },
+    "PriceAlertDocument": {
+      "title": "PriceAlertDocument",
+      "description": "Price drop/increase alert thresholds configured by merchant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "condition": { "type": "string", "maxLength": 50 },
+        "targetPrice": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "productId", "createdAt"]
+    },
+    "InventoryDocument": {
+      "title": "InventoryDocument",
+      "description": "Merchant stock and reorder tracking records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "sku": { "type": "string", "maxLength": 100 },
+        "currentStock": { "type": "number" },
+        "minStockLevel": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "productId", "createdAt"]
+    },
+    "StudioSavedDesign": {
+      "title": "StudioSavedDesign",
+      "description": "Generated and edited product studio images",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "aspectRatio": { "type": "string", "maxLength": 20 },
+        "backgroundTheme": { "type": "string", "maxLength": 100 },
+        "imageData": { "type": "string", "maxLength": 1000000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "createdAt"]
+    },
+    "AnalyticsRecord": {
+      "title": "AnalyticsRecord",
+      "description": "Market trend and price tracking metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 100 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "eventType", "timestamp"]
+    },
+    "PlatformConnectionDocument": {
+      "title": "PlatformConnectionDocument",
+      "description": "Connected merchant selling platforms and Gmail-linked portal configurations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "code": { "type": "string", "maxLength": 100 },
+        "sellerName": { "type": "string", "maxLength": 150 },
+        "sellerId": { "type": "string", "maxLength": 100 },
+        "merchantEmail": { "type": "string", "maxLength": 150 },
+        "sellerPortalUrl": { "type": "string", "maxLength": 500 },
+        "isGmailLinked": { "type": "boolean" },
+        "linkedGmail": { "type": "string", "maxLength": 150 },
+        "isConnected": { "type": "boolean" },
+        "status": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "code"]
+    },
+    "ApiSyncErrorLog": {
+      "title": "ApiSyncErrorLog",
+      "description": "Log of API sync failures and connection errors for monitoring and resolution",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "maxLength": 64 },
+        "platformName": { "type": "string", "maxLength": 100 },
+        "endpoint": { "type": "string", "maxLength": 500 },
+        "errorCode": { "type": "string", "maxLength": 100 },
+        "errorMessage": { "type": "string", "maxLength": 2000 },
+        "errorDetails": { "type": "string", "maxLength": 10000 },
+        "severity": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "maxLength": 32 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 150 },
+        "retryCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "resolvedBy": { "type": "string", "maxLength": 150 },
+        "resolutionNotes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "platform", "errorCode", "errorMessage", "createdAt"]
+    },
+    "UserActivityLog": {
+      "title": "UserActivityLog",
+      "description": "User activity audit log records and merchant operations trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 150 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "actionType": { "type": "string", "maxLength": 64 },
+        "actionTitle": { "type": "string", "maxLength": 200 },
+        "details": { "type": "string", "maxLength": 2000 },
+        "platform": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "actionType", "actionTitle", "createdAt"]
+    },
+    "WishlistDocument": {
+      "title": "WishlistDocument",
+      "description": "Merchant desired products wishlist with target purchase prices and alerts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productTitle": { "type": "string", "maxLength": 250 },
+        "brand": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 100 },
+        "currentPrice": { "type": "number" },
+        "targetPrice": { "type": "number" },
+        "priority": { "type": "string", "maxLength": 32 },
+        "folder": { "type": "string", "maxLength": 100 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "productId", "targetPrice", "createdAt"]
+    },
+    "OwnerDebugLog": {
+      "title": "OwnerDebugLog",
+      "description": "Real-time debug and diagnostic logs captured from the application owner device for Google AI Studio troubleshooting",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerEmail": { "type": "string", "maxLength": 150 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "logType": { "type": "string", "maxLength": 64 },
+        "severity": { "type": "string", "maxLength": 32 },
+        "message": { "type": "string", "maxLength": 4000 },
+        "stackOrDetails": { "type": "string", "maxLength": 10000 },
+        "affectedComponent": { "type": "string", "maxLength": 300 },
+        "activeTab": { "type": "string", "maxLength": 100 },
+        "appStateSnapshot": { "type": "string", "maxLength": 10000 },
+        "userAgent": { "type": "string", "maxLength": 500 },
+        "url": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerEmail", "logType", "message", "createdAt"]
+    },
+    "MerchantStoreCredentials": {
+      "title": "MerchantStoreCredentials",
+      "description": "Multi-tenant merchant store record and dynamic Amazon SP-API credentials (Refresh Token and Seller ID)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "storeName": { "type": "string", "maxLength": 200 },
+        "contactPerson": { "type": "string", "maxLength": 150 },
+        "primaryEmail": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 60 },
+        "city": { "type": "string", "maxLength": 100 },
+        "amazonRefreshToken": { "type": "string", "maxLength": 2000 },
+        "amazonSellerId": { "type": "string", "maxLength": 128 },
+        "amazonRegion": { "type": "string", "maxLength": 50 },
+        "amazonMarketplaceId": { "type": "string", "maxLength": 50 },
+        "noonAuthKey": { "type": "string", "maxLength": 1000 },
+        "noonAppId": { "type": "string", "maxLength": 200 },
+        "bostaApiKey": { "type": "string", "maxLength": 500 },
+        "dataMode": { "type": "string", "maxLength": 20 },
+        "isConfigured": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "storeName"]
+    },
+    "WhatsAppSettings": {
+      "title": "WhatsAppSettings",
+      "description": "User WhatsApp configuration for alerts",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "phoneNumber": { "type": "string", "maxLength": 60 },
+        "isEnabled": { "type": "boolean" },
+        "notifyOnPriceChange": { "type": "boolean" },
+        "notifyOnInventoryLow": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/merchant_stores/{merchantId}": {
+      "schema": "MerchantStoreCredentials",
+      "description": "Multi-tenant merchant store records and dynamic Amazon SP-API credentials (Refresh Token and Seller ID)"
+    },
+    "/owner_debug_logs/{logId}": {
+      "schema": "OwnerDebugLog",
+      "description": "Owner real-time debug and diagnostic logs for Google AI Studio troubleshooting"
+    },
+    "/api_sync_errors/{errorId}": {
+      "schema": "ApiSyncErrorLog",
+      "description": "System-wide and merchant API sync error log records for admin monitoring"
+    },
+    "/user_logs/{logId}": {
+      "schema": "UserActivityLog",
+      "description": "System-wide user activity and audit trail logs"
+    },
+    "/products/{productId}": {
+      "schema": "MerchantProduct",
+      "description": "Global or merchant products catalog"
+    },
+    "/analytics/{analyticsId}": {
+      "schema": "AnalyticsRecord",
+      "description": "Platform market analytics and price metrics"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Merchant user profile and preferences"
+    },
+    "/users/{userId}/activity_logs/{logId}": {
+      "schema": "UserActivityLog",
+      "description": "Merchant individual activity and audit logs"
+    },
+    "/users/{userId}/wishlists/{itemId}": {
+      "schema": "WishlistDocument",
+      "description": "Merchant saved wishlist items and target deals"
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": "MerchantProduct",
+      "description": "Merchant customized and scanned product catalog"
+    },
+    "/users/{userId}/watchlist/{itemId}": {
+      "schema": "WatchlistDocument",
+      "description": "Merchant watchlist items"
+    },
+    "/users/{userId}/alerts/{alertId}": {
+      "schema": "PriceAlertDocument",
+      "description": "Configured price alerts"
+    },
+    "/users/{userId}/inventory/{inventoryId}": {
+      "schema": "InventoryDocument",
+      "description": "Inventory stock tracking records"
+    },
+    "/users/{userId}/studio_designs/{designId}": {
+      "schema": "StudioSavedDesign",
+      "description": "Saved product studio designs"
+    },
+    "/users/{userId}/platforms/{platformId}": {
+      "schema": "PlatformConnectionDocument",
+      "description": "Connected platforms and Gmail-linked credentials for merchant"
+    },
+    "/users/{userId}/whatsapp_settings/{settingsId}": {
+      "schema": "WhatsAppSettings",
+      "description": "User WhatsApp configuration for alerts"
+    }
+  }
+}

@@ -28,6 +28,21 @@ if (typeof window !== 'undefined') {
   };
 }
 
+// Service Worker Registration
+if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then((reg) => console.log('SW registered:', reg.scope))
+        .catch((err) => console.warn('SW failed:', err));
+    });
+  } else {
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((reg) => reg.unregister());
+    });
+  }
+}
+
 const root = document.getElementById('root')
 if (root) {
   ReactDOM.createRoot(root).render(

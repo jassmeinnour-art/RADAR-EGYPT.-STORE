@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Lock,
   Crown,
+  Tag,
   Image as ImageIcon
 } from 'lucide-react';
 import { 
@@ -39,6 +40,11 @@ import {
   RepricingAuditLogEntry,
   RemoteMerchantClient 
 } from '../types';
+import {
+  extractAutoTags,
+  autoTagProductCatalog,
+  ProductAutoTag
+} from '../utils/productAutoTagger';
 import {
   loadMerchantCatalog,
   saveMerchantCatalog,
@@ -112,6 +118,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const [isRefreshingPricing, setIsRefreshingPricing] = useState(false);
   const [isRunningAutoRepricer, setIsRunningAutoRepricer] = useState(false);
   const [isOptimizingImages, setIsOptimizingImages] = useState(false);
@@ -140,6 +147,8 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [minPriceFilter, setMinPriceFilter] = useState<string>('');
   const [maxPriceFilter, setMaxPriceFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | MerchantCatalogPricingStatus>('all');
+  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [tagCustomInput, setTagCustomInput] = useState<string>('');
   const [sortBy, setSortBy] = useState<'gap_desc' | 'gap_asc' | 'price_desc' | 'price_asc' | 'stock'>('gap_desc');
 
   // Modals State
@@ -203,6 +212,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const handlePullCatalog = async () => {
     if (!currentMerchant) return;
     setIsLoading(true);
+    setIsRateLimited(false);
     try {
       const updated = await pullLiveCatalogForMerchant(currentMerchant, platformFilter);
       setProducts(updated);
@@ -210,13 +220,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         onShowToast(`✅ تم بنجاح سحب وتحديث كتالوج منتجات "${currentMerchant.storeName}" (${updated.length} منتج)! 🛍️`);
       }
     } catch (err: any) {
-      const rawMsg = String(err?.message || '');
-      const cleanMsg =
-        rawMsg.includes('Unexpected token') || rawMsg.includes('is not valid JSON')
-          ? `تعذر تحليل استجابة الخادم — تم التحقق من كتالوج المتجر "${currentMerchant.storeName}" المحلي`
-          : (rawMsg || 'حدث خطأ أثناء سحب الكتالوج');
-      if (onShowToast) {
-        onShowToast(`⚠️ ${cleanMsg}`);
+      if (err.message === 'RATE_LIMITED') {
+        setIsRateLimited(true);
+        if (onShowToast) onShowToast('⚠️ تم تجاوز حد الطلبات (Rate Limit). يرجى المحاولة بعد دقيقة.');
+      } else {
+        const rawMsg = String(err?.message || '');
+        const cleanMsg =
+          rawMsg.includes('Unexpected token') || rawMsg.includes('is not valid JSON')
+            ? `تعذر تحليل استجابة الخادم — تم التحقق من كتالوج المتجر "${currentMerchant.storeName}" المحلي`
+            : (rawMsg || 'حدث خطأ أثناء سحب الكتالوج');
+        if (onShowToast) {
+          onShowToast(`⚠️ ${cleanMsg}`);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -463,6 +478,52 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     }
   };
 
+  // Extract unique available tags across catalog for filter dropdown
+  const availableCatalogTags = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => {
+      const autoTags = extractAutoTags(p);
+      autoTags.forEach(t => set.add(t.label));
+      if (Array.isArray(p.tags)) {
+        p.tags.forEach(t => set.add(t));
+      }
+    });
+    return Array.from(set);
+  }, [products]);
+
+  // Batch Auto-Tagging Action
+  const handleBatchAutoTagProducts = () => {
+    if (products.length === 0 || !activeMerchantId) return;
+    const { updatedProducts, totalTagsAppliedCount } = autoTagProductCatalog(products);
+    setProducts(updatedProducts);
+    saveMerchantCatalog(activeMerchantId, updatedProducts);
+    if (onShowToast) {
+      onShowToast(`🏷️✨ تم التصنيف التلقائي لجميع المنتجات! تم توليد وتطبيق ${totalTagsAppliedCount} وسماً ذكياً بنجاح بناءً على الكلمات المفتاحية والعناوين.`);
+    }
+  };
+
+  // Add custom tag to product
+  const handleAddCustomTagToProduct = (prodId: string, customTag: string) => {
+    if (!customTag.trim() || !activeMerchantId) return;
+    const cleanTag = customTag.trim();
+    const updated = products.map(p => {
+      if (p.id === prodId) {
+        const existingTags = Array.isArray(p.tags) ? p.tags : [];
+        if (!existingTags.includes(cleanTag)) {
+          return { ...p, tags: [...existingTags, cleanTag] };
+        }
+      }
+      return p;
+    });
+    setProducts(updated);
+    saveMerchantCatalog(activeMerchantId, updated);
+    setTagCustomInput('');
+    if (inspectProduct && inspectProduct.id === prodId) {
+      setInspectProduct(prev => prev ? { ...prev, tags: [...(prev.tags || []), cleanTag] } : null);
+    }
+    if (onShowToast) onShowToast(`🏷️ تم إضافة الوسم المخصص "${cleanTag}" للمنتج بنجاح!`);
+  };
+
   // Add Product Submit
   const handleAddNewProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -581,6 +642,16 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       // Status filter
       if (statusFilter !== 'all') {
         if (p.pricingStatus !== statusFilter) return false;
+      }
+
+      // Tag filter
+      if (tagFilter !== 'all') {
+        const autoTags = extractAutoTags(p);
+        const autoLabels = autoTags.map(t => t.label);
+        const customTags = Array.isArray(p.tags) ? p.tags : [];
+        const allProductTags = [...autoLabels, ...customTags];
+        const matchesTag = allProductTags.some(t => t.toLowerCase().includes(tagFilter.toLowerCase()) || tagFilter.toLowerCase().includes(t.toLowerCase()));
+        if (!matchesTag) return false;
       }
 
       // Search query
@@ -947,6 +1018,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               <span>{isRefreshingPricing ? 'جاري الفحص...' : 'فحص أسعار المنافسين ⚡'}</span>
             </button>
 
+            {/* Batch Auto-Tagging Button */}
+            <button
+              type="button"
+              onClick={handleBatchAutoTagProducts}
+              className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+              title="توليد وتطبيق الوسوم التلقائية بناءً على الكلمات المفتاحية في العنوان والوصف"
+            >
+              <Tag className="w-3.5 h-3.5 text-amber-300" />
+              <span>تصنيف تلقائي (Auto-Tag) 🏷️</span>
+            </button>
+
             {/* Run Automated Repricer Engine Button */}
             <button
               type="button"
@@ -1140,6 +1222,24 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 </select>
               </div>
 
+              {/* Tag Filter Dropdown */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-purple-700 font-bold flex items-center gap-1">
+                  <Tag className="w-3.5 h-3.5 text-purple-600" />
+                  <span>الوسم الذكي:</span>
+                </span>
+                <select
+                  value={tagFilter}
+                  onChange={(e) => setTagFilter(e.target.value)}
+                  className="h-8 px-2.5 rounded-xl bg-purple-50/80 border border-purple-200 text-xs font-bold text-purple-900 outline-none cursor-pointer"
+                >
+                  <option value="all">كل الوسوم ({availableCatalogTags.length})</option>
+                  {availableCatalogTags.map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center gap-1">
                 <span className="text-xs text-slate-500 font-bold">ترتيب:</span>
                 <select
@@ -1155,13 +1255,14 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 </select>
               </div>
 
-              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '') && (
+              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || tagFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '') && (
                 <button
                   type="button"
                   onClick={() => {
                     setPlatformFilter('all');
                     setSyncStatusFilter('all');
                     setPriceTierFilter('all');
+                    setTagFilter('all');
                     setMinPriceFilter('');
                     setMaxPriceFilter('');
                     setStatusFilter('all');
@@ -1413,6 +1514,36 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                               <span>
                                 <HighlightedText text={prod.category} highlight={searchQuery} />
                               </span>
+                            </div>
+
+                            {/* Auto & Custom Colored Tags */}
+                            <div className="flex items-center gap-1 flex-wrap pt-1">
+                              {extractAutoTags(prod).map(tag => (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => setTagFilter(tag.label)}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md border font-bold transition-all cursor-pointer hover:scale-105 ${tag.badgeBg} ${tag.badgeText} ${tag.badgeBorder}`}
+                                  title={`فلترة حسب الوسم: ${tag.label}`}
+                                >
+                                  {tag.label}
+                                </button>
+                              ))}
+                              {Array.isArray(prod.tags) && prod.tags.map((customTag, idx) => {
+                                const isAutoDuplicate = extractAutoTags(prod).some(t => t.label === customTag);
+                                if (isAutoDuplicate) return null;
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setTagFilter(customTag)}
+                                    className="text-[10px] px-2 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-800 font-bold transition-all cursor-pointer hover:scale-105"
+                                    title={`وسم مخصص: ${customTag}`}
+                                  >
+                                    🏷️ {customTag}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
@@ -1787,6 +1918,66 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 <p className="text-indigo-800 leading-relaxed">
                   {inspectProduct.suggestedAction}
                 </p>
+              </div>
+
+              {/* Product Auto-Tags and Custom Tag Management */}
+              <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 text-xs space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-purple-900 flex items-center gap-1.5 text-xs">
+                    <Tag className="w-4 h-4 text-purple-600" />
+                    <span>الوسوم والتصنيف التلقائي الذكي (Auto-Tags):</span>
+                  </span>
+                  <span className="text-[11px] text-purple-700 font-mono font-bold">
+                    ({extractAutoTags(inspectProduct).length} وسم تلقائي)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {extractAutoTags(inspectProduct).map(tag => (
+                    <span
+                      key={tag.id}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-bold ${tag.badgeBg} ${tag.badgeText} ${tag.badgeBorder}`}
+                    >
+                      {tag.label}
+                    </span>
+                  ))}
+                  {Array.isArray(inspectProduct.tags) && inspectProduct.tags.map((customTag, idx) => {
+                    const isAutoDuplicate = extractAutoTags(inspectProduct).some(t => t.label === customTag);
+                    if (isAutoDuplicate) return null;
+                    return (
+                      <span
+                        key={idx}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 font-bold"
+                      >
+                        🏷️ {customTag}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* Add custom tag input */}
+                <div className="flex items-center gap-2 pt-1 border-t border-purple-200/60">
+                  <input
+                    type="text"
+                    value={tagCustomInput}
+                    onChange={(e) => setTagCustomInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomTagToProduct(inspectProduct.id, tagCustomInput);
+                      }
+                    }}
+                    placeholder="أدخل وسم مخصص جديد (مثال: مستورد_ألمانيا، ضمان_المحل)..."
+                    className="flex-1 h-8 px-3 rounded-xl bg-white border border-purple-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddCustomTagToProduct(inspectProduct.id, tagCustomInput)}
+                    className="h-8 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition cursor-pointer shrink-0"
+                  >
+                    إضافة وسم ➕
+                  </button>
+                </div>
               </div>
 
             </div>
