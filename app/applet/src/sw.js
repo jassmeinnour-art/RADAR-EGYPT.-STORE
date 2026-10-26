@@ -1,10 +1,10 @@
-const CACHE_NAME = 'radar-egypt-v52';
+const cacheName = "js13kPWA-v1";
 const OFFLINE_URL = '/';
 
 import { precacheAndRoute } from 'workbox-precaching';
 precacheAndRoute(self.__WB_MANIFEST || []);
 
-const PRECACHE_ASSETS = [
+const appShellFiles = [
   '/',
   '/index.html',
   '/manifest.json',
@@ -16,51 +16,79 @@ const PRECACHE_ASSETS = [
   '/pwa-maskable-512x512.png'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[PWA SW] Precache partial error:', err);
-      });
-    }).then(() => self.skipWaiting())
+const gamesImages = [];
+const contentToCache = appShellFiles.concat(gamesImages);
+contentToCache.push("/pwa-192x192.png");
+
+
+self.addEventListener("install", (e) => {
+  console.log("[Service Worker] Install");
+  e.waitUntil(
+    (async () => {
+      const cache = await caches.open(cacheName);
+      console.log("[Service Worker] Caching all: app shell and content");
+      try {
+        await cache.addAll(contentToCache);
+      } catch (err) {
+        console.warn("[Service Worker] Cache addAll partial warning:", err);
+      }
+    })(),
   );
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
+self.addEventListener("activate", (e) => {
+  e.waitUntil(
+    caches.keys().then((keyList) =>
+      Promise.all(
+        keyList.map((key) => {
+          if (key === cacheName) {
+            return undefined;
           }
-        })
-      );
-    }).then(() => self.clients.claim())
+          return caches.delete(key);
+        }),
+      ),
+    ).then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+
+// Background Sync event listener
+self.addEventListener('sync', event => {
+  if (event.tag === 'database-sync') {
+    event.waitUntil(
+      (async () => {
+        console.log('[Service Worker] Sync event triggered: database-sync');
+      })()
+    );
+  }
+});
+
+// Periodic Background Sync event listener
+self.addEventListener('periodicsync', event => {
+  if (event.tag === 'fetch-new-content') {
+    event.waitUntil(
+      (async () => {
+        console.log('[Service Worker] PeriodicSync event triggered: fetch-new-content');
+      })()
+    );
+  }
+});
+
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET' || !e.request.url.startsWith('http')) {
     return;
   }
 
-  const url = new URL(event.request.url);
+  const url = new URL(e.request.url);
   
   // Guard clause for development/preview tools
   if (
     url.pathname.includes('aistudio') ||
     url.pathname.includes('vite') ||
     url.pathname.includes('node_modules') ||
-    !url.protocol.startsWith('http')
-  ) {
-    return;
-  }
-
-  if (
     url.hostname.includes('run.app') ||
     url.hostname === 'localhost' ||
-    url.pathname.includes('/node_modules/') ||
     url.pathname.includes('/@vite/') ||
     url.pathname.includes('/@fs/') ||
     url.pathname.includes('/src/') ||
@@ -71,9 +99,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Handle API with Network First
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
+  if (e.request.url.includes('/api/')) {
+    e.respondWith(
+      fetch(e.request).catch(() => {
         return new Response(JSON.stringify({ error: 'offline', offline: true }), {
           headers: { 'Content-Type': 'application/json' }
         });
@@ -83,47 +111,37 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network First for Navigation
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
         .catch(() => caches.match(OFFLINE_URL))
     );
     return;
   }
 
-  // Default: Cache First with fallback to Network, and safe handling for images/analytics
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
+  e.respondWith(
+    (async () => {
+      const r = await caches.match(e.request);
+      console.log(`[Service Worker] Fetching resource: ${e.request.url}`);
+      if (r) {
+        return r;
       }
-
-      return fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch((err) => {
-          console.warn('[PWA SW] Fetch failed for:', event.request.url, err);
-          
-          // Fallback for images
-          if (event.request.destination === 'image') {
-            // Return empty response or a placeholder if needed
-            return new Response(null, { status: 404 });
-          }
-          
-          // Fallback for analytics or other optional resources
-          if (event.request.url.includes('google-analytics') || event.request.url.includes('googletagmanager')) {
-            return new Response(null, { status: 404 });
-          }
-          
-          return new Response('Not found', { status: 404 });
-        });
-    })
+      try {
+        const response = await fetch(e.request);
+        if (response && response.status === 200) {
+          const cache = await caches.open(cacheName);
+          console.log(`[Service Worker] Caching new resource: ${e.request.url}`);
+          cache.put(e.request, response.clone());
+        }
+        return response;
+      } catch (err) {
+        console.warn(`[Service Worker] Fetch failed for ${e.request.url}:`, err);
+        if (e.request.destination === 'image') {
+          return new Response(null, { status: 404 });
+        }
+        return new Response('Not found', { status: 404 });
+      }
+    })(),
   );
 });
+

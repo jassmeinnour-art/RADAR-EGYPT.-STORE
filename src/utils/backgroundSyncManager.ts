@@ -161,23 +161,24 @@ export async function registerPeriodicSyncSafely(
     try {
       const registration = await navigator.serviceWorker.ready;
 
-      if (registration && 'periodicSync' in registration && typeof (registration as any).periodicSync.register === 'function') {
-        // Query permissions safely (checking if periodic-background-sync permission exists)
-        let permissionGranted = false;
+        // Query the user for permission.
+        let periodicSyncPermission = { state: 'granted' };
         if ('permissions' in navigator && typeof navigator.permissions.query === 'function') {
           try {
-            const status = await navigator.permissions.query({ name: 'periodic-background-sync' as any });
-            permissionGranted = status.state === 'granted';
+            periodicSyncPermission = await navigator.permissions.query({
+              name: 'periodic-background-sync' as any,
+            });
           } catch {
             // Permission query name unsupported in some browsers
-            permissionGranted = true;
           }
-        } else {
-          permissionGranted = true;
         }
 
-        if (permissionGranted) {
+        // Check if permission was properly granted.
+        if (periodicSyncPermission.state == 'granted') {
+
+          // Register a new periodic sync.
           await (registration as any).periodicSync.register(tag, {
+            // Set the sync to happen no more than once a day.
             minInterval: minIntervalMs
           });
           console.log(`[BackgroundSyncManager] Periodic background sync registered for tag "${tag}"`);
@@ -187,7 +188,6 @@ export async function registerPeriodicSyncSafely(
             method: 'background-sync'
           };
         }
-      }
     } catch (err) {
       console.warn(`[BackgroundSyncManager] Periodic sync registration failed for tag "${tag}":`, err);
     }

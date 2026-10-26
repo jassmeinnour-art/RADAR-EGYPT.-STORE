@@ -79,6 +79,7 @@ import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { BayyaaLogo } from './BayyaaLogo';
+import { ToolbarTooltip } from './ToolbarTooltip';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 import headerBrandLogo from '../assets/images/regenerated_image_1793023955535.png';
 
@@ -637,135 +638,194 @@ export const Header: React.FC<HeaderProps> = ({
             {/* أزرار تثبيت التطبيق دائمي الظهور ولا يختفيان أبداً لكافة المنصات والأجهزة */}
             <div id="btn-header-install-app" className="flex items-center gap-1.5 shrink-0">
               {/* 1. زر تثبيت الهواتف الذكية (Mobile) */}
-              <button
-                type="button"
-                id="btn-header-install-mobile"
-                onClick={() => {
-                  if (onOpenMobileInstallModal) {
-                    onOpenMobileInstallModal();
-                  } else if (onOpenInstallModal) {
-                    onOpenInstallModal();
-                  } else {
-                    window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
-                  }
-                }}
-                className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30 select-none whitespace-nowrap"
-                title="تثبيت الهواتف الذكية (Android · iPhone/iOS) مع شهادة الاعتماد الرقمية الموثقة"
+              <ToolbarTooltip
+                title="تثبيت الهواتف الذكية (PWA)"
+                description="ثبّت التطبيق على أندرويد وآيفون لمتابعة الأسعار وإدارة متجرك بدون إنترنت."
+                badge="تطبيق هاتف"
+                shortcut="PWA"
+                icon={Smartphone}
+                theme="emerald"
+                side="bottom"
               >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
-                </span>
-                <Smartphone className="w-4 h-4 shrink-0 text-white" />
-                <span className="whitespace-nowrap">تثبيت الهواتف الذكية (Mobile) 📱</span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-header-install-mobile"
+                  onClick={() => {
+                    if (onOpenMobileInstallModal) {
+                      onOpenMobileInstallModal();
+                    } else if (onOpenInstallModal) {
+                      onOpenInstallModal();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
+                    }
+                  }}
+                  className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30 select-none whitespace-nowrap"
+                >
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
+                  </span>
+                  <Smartphone className="w-4 h-4 shrink-0 text-white" />
+                  <span className="whitespace-nowrap">تثبيت الهواتف الذكية (Mobile) 📱</span>
+                </button>
+              </ToolbarTooltip>
 
               {/* 2. زر تثبيت الويندوز (Windows Desktop) */}
-              <button
-                type="button"
-                id="btn-header-install-windows"
-                onClick={() => {
-                  if (onOpenWindowsInstallModal) {
-                    onOpenWindowsInstallModal();
-                  } else if (onOpenInstallModal) {
-                    onOpenInstallModal();
-                  } else {
-                    window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
-                  }
-                }}
-                className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-sky-600 via-sky-700 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-sky-400/30 select-none whitespace-nowrap"
-                title="تثبيت الويندوز (Windows Desktop 10/11) كبرنامج مستقل مع شهادة الاعتماد"
+              <ToolbarTooltip
+                title="تثبيت سطح المكتب (Windows)"
+                description="شغّل رادار التاجر كبرنامج مستقل على الويندوز بحجم كامل وأداء فائق."
+                badge="سطح المكتب"
+                shortcut="Win + App"
+                icon={Laptop}
+                theme="sky"
+                side="bottom"
               >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-80" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-300" />
-                </span>
-                <Laptop className="w-4 h-4 shrink-0 text-white" />
-                <span className="whitespace-nowrap">تثبيت الويندوز (Windows) 💻</span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-header-install-windows"
+                  onClick={() => {
+                    if (onOpenWindowsInstallModal) {
+                      onOpenWindowsInstallModal();
+                    } else if (onOpenInstallModal) {
+                      onOpenInstallModal();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
+                    }
+                  }}
+                  className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-sky-600 via-sky-700 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-sky-400/30 select-none whitespace-nowrap"
+                >
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-80" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-300" />
+                  </span>
+                  <Laptop className="w-4 h-4 shrink-0 text-white" />
+                  <span className="whitespace-nowrap">تثبيت الويندوز (Windows) 💻</span>
+                </button>
+              </ToolbarTooltip>
 
               {/* زر دليل ملفات جميع التجار (All Merchants Hub) */}
-              <button
-                type="button"
-                id="btn-header-all-merchants-hub"
-                onClick={() => {
-                  if (onOpenAllMerchantsHub) {
-                    onOpenAllMerchantsHub();
-                  } else {
-                    window.dispatchEvent(new CustomEvent('open-all-merchants-hub'));
-                  }
-                }}
-                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-indigo-400/30 select-none whitespace-nowrap"
-                title="دليل ملفات جميع التجار - عرض وقائمة جميع التجار والمنصات المرتبطة ومعرفاتهم وتصدير التقارير"
+              <ToolbarTooltip
+                title="دليل ملفات التجار"
+                description="استعرض قائمة التجار والمنصات المرتبطة ومعرفات الربط وبوالص الشحن."
+                badge="دليل التجار"
+                icon={Users}
+                theme="indigo"
+                side="bottom"
               >
-                <Users className="w-4 h-4 shrink-0 text-white" />
-                <span className="whitespace-nowrap">دليل ملفات جميع التجار 👥</span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-header-all-merchants-hub"
+                  onClick={() => {
+                    if (onOpenAllMerchantsHub) {
+                      onOpenAllMerchantsHub();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-all-merchants-hub'));
+                    }
+                  }}
+                  className="h-10 px-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-indigo-400/30 select-none whitespace-nowrap"
+                >
+                  <Users className="w-4 h-4 shrink-0 text-white" />
+                  <span className="whitespace-nowrap">دليل ملفات جميع التجار 👥</span>
+                </button>
+              </ToolbarTooltip>
             </div>
 
             {/* زر تنسيق الأزرار والواجهة (Visual Style Control Panel) */}
-            <button
-              type="button"
-              id="btn-header-visual-customizer-toolbar"
-              onClick={toggleCustomizer}
-              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-black rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group hover:bg-amber-100/70 shrink-0 select-none whitespace-nowrap"
-              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
+            <ToolbarTooltip
+              title="تخصيص تنسيق الواجهة"
+              description="تغيير ثيم الألوان، أبعاد الأزرار، والمسافات بما يناسب شاشتك ورغبتك."
+              badge="تنسيق الألوان"
+              icon={Palette}
+              theme="amber"
+              side="bottom"
             >
-              <Palette className="w-4 h-4 shrink-0 text-[#FF6B00] group-hover:scale-110 transition-transform" />
-              <span className="font-extrabold whitespace-nowrap">🎨 تنسيق الأزرار والواجهة</span>
-            </button>
+              <button
+                type="button"
+                id="btn-header-visual-customizer-toolbar"
+                onClick={toggleCustomizer}
+                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-black rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group hover:bg-amber-100/70 shrink-0 select-none whitespace-nowrap"
+              >
+                <Palette className="w-4 h-4 shrink-0 text-[#FF6B00] group-hover:scale-110 transition-transform" />
+                <span className="font-extrabold whitespace-nowrap">🎨 تنسيق الأزرار والواجهة</span>
+              </button>
+            </ToolbarTooltip>
 
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (
-              <button
-                type="button"
-                id="btn-header-trending-chinese-imports"
-                onClick={onOpenBestSellersModal}
-                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group hover:bg-amber-50 shrink-0"
-                title="منتجات التريند والأعلى مبيعات (الصين 👈 مصر) - تصفح كتالوج السلع الأكثر طلباً وربحية بالأسواق المصرية"
+              <ToolbarTooltip
+                title="منتجات التريند المستوردة"
+                description="كتالوج المنتجات الأعلى طلباً وربحية بالأسواق المصرية من الواردات الصينية."
+                badge="الأكثر مبيعاً"
+                icon={Flame}
+                theme="amber"
+                side="bottom"
               >
-                <Flame className="w-4 h-4 shrink-0 text-[#000000] fill-amber-400 group-hover:scale-110 transition-transform" />
-                <span className="font-extrabold whitespace-nowrap">منتجات التريند (الصين 👈 مصر)</span>
-                <span className="hidden xl:inline text-[10px] bg-[#000000] text-white px-2 py-0.5 rounded-md font-mono">
-                  Top Trending
-                </span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-header-trending-chinese-imports"
+                  onClick={onOpenBestSellersModal}
+                  className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group hover:bg-amber-50 shrink-0"
+                >
+                  <Flame className="w-4 h-4 shrink-0 text-[#000000] fill-amber-400 group-hover:scale-110 transition-transform" />
+                  <span className="font-extrabold whitespace-nowrap">منتجات التريند (الصين 👈 مصر)</span>
+                  <span className="hidden xl:inline text-[10px] bg-[#000000] text-white px-2 py-0.5 rounded-md font-mono">
+                    Top Trending
+                  </span>
+                </button>
+              </ToolbarTooltip>
             )}
 
             {/* زر مسح منتج جديد */}
-            <button
-              type="button"
-              id="btn-header-toolbar-scan-product"
-              onClick={onOpenScanner}
-              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95"
-              title="مسح باركود منتج جديد بالكاميرا أو إدخاله يدوياً"
+            <ToolbarTooltip
+              title="مسح منتج جديد"
+              description="افتح الكاميرا لمسح الباركود أو ادخل الكود يدوياً لإضافة السلعة فوراً للرادار."
+              badge="كاميرا الباركود"
+              shortcut="Scan"
+              icon={PlusCircle}
+              theme="emerald"
+              side="bottom"
             >
-              <PlusCircle className="w-4 h-4 shrink-0 text-[#000000]" />
-              <span>مسح منتج جديد</span>
-            </button>
+              <button
+                type="button"
+                id="btn-header-toolbar-scan-product"
+                onClick={onOpenScanner}
+                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4 shrink-0 text-[#000000]" />
+                <span>مسح منتج جديد</span>
+              </button>
+            </ToolbarTooltip>
 
             {/* زر سحب الطلبات */}
-            <button
-              type="button"
-              id="btn-header-pull-orders"
-              onClick={() => {
-                if (isPaywallLocked && onOpenSubscriptionModal) {
-                  onOpenSubscriptionModal();
-                  return;
-                }
-                if (onPullOrders) {
-                  onPullOrders();
-                } else {
-                  setActiveTab('remote_merchants');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-              }}
-              className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95"
-              title="سحب ومزامنة الطلبات الحية للمتجر النشط"
+            <ToolbarTooltip
+              title="سحب ومزامنة الطلبات"
+              description="جلب أحدث الطلبات الشحنات من المنصات المتصلة (أمازون، نون، بياع) وتحديث المخزون."
+              badge="مزامنة حية"
+              icon={RefreshCw}
+              theme="sky"
+              side="bottom"
             >
-              <RefreshCw className={`w-4 h-4 shrink-0 text-[#000000] ${isPlatformSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">سحب الطلبات</span>
-            </button>
+              <button
+                type="button"
+                id="btn-header-pull-orders"
+                onClick={() => {
+                  if (isPaywallLocked && onOpenSubscriptionModal) {
+                    onOpenSubscriptionModal();
+                    return;
+                  }
+                  if (onPullOrders) {
+                    onPullOrders();
+                  } else {
+                    setActiveTab('remote_merchants');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95"
+              >
+                <RefreshCw className={`w-4 h-4 shrink-0 text-[#000000] ${isPlatformSyncing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">سحب الطلبات</span>
+              </button>
+            </ToolbarTooltip>
 
             {/* Global Search Bar (Request 3: Instant filtering) */}
             <div className="relative h-10 min-w-[200px] lg:min-w-[300px] hidden md:block">
@@ -781,30 +841,38 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Quick Dark/Light Mode Toggle Button */}
-            <button
-              type="button"
-              id="btn-header-toggle-dark-mode"
-              onClick={() => {
-                toggleColorMode();
-                if (onShowToast) {
-                  onShowToast(resolvedColorMode === 'dark' ? '☀️ تم التبديل إلى الوضع النهاري (Light Mode)' : '🌙 تم التبديل إلى الوضع الليلي لراحة العين (Dark Mode)');
-                }
-              }}
-              className="h-10 px-3 flex items-center justify-center gap-1.5 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 shrink-0"
-              title={resolvedColorMode === 'dark' ? "التبديل للوضع النهاري (Light Mode)" : "التبديل للوضع الليلي لراحة العين (Dark Mode)"}
+            <ToolbarTooltip
+              title={resolvedColorMode === 'dark' ? "الوضع النهاري" : "الوضع الليلي"}
+              description="التبديل بين مظهر الإضاءة المريحة للعين أو المظهر الداكن."
+              badge="مظهر الشاشة"
+              icon={resolvedColorMode === 'dark' ? Sun : Moon}
+              theme="slate"
+              side="bottom"
             >
-              {resolvedColorMode === 'dark' ? (
-                <>
-                  <Sun className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="hidden md:inline text-xs font-bold">وضع نهاري ☀️</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <span className="hidden md:inline text-xs font-bold">وضع ليلي 🌙</span>
-                </>
-              )}
-            </button>
+              <button
+                type="button"
+                id="btn-header-toggle-dark-mode"
+                onClick={() => {
+                  toggleColorMode();
+                  if (onShowToast) {
+                    onShowToast(resolvedColorMode === 'dark' ? '☀️ تم التبديل إلى الوضع النهاري (Light Mode)' : '🌙 تم التبديل إلى الوضع الليلي لراحة العين (Dark Mode)');
+                  }
+                }}
+                className="h-10 px-3 flex items-center justify-center gap-1.5 bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] font-bold rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+              >
+                {resolvedColorMode === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="hidden md:inline text-xs font-bold">وضع نهاري ☀️</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span className="hidden md:inline text-xs font-bold">وضع ليلي 🌙</span>
+                  </>
+                )}
+              </button>
+            </ToolbarTooltip>
 
             {/* Cloud Database & Authentication Widget */}
             {user ? (

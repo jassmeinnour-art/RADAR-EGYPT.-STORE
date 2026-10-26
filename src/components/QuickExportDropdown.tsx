@@ -15,6 +15,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAsyncOperations } from '../context/AsyncOperationsContext';
+import { ToolbarTooltip } from './ToolbarTooltip';
 
 interface QuickExportDropdownProps {
   id?: string;
@@ -103,78 +104,81 @@ export const QuickExportDropdown: React.FC<QuickExportDropdownProps> = ({
   return (
     <div ref={containerRef} className="relative inline-flex items-center">
       {/* The Target Button with CSS Selector #btn-active-ribbon-export */}
-      <button
-        id={id}
-        onClick={handleClick}
-        onMouseDown={handlePressStart}
-        onMouseUp={handlePressEnd}
-        onMouseLeave={handlePressEnd}
-        onTouchStart={handlePressStart}
-        onTouchEnd={handlePressEnd}
-        onTouchCancel={handlePressEnd}
-        onContextMenu={handleContextMenu}
-        aria-haspopup="true"
-        aria-expanded={isOpen}
-        disabled={isCsvExporting}
-        className={`h-9 px-3 sm:px-3.5 rounded-xl text-xs font-bold font-['Alexandria'] flex items-center justify-center gap-2 transition-all cursor-pointer select-none border shrink-0 whitespace-nowrap shadow-2xs relative active:scale-95 ${
-          isCsvExporting ? 'opacity-80 cursor-wait bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/50' :
-          isPressing ? 'scale-95 ring-2 ring-indigo-500/50 bg-indigo-50' : ''
-        } ${
-          isExportOverdue && !isCsvExporting
-            ? 'bg-gradient-to-r from-sky-50 via-rose-50 to-sky-100 hover:from-sky-100 hover:to-rose-100 text-sky-950 border-sky-400 ring-2 ring-rose-500/50 shadow-sm animate-pulse'
-            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-        }`}
-        title={
-          isCsvExporting 
-            ? 'جاري تجهيز وتنزيل ملف التصدير...' 
-            : isExportOverdue 
-            ? "⚠️ تنبيه عاجل: تجاوز 24 ساعة بدون تصدير! اضغط للتصدير السريع أو اضغط مطولاً للخيارات" 
-            : "تصدير Excel / CSV (اضغط مطولاً لخيارات سريعة: PDF، CSV، إرسال إيميل للمدير)"
-        }
+      <ToolbarTooltip
+        title="تصدير التقارير و Excel"
+        description="تصدير كـ Excel أو CSV أو PDF مع تحليل Gemini الذكي قبل الإرسال للإدارة."
+        badge={isExportOverdue ? "تأخير 24h!" : "تصدير فوري"}
+        shortcut="Ctrl+E"
+        icon={FileSpreadsheet}
+        theme={isExportOverdue ? "rose" : "emerald"}
+        side="bottom"
       >
-        {isCsvExporting ? (
-          <>
-            <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
-            <span className="text-emerald-900 font-bold">جاري تنزيل CSV...</span>
-          </>
-        ) : isExportOverdue ? (
-          <>
-            {/* Flashing Alert Beacon Top-Right */}
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 pointer-events-none" aria-hidden="true">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-white text-[8px] font-black items-center justify-center shadow-xs">!</span>
-            </span>
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-bounce shrink-0" />
-            <FileSpreadsheet className="w-3.5 h-3.5 text-sky-700 shrink-0" />
-            <span className="font-black text-rose-950">تصدير Excel / CSV</span>
-          </>
-        ) : (
-          <>
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>تصدير Excel / CSV</span>
-          </>
-        )}
-
-        {isExportOverdue && !isCsvExporting && (
-          <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black flex items-center gap-1 shadow-2xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-            <BellRing className="w-2.5 h-2.5 text-white animate-pulse" />
-            <span>24h+</span>
-          </span>
-        )}
-
-        {/* Small chevron indicator that can also be clicked to toggle dropdown */}
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsOpen(prev => !prev);
-          }}
-          className="p-0.5 hover:bg-black/10 rounded transition-colors text-slate-500 hover:text-slate-900"
-          title="عرض خيارات التصدير السريعة"
+        <button
+          id={id}
+          onClick={handleClick}
+          onMouseDown={handlePressStart}
+          onMouseUp={handlePressEnd}
+          onMouseLeave={handlePressEnd}
+          onTouchStart={handlePressStart}
+          onTouchEnd={handlePressEnd}
+          onTouchCancel={handlePressEnd}
+          onContextMenu={handleContextMenu}
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+          disabled={isCsvExporting}
+          className={`h-9 px-3 sm:px-3.5 rounded-xl text-xs font-bold font-['Alexandria'] flex items-center justify-center gap-2 transition-all cursor-pointer select-none border shrink-0 whitespace-nowrap shadow-2xs relative active:scale-95 ${
+            isCsvExporting ? 'opacity-80 cursor-wait bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/50' :
+            isPressing ? 'scale-95 ring-2 ring-indigo-500/50 bg-indigo-50' : ''
+          } ${
+            isExportOverdue && !isCsvExporting
+              ? 'bg-gradient-to-r from-sky-50 via-rose-50 to-sky-100 hover:from-sky-100 hover:to-rose-100 text-sky-950 border-sky-400 ring-2 ring-rose-500/50 shadow-sm animate-pulse'
+              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+          }`}
         >
-          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-        </span>
-      </button>
+          {isCsvExporting ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+              <span className="text-emerald-900 font-bold">جاري تنزيل CSV...</span>
+            </>
+          ) : isExportOverdue ? (
+            <>
+              {/* Flashing Alert Beacon Top-Right */}
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 pointer-events-none" aria-hidden="true">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-white text-[8px] font-black items-center justify-center shadow-xs">!</span>
+              </span>
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-bounce shrink-0" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+              <span className="font-black text-rose-950">تصدير Excel / CSV</span>
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>تصدير Excel / CSV</span>
+            </>
+          )}
+
+          {isExportOverdue && !isCsvExporting && (
+            <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black flex items-center gap-1 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              <BellRing className="w-2.5 h-2.5 text-white animate-pulse" />
+              <span>24h+</span>
+            </span>
+          )}
+
+          {/* Small chevron indicator that can also be clicked to toggle dropdown */}
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(prev => !prev);
+            }}
+            className="p-0.5 hover:bg-black/10 rounded transition-colors text-slate-500 hover:text-slate-900"
+            title="عرض خيارات التصدير السريعة"
+          >
+            <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+          </span>
+        </button>
+      </ToolbarTooltip>
 
       {/* Floating Dropdown Menu (تظهر عند الضغط المطول أو الضغط على السهم) */}
       {isOpen && (

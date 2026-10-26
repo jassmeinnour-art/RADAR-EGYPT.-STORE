@@ -310,5 +310,17 @@
       "id": "radaregypt.store"
     }
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "tab_strip": {
+    "home_tab": {
+      "scope_patterns": [
+        {"pathname": "/"},
+        {"pathname": "/index.html"}
+      ]
+    },
+    "new_tab_button": {
+      "url": "/create"
+    }
+  }
 }
+

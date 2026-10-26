@@ -595,3 +595,11 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
     display: none !important;
   }
 }
+
+@media (display-mode: tabbed) {
+  /* Styles to apply in tabbed application mode. */
+  body {
+    --tabbed-mode: 1;
+  }
+}
+

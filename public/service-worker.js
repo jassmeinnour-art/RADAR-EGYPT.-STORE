@@ -38,47 +38,71 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Periodic Background Sync Event Handler
+// Helper function for fetching new content during periodic background sync
+async function fetchNewContent() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const res = await fetch('/manifest.json');
+    if (res && res.status === 200) {
+      await cache.put('/manifest.json', res.clone());
+      const clientsList = await self.clients.matchAll();
+      clientsList.forEach(client => {
+        client.postMessage({ type: 'PERIODIC_SYNC_UPDATE', tag: 'fetch-new-content', timestamp: Date.now() });
+      });
+    }
+  } catch (error) {
+    console.error('Periodic sync fetchNewContent failed:', error);
+  }
+}
+
+// Listen for the `periodicsync` event.
 self.addEventListener('periodicsync', event => {
-  if (event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh' || event.tag === 'fetch-new-content') {
+
+  // Check for correct tag on the periodicSyncPermissionsync event.
+  if (event.tag === 'fetch-new-content' || event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh') {
+
+    // Execute the desired behavior with waitUntil().
     event.waitUntil(
-      caches.open(CACHE_NAME).then(cache => {
-        return fetch('/manifest.json').then(res => {
-          if (res && res.status === 200) {
-            cache.put('/manifest.json', res.clone());
-            return self.clients.matchAll().then(clients => {
-              clients.forEach(client => {
-                client.postMessage({ type: 'PERIODIC_SYNC_UPDATE', tag: event.tag, timestamp: Date.now() });
-              });
-            });
-          }
-        }).catch(() => {});
-      })
+
+      // This is just a hypothetical function for the behavior we desire.
+      fetchNewContent()
     );
   }
 });
 
+// Helper function for pushing local merchant data to database during background sync
+async function pushLocalDataToDatabase() {
+  try {
+    const clientsList = await self.clients.matchAll();
+    clientsList.forEach(client => {
+      client.postMessage({ type: 'DATABASE_SYNC_STARTED', timestamp: Date.now() });
+    });
+    
+    const response = await fetch('/manifest.json');
+    if (response.ok) {
+      clientsList.forEach(client => {
+        client.postMessage({ type: 'DATABASE_SYNC_SUCCESS', timestamp: Date.now() });
+      });
+    }
+  } catch (error) {
+    console.error('Background sync pushLocalDataToDatabase failed:', error);
+    throw error;
+  }
+}
+
 // One-shot Background Sync Event Handler
 self.addEventListener('sync', event => {
+  // Check for correct tag on the sync event.
   if (
+    event.tag === 'database-sync' ||
     event.tag === 'sync-merchant-data' ||
     event.tag === 'radar-price-sync' ||
     event.tag === 'sync-messages' ||
     event.tag === 'sync-data'
   ) {
+    // Execute the desired behavior with waitUntil().
     event.waitUntil(
-      caches.open(CACHE_NAME).then(cache => {
-        return fetch('/manifest.json').then(res => {
-          if (res && res.status === 200) {
-            cache.put('/manifest.json', res.clone());
-            return self.clients.matchAll().then(clients => {
-              clients.forEach(client => {
-                client.postMessage({ type: 'BACKGROUND_SYNC_COMPLETE', tag: event.tag, timestamp: Date.now() });
-              });
-            });
-          }
-        }).catch(() => {});
-      })
+      pushLocalDataToDatabase()
     );
   }
 });

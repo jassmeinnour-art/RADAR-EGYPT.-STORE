@@ -43,6 +43,12 @@ export async function triggerPWARefresh(): Promise<void> {
   }
 }
 
+export let swRegistration: ServiceWorkerRegistration | null = null;
+
+export function getServiceWorkerRegistration(): ServiceWorkerRegistration | null {
+  return swRegistration;
+}
+
 export function setupPWA(onNeedRefresh?: () => void) {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     const isIframe = window.self !== window.top;
@@ -56,6 +62,7 @@ export function setupPWA(onNeedRefresh?: () => void) {
         navigator.serviceWorker
           .register('/service-worker.js', { scope: '/' })
           .then((registration) => {
+            swRegistration = registration;
             globalUpdateSW = async (reloadPage?: boolean) => {
               await registration.update();
               if (reloadPage) {
