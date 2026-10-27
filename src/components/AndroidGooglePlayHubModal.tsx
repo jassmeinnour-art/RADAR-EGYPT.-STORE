@@ -249,17 +249,21 @@ export const AndroidGooglePlayHubModal: React.FC<AndroidGooglePlayHubModalProps>
                 </div>
 
                 {!isInstalled && (
-                  <button
-                    type="button"
-                    onClick={handleInstallClick}
-                    disabled={isInstalling}
-                    className="w-full sm:w-auto h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shrink-0"
+                  <a
+                    href="/radar-al-tajer-signed.apk"
+                    download="radar-al-tajer-signed.apk"
+                    onClick={() => {
+                      confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
+                      onShowToast?.('جاري تحميل تطبيق أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
+                    }}
+                    className="w-full sm:w-auto h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shrink-0 text-center"
                   >
                     <Download className="w-4 h-4" />
-                    <span>{isInstalling ? 'جاري التثبيت...' : 'تثبيت التطبيق الآن مجاناً 📲'}</span>
-                  </button>
+                    <span>تحميل تطبيق أندرويد (APK) مباشرة 📲</span>
+                  </a>
                 )}
               </div>
+
 
               {/* In-App Browser Warning (Instagram / Facebook / TikTok) */}
               {isInAppBrowser && (

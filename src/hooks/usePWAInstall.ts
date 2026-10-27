@@ -213,6 +213,22 @@ export function usePWAInstall() {
     }
   };
 
+  const downloadApkDirectly = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const a = document.createElement('a');
+        a.href = '/radar-al-tajer-signed.apk';
+        a.download = 'radar-al-tajer-signed.apk';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch (err) {
+        console.warn('[PWA] APK Download error:', err);
+        window.location.href = '/radar-al-tajer-signed.apk';
+      }
+    }
+  };
+
   return {
     isInstallable: Boolean(deferredPrompt || globalDeferredPrompt),
     isInstalled,
@@ -227,8 +243,10 @@ export function usePWAInstall() {
     deviceInfo,
     install,
     openInNewWindow,
+    downloadApkDirectly,
     dismissMobilePrompt,
     resetMobilePrompt,
   };
 }
+
 

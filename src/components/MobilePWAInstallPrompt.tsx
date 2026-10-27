@@ -38,6 +38,7 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
     isMobilePromptDismissed,
     install, 
     openInNewWindow,
+    downloadApkDirectly,
     dismissMobilePrompt,
     resetMobilePrompt
   } = usePWAInstall();
@@ -49,7 +50,18 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
   // Don't display if already installed
   if (isInstalled) return null;
 
+  const handleApkDownload = () => {
+    downloadApkDirectly();
+    confetti({
+      particleCount: 110,
+      spread: 85,
+      origin: { y: 0.6 }
+    });
+    onShowToast?.('جاري تنزيل ملف تطبيق أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
+  };
+
   const handleInstallClick = async () => {
+    // If native prompt is available try it first, otherwise trigger direct APK download
     if (isInstallable) {
       setIsInstalling(true);
       try {
@@ -69,9 +81,10 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
         setIsInstalling(false);
       }
     }
-    // If native prompt is not available or rejected, open interactive guide
-    setShowGuideModal(true);
+    // Fallback directly to downloading real APK file
+    handleApkDownload();
   };
+
 
   return (
     <>
@@ -219,12 +232,34 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
                 </span>
               </div>
 
+              {/* Direct APK Download Banner */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border-2 border-emerald-500/40 text-center space-y-2.5">
+                <div className="flex items-center justify-center gap-1.5 text-emerald-900 font-black text-xs">
+                  <Download className="w-4 h-4 text-emerald-600 animate-bounce" />
+                  <span>تحميل مباشر لملف أندرويد الحقيقي (APK)</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  قم بتحميل ملف التركيب المباشر (radar-al-tajer-signed.apk) وتثبيته على هاتفك فوراً بدون شروط المتصفح.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApkDownload();
+                    setShowGuideModal(false);
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>تحميل ملف أندرويد (radar-al-tajer-signed.apk) 📲</span>
+                </button>
+              </div>
+
               {/* Direct One-Click Install Button if browser supports it */}
               {isInstallable && (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 text-center space-y-2">
                   <div className="flex items-center justify-center gap-1.5 text-emerald-900 font-black text-xs">
                     <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
-                    <span>متصفحك يدعم نافذة التثبيت التلقائي بنقرة واحدة!</span>
+                    <span>أو تثبيت تطبيق الويب بنقرة واحدة (PWA)</span>
                   </div>
                   <button
                     type="button"
@@ -232,13 +267,14 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
                       await handleInstallClick();
                       setShowGuideModal(false);
                     }}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
                   >
                     <Download className="w-4 h-4" />
-                    <span>تثبيت التطبيق على الشاشة الرئيسية فوراً ⚡</span>
+                    <span>تثبيت PWA للشاشة الرئيسية ⚡</span>
                   </button>
                 </div>
               )}
+
 
               {/* Warning for In-App Browsers (Facebook, Instagram, WhatsApp) */}
               {isInAppBrowser && (

@@ -738,24 +738,28 @@ export const PlatformInstallMatrixModal: React.FC<PlatformInstallMatrixModalProp
                       {/* Android Actions */}
                       <div className="space-y-3 pt-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <button
-                            type="button"
-                            id="btn-trigger-android-pwa-install"
-                            onClick={handleTriggerAndroidInstall}
-                            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                          <a
+                            href="/radar-al-tajer-signed.apk"
+                            download="radar-al-tajer-signed.apk"
+                            onClick={() => {
+                              confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
+                              onShowToast?.('جاري تحميل تطبيق أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
+                            }}
+                            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center"
                           >
                             <Download className="w-4 h-4" />
-                            <span>تثبيت أندرويد المباشر الآن 📲</span>
-                          </button>
+                            <span>تحميل تطبيق أندرويد (APK) المباشر 📲</span>
+                          </a>
 
                           <a 
-                            href="/twa-manifest.json" 
-                            download="radar-android-manifest.json" 
+                            href="/radar-al-tajer-signed.apk" 
+                            download="radar-al-tajer-signed.apk" 
                             className="w-full py-3 px-4 rounded-xl bg-white hover:bg-emerald-50 text-emerald-800 border-2 border-emerald-300 font-extrabold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center"
                           >
                             <Download className="w-4 h-4 text-emerald-600" />
-                            <span>تنزيل حزمة APK / PWA المعتمدة</span>
+                            <span>تحميل ملف التركيب (signed.apk)</span>
                           </a>
+
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -51,30 +51,26 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     browser === 'safari' ? 'ios' : browser === 'samsung' ? 'samsung' : 'chrome'
   );
 
-  const handleInstallClick = async () => {
-    if (isInstallable) {
-      setIsInstalling(true);
-      try {
-        const success = await install();
-        if (success) {
-          confetti({
-            particleCount: 90,
-            spread: 80,
-            origin: { y: 0.6 }
-          });
-          onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على جهازك! 🎉');
-        } else {
-          setShowInstallGuide(true);
-        }
-      } catch {
-        setShowInstallGuide(true);
-      } finally {
-        setIsInstalling(false);
-      }
-    } else {
-      setShowInstallGuide(true);
-    }
+  const handleApkDownload = () => {
+    const link = document.createElement('a');
+    link.href = '/radar-al-tajer-signed.apk';
+    link.download = 'radar-al-tajer-signed.apk';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    confetti({
+      particleCount: 100,
+      spread: 80,
+      origin: { y: 0.6 }
+    });
+    onShowToast?.('جاري تنزيل ملف أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
+
   };
+
+  const handleInstallClick = async () => {
+    handleApkDownload();
+  };
+
 
   // If already installed, we still keep the button accessible for re-install, multi-device, and certificate download
   const isInstalledBadge = isInstalled ? (

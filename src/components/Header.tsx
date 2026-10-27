@@ -651,12 +651,14 @@ export const Header: React.FC<HeaderProps> = ({
                   type="button"
                   id="btn-header-install-mobile"
                   onClick={() => {
-                    if (onOpenMobileInstallModal) {
-                      onOpenMobileInstallModal();
-                    } else if (onOpenInstallModal) {
-                      onOpenInstallModal();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
+                    const link = document.createElement('a');
+                    link.href = '/radar-al-tajer-signed.apk';
+                    link.download = 'radar-al-tajer-signed.apk';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    if (onShowToast) {
+                      onShowToast('جاري تنزيل ملف أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
                     }
                   }}
                   className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30 select-none whitespace-nowrap"
@@ -666,8 +668,9 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
                   </span>
                   <Smartphone className="w-4 h-4 shrink-0 text-white" />
-                  <span className="whitespace-nowrap">تثبيت الهواتف الذكية (Mobile) 📱</span>
+                  <span className="whitespace-nowrap">تحميل أندرويد (APK) 📱</span>
                 </button>
+
               </ToolbarTooltip>
 
               {/* 2. زر تثبيت الويندوز (Windows Desktop) */}
@@ -1235,19 +1238,22 @@ export const Header: React.FC<HeaderProps> = ({
                 <SidebarButton
                   id="sidebar-btn-install-mobile"
                   icon={<Smartphone className="w-4 h-4 text-emerald-400" />}
-                  label="تثبيت الهواتف الذكية (Mobile)"
-                  badge="Android · iOS 📱"
+                  label="تحميل أندرويد (APK المباشر)"
+                  badge="APK 📱"
                   onClick={() => {
                     setIsSidebarOpen(false);
-                    if (onOpenMobileInstallModal) {
-                      onOpenMobileInstallModal();
-                    } else if (onOpenInstallModal) {
-                      onOpenInstallModal();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'mobile', subTab: 'android' } }));
+                    const link = document.createElement('a');
+                    link.href = '/radar-al-tajer-signed.apk';
+                    link.download = 'radar-al-tajer-signed.apk';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    if (onShowToast) {
+                      onShowToast('جاري تنزيل تطبيق أندرويد الحقيقي (APK)... 🚀');
                     }
                   }}
                 />
+
                 <SidebarButton
                   id="sidebar-btn-install-windows"
                   icon={<Laptop className="w-4 h-4 text-sky-400" />}
