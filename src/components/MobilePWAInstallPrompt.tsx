@@ -52,19 +52,24 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
   const handleInstallClick = async () => {
     if (isInstallable) {
       setIsInstalling(true);
-      const success = await install();
-      setIsInstalling(false);
-      if (success) {
-        confetti({
-          particleCount: 100,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-        onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على هاتفك! 🎉');
-        return;
+      try {
+        const success = await install();
+        if (success) {
+          confetti({
+            particleCount: 100,
+            spread: 80,
+            origin: { y: 0.6 }
+          });
+          onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على هاتفك! 🎉');
+          return;
+        }
+      } catch (err) {
+        console.warn('[MobilePWAInstallPrompt] Install error:', err);
+      } finally {
+        setIsInstalling(false);
       }
     }
-    // If native prompt is not available, open interactive guide
+    // If native prompt is not available or rejected, open interactive guide
     setShowGuideModal(true);
   };
 

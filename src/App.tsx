@@ -58,7 +58,11 @@ import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
+import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
+import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
+import { usePWAInstall } from './hooks/usePWAInstall';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
+
 
 function extractComponent(module: any): React.ComponentType<any> {
   if (!module) return (() => null) as any;
@@ -180,39 +184,33 @@ export default function App() {
   // Subscription & 3-day Grace Period Hook
   const subscriptionState = useSubscription(profile);
 
-  // PWA & Installation states
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  // PWA & Installation Hook
+  const { isInstallable, install: triggerPWAInstall } = usePWAInstall();
   const [showInstallBar, setShowInstallBar] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     const timer = setTimeout(() => {
       setShowInstallBar(true);
     }, 1500);
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
-  const handleInstallPwa = () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult: any) => {
-        if (choiceResult.outcome === 'accepted') {
-          setDeferredPrompt(null);
+  const handleInstallPwa = async () => {
+    if (isInstallable) {
+      try {
+        const success = await triggerPWAInstall();
+        if (success) {
+          showToast('تم تثبيت تطبيق رادار التاجر الذكي بنجاح! 🎉');
+          return;
         }
-      });
-    } else {
-      showToast('يمكنك تثبيت التطبيق من إعدادات المتصفح (مشاركة -> إضافة للشاشة الرئيسية).');
+      } catch (err) {
+        console.warn('[App] Install error:', err);
+      }
     }
+    window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
   };
+
 
   const downloadCertificate = () => {
     const certContent = '-----BEGIN CERTIFICATE-----\nMIIDATCCAemgAwIBAgIU...\n-----END CERTIFICATE-----';
@@ -906,6 +904,13 @@ export default function App() {
       </footer>
       {/* Visual Customizer Modal */}
       <VisualCustomizerModal />
+
+      {/* Mobile Floating PWA Installation Prompt & Bottom Dock */}
+      <MobilePWAInstallPrompt onShowToast={showToast} />
+
+      {/* Multi-Platform PWA Installation & Certificate Modal */}
+      <PlatformInstallMatrixModal onShowToast={showToast} />
     </div>
   );
 }
+

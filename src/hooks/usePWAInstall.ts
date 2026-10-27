@@ -163,23 +163,35 @@ export function usePWAInstall() {
     const promptEvent = deferredPrompt || globalDeferredPrompt;
     if (!promptEvent) return false;
     try {
-      await promptEvent.prompt();
-      const { outcome } = await promptEvent.userChoice;
-      if (outcome === 'accepted') {
-        setIsInstalled(true);
-        globalDeferredPrompt = null;
-        setDeferredPrompt(null);
-        return true;
+      if (typeof promptEvent.prompt === 'function') {
+        await promptEvent.prompt();
+      }
+      if (promptEvent.userChoice) {
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+          globalDeferredPrompt = null;
+          setDeferredPrompt(null);
+          return true;
+        }
       }
       return false;
-    } catch {
+    } catch (err) {
+      console.warn('[PWA] Prompt installation error:', err);
       return false;
     }
   };
 
   const openInNewWindow = () => {
     if (typeof window !== 'undefined') {
-      window.open(window.location.href, '_blank', 'noopener,noreferrer');
+      try {
+        const inIframe = window.self !== window.top;
+        if (inIframe && window.location?.href) {
+          window.open(window.location.href, '_blank', 'noopener,noreferrer');
+        }
+      } catch (err) {
+        console.warn('[PWA] Could not open standalone window:', err);
+      }
     }
   };
 
@@ -219,3 +231,4 @@ export function usePWAInstall() {
     resetMobilePrompt,
   };
 }
+

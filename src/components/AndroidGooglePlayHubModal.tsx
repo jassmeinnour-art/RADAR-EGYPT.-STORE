@@ -71,16 +71,20 @@ export const AndroidGooglePlayHubModal: React.FC<AndroidGooglePlayHubModalProps>
             origin: { y: 0.6 }
           });
           onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على هاتفك الأندرويد! 🎉');
+        } else {
+          setActiveTab('brands');
         }
+      } catch (err) {
+        console.warn('[AndroidGooglePlayHubModal] Install error:', err);
+        setActiveTab('brands');
       } finally {
         setIsInstalling(false);
       }
-    } else if (isInIframe) {
-      openInNewWindow();
     } else {
       setActiveTab('brands');
     }
   };
+
 
   const handleDownloadApkSimulation = () => {
     // Generate a downloadable manifest & launcher package guide for the merchant

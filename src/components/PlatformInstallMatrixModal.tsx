@@ -491,25 +491,37 @@ export const PlatformInstallMatrixModal: React.FC<PlatformInstallMatrixModalProp
 
   const handleTriggerAndroidInstall = async () => {
     if (isInstallable) {
-      const success = await install();
-      if (success) {
-        onShowToast?.('🎉 تم بدء عملية تثبيت تطبيق أندرويد بنجاح!');
+      try {
+        const success = await install();
+        if (success) {
+          onShowToast?.('🎉 تم بدء عملية تثبيت تطبيق أندرويد بنجاح!');
+          return;
+        }
+      } catch (err) {
+        console.warn('[PlatformInstallMatrixModal] Android install error:', err);
       }
-    } else {
-      onShowToast?.('📲 اضغط على القائمة (⋮) في متصفح كروم ثم اختر "تثبيت التطبيق" أو "إضافة للشاشة الرئيسية"');
     }
+    setActiveCategory('mobile');
+    setMobileSubTab('android');
+    onShowToast?.('📲 اضغط على القائمة (⋮) في متصفح كروم ثم اختر "تثبيت التطبيق" أو "إضافة للشاشة الرئيسية"');
   };
 
   const handleTriggerWindowsInstall = async () => {
     if (isInstallable) {
-      const success = await install();
-      if (success) {
-        onShowToast?.('🎉 تم بدء عملية تثبيت تطبيق الويندوز بنجاح!');
+      try {
+        const success = await install();
+        if (success) {
+          onShowToast?.('🎉 تم بدء عملية تثبيت تطبيق الويندوز بنجاح!');
+          return;
+        }
+      } catch (err) {
+        console.warn('[PlatformInstallMatrixModal] Windows install error:', err);
       }
-    } else {
-      onShowToast?.('💻 اضغط على أيقونة التثبيت ⊕ في شريط عنوان المتصفح أو اختر "تثبيت التطبيق" من القائمة');
     }
+    setActiveCategory('windows');
+    onShowToast?.('💻 اضغط على أيقونة التثبيت ⊕ في شريط عنوان المتصفح أو اختر "تثبيت التطبيق" من القائمة');
   };
+
 
   return (
     <>

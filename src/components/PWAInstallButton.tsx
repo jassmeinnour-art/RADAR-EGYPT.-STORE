@@ -54,18 +54,25 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const handleInstallClick = async () => {
     if (isInstallable) {
       setIsInstalling(true);
-      const success = await install();
-      setIsInstalling(false);
-      if (success) {
-        confetti({
-          particleCount: 90,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-        onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على جهازك! 🎉');
+      try {
+        const success = await install();
+        if (success) {
+          confetti({
+            particleCount: 90,
+            spread: 80,
+            origin: { y: 0.6 }
+          });
+          onShowToast?.('تم تثبيت رادار التاجر الذكي بنجاح على جهازك! 🎉');
+        } else {
+          setShowInstallGuide(true);
+        }
+      } catch {
+        setShowInstallGuide(true);
+      } finally {
+        setIsInstalling(false);
       }
     } else {
-      openInNewWindow();
+      setShowInstallGuide(true);
     }
   };
 
@@ -262,7 +269,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
       {/* 7. Quick & Clean Install Hint Popover (when beforeinstallprompt is not directly triggered) */}
       {showInstallGuide && (
         <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#08090D]/80 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn text-right"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn text-right"
           onClick={() => setShowInstallGuide(false)}
         >
           <div 
