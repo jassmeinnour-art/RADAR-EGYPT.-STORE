@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserMerchantProfile } from '../context/AuthContext';
 import { getVodafoneCashAdminWallet, saveVodafoneCashAdminWallet } from '../utils/platformLaunchHelper';
+import { getUserTrialStatus, UserTrialResult } from '../utils/userTrial';
+
+export { getUserTrialStatus };
+export type { UserTrialResult };
 
 export type SubscriptionPlanId = 'trial_3_days' | 'plan_1_month' | 'plan_6_months' | 'plan_12_months' | 'admin_lifetime';
 

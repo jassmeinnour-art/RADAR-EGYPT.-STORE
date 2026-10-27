@@ -58,6 +58,7 @@ export interface UserMerchantProfile {
   lastSeenAt?: any;
   createdAt?: any;
   updatedAt?: any;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -285,6 +286,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: finalEmail,
           photoURL: existingProfileData.photoURL || currentUser.photoURL || '',
           storeName: customStoreName || existingProfileData.storeName || 'متجر التاجر المصري',
+          role: finalIsOwner ? 'super_admin' : (existingProfileData.role || 'merchant'),
           sessionCount: sessionCount,
           lastLoginAt: serverTimestamp(),
           lastSeenAt: serverTimestamp(),
@@ -294,6 +296,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDoc(userDocRef, {
           email: finalEmail,
           displayName: finalProfile.displayName,
+          role: finalProfile.role,
           lastLoginAt: serverTimestamp(),
           lastSeenAt: serverTimestamp(),
           sessionCount: sessionCount,
@@ -313,6 +316,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           storeName: customStoreName || (isOwnerAccount ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
           city: 'القاهرة',
           preferredCurrency: 'EGP',
+          role: isOwnerAccount ? 'super_admin' : 'merchant',
           sessionCount: 1,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
