@@ -1,4 +1,4 @@
-import { ConnectedMerchantPlatform, RemoteMerchantClient, MerchantApiCredentials } from '../types';
+import { ConnectedMerchantPlatform, RemoteMerchantClient, MerchantApiCredentials, RemoteMerchantPlatformCode } from '../types';
 import {
   saveMerchantStoreCredentialsToFirestore,
   fetchMerchantStoreCredentialsFromFirestore,
@@ -1042,6 +1042,67 @@ export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): v
       window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
     }
   } catch {}
+}
+
+/**
+ * Registers and saves a new merchant store instantly.
+ */
+export function addNewRegisteredMerchant(data: {
+  storeName: string;
+  contactPerson: string;
+  primaryEmail: string;
+  phone?: string;
+  city?: string;
+  sellerId?: string;
+  platforms?: string[];
+}): RemoteMerchantClient {
+  const list = loadAllRegisteredMerchants();
+  const id = `merchant-${Date.now()}`;
+  const now = new Date().toISOString();
+  const trialEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+  const newMerchant: RemoteMerchantClient = {
+    id,
+    storeName: data.storeName.trim(),
+    contactPerson: data.contactPerson.trim() || 'مسؤول المتجر',
+    primaryEmail: data.primaryEmail.trim().toLowerCase(),
+    additionalEmails: [],
+    phone: data.phone?.trim() || '+20 10 0000 0000',
+    city: data.city?.trim() || 'القاهرة',
+    platformsSubscribed: (data.platforms && data.platforms.length > 0) ? (data.platforms as RemoteMerchantPlatformCode[]) : ['amazon_eg', 'noon_eg'],
+    assignedProductIds: [],
+    weeklySalesTargetEGP: 150000,
+    currentWeeklySalesEGP: 0,
+    currentWeeklyOrdersCount: 0,
+    averageProfitMarginPercent: 25,
+    buyBoxWinRatePercent: 85,
+    reportDayOfWeek: 'thursday',
+    autoSendWeeklyReport: true,
+    sendWhatsAppReport: true,
+    status: 'active',
+    dataMode: 'live',
+    createdAt: now,
+    trialStartDate: now,
+    trialEndDate: trialEnd,
+    subscriptionStatus: 'trialing',
+    subscriptionPlanId: 'trial_3_days',
+    apiCredentials: {
+      amazonClientId: '',
+      amazonClientSecret: '',
+      amazonRefreshToken: '',
+      amazonSellerId: data.sellerId?.trim() || `A${Date.now().toString().slice(-8)}`,
+      amazonRegion: 'eu-west-1',
+      amazonMarketplaceId: 'ARBP9OOSHTCHU',
+      noonAuthKey: '',
+      noonAppId: '',
+      dataMode: 'live',
+      isConfigured: true
+    }
+  };
+
+  const updatedList = [newMerchant, ...list];
+  saveAllRegisteredMerchants(updatedList);
+  return newMerchant;
 }
 
 /**

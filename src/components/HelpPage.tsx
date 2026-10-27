@@ -26,15 +26,17 @@ import {
   FileCheck2,
   AlertCircle,
   Clock,
-  Play
+  Play,
+  Keyboard
 } from 'lucide-react';
 
 interface HelpPageProps {
   onNavigateToPlatformsGuide?: () => void;
   onStartTour?: () => void;
+  onOpenHotkeysModal?: () => void;
 }
 
-export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour }: HelpPageProps) {
+export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour, onOpenHotkeysModal }: HelpPageProps) {
   const [activeTab, setActiveTab] = useState<'quickstart' | 'amazon' | 'noon' | 'jumia' | 'faq'>('amazon');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -444,6 +446,16 @@ export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour }: He
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
               <span>إعادة الجولة التعليمية</span>
+            </button>
+          )}
+
+          {onOpenHotkeysModal && (
+            <button
+              onClick={onOpenHotkeysModal}
+              className="px-6 py-3 bg-emerald-700 hover:bg-emerald-600 text-white font-black rounded-xl text-xs border border-emerald-400/40 shadow-lg transition flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <Keyboard className="w-4 h-4 text-white" />
+              <span>اختصارات لوحة المفاتيح ⌨️</span>
             </button>
           )}
         </div>

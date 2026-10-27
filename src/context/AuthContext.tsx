@@ -396,7 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return prevLoading;
       });
-    }, 2000);
+    }, 1000);
 
     let unsubscribe = () => {};
     try {

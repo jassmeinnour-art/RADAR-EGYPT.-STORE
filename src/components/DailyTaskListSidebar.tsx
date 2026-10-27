@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 
+import { saveAllRecordsToDB, getAllRecordsFromDB, STORES } from '../utils/offlineIndexedDB';
+
 export interface DailyTask {
   id: string;
   title: string;
@@ -36,7 +38,6 @@ export function DailyTaskListSidebar() {
     } catch (e) {
       console.warn('Failed to load daily tasks:', e);
     }
-    // Default initial tasks for Egyptian merchants
     return [];
   });
 
@@ -44,9 +45,26 @@ export function DailyTaskListSidebar() {
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
 
+  // Load from IndexedDB on initial mount
+  useEffect(() => {
+    async function restoreFromIndexedDB() {
+      try {
+        const idbTasks = await getAllRecordsFromDB<DailyTask>(STORES.TASKS);
+        if (idbTasks && idbTasks.length > 0) {
+          setTasks(idbTasks);
+        }
+      } catch (err) {
+        console.warn('Failed to load tasks from IndexedDB:', err);
+      }
+    }
+    restoreFromIndexedDB();
+  }, []);
+
+  // Save to both LocalStorage and IndexedDB whenever tasks change
   useEffect(() => {
     try {
       localStorage.setItem('radar_merchant_daily_tasks', JSON.stringify(tasks));
+      saveAllRecordsToDB(STORES.TASKS, tasks);
     } catch (e) {
       console.warn('Failed to save daily tasks:', e);
     }

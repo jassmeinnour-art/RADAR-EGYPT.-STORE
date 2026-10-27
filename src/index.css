@@ -1,681 +1,97 @@
 @import "tailwindcss";
 @import "./styles/themes.css";
 
-img, svg { max-width: 100%; height: auto; }
-
 /* ==========================================================================
-   Calibrated High-Clarity Typography Scale (Comfortable Low-Vision Sizing)
+   LOCKDOWN COLOR & STYLE RULES (Permanent Override)
    ========================================================================== */
-@theme {
-  --color-deep-navy: #0F2A4A;
-  --color-vivid-orange: #FF6B00;
-  --color-clean-white: #FFFFFF;
-  --text-2xs: 0.76rem;
-  --text-2xs--line-height: 1.42;
-  --text-xs: 0.82rem;
-  --text-xs--line-height: 1.48;
-  --text-sm: 0.90rem;
-  --text-sm--line-height: 1.55;
-  --text-base: 0.98rem;
-  --text-base--line-height: 1.62;
-  --text-lg: 1.10rem;
-  --text-lg--line-height: 1.52;
-  --text-xl: 1.22rem;
-  --text-xl--line-height: 1.45;
+
+/* 1. BUTTON BASE STYLES */
+button, .btn, [role="button"] {
+  height: auto;
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+button:hover {
+  opacity: 0.9;
 }
 
-/* ==========================================================================
-   1. LIGHT MODE: GENTLE OFF-WHITE (#F8FAFC) BACKGROUNDS & HIGH CONTRAST
-   ========================================================================== */
-html:not(.dark),
-html:not(.dark) body,
-html:not(.dark) #root,
-html:not(.dark) #root > div,
-html:not(.dark) main,
-html:not(.dark) header,
-html:not(.dark) footer,
-html:not(.dark) aside,
-html:not(.dark) nav,
-html:not(.dark) section,
-html:not(.dark) article,
-html:not(.dark) dialog,
-html:not(.dark) table,
-html:not(.dark) thead,
-html:not(.dark) tbody,
-html:not(.dark) tfoot,
-html:not(.dark) tr,
-html:not(.dark) th,
-html:not(.dark) td,
-html:not(.dark) fieldset,
-html:not(.dark) form,
-html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-html:not(.dark) select,
-html:not(.dark) textarea,
-html:not(.dark) [role="dialog"],
-html:not(.dark) [role="region"],
-html:not(.dark) [role="tabpanel"],
-html:not(.dark) [role="menu"],
-html:not(.dark) [role="listbox"],
-html:not(.dark) [role="tooltip"],
-html:not(.dark) [role="radiogroup"],
-html:not(.dark) .sidebar-drawer,
-html:not(.dark) .radar-luxury-card,
-html:not(.dark) .radar-card-smooth,
-html:not(.dark) .platform-card,
-html:not(.dark) #main-active-product-hero-card,
-html:not(.dark) #main-active-product-empty-card,
-html:not(.dark) #nav-active-screen-banner,
-html:not(.dark) #header-operations-toolbar,
-html:not(.dark) #radar-global-hero-visual,
-html:not(.dark) .bg-white,
-html:not(.dark) [class*="bg-white"],
-html:not(.dark) [class*="bg-slate-"],
-html:not(.dark) [class*="bg-gray-"],
-html:not(.dark) [class*="bg-zinc-"],
-html:not(.dark) [class*="bg-neutral-"],
-html:not(.dark) [class*="bg-stone-"],
-html:not(.dark) [class*="bg-sky-"],
-html:not(.dark) [class*="bg-blue-"],
-html:not(.dark) [class*="bg-indigo-"],
-html:not(.dark) [class*="bg-cyan-"],
-html:not(.dark) [class*="bg-emerald-"],
-html:not(.dark) [class*="bg-teal-"],
-html:not(.dark) [class*="bg-green-"],
-html:not(.dark) [class*="bg-purple-"],
-html:not(.dark) [class*="bg-violet-"],
-html:not(.dark) [class*="bg-fuchsia-"],
-html:not(.dark) [class*="bg-rose-"],
-html:not(.dark) [class*="bg-red-"],
-html:not(.dark) [class*="bg-orange-"],
-html:not(.dark) [class*="bg-amber-"],
-html:not(.dark) [class*="bg-yellow-"],
-html:not(.dark) [class*="bg-black"],
-html:not(.dark) [class*="bg-[#"],
-html:not(.dark) [class*="bg-gradient-"],
-html:not(.dark) [class*="bg-linear-"],
-html:not(.dark) [class*="from-"],
-html:not(.dark) [class*="via-"],
-html:not(.dark) [class*="to-"] {
-  background-color: #F8FAFC !important;
-  background-image: none !important;
-  backdrop-filter: none !important;
-}
-
-/* Modal backdrop overlay */
-[id*="backdrop"],
-.fixed.inset-0[class*="bg-slate-"],
-.fixed.inset-0[class*="bg-black/"],
-[role="dialog"] > .fixed.inset-0 {
-  background-color: rgba(15, 23, 42, 0.65) !important;
-  backdrop-filter: blur(3px) !important;
-}
-
-/* Modal dialog cards in light mode */
-html:not(.dark) [id*="modal-card"],
-html:not(.dark) [role="dialog"] div[class*="rounded-3xl"],
-html:not(.dark) [role="dialog"] div[class*="rounded-2xl"] {
-  background-color: #F8FAFC !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.28) !important;
-}
-
-/* Borders in light mode */
-html:not(.dark) div[class*="border-slate-"],
-html:not(.dark) div[class*="border-sky-"],
-html:not(.dark) div[class*="border-indigo-"],
-html:not(.dark) div[class*="border-blue-"],
-html:not(.dark) div[class*="border-emerald-"],
-html:not(.dark) div[class*="border-rose-"],
-html:not(.dark) div[class*="border-purple-"],
-html:not(.dark) div[class*="border-white/"],
-html:not(.dark) section[class*="border-"],
-html:not(.dark) header[class*="border-"],
-html:not(.dark) aside[class*="border-"],
-html:not(.dark) table,
-html:not(.dark) th,
-html:not(.dark) td,
-html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
-html:not(.dark) select,
-html:not(.dark) textarea,
-html:not(.dark) .platform-card,
-html:not(.dark) .radar-luxury-card,
-html:not(.dark) .radar-card-smooth {
-  border-color: #000000 !important;
-}
-
-/* ==========================================================================
-   2. LIGHT MODE: SOLID BLACK (#000000) TYPOGRAPHY & CRISP FONTS
-   ========================================================================== */
-html {
-  overflow-x: hidden;
-  max-width: 100vw;
-  width: 100%;
-  position: relative;
-  font-size: 15.5px;
-  font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Alexandria', sans-serif;
-  -webkit-text-size-adjust: 100%;
-  text-rendering: geometricPrecision;
-  font-kerning: normal;
-  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-  font-optical-sizing: auto;
-}
-
-@media (max-width: 640px) {
-  html {
-    font-size: 15px;
-  }
-}
-
-body {
-  overflow-x: hidden;
-  max-width: 100vw;
-  width: 100%;
-  position: relative;
-  margin: 0;
-  padding: 0;
-  font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Alexandria', sans-serif;
-  font-weight: 600;
-  line-height: 1.58;
-  letter-spacing: 0 !important;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#root {
-  overflow-x: hidden;
-  max-width: 100vw;
-  width: 100%;
-  min-height: 100vh;
-  position: relative;
-}
-
-html:not(.dark) body,
-html:not(.dark) h1,
-html:not(.dark) h2,
-html:not(.dark) h3,
-html:not(.dark) h4,
-html:not(.dark) h5,
-html:not(.dark) h6,
-html:not(.dark) p,
-html:not(.dark) span,
-html:not(.dark) div,
-html:not(.dark) a,
-html:not(.dark) label,
-html:not(.dark) li,
-html:not(.dark) ul,
-html:not(.dark) ol,
-html:not(.dark) td,
-html:not(.dark) th,
-html:not(.dark) caption,
-html:not(.dark) strong,
-html:not(.dark) b,
-html:not(.dark) em,
-html:not(.dark) small,
-html:not(.dark) code,
-html:not(.dark) pre,
-html:not(.dark) blockquote,
-html:not(.dark) figcaption,
-html:not(.dark) dt,
-html:not(.dark) dd,
-html:not(.dark) summary,
-html:not(.dark) legend,
-html:not(.dark) input,
-html:not(.dark) select,
-html:not(.dark) textarea,
-html:not(.dark) option,
-html:not(.dark) button,
-html:not(.dark) [class*="text-white"],
-html:not(.dark) [class*="text-slate-"],
-html:not(.dark) [class*="text-gray-"],
-html:not(.dark) [class*="text-zinc-"],
-html:not(.dark) [class*="text-neutral-"],
-html:not(.dark) [class*="text-sky-"],
-html:not(.dark) [class*="text-blue-"],
-html:not(.dark) [class*="text-indigo-"],
-html:not(.dark) [class*="text-cyan-"],
-html:not(.dark) [class*="text-emerald-"],
-html:not(.dark) [class*="text-teal-"],
-html:not(.dark) [class*="text-green-"],
-html:not(.dark) [class*="text-purple-"],
-html:not(.dark) [class*="text-violet-"],
-html:not(.dark) [class*="text-rose-"],
-html:not(.dark) [class*="text-red-"],
-html:not(.dark) [class*="text-orange-"],
-html:not(.dark) [class*="text-amber-"],
-html:not(.dark) [class*="text-yellow-"],
-html:not(.dark) [class*="text-[#"],
-html:not(.dark) .text-transparent,
-html:not(.dark) .bg-clip-text {
+/* 2. CONTRAST LOCKDOWN */
+/* Light/White Surfaces: Black Text */
+.bg-white, .bg-white *, 
+[class*="bg-gray-100"], [class*="bg-gray-100"] *,
+[class*="bg-slate-50"], [class*="bg-slate-50"] * {
   color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  text-shadow: none !important;
-}
-
-/* Prevent Arabic glyph disconnection */
-[dir="rtl"],
-[dir="rtl"] *:not(.font-mono):not([dir="ltr"]) {
-  letter-spacing: 0 !important;
-}
-
-/* Crisp heading weights */
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Cairo', 'Alexandria', sans-serif;
-  font-weight: 800 !important;
-  line-height: 1.38 !important;
-}
-
-/* Placeholders */
-html:not(.dark) input::placeholder,
-html:not(.dark) textarea::placeholder {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  opacity: 0.72 !important;
-}
-
-/* Lucide UI icons in light mode */
-html:not(.dark) svg.lucide {
-  color: #000000 !important;
-  stroke: #000000 !important;
-  stroke-width: 2.15px;
-  flex-shrink: 0;
-}
-
-/* Light mode button styles */
-html:not(.dark) button,
-html:not(.dark) [type="button"],
-html:not(.dark) [type="submit"],
-html:not(.dark) [type="reset"],
-html:not(.dark) [role="button"],
-html:not(.dark) .btn-emerald-primary,
-html:not(.dark) .btn-primary-subtle,
-html:not(.dark) .theme-primary-btn {
-  background-color: #F8FAFC !important;
-  background-image: none !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
-  font-family: 'Cairo', 'Alexandria', sans-serif !important;
   font-weight: 700 !important;
 }
 
-html:not(.dark) button:hover,
-html:not(.dark) [type="button"]:hover,
-html:not(.dark) [type="submit"]:hover {
-  background-color: #F1F5F9 !important;
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.22) !important;
-}
-
-/* Standardize alignment inside flex buttons */
-button:not(.block):not(.grid):not(.hidden),
-[role="button"]:not(.block):not(.grid):not(.hidden) {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.42rem;
-}
-
-/* ==========================================================================
-   3. DARK MODE (DEEP NAVY GRADIENT #0B132B / #0F172A / #1C2541 FOR NIGHT MONITORING)
-   ========================================================================== */
-html.dark {
-  background-color: #0B132B !important;
-  background-image: linear-gradient(135deg, #0B132B 0%, #0F172A 50%, #1C2541 100%) !important;
-  background-attachment: fixed !important;
-  color: #FFFFFF !important;
-}
-
-html.dark body,
-html.dark #root,
-html.dark #root > div,
-html.dark main {
-  background-color: transparent !important;
-  background-image: none !important;
-  color: #FFFFFF !important;
-}
-
-/* Deep Navy Sidebar Drawer & Navigation */
-html.dark .sidebar-drawer,
-html.dark aside,
-html.dark nav {
-  background-color: #0B132B !important;
-  background-image: linear-gradient(180deg, #0B132B 0%, #0F1935 60%, #070D1E 100%) !important;
-  border-color: #1E293B !important;
-  box-shadow: -10px 0 30px rgba(7, 13, 30, 0.6) !important;
-}
-
-/* Deep Navy Cards, Panels, Modals, Headers & Surfaces */
-html.dark header,
-html.dark footer,
-html.dark section,
-html.dark article,
-html.dark dialog,
-html.dark table,
-html.dark [role="dialog"] div[class*="rounded-3xl"],
-html.dark [role="dialog"] div[class*="rounded-2xl"],
-html.dark .radar-luxury-card,
-html.dark .radar-card-smooth,
-html.dark .platform-card,
-html.dark #main-active-product-hero-card,
-html.dark #main-active-product-empty-card,
-html.dark #nav-active-screen-banner,
-html.dark #header-operations-toolbar,
-html.dark #radar-global-hero-visual,
-html.dark .bg-white,
-html.dark [class*="bg-white"] {
-  background-color: #0B132B !important;
-  background-image: linear-gradient(135deg, #0B132B 0%, #0F1935 50%, #070D1E 100%) !important;
-  color: #FFFFFF !important;
-  border-color: #1E293B !important;
-  box-shadow: 0 10px 25px -5px rgba(11, 19, 43, 0.5) !important;
-}
-
-html.dark [class*="bg-slate-50"],
-html.dark [class*="bg-slate-100"],
-html.dark [class*="bg-slate-200"],
-html.dark [class*="bg-[#F8FAFC]"],
-html.dark [class*="bg-[#f8fafc]"] {
-  background-color: #0F172A !important;
-  color: #FFFFFF !important;
-}
-
-html.dark [class*="bg-slate-800"],
-html.dark [class*="bg-slate-900"],
-html.dark [class*="bg-slate-950"] {
-  background-color: #0B132B !important;
-  color: #FFFFFF !important;
-  border-color: #1E293B !important;
-}
-
-/* High-Legibility Glare-Free Typography */
-html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
-html.dark strong, html.dark b, html.dark th {
-  color: #FFFFFF !important;
-  -webkit-text-fill-color: #FFFFFF !important;
-}
-
-html.dark p, html.dark span, html.dark div, html.dark a, html.dark label,
-html.dark li, html.dark td, html.dark dt, html.dark dd {
-  color: #F1F5F9 !important;
-  -webkit-text-fill-color: #F1F5F9 !important;
-}
-
-html.dark [class*="text-slate-400"],
-html.dark [class*="text-slate-500"],
-html.dark [class*="text-slate-600"],
-html.dark [class*="text-gray-400"],
-html.dark [class*="text-gray-500"] {
-  color: #94A3B8 !important;
-  -webkit-text-fill-color: #94A3B8 !important;
-}
-
-/* Deep Navy Form Inputs */
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-html.dark select,
-html.dark textarea {
-  background-color: #070D1E !important;
-  color: #FFFFFF !important;
-  border: 1px solid #334155 !important;
-}
-
-html.dark input::placeholder,
-html.dark textarea::placeholder {
-  color: rgba(148, 163, 184, 0.7) !important;
-  -webkit-text-fill-color: rgba(148, 163, 184, 0.7) !important;
-}
-
-html.dark div[class*="border-"],
-html.dark section[class*="border-"],
-html.dark header[class*="border-"],
-html.dark aside[class*="border-"],
-html.dark table, html.dark th, html.dark td {
-  border-color: #1E293B !important;
-}
-
-/* Enhanced Table Contrast for Night Monitoring */
-html.dark thead {
-  background-color: #070D1E !important;
-  border-bottom: 2px solid #334155 !important;
-}
-
-html.dark tr:nth-child(even) {
-  background-color: rgba(15, 25, 53, 0.6) !important;
-}
-
-html.dark tr:hover {
-  background-color: rgba(59, 130, 246, 0.12) !important;
-}
-
-html.dark th {
-  color: #38BDF8 !important;
-  font-weight: 800 !important;
-  text-transform: uppercase;
-}
-
-html.dark td {
-  color: #F8FAFC !important;
-}
-
-html.dark svg.lucide {
-  color: #60A5FA !important;
-  stroke: #60A5FA !important;
-  stroke-width: 2px;
-}
-
-/* Deep Navy Buttons */
-html.dark button,
-html.dark [type="button"],
-html.dark [type="submit"],
-html.dark [type="reset"],
-html.dark [role="button"] {
-  background-color: #0F172A !important;
-  color: #FFFFFF !important;
-  -webkit-text-fill-color: #FFFFFF !important;
-  border: 1px solid #334155 !important;
-  box-shadow: 0 4px 12px rgba(11, 19, 43, 0.4) !important;
-}
-
-html.dark button:hover,
-html.dark [type="button"]:hover,
-html.dark [type="submit"]:hover {
-  background-color: #1E293B !important;
-  border-color: #38BDF8 !important;
-  color: #38BDF8 !important;
-  -webkit-text-fill-color: #38BDF8 !important;
-}
-
-html.dark button:active,
-html.dark button[aria-pressed="true"] {
-  background-color: #2563EB !important;
-  color: #FFFFFF !important;
-  -webkit-text-fill-color: #FFFFFF !important;
-  border-color: #60A5FA !important;
-}
-
-/* ==========================================================================
-   4. RTL, Bidi, Scrollbars & Layout Utilities
-   ========================================================================== */
-.dir-rtl {
-  direction: rtl;
-}
-
-.sidebar-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: 320px;
-  transition: transform 0.3s ease-in-out;
-  z-index: 50;
-}
-
-html:not(.dark) .sidebar-drawer {
-  background-color: #F8FAFC !important;
-  border-left: 2px solid #000000 !important;
-}
-
-html.dark .sidebar-drawer {
-  background-color: #0F172A !important;
-  border-left: 2px solid #334155 !important;
-}
-
-.sidebar-drawer.closed {
-  transform: translateX(100%);
-}
-
-.sidebar-drawer.open {
-  transform: translateX(0);
-}
-
-[dir="rtl"] {
-  text-align: right;
-}
-
-[dir="rtl"] th,
-[dir="rtl"] td {
-  text-align: right;
-}
-
-/* Custom Scrollbars */
-.scroller-sm::-webkit-scrollbar,
-.custom-scrollbar::-webkit-scrollbar,
-table::-webkit-scrollbar,
-.overflow-x-auto::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-html:not(.dark) .scroller-sm::-webkit-scrollbar-track,
-html:not(.dark) .custom-scrollbar::-webkit-scrollbar-track {
-  background: #F8FAFC;
-  border: 1px solid #000000;
-  border-radius: 9999px;
-}
-
-html:not(.dark) .scroller-sm::-webkit-scrollbar-thumb,
-html:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #000000;
-  border-radius: 9999px;
-}
-
-html.dark .scroller-sm::-webkit-scrollbar-track,
-html.dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: #0B0F17;
-  border: 1px solid #334155;
-  border-radius: 9999px;
-}
-
-html.dark .scroller-sm::-webkit-scrollbar-thumb,
-html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
-}
-
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  #printable-executive-report,
-  #printable-executive-report * {
-    visibility: visible;
-  }
-  #printable-executive-report {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 24px;
-    background: #FFFFFF !important;
-    color: #000000 !important;
-  }
-  .no-print {
-    display: none !important;
-  }
-}
-
-@media (display-mode: tabbed) {
-  /* Styles to apply in tabbed application mode. */
-  body {
-    --tabbed-mode: 1;
-  }
-}
-
-/* ==========================================================================
-   5. ACTION BUTTONS & CONTAINERS
-   ========================================================================== */
-/* حاوية الأزرار الرئيسية */
-.action-buttons-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 12px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-  direction: rtl;
-}
-
-html.dark .action-buttons-container {
-  background-color: #0F172A !important;
-  border-color: #334155 !important;
-}
-
-/* تصميم الزر الفردي */
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #333;
-  background-color: #ffffff;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-/* تأثير التمرير على الزر */
-.action-btn:hover {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
-  color: #000;
-}
-
-/* أزرار الإجراءات الرئيسية المميزة (مثل إضافة منتج أو سحب البيانات) */
-.action-btn.primary {
-  background-color: #0d6efd !important;
+/* Dark Surfaces: White Text */
+.bg-slate-900, .bg-slate-900 *, 
+.bg-dark, .bg-dark *,
+[class*="bg-blue-"], [class*="bg-blue-"] *,
+[class*="bg-indigo-"], [class*="bg-indigo-"] * {
   color: #ffffff !important;
-  border-color: #0d6efd !important;
-  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 700 !important;
 }
 
-.action-btn.primary:hover {
-  background-color: #0b5ed7 !important;
-  border-color: #0a58ca !important;
+/* Colored Buttons: White Text */
+button[class*="bg-blue-"], button[class*="bg-orange-"], 
+button[class*="bg-purple-"], button[class*="bg-green-"], 
+button[class*="bg-indigo-"] {
   color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 700 !important;
 }
 
-html.dark .action-btn:not(.primary) {
-  background-color: #1E293B !important;
-  color: #F8FAFC !important;
-  -webkit-text-fill-color: #F8FAFC !important;
-  border-color: #475569 !important;
+/* ==========================================================================
+   GLOBAL UTILITIES
+   ========================================================================== */
+html { font-family: 'Cairo', sans-serif; }
+[dir="rtl"] { text-align: right; }
+img, svg { max-width: 100%; height: auto; }
+
+/* Loading Fallback Title */
+#app-boot-fallback h1 {
+  font-size: 24px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.025em !important;
+  line-height: 1.2 !important;
 }
 
-html.dark .action-btn:not(.primary):hover {
-  background-color: #334155 !important;
-  border-color: #38BDF8 !important;
-  color: #38BDF8 !important;
-  -webkit-text-fill-color: #38BDF8 !important;
+/* Global Heading Style Lockdown */
+h1, h2, h3, h4 {
+  font-weight: 900 !important;
+  letter-spacing: -0.025em !important;
 }
 
+/* Modern Heading Effect */
+h1, h2 {
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+}
 
+/* Explicit Contrast Lockdown for Headings */
+.bg-white h1, .bg-white h2, .bg-white h3, .bg-white h4,
+[class*="bg-gray-100"] h1, [class*="bg-gray-100"] h2, [class*="bg-gray-100"] h3, [class*="bg-gray-100"] h4,
+[class*="bg-slate-50"] h1, [class*="bg-slate-50"] h2, [class*="bg-slate-50"] h3, [class*="bg-slate-50"] h4 {
+  background-color: #000000 !important;
+  color: #000000 !important; /* Fallback */
+  font-weight: 900 !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+}
+
+.bg-slate-900 h1, .bg-slate-900 h2, .bg-slate-900 h3, .bg-slate-900 h4,
+[class*="bg-blue-"] h1, [class*="bg-blue-"] h2, [class*="bg-blue-"] h3, [class*="bg-blue-"] h4,
+[class*="bg-indigo-"] h1, [class*="bg-indigo-"] h2, [class*="bg-indigo-"] h3, [class*="bg-indigo-"] h4 {
+  background-color: #ffffff !important;
+  color: #ffffff !important; /* Fallback */
+  font-weight: 900 !important;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.1) !important;
+}

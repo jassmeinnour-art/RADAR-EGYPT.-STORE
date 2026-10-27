@@ -40,7 +40,8 @@ import {
   DollarSign,
   Printer,
   Compass,
-  Palette
+  Palette,
+  Menu
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
@@ -53,6 +54,10 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageToggle } from './components/LanguageToggle';
 import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
 import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryDrawer';
+import { AppSidebar } from './components/AppSidebar';
+import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { FloatingHotkeyButton } from './components/FloatingHotkeyButton';
 import { StatsMonitor } from './components/StatsMonitor';
 import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
@@ -162,6 +167,7 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
@@ -170,6 +176,7 @@ export default function App() {
   const [isWaybillCropperOpen, setIsWaybillCropperOpen] = useState<boolean>(false);
   const [isBulkWaybillModalOpen, setIsBulkWaybillModalOpen] = useState<boolean>(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState<boolean>(false);
 
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -276,6 +283,15 @@ export default function App() {
         toggleColorMode();
       } else if (!isCtrlOrCmd && e.key.toLowerCase() === 'o' && isOwner) {
         setShowOwnerDashboard((prev) => !prev);
+      } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea') {
+          e.preventDefault();
+          setIsHotkeysModalOpen((prev) => !prev);
+        }
+      } else if (e.key === 'Escape') {
+        setIsHotkeysModalOpen(false);
+        setIsSidebarOpen(false);
       }
     };
 
@@ -328,6 +344,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20" dir="rtl">
       
+      {/* Offline Status & IndexedDB Cache Banner */}
+      <OfflineNoticeBanner onShowToast={showToast} />
+
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 left-6 z-[9999] bg-slate-900 border-2 border-amber-500 text-amber-200 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
@@ -338,10 +357,10 @@ export default function App() {
 
       {/* PWA Installation Bar */}
       {showInstallBar && (
-        <div className="bg-slate-900 border-b border-amber-500/20 px-4 py-2 sticky top-0 z-50 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="bg-slate-900 border-b border-amber-600/30 px-4 py-2 sticky top-0 z-50 backdrop-blur-md">
+          <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black font-mono">PWA</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-300 font-bold font-mono">PWA</span>
               <span className="text-slate-300 font-medium">رادار التاجر متاح للتثبيت كبرنامج مكتبي وتطبيق أندرويد متكامل:</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -372,27 +391,27 @@ export default function App() {
       )}
 
       {/* 3-Day Grace Period / Subscription Alert Bar */}
-      <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/60 border-b border-amber-500/30 px-4 py-2">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/40 border-b border-amber-600/20 px-4 py-2">
+        <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
             <span className="text-amber-200 font-bold">
               ⏱️ مهلة التجربة والاشتراك (فترة السماح 3 أيام):
             </span>
             <span className="text-slate-300">
-              الدفع الفوري متاح عبر محفظة فودافون كاش الرسمية: <strong className="text-amber-400 font-mono text-sm underline">01097751352</strong>
+              الدفع الفوري متاح عبر محفظة فودافون كاش الرسمية: <strong className="text-amber-300 font-mono text-sm underline">01097751352</strong>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsPaymentModalOpen(true)}
-              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg transition text-xs shadow-md"
+              className="px-3.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition text-xs shadow-md"
             >
               دفع الاشتراك (فودافون كاش)
             </button>
             <button
               onClick={() => setIsSubscriptionModalOpen(true)}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold rounded-lg transition text-xs"
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-600/30 font-bold rounded-lg transition text-xs"
             >
               عرض باقات الاشتراك
             </button>
@@ -401,8 +420,8 @@ export default function App() {
       </div>
 
       {/* Top Header Navigation */}
-      <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-3 flex flex-wrap items-center justify-between gap-3">
           
           {/* Brand Logo & Bayyaa Hub */}
           <div className="flex items-center gap-3">
@@ -411,7 +430,7 @@ export default function App() {
               className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition"
               title="رادار التاجر الذكي - منصة بياع"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF6B00] to-amber-600 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20">
                 <img 
                   src={headerBrandLogo} 
                   alt="رادار التاجر - بياع" 
@@ -430,9 +449,9 @@ export default function App() {
               <div className="flex flex-col text-right">
                 <div className="flex items-center gap-1.5">
                   <span className="text-base font-black text-white font-['Alexandria']">رادار التاجر</span>
-                  <span className="text-[9px] font-black bg-[#FF6B00] text-white px-1.5 py-0.2 rounded-md">بياع EG</span>
+                  <span className="text-[9px] font-black bg-amber-700 text-white px-1.5 py-0.2 rounded-md">بياع EG</span>
                 </div>
-                <span className="text-[10px] text-amber-400 font-mono font-bold">RADAR EGYPT v54</span>
+                <span className="text-[10px] text-amber-300 font-mono font-bold">RADAR EGYPT v54</span>
               </div>
             </div>
 
@@ -440,27 +459,37 @@ export default function App() {
             {isOwner && (
               <button
                 onClick={() => setShowOwnerDashboard((prev) => !prev)}
-                className={`px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 border shadow-md ${
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-md ${
                   showOwnerDashboard 
-                    ? 'bg-amber-500 text-slate-950 border-amber-400' 
-                    : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                    ? 'bg-amber-600 text-white border-amber-500' 
+                    : 'bg-amber-600/10 text-amber-300 border-amber-600/30 hover:bg-amber-600/20'
                 }`}
                 title="لوحة تحكم المالكة العليا (Super Admin) - اختصار: O"
               >
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <Crown className="w-3.5 h-3.5 text-amber-300" />
                 <span>Super Admin</span>
               </button>
             )}
           </div>
 
           {/* Quick Header Actions */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Master Merchant Management & Fast Registration Button (Deep Indigo Blue, No Yellow) */}
             <button
               onClick={() => setIsAllMerchantsHubOpen(true)}
-              className="px-3 py-1.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
+              title="المركز الشامل لإدارة بيانات التجار، عرض التفاصيل وإضافة تجار جدد بسهولة"
+            >
+              <Building2 className="w-4 h-4 text-indigo-200 shrink-0" />
+              <span>🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
+            </button>
+
+            <button
+              onClick={() => setIsAllMerchantsHubOpen(true)}
+              className="px-3.5 py-2 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"
               title="دليل كافة التجار والمتاجر في السوق المصري"
             >
-              <Store className="w-3.5 h-3.5 text-emerald-400" />
+              <Store className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>دليل التجار</span>
             </button>
 
@@ -469,21 +498,21 @@ export default function App() {
               type="button"
               id="btn-header-visual-customizer-app"
               onClick={toggleCustomizer}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 via-[#FF6B00]/25 to-amber-500/20 hover:from-amber-500/35 hover:to-[#FF6B00]/40 border border-amber-400/40 text-amber-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
               title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
             >
-              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <Palette className="w-4 h-4 text-amber-400 shrink-0" />
               <span>🎨 تنسيق الأزرار والواجهة</span>
             </button>
 
             <button
               onClick={() => setIsFocusMode(!isFocusMode)}
-              className={`p-1.5 rounded-xl border text-xs font-bold transition ${
-                isFocusMode ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+              className={`p-2 rounded-xl border text-xs font-bold transition flex items-center gap-2 ${
+                isFocusMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
               }`}
               title={isFocusMode ? 'إلغاء وضع التركيز' : 'تفعيل وضع التركيز'}
             >
-              {isFocusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFocusMode ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 shrink-0" />}
             </button>
 
             <ThemeToggle variant="pill" />
@@ -491,22 +520,32 @@ export default function App() {
 
             <button
               onClick={handleSignOut}
-              className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 text-red-200 border border-red-500/30 rounded-xl text-xs font-bold transition"
+              className="px-3.5 py-2 bg-red-950/60 hover:bg-red-900 text-red-200 border border-red-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2"
             >
-              تسجيل الخروج
+              <span>تسجيل الخروج</span>
             </button>
           </div>
         </div>
 
         {/* Navigation Tabs Bar */}
-        <div className="max-w-7xl mx-auto px-4 border-t border-slate-800/60 overflow-x-auto py-2">
-          <div className="flex items-center gap-1.5 min-w-max">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 border-t border-slate-800/60 py-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
             
+            {/* Sidebar Toggle Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-600 hover:to-teal-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg flex items-center gap-2 border border-emerald-400/40 active:scale-95 transition-all cursor-pointer"
+              title="فتح القائمة الجانبية الشاملة لجميع أقسام وخواص التطبيق"
+            >
+              <Menu className="w-4 h-4 text-white shrink-0" />
+              <span>القائمة الجانبية ☰</span>
+            </button>
+
             <button
               onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'merchants' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="إدارة المتاجر والمنصات وسحب المخزون (Ctrl+1)"
@@ -517,9 +556,9 @@ export default function App() {
 
             <button
               onClick={() => { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'radar' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="رادار الباي بوكس والأسعار المباشرة (Ctrl+2)"
@@ -530,22 +569,22 @@ export default function App() {
 
             <button
               onClick={() => { setActiveWorkspaceTab('ai_studio'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'ai_studio' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="استوديو الذكاء الاصطناعي لتصميم العناوين والصور (Ctrl+3)"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>أستوديو الذكاء الاصطناعي</span>
             </button>
 
             <button
               onClick={() => { setActiveWorkspaceTab('shipping'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'shipping' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="بوالص الشحن وفصل الطلبات المتعددة (Ctrl+4)"
@@ -556,9 +595,9 @@ export default function App() {
 
             <button
               onClick={() => { setActiveWorkspaceTab('trending'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'trending' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="ترشيحات المنتجات التريند وحساب هامش الربح بالجنيه (Ctrl+5)"
@@ -569,9 +608,9 @@ export default function App() {
 
             <button
               onClick={() => { setActiveWorkspaceTab('reports'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'reports' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="التقارير المالية الأسبوعية والشهرية والسنوية (Ctrl+6)"
@@ -582,48 +621,48 @@ export default function App() {
 
             <button
               onClick={() => { setActiveWorkspaceTab('auto_pricing'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'auto_pricing' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="محرك التسعير الآلي المشروط (Ctrl+7)"
             >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
               <span>محرك التسعير الآلي</span>
             </button>
 
             <button
               onClick={() => { setActiveWorkspaceTab('price_comparison'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'price_comparison' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="مقارنة الفجوات السعرية عبر ملفات CSV"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-200" />
               <span>مقارنة الفجوات (CSV)</span>
             </button>
 
             <button
               onClick={() => { setActiveWorkspaceTab('platforms_guide'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'platforms_guide' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="دليل ربط المنصات ومفاتيح API (Ctrl+8)"
             >
-              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <Key className="w-3.5 h-3.5 text-amber-300" />
               <span>ربط المنصات و API</span>
             </button>
 
             <button
               onClick={() => { setActiveWorkspaceTab('help'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeWorkspaceTab === 'help' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
               title="دليل الاستخدام والدعم الفني (Ctrl+9)"
@@ -636,7 +675,7 @@ export default function App() {
       </header>
 
       {/* Main Workspace Area */}
-      <main className={`mx-auto px-4 py-6 ${isFocusMode ? 'max-w-full' : 'max-w-7xl'}`}>
+      <main className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6">
         
         {/* Render Super Admin Dashboard if active */}
         {showOwnerDashboard && isOwner ? (
@@ -825,6 +864,7 @@ export default function App() {
                 <HelpPage 
                   onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')}
                   onStartTour={() => setShowOnboarding(true)}
+                  onOpenHotkeysModal={() => setIsHotkeysModalOpen(true)}
                 />
               )}
             </Suspense>
@@ -839,7 +879,8 @@ export default function App() {
       <AllMerchantsDirectoryDrawer 
         isOpen={isAllMerchantsHubOpen} 
         onClose={() => setIsAllMerchantsHubOpen(false)} 
-        onShowToast={showToast} 
+        onShowToast={showToast}
+        onSelectMerchant={(id) => showToast(`تم اختيار المتجر (${id}) للتحكم والمتابعة الفورية ⚡`)}
       />
 
       {isPaymentModalOpen && (
@@ -888,10 +929,10 @@ export default function App() {
 
       {/* Footer */}
       <footer className="mt-16 border-t border-slate-900 py-6 text-center text-xs text-slate-400 font-['Cairo']">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-300">رادار التاجر الذكي في مصر (RADAR EGYPT)</span>
-            <span className="text-[10px] bg-slate-800 text-amber-400 px-2 py-0.5 rounded font-mono">v54 Production</span>
+            <span className="text-[10px] bg-slate-800 text-amber-300 px-2 py-0.5 rounded font-mono">v54 Production</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <span>فودافون كاش: 01097751352</span>
@@ -910,6 +951,34 @@ export default function App() {
 
       {/* Multi-Platform PWA Installation & Certificate Modal */}
       <PlatformInstallMatrixModal onShowToast={showToast} />
+
+      {/* Collapsible Navigation Sidebar */}
+      <AppSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        activeTab={activeWorkspaceTab}
+        onSelectTab={(tab) => {
+          setActiveWorkspaceTab(tab);
+          setShowOwnerDashboard(false);
+        }}
+        onOpenAllMerchantsHub={() => setIsAllMerchantsHubOpen(true)}
+        onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
+        onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
+        onOpenOnboarding={() => setShowOnboarding(true)}
+        isOwner={isOwner}
+        trialDaysRemaining={subscriptionState.trialRemainingTime?.days ?? 3}
+      />
+
+      {/* Floating Hotkeys Button & Modal */}
+      {!isFocusMode && (
+        <FloatingHotkeyButton onClick={() => setIsHotkeysModalOpen(true)} />
+      )}
+
+      <KeyboardShortcutsModal
+        isOpen={isHotkeysModalOpen}
+        onClose={() => setIsHotkeysModalOpen(false)}
+        isOwner={isOwner}
+      />
     </div>
   );
 }
