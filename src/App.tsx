@@ -96,9 +96,9 @@ function safeLazy<T extends React.ComponentType<any>>(
 }
 
 // Lazy load feature components
-const OnboardingTour = safeLazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const OnboardingTour = safeLazy(() => import('./components/OnboardingTour'));
 const PaymentModal = safeLazy(() => import('./components/PaymentModal'));
-const SubscriptionPlansModal = safeLazy(() => import('./components/SubscriptionPlansModal').then(m => ({ default: m.SubscriptionPlansModal })));
+const SubscriptionPlansModal = safeLazy(() => import('./components/SubscriptionPlansModal'));
 const OwnerDashboard = safeLazy(() => import('./components/OwnerDashboard'));
 const HelpPage = safeLazy(() => import('./components/HelpPage'));
 const ShippingOrdersTable = safeLazy(() => import('./components/ShippingOrdersTable'));
@@ -106,14 +106,14 @@ const ProfitCalculator = safeLazy(() => import('./components/ProfitCalculator'))
 const ShippingManagementDashboard = safeLazy(() => import('./components/ShippingManagementDashboard'));
 const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
-const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine').then(m => ({ default: m.PriceComparisonEngine })));
-const AIProductStudio = safeLazy(() => import('./components/AIProductStudio').then(m => ({ default: m.AIProductStudio })));
-const MerchantCatalogManager = safeLazy(() => import('./components/MerchantCatalogManager').then(m => ({ default: m.MerchantCatalogManager })));
-const CompetitorRadar = safeLazy(() => import('./components/CompetitorRadar').then(m => ({ default: m.CompetitorRadar })));
-const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar').then(m => ({ default: m.MarketTrendsRadar })));
-const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports').then(m => ({ default: m.PeriodicPerformanceReports })));
-const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal').then(m => ({ default: m.AmazonMultiItemWaybillCropperModal })));
-const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal').then(m => ({ default: m.BulkMarketplaceWaybillModal })));
+const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine'));
+const AIProductStudio = safeLazy(() => import('./components/AIProductStudio'));
+const MerchantCatalogManager = safeLazy(() => import('./components/MerchantCatalogManager'));
+const CompetitorRadar = safeLazy(() => import('./components/CompetitorRadar'));
+const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar'));
+const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports'));
+const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
+const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
 
 export type WorkspaceTab = 
   | 'merchants' 

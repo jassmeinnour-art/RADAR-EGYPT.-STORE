@@ -66,31 +66,36 @@ export const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
   activeMerchantId,
   onMerchantSubscriptionChanged,
 }) => {
+  const safeSubscriptionState = subscriptionState || ({} as Partial<SubscriptionHookState>);
+
   const {
-    subscription,
-    status,
-    isTrialActive,
-    isTrialExpired,
-    isPendingVerification,
-    isWhitelistedAdmin,
-    vodafoneCashWalletNumber,
-    updateVodafoneCashWalletNumber,
-    trialRemainingTime,
-    adminWhitelist,
-    plans,
-    paymentHistory,
-    activatePlan,
-    submitVodafoneCashPayment,
-    approvePendingPayment,
-    redeemPromoCode,
-    addAdminToWhitelist,
-    removeAdminFromWhitelist,
-    resetTrial,
-    expireTrialNow
-  } = subscriptionState;
+    subscription = { planId: 'trial_3_days', status: 'trialing', trialStartDate: '', trialEndDate: '' },
+    status = 'trialing',
+    isTrialActive = false,
+    isTrialExpired = false,
+    isPendingVerification = false,
+    isWhitelistedAdmin = false,
+    vodafoneCashWalletNumber = '01097751352',
+    updateVodafoneCashWalletNumber = () => {},
+    trialRemainingTime = { days: 0, hours: 0, minutes: 0, totalSeconds: 0, formatted: '' },
+    adminWhitelist = [],
+    plans = [],
+    paymentHistory = [],
+    activatePlan = async () => ({ success: false, message: '' }),
+    submitVodafoneCashPayment = async () => ({ success: false, message: '' }),
+    approvePendingPayment = async () => ({ success: false, message: '' }),
+    redeemPromoCode = async () => ({ success: false, message: '' }),
+    addAdminToWhitelist = () => {},
+    removeAdminFromWhitelist = () => {},
+    resetTrial = () => {},
+    expireTrialNow = () => {}
+  } = safeSubscriptionState;
 
   const [merchants, setMerchants] = useState<RemoteMerchantClient[]>(() => loadAllRegisteredMerchants());
-  const [targetMerchantId, setTargetMerchantId] = useState<string>(() => activeMerchantId || merchants[0]?.id || 'merchant-step-queen');
+  const [targetMerchantId, setTargetMerchantId] = useState<string>(() => {
+    const loadedMerchants = loadAllRegisteredMerchants();
+    return activeMerchantId || loadedMerchants[0]?.id || 'merchant-step-queen';
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -200,9 +205,7 @@ export const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
           planId: selectedPlanId as any,
           planName: selectedPlan.nameArabic,
           durationMonths: selectedPlan.durationMonths,
-          amountEGP: amountPaid,
-          paymentMethod: 'vodafone_cash',
-          referenceNumber: res.referenceNumber,
+          referenceNumber: 'referenceNumber' in res ? (res as any).referenceNumber : `REF-${Date.now()}`,
           transactionId: vodafoneTransactionId.trim(),
           receiptImageUrl: receiptPreviewUrl,
           receiptFileName: receiptFileName || 'vodafone-receipt.jpg',
@@ -243,7 +246,7 @@ export const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
           durationMonths: selectedPlan.durationMonths,
           amountEGP: amountPaid,
           paymentMethod: selectedPaymentMethod,
-          referenceNumber: res.referenceNumber
+          referenceNumber: 'referenceNumber' in res ? (res as any).referenceNumber : `REF-${Date.now()}`
         });
         if (updatedMerch) {
           setMerchants(loadAllRegisteredMerchants());
