@@ -170,3 +170,63 @@ self.addEventListener('fetch', event => {
     }
   });
 });
+
+// Push Notification Event Handler
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'RADAR EGYPT - تنبيه جديد',
+    body: 'هناك تحديث جديد في رادار التاجر الذكي.',
+    icon: '/pwa-192x192.png',
+    badge: '/favicon.ico',
+    path: '/'
+  };
+
+  try {
+    if (event.data) {
+      const payload = event.data.json();
+      data = {
+        title: payload.title || payload.notification?.title || data.title,
+        body: payload.body || payload.notification?.body || data.body,
+        icon: payload.icon || '/pwa-192x192.png',
+        badge: payload.badge || '/favicon.ico',
+        path: payload.path || payload.data?.path || '/'
+      };
+    }
+  } catch (err) {
+    if (event.data) {
+      data.body = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon,
+      badge: data.badge,
+      dir: 'rtl',
+      lang: 'ar',
+      data: { path: data.path }
+    })
+  );
+});
+
+// Notification Click Event Handler
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const relativePath = (event.notification.data && event.notification.data.path) || '/';
+  const fullPath = self.location.origin + relativePath;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (let client of windowClients) {
+        if (client.url === fullPath && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(fullPath);
+      }
+    })
+  );
+});
+

@@ -603,3 +603,79 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
   }
 }
 
+/* ==========================================================================
+   5. ACTION BUTTONS & CONTAINERS
+   ========================================================================== */
+/* حاوية الأزرار الرئيسية */
+.action-buttons-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  direction: rtl;
+}
+
+html.dark .action-buttons-container {
+  background-color: #0F172A !important;
+  border-color: #334155 !important;
+}
+
+/* تصميم الزر الفردي */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  background-color: #ffffff;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+/* تأثير التمرير على الزر */
+.action-btn:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+  color: #000;
+}
+
+/* أزرار الإجراءات الرئيسية المميزة (مثل إضافة منتج أو سحب البيانات) */
+.action-btn.primary {
+  background-color: #0d6efd !important;
+  color: #ffffff !important;
+  border-color: #0d6efd !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.action-btn.primary:hover {
+  background-color: #0b5ed7 !important;
+  border-color: #0a58ca !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.dark .action-btn:not(.primary) {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  -webkit-text-fill-color: #F8FAFC !important;
+  border-color: #475569 !important;
+}
+
+html.dark .action-btn:not(.primary):hover {
+  background-color: #334155 !important;
+  border-color: #38BDF8 !important;
+  color: #38BDF8 !important;
+  -webkit-text-fill-color: #38BDF8 !important;
+}
+
+

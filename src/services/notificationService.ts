@@ -5,7 +5,7 @@
  */
 
 export const requestNotificationPermission = async (): Promise<NotificationPermission> => {
-  if (!('Notification' in window)) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     console.warn('This browser does not support desktop notifications.');
     return 'denied';
   }
@@ -14,7 +14,18 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
     return 'granted';
   }
 
-  return await Notification.requestPermission();
+  try {
+    // Dual compatibility for Promise-based and Callback-based Notification.requestPermission()
+    return await new Promise<NotificationPermission>((resolve) => {
+      const res = Notification.requestPermission((perm) => resolve(perm));
+      if (res && typeof res.then === 'function') {
+        res.then(resolve).catch(() => resolve(Notification.permission || 'denied'));
+      }
+    });
+  } catch (err) {
+    console.warn('Failed to request notification permission:', err);
+    return Notification.permission || 'denied';
+  }
 };
 
 export const sendDesktopNotification = async (title: string, options: NotificationOptions = {}) => {
