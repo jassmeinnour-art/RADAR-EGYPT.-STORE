@@ -29,18 +29,21 @@ if (typeof window !== 'undefined') {
   };
 }
 
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
+import { setupPWA } from "./pwaRegister"
+
+// Initialize PWA Service Worker Registration
+if (typeof window !== 'undefined') {
   if (import.meta.env.PROD) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js', { scope: '/' })
-        .then((reg) => console.log('SW registered:', reg.scope))
-        .catch((err) => console.warn('SW failed:', err));
+    setupPWA(() => {
+      console.log('تحديث جديد متوفر في تطبيق رادار التاجر الذكي.');
     });
   } else {
-    navigator.serviceWorker.getRegistrations().then((regs) => {
-      regs.forEach((reg) => reg.unregister());
-    });
+    // Unregister service workers in preview / local dev mode to prevent stale HMR caching
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((reg) => reg.unregister());
+      }).catch(() => {});
+    }
   }
 }
 

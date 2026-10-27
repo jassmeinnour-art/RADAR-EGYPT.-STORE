@@ -58,7 +58,7 @@ export function setupPWA(onNeedRefresh?: () => void) {
     }
 
     try {
-      window.addEventListener('load', () => {
+      const registerSW = () => {
         navigator.serviceWorker
           .register('/service-worker.js', { scope: '/' })
           .then((registration) => {
@@ -84,7 +84,6 @@ export function setupPWA(onNeedRefresh?: () => void) {
               if (!newWorker) return;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Check stored version first to prevent repeated popup loop if already on CURRENT_APP_VERSION
                   try {
                     const installedVersion = localStorage.getItem(APP_VERSION_STORAGE_KEY);
                     if (installedVersion === CURRENT_APP_VERSION) {
@@ -110,7 +109,13 @@ export function setupPWA(onNeedRefresh?: () => void) {
           .catch(() => {
             // Handled silently in preview/sandbox environments
           });
-      });
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+      }
 
       return (reloadPage?: boolean) => {
         if (globalUpdateSW) return globalUpdateSW(reloadPage);

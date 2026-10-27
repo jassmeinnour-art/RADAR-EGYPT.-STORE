@@ -1,8 +1,10 @@
-// Service Worker for Merchant Radar Egypt (PWA Builder 100% compliant)
-const CACHE_NAME = 'merchant-radar-cache-v6.0-pure-white-black';
-const OFFLINE_URL = '/';
+// Service Worker for Merchant Radar Egypt (RADAR EGYPT) - 100% PWA Compliant & White-Screen Resistant
+const CACHE_NAME = 'merchant-radar-cache-v6.5-prod';
+const OFFLINE_URL = '/index.html';
 
 const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
   '/manifest.json',
   '/favicon.ico',
   '/apple-touch-icon.png',
@@ -12,7 +14,29 @@ const PRECACHE_ASSETS = [
   '/pwa-maskable-512x512.png'
 ];
 
-// Install Event - Precache Core Static Icons
+// Fallback App Shell HTML to prevent blank screen if offline and cache missing
+const FALLBACK_APP_SHELL_HTML = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>رادار التاجر الذكي - وضع أوفلاين</title>
+  <style>
+    body { margin: 0; padding: 24px; background: #020617; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; direction: rtl; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; padding: 24px; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+    .btn { background: #f59e0b; color: #020617; font-weight: 800; border: none; padding: 12px 24px; border-radius: 12px; cursor: pointer; margin-top: 16px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="color: #fbbf24; margin-top: 0;">أنت تعمل في وضع دون اتصال (Offline)</h2>
+    <p style="font-size: 14px; color: #94a3b8;">يرجى التحقق من اتصال الإنترنت ثم إعادة محاولة التحميل لاستعراض رادار الأسعار والمنافسين.</p>
+    <button class="btn" onclick="window.location.reload();">إعادة التحميل 🔄</button>
+  </div>
+</body>
+</html>`;
+
+// Install Event - Precache Core Static Assets & HTML Shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -30,6 +54,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('[PWA SW] Deleting old cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -57,16 +82,8 @@ async function fetchNewContent() {
 
 // Listen for the `periodicsync` event.
 self.addEventListener('periodicsync', event => {
-
-  // Check for correct tag on the periodicSyncPermissionsync event.
   if (event.tag === 'fetch-new-content' || event.tag === 'radar-price-update' || event.tag === 'merchant-catalog-refresh') {
-
-    // Execute the desired behavior with waitUntil().
-    event.waitUntil(
-
-      // This is just a hypothetical function for the behavior we desire.
-      fetchNewContent()
-    );
+    event.waitUntil(fetchNewContent());
   }
 });
 
@@ -92,7 +109,6 @@ async function pushLocalDataToDatabase() {
 
 // One-shot Background Sync Event Handler
 self.addEventListener('sync', event => {
-  // Check for correct tag on the sync event.
   if (
     event.tag === 'database-sync' ||
     event.tag === 'sync-merchant-data' ||
@@ -100,20 +116,26 @@ self.addEventListener('sync', event => {
     event.tag === 'sync-messages' ||
     event.tag === 'sync-data'
   ) {
-    // Execute the desired behavior with waitUntil().
-    event.waitUntil(
-      pushLocalDataToDatabase()
-    );
+    event.waitUntil(pushLocalDataToDatabase());
   }
 });
 
-// Fetch Event - Network First for HTML/JS/CSS to prevent stale bundle white screens
+// Message Listener for Skip Waiting
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// Fetch Event - Anti White-Screen Navigation & Asset Handler
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
     return;
   }
 
   const url = new URL(event.request.url);
+
+  // Skip Vite dev server internals and HMR endpoints
   if (
     url.hostname.includes('run.app') ||
     url.hostname === 'localhost' ||
@@ -127,27 +149,55 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle API or dynamic routes with Network First
+  // Handle API dynamic routes: Network First, JSON Fallback
   if (event.request.url.includes('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() => {
         return new Response(JSON.stringify({ error: 'offline', offline: true }), {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json; charset=utf-8' }
         });
       })
     );
     return;
   }
 
-  // Always use Network First for navigation (index.html) and scripts/styles
-  const isNavOrAsset =
-    event.request.mode === 'navigate' ||
-    event.request.destination === 'document' ||
+  // 1. NAVIGATION REQUESTS (App Shell Loading - e.g. opening app, PWA shortcut, sub-routes)
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+              cache.put('/index.html', responseToCache.clone());
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          // Network failed or offline: serve cached index.html or root
+          const cache = await caches.open(CACHE_NAME);
+          const cachedDocument = (await cache.match(event.request)) || (await cache.match('/index.html')) || (await cache.match('/'));
+          if (cachedDocument) {
+            return cachedDocument;
+          }
+          // Ultimate fallback: generate Emergency HTML Response to prevent blank white screen
+          return new Response(FALLBACK_APP_SHELL_HTML, {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          });
+        })
+    );
+    return;
+  }
+
+  // 2. STATIC ASSETS (Scripts, Styles, Assets)
+  if (
     event.request.destination === 'script' ||
     event.request.destination === 'style' ||
-    event.request.url.includes('/assets/');
-
-  if (isNavOrAsset) {
+    event.request.url.includes('/assets/')
+  ) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
@@ -159,22 +209,21 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => {
-            if (cached) return cached;
-            if (event.request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
-            }
-          });
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          const cachedAsset = await cache.match(event.request);
+          if (cachedAsset) return cachedAsset;
+          return new Response('', { status: 404, statusText: 'Not Found' });
         })
     );
     return;
   }
 
-  // For images/icons/fonts: Network First with Cache Fallback
+  // 3. IMAGES / MEDIA / FONTS: Cache First with Network Fallback
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -182,7 +231,68 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
+      }).catch(() => {
+        return cached || new Response('', { status: 404 });
+      });
+    })
+  );
+});
+
+// Push Notification Event Handler
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'RADAR EGYPT - تنبيه جديد',
+    body: 'هناك تحديث جديد في رادار التاجر الذكي.',
+    icon: '/pwa-192x192.png',
+    badge: '/favicon.ico',
+    path: '/'
+  };
+
+  try {
+    if (event.data) {
+      const payload = event.data.json();
+      data = {
+        title: payload.title || payload.notification?.title || data.title,
+        body: payload.body || payload.notification?.body || data.body,
+        icon: payload.icon || '/pwa-192x192.png',
+        badge: payload.badge || '/favicon.ico',
+        path: payload.path || payload.data?.path || '/'
+      };
+    }
+  } catch (err) {
+    if (event.data) {
+      data.body = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon,
+      badge: data.badge,
+      dir: 'rtl',
+      lang: 'ar',
+      data: { path: data.path }
+    })
+  );
+});
+
+// Notification Click Event Handler
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const relativePath = (event.notification.data && event.notification.data.path) || '/';
+  const fullPath = self.location.origin + relativePath;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (let client of windowClients) {
+        if (client.url === fullPath && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(fullPath);
+      }
+    })
   );
 });
