@@ -252,6 +252,29 @@ export default function App() {
     window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
   };
 
+  const handleForceRefreshAndClearCache = async () => {
+    try {
+      showToast('جاري تحديث التطبيق ومسح الذاكرة المؤقتة وجلب أحدث المزايا... 🔄');
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      }
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      setTimeout(() => {
+        window.location.reload();
+      }, 600);
+    } catch (e) {
+      window.location.reload();
+    }
+  };
+
 
   const downloadCertificate = () => {
     const certContent = '-----BEGIN CERTIFICATE-----\nMIIDATCCAemgAwIBAgIU...\n-----END CERTIFICATE-----';
@@ -585,6 +608,17 @@ export default function App() {
 
             <ThemeToggle variant="pill" />
             <LanguageToggle />
+
+            {/* Force Refresh & Clear Cache Button */}
+            <button
+              type="button"
+              onClick={handleForceRefreshAndClearCache}
+              className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/40 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              title="مسح الذاكرة المؤقتة وجلب أحدث إصدار وتحديثات التطبيق والمزايا فوراً"
+            >
+              <RefreshCw className="w-4 h-4 shrink-0" />
+              <span>تحديث التطبيق والمزايا 🔄</span>
+            </button>
 
             <button
               onClick={handleSignOut}
@@ -1085,6 +1119,7 @@ export default function App() {
         onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
         onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
         onOpenOnboarding={() => setShowOnboarding(true)}
+        onForceRefresh={handleForceRefreshAndClearCache}
         isOwner={isOwner}
         trialDaysRemaining={subscriptionState.trialRemainingTime?.days ?? 3}
       />

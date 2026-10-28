@@ -23,7 +23,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  Bell
+  Bell,
+  RefreshCw
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
 
@@ -36,6 +37,7 @@ interface AppSidebarProps {
   onOpenOwnerDashboard: () => void;
   onOpenSubscriptionModal: () => void;
   onOpenOnboarding: () => void;
+  onForceRefresh?: () => void;
   isOwner: boolean;
   trialDaysRemaining?: number;
 }
@@ -65,6 +67,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenOwnerDashboard,
   onOpenSubscriptionModal,
   onOpenOnboarding,
+  onForceRefresh,
   isOwner,
   trialDaysRemaining = 3
 }) => {
@@ -378,6 +381,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <Crown className="w-4 h-4 text-amber-300" />
             <span>ترقية باقة التاجر والاستمرار 🚀</span>
           </button>
+
+          {onForceRefresh && (
+            <button
+              onClick={() => handleItemClick(onForceRefresh)}
+              className="w-full py-2 px-3 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 border border-emerald-500/50 shadow-md cursor-pointer transition"
+            >
+              <RefreshCw className="w-4 h-4 text-white animate-spin-slow" />
+              <span>تحديث التطبيق والمزايا 🔄</span>
+            </button>
+          )}
         </div>
       </aside>
     </>

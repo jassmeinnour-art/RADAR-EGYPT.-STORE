@@ -14,6 +14,8 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  private autoRecoveryTimer: any = null;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -43,11 +45,31 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('ErrorBoundary caught an unhandled error:', error, errorInfo);
+    console.warn('ErrorBoundary caught an unhandled error (auto-recovering in background):', error, errorInfo);
     this.setState({ errorInfo });
+
+    // Auto-recover after 4 seconds to prevent user getting stuck on fallback screen
+    if (this.autoRecoveryTimer) {
+      clearTimeout(this.autoRecoveryTimer);
+    }
+    this.autoRecoveryTimer = setTimeout(() => {
+      if (this.state.hasError) {
+        console.info('ErrorBoundary auto-recovering in background...');
+        this.handleReset();
+      }
+    }, 4000);
+  }
+
+  public override componentWillUnmount(): void {
+    if (this.autoRecoveryTimer) {
+      clearTimeout(this.autoRecoveryTimer);
+    }
   }
 
   private handleReset = (): void => {
+    if (this.autoRecoveryTimer) {
+      clearTimeout(this.autoRecoveryTimer);
+    }
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
