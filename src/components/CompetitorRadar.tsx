@@ -32,7 +32,8 @@ import {
   Unlock,
   X,
   Calendar,
-  MessageCircle
+  MessageCircle,
+  ArrowUpRight
 } from 'lucide-react';
 import {
   LineChart,
@@ -64,8 +65,15 @@ import {
 import { exportSingleProductFullAuditCSV } from '../utils/csvProductManager';
 import { ExportReportsButton } from './ExportReportsButton';
 import { exportSingleProductCompetitorsToSpreadsheet } from '../utils/competitorPriceExport';
+import { ToolbarTooltip } from './ToolbarTooltip';
 import { useTheme } from '../context/ThemeContext';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
+import { 
+  isProductWatchlisted, 
+  toggleWatchlist, 
+  notifyWatchlistPriceChange, 
+  getStoredWatchlist 
+} from '../services/watchlistNotificationService';
 
 interface CompetitorRadarProps {
   product: ProductData | null | undefined;
@@ -201,6 +209,36 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
   const playPriceAlertSoundRef = useRef(playPriceAlertSound);
   onShowToastRef.current = onShowToast;
   playPriceAlertSoundRef.current = playPriceAlertSound;
+
+  // Watchlist synchronization and Web Notification support
+  const [internalWatchlisted, setInternalWatchlisted] = useState<boolean>(() => {
+    return product ? isProductWatchlisted(product.id) : false;
+  });
+
+  useEffect(() => {
+    if (product) {
+      setInternalWatchlisted(isProductWatchlisted(product.id));
+    }
+  }, [product?.id]);
+
+  const activeIsWatchlisted = isWatchlisted !== undefined ? isWatchlisted : internalWatchlisted;
+
+  const handleToggleWatchlistAction = () => {
+    if (!product) return;
+    if (onToggleWatchlist) {
+      onToggleWatchlist(product);
+    } else {
+      const res = toggleWatchlist(product);
+      setInternalWatchlisted(res.isWatchlisted);
+      if (onShowToast) {
+        onShowToast(
+          res.isWatchlisted
+            ? `تمت إضافة "${product.title}" لقائمة المتابعة وتفعيل إشعارات المتصفح (Web Notifications) عند أي تغير بالسعر 🔔`
+            : `تمت إزالة "${product.title}" من قائمة المتابعة.`
+        );
+      }
+    }
+  };
 
   useEffect(() => {
     const handlePlanSync = () => {
@@ -487,58 +525,89 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  id="btn-radar-whatsapp-autoreprice"
-                  onClick={() => {
-                    const lowestComp = filteredOffers.find(o => o.price === lowestPrice) || filteredOffers[0] || null;
-                    setSelectedWhatsAppCompetitor(lowestComp);
-                    setIsWhatsAppRepriceModalOpen(true);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-700/30 cursor-pointer border border-emerald-400/40"
-                  title="إرسال تنبيه واتساب فوري وتعديل السعر تلقائياً بنقرة واحدة"
+                <ToolbarTooltip
+                  title="إشعار واتساب وتعديل السعر التلقائي"
+                  description="إرسال تنبيه واتساب فوري وتعديل السعر التلقائي (Auto-Reprice) بنقرة واحدة لأرخص منافس في السوق"
+                  badge="Auto-Reprice"
+                  icon={MessageCircle}
+                  theme="emerald"
+                  side="top"
                 >
-                  <MessageCircle className="w-4 h-4 text-emerald-200" />
-                  <span>📱 إشعار واتساب وتعديل السعر (Auto-Reprice)</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-whatsapp-autoreprice"
+                    onClick={() => {
+                      const lowestComp = filteredOffers.find(o => o.price === lowestPrice) || filteredOffers[0] || null;
+                      setSelectedWhatsAppCompetitor(lowestComp);
+                      setIsWhatsAppRepriceModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-700/30 cursor-pointer border border-emerald-400/40"
+                  >
+                    <MessageCircle className="w-4 h-4 text-emerald-200" />
+                    <span>📱 إشعار واتساب وتعديل السعر (Auto-Reprice)</span>
+                  </button>
+                </ToolbarTooltip>
 
-                <button
-                  type="button"
-                  id="btn-radar-lock-floor-now"
-                  onClick={handleLockFloorPrice}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-600/30 cursor-pointer"
-                  title="قفل وتثبيت السعر عند الحد الأدنى الآمن لمنع أي تآكل في الأرباح"
+                <ToolbarTooltip
+                  title="تفعيل قفل صمام الأمان فوراً"
+                  description="قفل وتثبيت السعر عند الحد الأدنى الآمن لمنع أي تآكل في الأرباح وحماية رأس المال"
+                  badge="صمام الأمان"
+                  icon={Lock}
+                  theme="emerald"
+                  side="top"
                 >
-                  <Lock className="w-4 h-4" />
-                  <span>🔒 تفعيل قفل صمام الأمان فوراً</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-lock-floor-now"
+                    onClick={handleLockFloorPrice}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-600/30 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>🔒 تفعيل قفل صمام الأمان فوراً</span>
+                  </button>
+                </ToolbarTooltip>
 
-                <button
-                  type="button"
-                  id="btn-radar-snap-floor-now"
-                  onClick={handleSnapToSafeFloorPrice}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition border border-white/20 cursor-pointer"
-                  title="رفع السعر التنافسي إلى الحد الأدنى المحمي"
+                <ToolbarTooltip
+                  title="ضبط عند الحد الآمن"
+                  description={`رفع السعر المقترح تلقائياً إلى الحد الأدنى المحمي (${proximity.effectiveFloorPrice.toLocaleString()} ${currency}) لتجنب الخسارة`}
+                  icon={Zap}
+                  theme="sky"
+                  side="top"
                 >
-                  <Zap className="w-4 h-4 text-sky-400 fill-sky-400" />
-                  <span>ضبط عند الحد الآمن ({proximity.effectiveFloorPrice.toLocaleString()} {currency})</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-snap-floor-now"
+                    onClick={handleSnapToSafeFloorPrice}
+                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition border border-white/20 cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4 text-sky-400 fill-sky-400" />
+                    <span>ضبط عند الحد الآمن ({proximity.effectiveFloorPrice.toLocaleString()} {currency})</span>
+                  </button>
+                </ToolbarTooltip>
 
-                <button
-                  type="button"
-                  id="btn-radar-scroll-to-guardrails"
-                  onClick={() => {
-                    setIsGuardrailsManagerExpanded(true);
-                    setTimeout(() => {
-                      const el = document.getElementById('integrated-pricing-guardrails-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }, 100);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition shadow-md cursor-pointer"
+                <ToolbarTooltip
+                  title="وحدة Guardrails المدمجة"
+                  description="الوصول المباشر لقواعد صمام الأمان وحدود الأسعار العليا والدنيا لجميع المنصات"
+                  icon={ShieldCheck}
+                  theme="indigo"
+                  side="top"
                 >
-                  <ShieldCheck className="w-4 h-4 text-indigo-200" />
-                  <span>فتح وحدة Guardrails المدمجة ⚙️</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-scroll-to-guardrails"
+                    onClick={() => {
+                      setIsGuardrailsManagerExpanded(true);
+                      setTimeout(() => {
+                        const el = document.getElementById('integrated-pricing-guardrails-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }, 100);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition shadow-md cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-indigo-200" />
+                    <span>فتح وحدة Guardrails المدمجة ⚙️</span>
+                  </button>
+                </ToolbarTooltip>
               </div>
             </div>
 
@@ -593,273 +662,391 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
         <div className="relative z-10 space-y-5">
           
           {/* Header row */}
-          <div className="flex flex-col gap-4 border-b-2 border-[#000000] pb-4">
+          <div className="flex flex-col gap-4 border-b border-slate-800 pb-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#F8FAFC] text-[#000000] text-[11px] font-bold border-2 border-[#000000] flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-[#000000]" />
-                    رادار التسعير التنافسي الذكي
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] font-bold border border-indigo-500/30 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>رادار التسعير التنافسي الذكي</span>
                   </span>
-                  <span className="text-xs text-[#000000] font-semibold">
-                    السوق المصري • محدث الآن
+                  <span className="text-xs text-slate-300 font-semibold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                    <span>السوق المصري • محدث لحظياً</span>
                   </span>
                 </div>
-                <h2 className="text-lg sm:text-xl font-black font-['Cairo','Alexandria'] text-[#000000]">
+                <h2 className="text-lg sm:text-2xl font-black font-['Cairo','Alexandria'] text-white">
                   {product.title}
                 </h2>
-                <p className="text-xs text-[#000000]">
-                  الماركة: <strong className="font-extrabold">{product.brand}</strong> | الموديل: <strong className="font-extrabold">{product.model}</strong> | الباركود: <strong className="font-mono">{product.barcode || '62288990011'}</strong>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  الماركة: <strong className="text-white font-black">{product.brand}</strong> | الموديل: <strong className="text-white font-black">{product.model}</strong> | الباركود: <strong className="font-mono text-amber-300">{product.barcode || '62288990011'}</strong>
                 </p>
               </div>
 
               {/* Product Thumbnail & SKU Badge */}
-              <div className="flex items-center gap-3 bg-[#F8FAFC] p-2.5 rounded-2xl border-2 border-[#000000] shrink-0 self-start lg:self-center">
+              <div className="flex items-center gap-3 bg-slate-950/80 p-2.5 rounded-2xl border border-slate-800 shrink-0 self-start lg:self-center shadow-md">
                 <img
                   src={product.imageUrl}
                   alt={product.title}
-                  className="w-13 h-13 rounded-xl object-cover border-2 border-[#000000]"
+                  className="w-14 h-14 rounded-xl object-cover border border-slate-700/80 shadow-inner"
                 />
                 <div className="text-right">
-                  <div className="text-[10px] text-[#000000] font-bold">رمز المنتج (SKU)</div>
-                  <div className="text-xs font-mono font-extrabold text-[#000000]">{product.sku || 'SKU-EG-8821'}</div>
-                  <div className="text-[11px] font-bold text-[#000000] mt-0.5">ثقة التطابق 99.2%</div>
+                  <div className="text-[10px] text-slate-400 font-bold">رمز المنتج (SKU)</div>
+                  <div className="text-xs font-mono font-black text-amber-300">{product.sku || 'SKU-EG-8821'}</div>
+                  <div className="text-[11px] font-bold text-emerald-400 mt-0.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>ثقة التطابق 99.2%</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Cleanly Aligned Horizontal Action Bar for Quick Radar Tools */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t-2 border-[#000000]">
+            {/* Cleanly Aligned Horizontal Action Bar with Modern Lucide Icons & Tooltips */}
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
               {onOpenBestSellersModal && (
-                <button
-                  type="button"
-                  id="btn-radar-open-bestsellers-modal"
-                  onClick={onOpenBestSellersModal}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="عرض قائمة أفضل المنتجات مبيعاً على المنصات وإضافتها لقائمة المتابعة بضغطة زر"
+                <ToolbarTooltip
+                  title="أفضل المنتجات مبيعاً (Best Sellers)"
+                  description="عرض قائمة المنتجات الأكثر رواجاً ومبيعاً على المنصات وإضافتها للمتابعة بضغطة زر"
+                  badge="Best Sellers 🔥"
+                  icon={Flame}
+                  theme="amber"
+                  side="top"
                 >
-                  <Flame className="w-3.5 h-3.5 shrink-0" />
-                  <span>أفضل المنتجات مبيعاً (Best Sellers) 🔥</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-open-bestsellers-modal"
+                    onClick={onOpenBestSellersModal}
+                    className="h-10 px-3.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-amber-300 border border-amber-500/40 hover:border-amber-400 text-xs font-black flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <Flame className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>أفضل المنتجات مبيعاً (Best Sellers) 🔥</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById('competitor-price-history-chart-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                title="النزول مباشرة للرسم البياني التفاعلي لتاريخ تغيرات أسعار المنافسين وسلوك السوق"
+              <ToolbarTooltip
+                title="تاريخ وسلوك الأسعار"
+                description="النزول مباشرة للرسم البياني التفاعلي لتتبع مسار وتغيرات أسعار المنافسين عبر الزمن"
+                icon={Clock}
+                theme="sky"
+                side="top"
               >
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>تاريخ وسلوك الأسعار 📉</span>
-              </button>
-
-              {onOpenSalesDashboard && (
                 <button
                   type="button"
-                  onClick={onOpenSalesDashboard}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="فتح لوحة تحكم أداء المبيعات ومقارنتها بتغير أسعار المنافسين"
+                  onClick={() => {
+                    const el = document.getElementById('competitor-price-history-chart-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="h-10 px-3.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 active:scale-95 text-sky-300 border border-sky-500/40 hover:border-sky-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
                 >
-                  <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-                  <span>لوحة أداء المبيعات 📈</span>
+                  <Clock className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span>تاريخ وسلوك الأسعار 📉</span>
                 </button>
+              </ToolbarTooltip>
+
+              {onOpenSalesDashboard && (
+                <ToolbarTooltip
+                  title="لوحة تحكم أداء المبيعات"
+                  description="تحليل حجم وإيرادات المبيعات ومقارنتها بتذبذبات أسعار المنافسين في السوق المصري"
+                  badge="تحليلات"
+                  icon={BarChart3}
+                  theme="emerald"
+                  side="top"
+                >
+                  <button
+                    type="button"
+                    onClick={onOpenSalesDashboard}
+                    className="h-10 px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <BarChart3 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>لوحة أداء المبيعات 📈</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {onOpenProfitSimulator && (
-                <button
-                  type="button"
-                  onClick={onOpenProfitSimulator}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="فتح محاكي الربح المستقبلي والنمذجة التنبؤية لاستراتيجيات التسعير"
+                <ToolbarTooltip
+                  title="محاكي الربح المستقبلي"
+                  description="نمذجة تنبؤية متقدمة لهامش الربح المتوقع وسيناريوهات التسعير البديلة"
+                  badge="ذكاء تسعيري"
+                  icon={TrendingUp}
+                  theme="indigo"
+                  side="top"
                 >
-                  <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-                  <span>محاكي الربح المستقبلي 💎</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={onOpenProfitSimulator}
+                    className="h-10 px-3.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 active:scale-95 text-indigo-300 border border-indigo-500/40 hover:border-indigo-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <TrendingUp className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span>محاكي الربح المستقبلي 💎</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {onOpenPeriodicReports && (
-                <button
-                  type="button"
-                  onClick={onOpenPeriodicReports}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="عرض تقارير الأداء الدورية ورسوم الـ Buy Box البيانية المتقدمة"
+                <ToolbarTooltip
+                  title="تقارير الأداء والـ Buy Box"
+                  description="عرض إحصائيات الاستحواذ على الـ Buy Box وتحميل التقارير الدورية التفصيلية"
+                  icon={FileSpreadsheet}
+                  theme="indigo"
+                  side="top"
                 >
-                  <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-                  <span>تقارير الأداء والـ Buy Box 📊</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={onOpenPeriodicReports}
+                    className="h-10 px-3.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 active:scale-95 text-purple-300 border border-purple-500/40 hover:border-purple-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>تقارير الأداء والـ Buy Box 📊</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {onOpenBulkReprice && (
-                <button
-                  type="button"
-                  onClick={onOpenBulkReprice}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="التحديث الجماعي للأسعار لكافة المنتجات أو رفع ملف CSV"
+                <ToolbarTooltip
+                  title="التحديث الجماعي للأسعار"
+                  description="إعادة تسعير مئات المنتجات دفعة واحدة واستيراد وتصدير جداول CSV"
+                  badge="Bulk Reprice"
+                  icon={SlidersHorizontal}
+                  theme="sky"
+                  side="top"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-                  <span>التحديث الجماعي (CSV) 🚀</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={onOpenBulkReprice}
+                    className="h-10 px-3.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 active:scale-95 text-cyan-300 border border-cyan-500/40 hover:border-cyan-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>التحديث الجماعي (CSV) 🚀</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {onOpenStudio && (
-                <button
-                  type="button"
-                  onClick={onOpenStudio}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="فتح استوديو تصميم زوايا المنتج والكاميرا"
+                <ToolbarTooltip
+                  title="استوديو التصوير والزوايا"
+                  description="فحص وتحسين جودة صور المنتج الترويجية وتوليد زوايا احترافية للمتاجر"
+                  icon={Camera}
+                  theme="sky"
+                  side="top"
                 >
-                  <Camera className="w-3.5 h-3.5 shrink-0" />
-                  <span>استوديو الكاميرا والزوايا 📸</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={onOpenStudio}
+                    className="h-10 px-3.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 active:scale-95 text-teal-300 border border-teal-500/40 hover:border-teal-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <Camera className="w-4 h-4 text-teal-400 shrink-0" />
+                    <span>استوديو الكاميرا والزوايا 📸</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
-              {onToggleWatchlist && (
-                <button
-                  type="button"
-                  onClick={() => onToggleWatchlist(product)}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold whitespace-nowrap flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                >
-                  <Bookmark className="w-3.5 h-3.5 shrink-0" />
-                  <span>{isWatchlisted ? 'في قائمة المتابعة ✓' : 'حفظ بالمتابعة'}</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                id="btn-radar-whatsapp-autoreprice-top"
-                onClick={() => {
-                  const lowestComp = filteredOffers.find(o => o.price === lowestPrice) || filteredOffers[0] || null;
-                  setSelectedWhatsAppCompetitor(lowestComp);
-                  setIsWhatsAppRepriceModalOpen(true);
-                }}
-                className="h-9 px-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-2 border-emerald-600 text-xs font-black whitespace-nowrap flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
-                title="نظام تنبيهات واتساب الفوري والتعديل التلقائي للسعر (Auto-Repricing)"
+              <ToolbarTooltip
+                title={activeIsWatchlisted ? "إزالة من قائمة المتابعة" : "إضافة لقائمة المتابعة (Web Notifications)"}
+                description="تثبيت الصنف في قائمة الرقابة اللحظية لتلقي التنبيهات الفورية عبر المتصفح عند تغير الأسعار"
+                badge={activeIsWatchlisted ? "مراقب ✓" : undefined}
+                icon={Bookmark}
+                theme="amber"
+                side="top"
               >
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>تنبيهات واتساب والتسعير التلقائي ⚡</span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-radar-toggle-watchlist"
+                  onClick={handleToggleWatchlistAction}
+                  className="h-10 px-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 hover:border-slate-600 text-xs font-bold whitespace-nowrap flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                >
+                  <Bookmark className={`w-4 h-4 ${activeIsWatchlisted ? 'text-amber-400 fill-amber-400' : 'text-slate-400'} shrink-0`} />
+                  <span>{activeIsWatchlisted ? 'في قائمة المتابعة ✓' : 'حفظ بالمتابعة'}</span>
+                </button>
+              </ToolbarTooltip>
+
+              <ToolbarTooltip
+                title="تنبيهات واتساب والتسعير التلقائي"
+                description="إرسال تقرير فوري عبر واتساب للتاجر مع تطبيق التسعير التنافسي المباشر بنقرة واحدة"
+                badge="Auto-Reprice ⚡"
+                icon={MessageCircle}
+                theme="emerald"
+                side="top"
+              >
+                <button
+                  type="button"
+                  id="btn-radar-whatsapp-autoreprice-top"
+                  onClick={() => {
+                    const lowestComp = filteredOffers.find(o => o.price === lowestPrice) || filteredOffers[0] || null;
+                    setSelectedWhatsAppCompetitor(lowestComp);
+                    setIsWhatsAppRepriceModalOpen(true);
+                  }}
+                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white border border-emerald-400/50 text-xs font-black whitespace-nowrap flex items-center gap-2 justify-center transition-all cursor-pointer shadow-lg shadow-emerald-950/60"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-100 shrink-0" />
+                  <span>تنبيهات واتساب والتسعير التلقائي ⚡</span>
+                </button>
+              </ToolbarTooltip>
 
               {onOpenAlertModal && (
-                <button
-                  type="button"
-                  onClick={() => onOpenAlertModal(product)}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] text-[#000000] border-2 border-[#000000] text-xs font-bold whitespace-nowrap flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
+                <ToolbarTooltip
+                  title="ضبط تنبيهات الأسعار"
+                  description="تعيين إشعارات مخصصة عند انخفاض أو صعود سعر أي منافس عن حد معين"
+                  icon={Bell}
+                  theme="sky"
+                  side="top"
                 >
-                  <Bell className="w-3.5 h-3.5 shrink-0" />
-                  <span>تنبيهات السعر</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAlertModal(product)}
+                    className="h-10 px-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 hover:border-slate-600 text-xs font-bold whitespace-nowrap flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <Bell className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span>تنبيهات السعر</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {onArchiveProduct && (
-                <button
-                  type="button"
-                  id="btn-radar-archive-product"
-                  onClick={() => onArchiveProduct(product)}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    onArchiveProduct(product);
-                  }}
-                  className="h-9 px-3.5 rounded-xl bg-[#F8FAFC] hover:bg-rose-50 text-[#000000] hover:text-rose-700 border-2 border-[#000000] hover:border-rose-400 text-xs font-bold whitespace-nowrap flex items-center gap-1.5 justify-center transition-all cursor-pointer active:scale-95"
-                  title="أرشفة هذا المنتج وعزله عن القوائم النشطة (يدعم السحب والإفلات)"
+                <ToolbarTooltip
+                  title="أرشفة الصنف"
+                  description="نقل المنتج إلى الأرشيف وعزله عن العمليات النشطة (يدعم السحب والإفلات)"
+                  icon={Archive}
+                  theme="rose"
+                  side="top"
                 >
-                  <Archive className="w-3.5 h-3.5 shrink-0" />
-                  <span>أرشفة الصنف 🗄️</span>
-                </button>
+                  <button
+                    type="button"
+                    id="btn-radar-archive-product"
+                    onClick={() => onArchiveProduct(product)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      onArchiveProduct(product);
+                    }}
+                    className="h-10 px-3.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 active:scale-95 text-rose-300 hover:text-rose-100 border border-rose-500/40 hover:border-rose-400 text-xs font-bold whitespace-nowrap flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                  >
+                    <Archive className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>أرشفة الصنف 🗄️</span>
+                  </button>
+                </ToolbarTooltip>
               )}
             </div>
           </div>
 
-          {/* Pricing Intelligence Hero Grid */}
+          {/* Pricing Intelligence Hero Grid with Interactive Tooltips */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             {/* Box 1: Current Lowest Market Price */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5">
-              <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-sky-400" />
-                أرخص سعر منافس في السوق المصري
-              </span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-sky-300">
-                  {lowestPrice.toLocaleString()}
+            <ToolbarTooltip
+              title="أرخص سعر منافس بالسوق"
+              description={`أقل سعر رصده الرادار حالياً لدى متجر (${lowestOffer?.merchantName || 'المنافس'}) بمدة شحن (${lowestOffer?.deliveryTime || 'فورية'})`}
+              badge="أرخص سعر"
+              icon={AlertTriangle}
+              theme="sky"
+              side="top"
+              className="w-full h-full block"
+            >
+              <div className="w-full h-full bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5 transition-all hover:border-sky-400/50 hover:bg-white/10 cursor-help">
+                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-sky-400" />
+                  أرخص سعر منافس في السوق المصري
                 </span>
-                <span className="text-xs font-bold text-slate-300">{currency}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-sky-300">
+                    {lowestPrice.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-slate-300">{currency}</span>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  لدى: <strong className="text-white">{lowestOffer?.merchantName}</strong> ({lowestOffer?.deliveryTime})
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400">
-                لدى: <strong className="text-white">{lowestOffer?.merchantName}</strong> ({lowestOffer?.deliveryTime})
-              </div>
-            </div>
+            </ToolbarTooltip>
 
             {/* Box 2: Wholesale Cost Reference */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5">
-              <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                تكلفة الجملة المقدرة (شارع عبد العزيز / البستان)
-              </span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-blue-300">
-                  {wholesaleCost.toLocaleString()}
+            <ToolbarTooltip
+              title="مرجع تكلفة الجملة الفعلية"
+              description="سعر شراء الجملة التقديري من كبار موردي شارع عبد العزيز والبستان بناءً على كميات 3-5 قطع كاش"
+              badge="سعر الجملة"
+              icon={ShieldCheck}
+              theme="indigo"
+              side="top"
+              className="w-full h-full block"
+            >
+              <div className="w-full h-full bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5 transition-all hover:border-blue-400/50 hover:bg-white/10 cursor-help">
+                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                  تكلفة الجملة المقدرة (شارع عبد العزيز / البستان)
                 </span>
-                <span className="text-xs font-bold text-slate-300">{currency}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-blue-300">
+                    {wholesaleCost.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-slate-300">{currency}</span>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  أقل كمية طلب: <strong className="text-white">3-5 قطع كاش</strong>
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400">
-                أقل كمية طلب: <strong className="text-white">3-5 قطع كاش</strong>
-              </div>
-            </div>
+            </ToolbarTooltip>
 
             {/* Box 3: Your Winning Undercut Price (التسعير الذكي لتاجرنا) */}
-            <div className={`border-2 rounded-2xl p-4 backdrop-blur-md space-y-1.5 shadow-lg transition-all ${
-              proximity.isBreached
-                ? 'bg-rose-500/20 border-rose-400/80 shadow-rose-950/40'
-                : proximity.isApproachingFloor
-                ? 'bg-sky-500/20 border-sky-400/80 shadow-sky-950/40'
-                : 'bg-emerald-500/15 border-emerald-400/60 shadow-emerald-950/40'
-            }`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-xs font-bold flex items-center gap-1.5 ${
-                  proximity.isBreached ? 'text-rose-200' : proximity.isApproachingFloor ? 'text-sky-200' : 'text-emerald-300'
-                }`}>
-                  <Sparkles className={`w-3.5 h-3.5 animate-pulse ${
-                    proximity.isBreached ? 'text-rose-400' : proximity.isApproachingFloor ? 'text-sky-400' : 'text-emerald-400'
-                  }`} />
-                  سعر بيعك الرابح المقترح (أقل من أرخص منافس)
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                  proximity.isBreached
-                    ? 'bg-rose-600 text-white'
-                    : proximity.isApproachingFloor
-                    ? 'bg-sky-400 text-slate-950'
-                    : 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30'
-                }`}>
-                  {proximity.isBreached
-                    ? '🚨 كسر الحد الأدنى!'
-                    : proximity.isApproachingFloor
-                    ? `⚠️ اقتراب من الحد (+${proximity.distanceToFloorEGP} ج.م)`
-                    : '🛡️ محمي'}
-                </span>
+            <ToolbarTooltip
+              title="سعر البيع الرابح المقترح"
+              description={`سعر ذكي يخفض السعر عن أرخص منافس ويضمن تحقيق صافي ربح (+${profitMargin.toLocaleString()} ${currency}) مع صمام أمان (${proximity.effectiveFloorPrice.toLocaleString()} ${currency})`}
+              badge={proximity.isBreached ? "خطر!" : proximity.isApproachingFloor ? "تحذير" : "فوز مضمون 🏆"}
+              icon={Sparkles}
+              theme={proximity.isBreached ? "rose" : proximity.isApproachingFloor ? "sky" : "emerald"}
+              side="top"
+              className="w-full h-full block"
+            >
+              <div className={`w-full h-full border-2 rounded-2xl p-4 backdrop-blur-md space-y-1.5 shadow-lg transition-all cursor-help ${
+                proximity.isBreached
+                  ? 'bg-rose-500/20 border-rose-400/80 shadow-rose-950/40'
+                  : proximity.isApproachingFloor
+                  ? 'bg-sky-500/20 border-sky-400/80 shadow-sky-950/40'
+                  : 'bg-emerald-500/15 border-emerald-400/60 shadow-emerald-950/40'
+              }`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${
+                    proximity.isBreached ? 'text-rose-200' : proximity.isApproachingFloor ? 'text-sky-200' : 'text-emerald-300'
+                  }`}>
+                    <Sparkles className={`w-3.5 h-3.5 animate-pulse ${
+                      proximity.isBreached ? 'text-rose-400' : proximity.isApproachingFloor ? 'text-sky-400' : 'text-emerald-400'
+                    }`} />
+                    سعر بيعك الرابح المقترح (أقل من أرخص منافس)
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                    proximity.isBreached
+                      ? 'bg-rose-600 text-white'
+                      : proximity.isApproachingFloor
+                      ? 'bg-sky-400 text-slate-950'
+                      : 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/30'
+                  }`}>
+                    {proximity.isBreached
+                      ? '🚨 كسر الحد الأدنى!'
+                      : proximity.isApproachingFloor
+                      ? `⚠️ اقتراب من الحد (+${proximity.distanceToFloorEGP} ج.م)`
+                      : '🛡️ محمي'}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl sm:text-3xl font-black ${
+                    proximity.isBreached ? 'text-rose-300' : proximity.isApproachingFloor ? 'text-sky-300' : 'text-emerald-400'
+                  }`}>
+                    {winningPrice.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-slate-200">{currency}</span>
+                  <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md mr-auto">
+                    وفر للزبون {discountSavingsAmount.toLocaleString()} {currency}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-200 flex items-center justify-between">
+                  <span>صافي ربحك: <strong>+{profitMargin.toLocaleString()} {currency}</strong></span>
+                  <span className="font-bold">الحد الأدنى: {proximity.effectiveFloorPrice.toLocaleString()} {currency}</span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl sm:text-3xl font-black ${
-                  proximity.isBreached ? 'text-rose-300' : proximity.isApproachingFloor ? 'text-sky-300' : 'text-emerald-400'
-                }`}>
-                  {winningPrice.toLocaleString()}
-                </span>
-                <span className="text-xs font-bold text-slate-200">{currency}</span>
-                <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md mr-auto">
-                  وفر للزبون {discountSavingsAmount.toLocaleString()} {currency}
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-200 flex items-center justify-between">
-                <span>صافي ربحك: <strong>+{profitMargin.toLocaleString()} {currency}</strong></span>
-                <span className="font-bold">الحد الأدنى: {proximity.effectiveFloorPrice.toLocaleString()} {currency}</span>
-              </div>
-            </div>
+            </ToolbarTooltip>
 
           </div>
 
@@ -917,27 +1104,45 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* 1-Click Reprice & Apply Button - High Contrast Emerald */}
-              <button
-                onClick={() => onApplyWinningPrice(winningPrice, selectedDiscount)}
-                className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs whitespace-nowrap flex items-center gap-1.5 justify-center shadow-lg shadow-emerald-600/30 border border-emerald-500/50 transition-all cursor-pointer shrink-0"
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {/* 1-Click Reprice & Apply Button - Modern High Contrast Emerald */}
+              <ToolbarTooltip
+                title="اعتماد السعر الرابح فوراً"
+                description={`تطبيق السعر المقترح (${winningPrice.toLocaleString()} ${currency}) مع خصم (${selectedDiscount}%) ونشره مباشرة وتحديث منصات البيع`}
+                badge="1-Click Apply"
+                icon={Zap}
+                theme="emerald"
+                side="top"
               >
-                <Zap className="w-3.5 h-3.5 text-white fill-white shrink-0" />
-                <span>اعتماد السعر ({winningPrice.toLocaleString()} {currency}) وتجهيز النشر</span>
-              </button>
+                <button
+                  onClick={() => onApplyWinningPrice(winningPrice, selectedDiscount)}
+                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs sm:text-sm whitespace-nowrap flex items-center gap-2 justify-center shadow-lg shadow-emerald-950/60 border border-emerald-400/50 transition-all cursor-pointer shrink-0"
+                >
+                  <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200 shrink-0" />
+                  <span>اعتماد السعر ({winningPrice.toLocaleString()} {currency}) وتجهيز النشر</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                </button>
+              </ToolbarTooltip>
 
               {/* Generate Shipping Waybill Button for Active Product */}
               {onOpenGenerateWaybillModal && product && (
-                <button
-                  type="button"
-                  onClick={() => onOpenGenerateWaybillModal(product)}
-                  className="h-9 px-3.5 rounded-md bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-300 hover:text-emerald-200 font-bold text-xs whitespace-nowrap flex items-center gap-1.5 justify-center shadow-md border border-emerald-500/40 transition-all cursor-pointer shrink-0"
-                  title="توليد بوليصة شحن فورية لهذا المنتج وجدولتها وربطها بالمخزون"
+                <ToolbarTooltip
+                  title="توليد بوليصة شحن فورية"
+                  description="إنشاء بوليصة شحن وتصدير بيانات الشحنة لشركات التوصيل مع ربط الباركود والمخزون"
+                  badge="بوليصة شحن"
+                  icon={Truck}
+                  theme="sky"
+                  side="top"
                 >
-                  <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>توليد بوليصة شحن 🚚</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenGenerateWaybillModal(product)}
+                    className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-sky-300 hover:text-white font-bold text-xs sm:text-sm whitespace-nowrap flex items-center gap-2 justify-center shadow-md border border-sky-500/40 hover:border-sky-400 transition-all cursor-pointer shrink-0"
+                  >
+                    <Truck className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span>توليد بوليصة شحن 🚚</span>
+                  </button>
+                </ToolbarTooltip>
               )}
             </div>
 
@@ -1018,33 +1223,50 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             {(proximity.isApproachingFloor || proximity.isBreached) && (
+              <ToolbarTooltip
+                title="قفل وحماية الحد الأدنى"
+                description="تثبيت صمام الأمان فوراً عند السعر المحمي لمنع بيع المنتج بخسارة"
+                badge="قفل فوري"
+                icon={Lock}
+                theme="emerald"
+                side="top"
+              >
+                <button
+                  type="button"
+                  onClick={handleLockFloorPrice}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>قفل وحماية الحد الأدنى</span>
+                </button>
+              </ToolbarTooltip>
+            )}
+            <ToolbarTooltip
+              title={isGuardrailsManagerExpanded ? "طي وحدة صمام الأمان" : "تعديل حدود الحماية الكاملة"}
+              description="ضبط الحد الأدنى والأقصى وقواعد التسعير الأوتوماتيكي وحماية الأرباح"
+              icon={SlidersHorizontal}
+              theme="indigo"
+              side="top"
+            >
               <button
                 type="button"
-                onClick={handleLockFloorPrice}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                id="btn-toggle-expand-guardrails-manager"
+                onClick={() => setIsGuardrailsManagerExpanded(!isGuardrailsManagerExpanded)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
-                <Lock className="w-3.5 h-3.5" />
-                <span>قفل وحماية الحد الأدنى</span>
+                {isGuardrailsManagerExpanded ? (
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    <span>طي وحدة Guardrails</span>
+                  </>
+                ) : (
+                  <>
+                    <SlidersHorizontal className="w-4 h-4" />
+                    <span>عرض وتعديل حدود الحماية الكاملة</span>
+                  </>
+                )}
               </button>
-            )}
-            <button
-              type="button"
-              id="btn-toggle-expand-guardrails-manager"
-              onClick={() => setIsGuardrailsManagerExpanded(!isGuardrailsManagerExpanded)}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              {isGuardrailsManagerExpanded ? (
-                <>
-                  <ChevronUp className="w-4 h-4" />
-                  <span>طي وحدة Guardrails</span>
-                </>
-              ) : (
-                <>
-                  <SlidersHorizontal className="w-4 h-4" />
-                  <span>عرض وتعديل حدود الحماية الكاملة</span>
-                </>
-              )}
-            </button>
+            </ToolbarTooltip>
           </div>
         </div>
 
@@ -1145,16 +1367,24 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/80 rounded-lg border border-slate-800">
             <div className="flex flex-wrap items-center gap-1.5">
               {onOpenChannelCompetitorImport && (
-                <button
-                  type="button"
-                  onClick={() => onOpenChannelCompetitorImport(filterPlatform !== 'all' ? filterPlatform : undefined)}
-                  id="btn-radar-import-competitor-csv"
-                  className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title="استيراد قائمة منافسين جديدة عبر ملف CSV لقناة بيع محددة ودمجهم بالرادار فوراً"
+                <ToolbarTooltip
+                  title="استيراد منافسين (CSV)"
+                  description="استيراد قائمة منافسين جديدة عبر ملف CSV لقناة بيع محددة ودمجهم بالرادار فوراً"
+                  badge="CSV Import"
+                  icon={Upload}
+                  theme="indigo"
+                  side="top"
                 >
-                  <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <span>استيراد منافسين (CSV) 📥</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenChannelCompetitorImport(filterPlatform !== 'all' ? filterPlatform : undefined)}
+                    id="btn-radar-import-competitor-csv"
+                    className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>استيراد منافسين (CSV) 📥</span>
+                  </button>
+                </ToolbarTooltip>
               )}
 
               {/* Export Reports Button (Excel .xlsx / CSV via xlsx) */}
@@ -1168,38 +1398,53 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               />
 
               {/* Theme Colors Switcher Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveGlobalSettingsTab('theme');
-                  setIsThemeModalOpen(true);
-                }}
-                id="btn-radar-theme-customize"
-                className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                title="تخصيص الألوان الرئيسية لرادار الأسعار ولوحة التحكم (Primary Colors)"
+              <ToolbarTooltip
+                title="تخصيص ألوان الرادار"
+                description="تخصيص الألوان الرئيسية لرادار الأسعار ولوحة التحكم بما يناسب متجرك"
+                icon={Palette}
+                theme="slate"
+                side="top"
               >
-                <span 
-                  className="w-2.5 h-2.5 rounded-full inline-block border border-black/10 shrink-0" 
-                  style={{ backgroundColor: currentTheme.primaryHex }}
-                />
-                <Palette className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                <span>ألوان الرادار</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveGlobalSettingsTab('theme');
+                    setIsThemeModalOpen(true);
+                  }}
+                  id="btn-radar-theme-customize"
+                  className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <span 
+                    className="w-2.5 h-2.5 rounded-full inline-block border border-black/10 shrink-0" 
+                    style={{ backgroundColor: currentTheme.primaryHex }}
+                  />
+                  <Palette className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                  <span>ألوان الرادار</span>
+                </button>
+              </ToolbarTooltip>
 
               {/* Competitor Audio Notifications Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveGlobalSettingsTab('audio');
-                  setIsThemeModalOpen(true);
-                }}
-                id="btn-radar-audio-customize"
-                className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                title="تخصيص النغمات الصوتية لتغيرات حالة المنافسين والـ Buy Box"
+              <ToolbarTooltip
+                title="نغمات وتنبيهات المنافسين"
+                description="تخصيص التنبيهات الصوتية الحية لتغيرات حالة المنافسين والـ Buy Box"
+                badge="أصوات حية 🔊"
+                icon={Volume2}
+                theme="indigo"
+                side="top"
               >
-                <Volume2 className="w-3.5 h-3.5 text-purple-700 shrink-0" />
-                <span>نغمات المنافسين 🔊</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveGlobalSettingsTab('audio');
+                    setIsThemeModalOpen(true);
+                  }}
+                  id="btn-radar-audio-customize"
+                  className="h-8 px-3 rounded-md text-xs font-bold whitespace-nowrap bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 flex items-center gap-1.5 justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                  <span>نغمات المنافسين 🔊</span>
+                </button>
+              </ToolbarTooltip>
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto scroller-sm">
@@ -1439,39 +1684,61 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                       {/* Column 6: Action */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedWhatsAppCompetitor(offer);
-                              setIsWhatsAppRepriceModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 text-xs font-bold transition-all border border-emerald-500/40 cursor-pointer shadow-2xs"
-                            title="إرسال تنبيه واتساب فوري وتعديل السعر تلقائياً لهذا المنافس"
+                          <ToolbarTooltip
+                            title="واتساب وإعادة تسعير"
+                            description={`إرسال تنبيه واتساب فوري وتعديل السعر أوتوماتيكياً لمنافسة متجر (${offer.merchantName})`}
+                            icon={MessageCircle}
+                            theme="emerald"
+                            side="top"
                           >
-                            <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>واتساب وتعديل</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedWhatsAppCompetitor(offer);
+                                setIsWhatsAppRepriceModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 text-xs font-bold transition-all border border-emerald-500/40 cursor-pointer shadow-2xs"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>واتساب وتعديل</span>
+                            </button>
+                          </ToolbarTooltip>
 
-                          <button
-                            type="button"
-                            onClick={() => setQuickCompareOffer(offer)}
-                            id={`btn-quick-compare-${offer.id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 text-xs font-bold transition-all border border-sky-500/40 cursor-pointer shadow-2xs"
-                            title="مقارنة سريعة لتاريخ تغير سعر هذا المنافس مقابل سعرك خلال الأسبوع الماضي"
+                          <ToolbarTooltip
+                            title="مقارنة تاريخ السعر"
+                            description={`مقارنة مسار تغير سعر (${offer.merchantName}) مقابل سعرك خلال الأسبوع المنصرم`}
+                            icon={BarChart3}
+                            theme="sky"
+                            side="top"
                           >
-                            <BarChart3 className="w-3.5 h-3.5 text-sky-400" />
-                            <span>مقارنة سريعة</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setQuickCompareOffer(offer)}
+                              id={`btn-quick-compare-${offer.id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 text-xs font-bold transition-all border border-sky-500/40 cursor-pointer shadow-2xs"
+                            >
+                              <BarChart3 className="w-3.5 h-3.5 text-sky-400" />
+                              <span>مقارنة سريعة</span>
+                            </button>
+                          </ToolbarTooltip>
 
-                          <a
-                            href={offer.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 text-xs font-bold transition-all border border-indigo-200 cursor-pointer shadow-2xs"
+                          <ToolbarTooltip
+                            title="زيارة صفحة المنافس"
+                            description={`الانتقال المباشر لمتجر (${offer.merchantName}) للتحقق من شروط العرض وتوافر المخزون`}
+                            icon={ExternalLink}
+                            theme="indigo"
+                            side="top"
                           >
-                            <span>فتح بالمتجر</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                            <a
+                              href={offer.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 text-xs font-bold transition-all border border-indigo-200 cursor-pointer shadow-2xs"
+                            >
+                              <span>فتح بالمتجر</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </ToolbarTooltip>
                         </div>
                       </td>
                     </tr>

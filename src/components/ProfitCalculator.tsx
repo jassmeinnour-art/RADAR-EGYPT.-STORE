@@ -30,6 +30,7 @@ import {
 import { ProductData } from '../types';
 import { ExportReportsButton } from './ExportReportsButton';
 import { exportProfitCalculatorProductsToSpreadsheet } from '../utils/competitorPriceExport';
+import { MonthlyProfitTrendsChart } from './MonthlyProfitTrendsChart';
 
 export interface ProductProfitItem {
   id: string;
@@ -434,6 +435,12 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
         </div>
 
       </div>
+
+      {/* Monthly Profit Trends Chart (Recharts Integration) */}
+      <MonthlyProfitTrendsChart
+        currency={currency}
+        catalogNetProfitTotal={portfolioSummary.totalNetProfit}
+      />
 
       {/* Merchant Data Table Section */}
       <div className="space-y-4 pt-4 border-t border-slate-800">

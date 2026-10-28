@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Bookmark, 
   TrendingDown, 
@@ -39,18 +39,30 @@ import {
 } from 'lucide-react';
 import { ProductData, WatchlistItem } from '../types';
 import { AddWatchlistManualModal } from './AddWatchlistManualModal';
+import { 
+  getWebNotificationPermission, 
+  requestWebNotificationPermission, 
+  simulateWatchlistPriceChange,
+  isWebNotificationSupported,
+  getStoredWatchlist,
+  saveStoredWatchlist,
+  removeFromWatchlist as removeStoredItem,
+  addToWatchlist as addStoredItem
+} from '../services/watchlistNotificationService';
+import { WatchlistNotificationModal } from './WatchlistNotificationModal';
 
-interface WatchlistManagerProps {
-  watchlist: WatchlistItem[];
-  onSelectProduct: (product: ProductData) => void;
-  onRemoveFromWatchlist: (productId: string) => void;
-  onAddNote: (productId: string, note: string) => void;
+export interface WatchlistManagerProps {
+  watchlist?: WatchlistItem[];
+  onSelectProduct?: (product: ProductData) => void;
+  onRemoveFromWatchlist?: (productId: string) => void;
+  onAddNote?: (productId: string, note: string) => void;
   onUpdateTargetAlertPrice?: (productId: string, newTargetPrice: number) => void;
   onBulkUpdateTargetAlertPrices?: (updates: { productId: string; targetAlertPrice: number }[], syncWithActiveAlerts?: boolean) => void;
   onAddManualProduct?: (newItem: WatchlistItem) => void;
-  onOpenAlertModal: (product: ProductData) => void;
-  onOpenScanner: () => void;
-  currency: string;
+  onOpenAlertModal?: (product: ProductData) => void;
+  onOpenScanner?: () => void;
+  currency?: string;
+  onShowToast?: (msg: string) => void;
 }
 
 type BulkStrategy = 
@@ -63,22 +75,62 @@ type BulkStrategy =
 type RoundingMode = 'none' | 'round_5' | 'round_10' | 'round_9_ending';
 
 export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
-  watchlist,
-  onSelectProduct,
-  onRemoveFromWatchlist,
-  onAddNote,
+  watchlist: propWatchlist,
+  onSelectProduct = () => {},
+  onRemoveFromWatchlist: propOnRemove,
+  onAddNote = () => {},
   onUpdateTargetAlertPrice,
   onBulkUpdateTargetAlertPrices,
   onAddManualProduct,
-  onOpenAlertModal,
-  onOpenScanner,
-  currency,
+  onOpenAlertModal = () => {},
+  onOpenScanner = () => {},
+  currency = 'ج.م',
+  onShowToast,
 }) => {
+  const [internalWatchlist, setInternalWatchlist] = useState<WatchlistItem[]>(() => getStoredWatchlist());
+
+  // Sync internal watchlist with custom events
+  useEffect(() => {
+    const handleSync = () => {
+      setInternalWatchlist(getStoredWatchlist());
+    };
+    window.addEventListener('merchant_watchlist_updated', handleSync);
+    window.addEventListener('merchant_watchlist_price_changed', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('merchant_watchlist_updated', handleSync);
+      window.removeEventListener('merchant_watchlist_price_changed', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  const watchlist = propWatchlist !== undefined ? propWatchlist : internalWatchlist;
+
+  const handleRemoveItem = (prodId: string) => {
+    if (propOnRemove) {
+      propOnRemove(prodId);
+    }
+    removeStoredItem(prodId);
+    setInternalWatchlist(getStoredWatchlist());
+    if (onShowToast) {
+      onShowToast('تمت إزالة المنتج من قائمة المتابعة بنجاح');
+    }
+  };
+  const onRemoveFromWatchlist = handleRemoveItem;
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'price_drop' | 'stockout_opportunity'>('all');
   const [layoutViewMode, setLayoutViewMode] = useState<'cards' | 'list'>('cards');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+
+  // Web Notifications API state
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [webNotifPermission, setWebNotifPermission] = useState<NotificationPermission | 'unsupported'>('default');
+  const [isTestingWebNotif, setIsTestingWebNotif] = useState(false);
+
+  useEffect(() => {
+    setWebNotifPermission(getWebNotificationPermission());
+  }, []);
 
   // Manual Add Product Modal State
   const [isAddManualModalOpen, setIsAddManualModalOpen] = useState(false);
@@ -309,6 +361,83 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
             >
               <Zap className="w-3.5 h-3.5 text-indigo-600" />
               <span>مسح الكاميرا / الرادار</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Web Notifications API Intelligence Banner */}
+        <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/40 text-white flex flex-wrap items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center justify-center shrink-0 shadow-inner">
+              <Bell className="w-5 h-5 animate-pulse text-indigo-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-black font-['Alexandria']">
+                  نظام تنبيهات المتصفح لأسعار المنافسين (Web Notifications API)
+                </span>
+                {webNotifPermission === 'granted' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
+                    مفعل ويعمل لحظياً ✓
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-400/30">
+                    بحاجة لتفعيل الإذن 🔔
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                تنبيهات تلقائية منبثقة لسطح المكتب والموبايل فور رصد أي انخفاض أو صعود بأسعار المنافسين للمنتجات المضافة هنا
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {webNotifPermission !== 'granted' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await requestWebNotificationPermission();
+                  setWebNotifPermission(res.permission);
+                  if (res.granted) {
+                    if (onShowToast) onShowToast('تم تفعيل إشعارات الويب للمتصفح بنجاح! 🔔');
+                  } else if (res.error) {
+                    if (onShowToast) onShowToast(res.error);
+                  }
+                }}
+                className="h-8 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>تفعيل إشعارات المتصفح 🔔</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isTestingWebNotif}
+              onClick={async () => {
+                setIsTestingWebNotif(true);
+                try {
+                  const res = await simulateWatchlistPriceChange();
+                  if (onShowToast) onShowToast(res.message);
+                } finally {
+                  setIsTestingWebNotif(false);
+                }
+              }}
+              className="h-8 px-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              title="محاكاة هبوط سعر منافس لمنتج مراقب وإرسال إشعار فوري عبر المتصفح"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+              <span>{isTestingWebNotif ? 'جاري الرصد...' : '🧪 تجربة رصد هبوط سعر'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsNotifModalOpen(true)}
+              className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>مركز التنبيهات</span>
             </button>
           </div>
         </div>
@@ -1518,6 +1647,21 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
         currency={currency}
       />
 
+      {/* Watchlist Web Notifications Modal */}
+      <WatchlistNotificationModal
+        isOpen={isNotifModalOpen}
+        onClose={() => setIsNotifModalOpen(false)}
+        onNavigateToRadar={(prodId) => {
+          const found = watchlist.find(w => w.productId === prodId);
+          if (found) {
+            onSelectProduct(found.product);
+          }
+        }}
+        onShowToast={onShowToast}
+      />
+
     </div>
   );
 };
+
+export default WatchlistManager;

@@ -208,6 +208,20 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('merchant_catalog_search_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const saveSearchToHistory = (query: string) => {
+    if (!query.trim()) return;
+    const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 5);
+    setSearchHistory(newHistory);
+    localStorage.setItem('merchant_catalog_search_history', JSON.stringify(newHistory));
+  };
+  
   const [platformFilter, setPlatformFilter] = useState<'all' | 'amazon_eg' | 'noon_eg'>('all');
   const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'live' | 'demo' | 'auto_repricer_on' | 'auto_repricer_off'>('all');
   const [priceTierFilter, setPriceTierFilter] = useState<'all' | 'under_1000' | '1000_to_3000' | '3000_to_7000' | 'over_7000'>('all');
@@ -1076,17 +1090,33 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
           
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[260px]">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث بالاسم، كود SKU، رقم ASIN، اسم المنافس، أو المنصة..."
-              aria-label="بحث سريع في المنتجات"
-              className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
-            />
+          {/* Search Input & History */}
+          <div className="relative flex-1 min-w-[260px] space-y-2">
+            {searchHistory.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {searchHistory.map(h => (
+                  <button
+                    key={h}
+                    onClick={() => { setSearchQuery(h); }}
+                    className="px-2.5 py-0.5 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 text-[10px] font-bold transition"
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveSearchToHistory(searchQuery); }}
+                placeholder="ابحث بالاسم، كود SKU، رقم ASIN، اسم المنافس، أو المنصة..."
+                aria-label="بحث سريع في المنتجات"
+                className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}

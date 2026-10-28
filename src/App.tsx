@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   Zap, 
   Sparkles, 
@@ -116,9 +117,13 @@ const ShippingManagementDashboard = safeLazy(() => import('./components/Shipping
 const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine'));
+import { WatchlistNotificationModal } from './components/WatchlistNotificationModal';
+import { getStoredWatchlist } from './services/watchlistNotificationService';
+
 const AIProductStudio = safeLazy(() => import('./components/AIProductStudio'));
 const MerchantCatalogManager = safeLazy(() => import('./components/MerchantCatalogManager'));
 const CompetitorRadar = safeLazy(() => import('./components/CompetitorRadar'));
+const WatchlistManager = safeLazy(() => import('./components/WatchlistManager'));
 const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar'));
 const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports'));
 const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
@@ -127,6 +132,7 @@ const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMark
 export type WorkspaceTab = 
   | 'merchants' 
   | 'radar' 
+  | 'watchlist'
   | 'ai_studio' 
   | 'shipping' 
   | 'trending' 
@@ -177,6 +183,32 @@ export default function App() {
   const [isBulkWaybillModalOpen, setIsBulkWaybillModalOpen] = useState<boolean>(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState<boolean>(false);
+  const [isWatchlistNotifModalOpen, setIsWatchlistNotifModalOpen] = useState<boolean>(false);
+  const [watchlistCount, setWatchlistCount] = useState<number>(() => {
+    try {
+      return getStoredWatchlist().length;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const handleWatchlistChange = () => {
+      try {
+        setWatchlistCount(getStoredWatchlist().length);
+      } catch (e) {
+        // ignore
+      }
+    };
+    window.addEventListener('merchant_watchlist_updated', handleWatchlistChange);
+    window.addEventListener('merchant_watchlist_price_changed', handleWatchlistChange);
+    window.addEventListener('storage', handleWatchlistChange);
+    return () => {
+      window.removeEventListener('merchant_watchlist_updated', handleWatchlistChange);
+      window.removeEventListener('merchant_watchlist_price_changed', handleWatchlistChange);
+      window.removeEventListener('storage', handleWatchlistChange);
+    };
+  }, []);
 
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -502,7 +534,24 @@ export default function App() {
               title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
             >
               <Palette className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>🎨 تنسيق الأزرار والواجهة</span>
+              <span>🎨 تنسيق الواجهة</span>
+            </button>
+
+            {/* Watchlist & Price Alerts Web Notifications Center Button */}
+            <button
+              type="button"
+              id="btn-header-watchlist-notifications"
+              onClick={() => setIsWatchlistNotifModalOpen(true)}
+              className="relative px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              title="مركز تنبيهات الأسعار الفورية (Web Notifications API)"
+            >
+              <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>تنبيهات الأسعار 🔔</span>
+              {watchlistCount > 0 && (
+                <span className="w-5 h-5 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[10px] font-black">
+                  {watchlistCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -565,6 +614,24 @@ export default function App() {
             >
               <Globe className="w-3.5 h-3.5" />
               <span>رادار الباي بوكس والأسعار</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveWorkspaceTab('watchlist'); setShowOwnerDashboard(false); }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                activeWorkspaceTab === 'watchlist' && !showOwnerDashboard
+                  ? 'bg-amber-700 text-white shadow-md font-bold'
+                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
+              }`}
+              title="قائمة المتابعة وتنبيهات تغير الأسعار الفورية عبر Web Notifications API"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-300" />
+              <span>قائمة المتابعة والتنبيهات</span>
+              {watchlistCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full">
+                  {watchlistCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -676,200 +743,222 @@ export default function App() {
 
       {/* Main Workspace Area */}
       <main className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6">
-        
-        {/* Render Super Admin Dashboard if active */}
-        {showOwnerDashboard && isOwner ? (
-          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between bg-slate-900/90 border-2 border-amber-500/50 p-4 rounded-2xl shadow-xl">
-              <div className="flex items-center gap-3">
-                <Crown className="w-6 h-6 text-amber-400" />
-                <div>
-                  <h3 className="text-base font-black text-white font-['Cairo']">
-                    لوحة تحكم المالكة العليا (Super Admin) - {OWNER_EMAIL}
-                  </h3>
-                  <p className="text-xs text-amber-300/80 font-['Cairo']">
-                    متابعة كافة المتاجر المشتركة، إحصائيات تحميلات تطبيق جوجل بلاي، الإيرادات وتفعيل باقات التجار.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowOwnerDashboard(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
-              >
-                العودة للوحة التاجر
-              </button>
-            </div>
-            
-            <Suspense fallback={<div className="p-8 text-center text-amber-400">جاري تحميل لوحة التحكم العليا...</div>}>
-              <OwnerDashboard />
-            </Suspense>
-          </div>
-        ) : (
-          <div className="space-y-6">
-
-            {/* 1. Super Admin Welcome Banner for Owner */}
-            {isOwner && !isFocusMode && (
-              <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-2 border-amber-500/50 rounded-2xl p-4 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-amber-500/20 rounded-xl border border-amber-500/40 text-amber-400">
-                    <Crown className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-white font-['Cairo']">
-                      مرحباً مالكة التطبيق (Super Admin) | جاسمين نور
-                    </h4>
-                    <p className="text-xs text-amber-200/80 font-['Cairo']">
-                      حسابك يتمتع بصلاحيات كاملة وغير محدودة لإدارة كافة المتاجر والإيرادات وتتبع تنزيلات جوجل بلاي.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowOwnerDashboard(true)}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-lg shrink-0"
-                >
-                  فتح لوحة تحكم Super Admin 👑
-                </button>
-              </div>
-            )}
-
-            {/* 2. Top KPI Overview Cards Grid (Verified by KPIDashboard tests) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-bold font-['Cairo']">المنتجات النشطة</span>
-                  <Package className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="text-2xl font-black text-white font-mono">148</div>
-                <span className="text-[10px] text-emerald-400 font-bold font-['Cairo']">محدثة في الكتالوج</span>
-              </div>
-
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-bold font-['Cairo']">المنافسون المراقبون</span>
-                  <Users className="w-4 h-4 text-sky-400" />
-                </div>
-                <div className="text-2xl font-black text-white font-mono">24</div>
-                <span className="text-[10px] text-sky-400 font-bold font-['Cairo']">متاجر بالسوق المصري</span>
-              </div>
-
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-bold font-['Cairo']">حالة التزامن الأخيرة</span>
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="text-2xl font-black text-emerald-400 font-mono">مستقر</div>
-                <span className="text-[10px] text-slate-400 font-bold font-['Cairo']">مزامنة سحابية نشطة</span>
-              </div>
-
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-bold font-['Cairo']">مهلة التجربة/الاشتراك</span>
-                  <Clock className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="text-2xl font-black text-amber-400 font-mono">
-                  {subscriptionState.trialRemainingTime?.days > 0 ? `${subscriptionState.trialRemainingTime.days} أيام` : '3 أيام'}
-                </div>
-                <button 
-                  onClick={() => setIsPaymentModalOpen(true)}
-                  className="text-[10px] text-amber-300 hover:text-white underline font-bold font-['Cairo'] mt-0.5 block"
-                >
-                  فترة السماح (تجديد فودافون كاش)
-                </button>
-              </div>
-            </div>
-
-            {/* 3. Live Sync Monitor with Pulse Animation */}
-            <StatsMonitor />
-
-            {/* 4. Active Tab Content Workspace */}
-            <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
-              {activeWorkspaceTab === 'merchants' && (
-                <MerchantCatalogManager />
-              )}
-
-              {activeWorkspaceTab === 'radar' && (
-                <CompetitorRadar />
-              )}
-
-              {activeWorkspaceTab === 'ai_studio' && (
-                <AIProductStudio onShowToast={showToast} />
-              )}
-
-              {activeWorkspaceTab === 'shipping' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between flex-wrap gap-3 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeWorkspaceTab}
+            variants={{
+              hidden: { opacity: 0, y: 10 },
+              visible: { opacity: 1, y: 0 },
+              exit: { opacity: 0, y: -10 }
+            }}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            {/* Render Super Admin Dashboard if active */}
+            {showOwnerDashboard && isOwner ? (
+              <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between bg-slate-900/90 border-2 border-amber-500/50 p-4 rounded-2xl shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <Crown className="w-6 h-6 text-amber-400" />
                     <div>
                       <h3 className="text-base font-black text-white font-['Cairo']">
-                        أداة فصل وطباعة بوالص الشحن (Waybills Cropper)
+                        لوحة تحكم المالكة العليا (Super Admin) - {OWNER_EMAIL}
                       </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        فصل فوري للبوالص متعددة المنتجات من أمازون، نون وجوميا وتجهيزها للطباعة الحرارية 4×6.
+                      <p className="text-xs text-amber-300/80 font-['Cairo']">
+                        متابعة كافة المتاجر المشتركة، إحصائيات تحميلات تطبيق جوجل بلاي، الإيرادات وتفعيل باقات التجار.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsWaybillCropperOpen(true)}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5"
-                      >
-                        <Printer className="w-4 h-4" />
-                        <span>أداة قص البوالص الفردية</span>
-                      </button>
-                      <button
-                        onClick={() => setIsBulkWaybillModalOpen(true)}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs rounded-xl border border-sky-500/30 transition flex items-center gap-1.5"
-                      >
-                        <Layers className="w-4 h-4" />
-                        <span>الطباعة المجمعة للبوالص</span>
-                      </button>
+                  </div>
+                  <button
+                    onClick={() => setShowOwnerDashboard(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
+                  >
+                    العودة للوحة التاجر
+                  </button>
+                </div>
+                
+                <Suspense fallback={<div className="p-8 text-center text-amber-400">جاري تحميل لوحة التحكم العليا...</div>}>
+                  <OwnerDashboard />
+                </Suspense>
+              </div>
+            ) : (
+              <div className="space-y-6">
+
+                {/* 1. Super Admin Welcome Banner for Owner */}
+                {isOwner && !isFocusMode && (
+                  <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-2 border-amber-500/50 rounded-2xl p-4 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-amber-500/20 rounded-xl border border-amber-500/40 text-amber-400">
+                        <Crown className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-white font-['Cairo']">
+                          مرحباً مالكة التطبيق (Super Admin) | جاسمين نور
+                        </h4>
+                        <p className="text-xs text-amber-200/80 font-['Cairo']">
+                          حسابك يتمتع بصلاحيات كاملة وغير محدودة لإدارة كافة المتاجر والإيرادات وتتبع تنزيلات جوجل بلاي.
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => setShowOwnerDashboard(true)}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-lg shrink-0"
+                    >
+                      فتح لوحة تحكم Super Admin 👑
+                    </button>
                   </div>
-                  <ShippingManagementDashboard />
-                </div>
-              )}
+                )}
 
-              {activeWorkspaceTab === 'trending' && (
-                <div className="space-y-6">
-                  <MarketTrendsRadar />
-                  <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                    <h3 className="text-base font-black text-white font-['Cairo'] mb-4 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-emerald-400" />
-                      <span>حاسبة هامش الربح والعمولات بالجنيه المصري (EGP)</span>
-                    </h3>
-                    <ProfitCalculator />
+                {/* 2. Top KPI Overview Cards Grid (Verified by KPIDashboard tests) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between text-slate-400 mb-2">
+                      <span className="text-xs font-bold font-['Cairo']">المنتجات النشطة</span>
+                      <Package className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-2xl font-black text-white font-mono">148</div>
+                    <span className="text-[10px] text-emerald-400 font-bold font-['Cairo']">محدثة في الكتالوج</span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between text-slate-400 mb-2">
+                      <span className="text-xs font-bold font-['Cairo']">المنافسون المراقبون</span>
+                      <Users className="w-4 h-4 text-sky-400" />
+                    </div>
+                    <div className="text-2xl font-black text-white font-mono">24</div>
+                    <span className="text-[10px] text-sky-400 font-bold font-['Cairo']">متاجر بالسوق المصري</span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between text-slate-400 mb-2">
+                      <span className="text-xs font-bold font-['Cairo']">حالة التزامن الأخيرة</span>
+                      <Activity className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-2xl font-black text-emerald-400 font-mono">مستقر</div>
+                    <span className="text-[10px] text-slate-400 font-bold font-['Cairo']">مزامنة سحابية نشطة</span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between text-slate-400 mb-2">
+                      <span className="text-xs font-bold font-['Cairo']">مهلة التجربة/الاشتراك</span>
+                      <Clock className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-2xl font-black text-amber-400 font-mono">
+                      {subscriptionState.trialRemainingTime?.days > 0 ? `${subscriptionState.trialRemainingTime.days} أيام` : '3 أيام'}
+                    </div>
+                    <button 
+                      onClick={() => setIsPaymentModalOpen(true)}
+                      className="text-[10px] text-amber-300 hover:text-white underline font-bold font-['Cairo'] mt-0.5 block"
+                    >
+                      فترة السماح (تجديد فودافون كاش)
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {activeWorkspaceTab === 'reports' && (
-                <PeriodicPerformanceReports />
-              )}
+                {/* 3. Live Sync Monitor with Pulse Animation */}
+                <StatsMonitor />
 
-              {activeWorkspaceTab === 'auto_pricing' && (
-                <AutoPricingEngine 
-                  currency="ج.م"
-                  onNavigateToCatalog={() => setActiveWorkspaceTab('merchants')}
-                  onNavigateToRadar={() => setActiveWorkspaceTab('radar')}
-                />
-              )}
+                {/* 4. Active Tab Content Workspace */}
+                <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
+                  {activeWorkspaceTab === 'merchants' && (
+                    <MerchantCatalogManager />
+                  )}
 
-              {activeWorkspaceTab === 'price_comparison' && (
-                <PriceComparisonEngine currency="ج.م" />
-              )}
+                  {activeWorkspaceTab === 'radar' && (
+                    <CompetitorRadar />
+                  )}
 
-              {activeWorkspaceTab === 'platforms_guide' && (
-                <PlatformsGuideManager />
-              )}
+                  {activeWorkspaceTab === 'watchlist' && (
+                    <WatchlistManager 
+                      currency="ج.م"
+                      onShowToast={showToast}
+                      onSelectProduct={() => setActiveWorkspaceTab('radar')}
+                    />
+                  )}
 
-              {activeWorkspaceTab === 'help' && (
-                <HelpPage 
-                  onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')}
-                  onStartTour={() => setShowOnboarding(true)}
-                  onOpenHotkeysModal={() => setIsHotkeysModalOpen(true)}
-                />
-              )}
-            </Suspense>
-          </div>
-        )}
+                  {activeWorkspaceTab === 'ai_studio' && (
+                    <AIProductStudio onShowToast={showToast} />
+                  )}
+
+                  {activeWorkspaceTab === 'shipping' && (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between flex-wrap gap-3 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                        <div>
+                          <h3 className="text-base font-black text-white font-['Cairo']">
+                            أداة فصل وطباعة بوالص الشحن (Waybills Cropper)
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            فصل فوري للبوالص متعددة المنتجات من أمازون، نون وجوميا وتجهيزها للطباعة الحرارية 4×6.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setIsWaybillCropperOpen(true)}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5"
+                          >
+                            <Printer className="w-4 h-4" />
+                            <span>أداة قص البوالص الفردية</span>
+                          </button>
+                          <button
+                            onClick={() => setIsBulkWaybillModalOpen(true)}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs rounded-xl border border-sky-500/30 transition flex items-center gap-1.5"
+                          >
+                            <Layers className="w-4 h-4" />
+                            <span>الطباعة المجمعة للبوالص</span>
+                          </button>
+                        </div>
+                      </div>
+                      <ShippingManagementDashboard />
+                    </div>
+                  )}
+
+                  {activeWorkspaceTab === 'trending' && (
+                    <div className="space-y-6">
+                      <MarketTrendsRadar />
+                      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                        <h3 className="text-base font-black text-white font-['Cairo'] mb-4 flex items-center gap-2">
+                          <DollarSign className="w-5 h-5 text-emerald-400" />
+                          <span>حاسبة هامش الربح والعمولات بالجنيه المصري (EGP)</span>
+                        </h3>
+                        <ProfitCalculator />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeWorkspaceTab === 'reports' && (
+                    <PeriodicPerformanceReports />
+                  )}
+
+                  {activeWorkspaceTab === 'auto_pricing' && (
+                    <AutoPricingEngine 
+                      currency="ج.م"
+                      onNavigateToCatalog={() => setActiveWorkspaceTab('merchants')}
+                      onNavigateToRadar={() => setActiveWorkspaceTab('radar')}
+                    />
+                  )}
+
+                  {activeWorkspaceTab === 'price_comparison' && (
+                    <PriceComparisonEngine currency="ج.م" />
+                  )}
+
+                  {activeWorkspaceTab === 'platforms_guide' && (
+                    <PlatformsGuideManager />
+                  )}
+
+                  {activeWorkspaceTab === 'help' && (
+                    <HelpPage 
+                      onNavigateToPlatformsGuide={() => setActiveWorkspaceTab('platforms_guide')}
+                      onStartTour={() => setShowOnboarding(true)}
+                      onOpenHotkeysModal={() => setIsHotkeysModalOpen(true)}
+                    />
+                  )}
+                </Suspense>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Floating Daily Tasks Sidebar */}
@@ -920,6 +1009,16 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {/* Watchlist & Price Alerts Web Notifications Center Modal */}
+      <WatchlistNotificationModal
+        isOpen={isWatchlistNotifModalOpen}
+        onClose={() => setIsWatchlistNotifModalOpen(false)}
+        onNavigateToRadar={(prodId) => {
+          setActiveWorkspaceTab('radar');
+        }}
+        onShowToast={showToast}
+      />
 
       {showOnboarding && (
         <Suspense fallback={null}>

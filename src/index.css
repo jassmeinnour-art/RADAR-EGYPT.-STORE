@@ -68,6 +68,7 @@ img, svg { max-width: 100%; height: auto; }
 h1, h2, h3, h4 {
   font-weight: 900 !important;
   letter-spacing: -0.025em !important;
+  filter: contrast(125%) !important;
 }
 
 /* Modern Heading Effect */
@@ -78,13 +79,15 @@ h1, h2 {
 }
 
 /* Explicit Contrast Lockdown for Headings */
-.bg-white h1, .bg-white h2, .bg-white h3, .bg-white h4,
-[class*="bg-gray-100"] h1, [class*="bg-gray-100"] h2, [class*="bg-gray-100"] h3, [class*="bg-gray-100"] h4,
-[class*="bg-slate-50"] h1, [class*="bg-slate-50"] h2, [class*="bg-slate-50"] h3, [class*="bg-slate-50"] h4 {
-  background-color: #000000 !important;
-  color: #000000 !important; /* Fallback */
+/* Light/White Surfaces: Black Text */
+.bg-white, .bg-white *, 
+[class*="bg-white"], [class*="bg-white"] *,
+[class*="bg-gray-50"], [class*="bg-gray-50"] *,
+[class*="bg-gray-100"], [class*="bg-gray-100"] *,
+[class*="bg-slate-50"], [class*="bg-slate-50"] *,
+[class*="bg-slate-100"], [class*="bg-slate-100"] * {
+  color: #000000 !important;
   font-weight: 900 !important;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
 }
 
 .bg-slate-900 h1, .bg-slate-900 h2, .bg-slate-900 h3, .bg-slate-900 h4,
@@ -94,4 +97,20 @@ h1, h2 {
   color: #ffffff !important; /* Fallback */
   font-weight: 900 !important;
   text-shadow: 0 1px 2px rgba(255,255,255,0.1) !important;
+}
+
+/* Explicit Contrast Lockdown for Focused Elements */
+div#root > div > div:nth-of-type(5) > div > div:nth-of-type(3) > div > div > div > div > div > div:nth-of-type(2) > h4 > span:nth-of-type(2),
+div#root > div > div:nth-of-type(5) > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > p > span:nth-of-type(1) {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+/* Increase Small Text Size in White/Light Frames */
+.bg-white span, .bg-white p, .bg-white small,
+[class*="bg-white"] span, [class*="bg-white"] p, [class*="bg-white"] small,
+[class*="bg-gray-50"] span, [class*="bg-gray-50"] p, [class*="bg-gray-50"] small,
+[class*="bg-gray-100"] span, [class*="bg-gray-100"] p, [class*="bg-gray-100"] small,
+[class*="bg-slate-50"] span, [class*="bg-slate-50"] p, [class*="bg-slate-50"] small {
+  font-size: 16px !important;
 }

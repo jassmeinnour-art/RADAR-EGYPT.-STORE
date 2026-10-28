@@ -22,7 +22,8 @@ import {
   Compass,
   ArrowRight,
   CheckCircle2,
-  Clock
+  Clock,
+  Bell
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
 
@@ -108,6 +109,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           icon: <Compass className="w-4 h-4 text-cyan-400" />,
           isActive: activeTab === 'radar',
           action: () => onSelectTab('radar')
+        },
+        {
+          id: 'watchlist_tab',
+          label: 'قائمة المتابعة وتنبيهات الأسعار',
+          icon: <Bell className="w-4 h-4 text-amber-400" />,
+          isActive: activeTab === 'watchlist',
+          action: () => onSelectTab('watchlist'),
+          badge: 'Web Notif 🔔'
         },
         {
           id: 'reports_tab',
