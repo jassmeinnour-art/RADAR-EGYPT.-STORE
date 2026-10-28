@@ -6,6 +6,8 @@ import {
 } from '../services/firestoreSync';
 import { AMAZON_SP_API_CONFIG } from '../config/amazonSpApiConfig';
 import { encryptLwaRefreshToken, decryptLwaRefreshToken, isEncryptedLwaToken } from './lwaTokenCrypto';
+import { saveAllRecordsToDB, STORES } from './offlineIndexedDB';
+import { recordSyncSuccess } from './syncSuccessTracker';
 
 export interface PlatformPortalMeta {
   code: string;
@@ -1038,6 +1040,7 @@ export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): v
       return true;
     });
     localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
+    saveAllRecordsToDB(STORES.MERCHANTS, deduped).catch(() => {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
     }
@@ -1530,6 +1533,7 @@ export async function syncRegisteredMerchantsWithFirestore(): Promise<RemoteMerc
     if (hasChanges) {
       saveAllRegisteredMerchants(mergedList);
     }
+    recordSyncSuccess('firestore_merchants_sync', mergedList.length);
     return mergedList;
   } catch {
     return localList;

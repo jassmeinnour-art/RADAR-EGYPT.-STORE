@@ -58,6 +58,7 @@ import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryD
 import { ToolbarTooltip } from './components/ToolbarTooltip';
 import { AppSidebar } from './components/AppSidebar';
 import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
+import { CloudSyncStatusWidget } from './components/CloudSyncStatusWidget';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { FloatingHotkeyButton } from './components/FloatingHotkeyButton';
 import { StatsMonitor } from './components/StatsMonitor';
@@ -608,6 +609,7 @@ export default function App() {
 
             <ThemeToggle variant="pill" />
             <LanguageToggle />
+            <CloudSyncStatusWidget onShowToast={showToast} />
 
             {/* Force Refresh & Clear Cache Button */}
             <button

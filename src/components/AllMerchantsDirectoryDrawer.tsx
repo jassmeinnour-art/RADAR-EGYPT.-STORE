@@ -161,6 +161,18 @@ const TRENDING_RECOMMENDATIONS: TrendingProductItem[] = [
   }
 ];
 
+export const AVAILABLE_EGYPT_PLATFORMS = [
+  { id: 'amazon_eg', name: 'أمازون مصر (Amazon EG)', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  { id: 'noon_eg', name: 'نون مصر (Noon EG)', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' },
+  { id: 'jumia_eg', name: 'جوميا (Jumia EG)', color: 'bg-orange-500/20 text-orange-300 border-orange-500/40' },
+  { id: 'kenzz_eg', name: 'كنز (Kanz)', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+  { id: 'raneen_eg', name: 'رنين (Raneen)', color: 'bg-blue-500/20 text-blue-300 border-blue-500/40' },
+  { id: 'homzmart_eg', name: 'هومزمارت (Homzmart)', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' },
+  { id: 'raya_eg', name: 'راية (Raya)', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+  { id: 'btech_eg', name: 'بي تك (B.TECH)', color: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
+  { id: 'elaraby_group', name: 'العربي جروب (ElAraby)', color: 'bg-red-500/20 text-red-300 border-red-500/40' }
+];
+
 export interface AllMerchantsDirectoryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -203,6 +215,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
   const [formStoreName, setFormStoreName] = useState('');
   const [formContactPerson, setFormContactPerson] = useState('');
   const [formPrimaryEmail, setFormPrimaryEmail] = useState('');
+  const [formAdditionalEmails, setFormAdditionalEmails] = useState<string[]>([]);
   const [formPhone, setFormPhone] = useState('');
   const [formCity, setFormCity] = useState('القاهرة');
   const [formAmazonSellerId, setFormAmazonSellerId] = useState('');
@@ -243,6 +256,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
     setFormStoreName('');
     setFormContactPerson('');
     setFormPrimaryEmail('');
+    setFormAdditionalEmails([]);
     setFormPhone('');
     setFormCity('القاهرة');
     setFormAmazonSellerId('');
@@ -262,6 +276,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
     setFormStoreName(merchant.storeName || '');
     setFormContactPerson(merchant.contactPerson || '');
     setFormPrimaryEmail(merchant.primaryEmail || '');
+    setFormAdditionalEmails(merchant.additionalEmails || []);
     setFormPhone(merchant.phone || '');
     setFormCity(merchant.city || 'القاهرة');
     setFormAmazonSellerId(merchant.apiCredentials?.amazonSellerId || '');
@@ -305,7 +320,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
           storeName: formStoreName.trim(),
           contactPerson: formContactPerson.trim() || 'مسؤول المتجر',
           primaryEmail: formPrimaryEmail.trim().toLowerCase(),
-          additionalEmails: existing?.additionalEmails || [],
+          additionalEmails: formAdditionalEmails.filter(e => e.trim().length > 0).map(e => e.trim().toLowerCase()),
           phone: formPhone.trim() || '+20 10 0000 0000',
           city: formCity.trim() || 'القاهرة',
           platformsSubscribed: formPlatforms as RemoteMerchantPlatformCode[],
@@ -810,6 +825,20 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                                   <span>•</span>
                                   <span className="text-slate-300 font-mono" dir="ltr">{merchant.phone || '+2010...'}</span>
                                 </div>
+
+                                {/* Emails Display (Primary + Additional) */}
+                                <div className="flex items-center gap-2 text-xs text-slate-200 mt-1.5 flex-wrap font-bold">
+                                  <span className="flex items-center gap-1 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-700 font-mono text-white">
+                                    <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                                    <span>{merchant.primaryEmail}</span>
+                                  </span>
+                                  {merchant.additionalEmails && merchant.additionalEmails.map((addEmail, idx) => (
+                                    <span key={idx} className="flex items-center gap-1 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-700 font-mono text-slate-300 text-[11px]">
+                                      <Mail className="w-3.5 h-3 text-teal-400" />
+                                      <span>+ {addEmail}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
 
@@ -858,6 +887,23 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                               <span>معرّف أمازون (Seller ID): <strong className="text-white font-mono">{sellerId}</strong></span>
                               <span>معرّف نون (Partner ID): <strong className="text-white font-mono">{noonId}</strong></span>
                             </div>
+
+                            {/* Subscribed Platforms Badges */}
+                            {merchant.platformsSubscribed && merchant.platformsSubscribed.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-800/80">
+                                <span className="text-[11px] text-slate-400 font-bold ml-1">المنصات المشتركة:</span>
+                                {merchant.platformsSubscribed.map((pCode) => {
+                                  const match = AVAILABLE_EGYPT_PLATFORMS.find(ep => ep.id === pCode);
+                                  const label = match ? match.name.split(' (')[0] : pCode;
+                                  const colorClass = match ? match.color : 'bg-slate-800 text-slate-200 border-slate-700';
+                                  return (
+                                    <span key={pCode} className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${colorClass}`}>
+                                      {label}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
 
                           {/* SECTION 2: منتجات وطلبات التاجر (Products & Orders Counters) */}
@@ -1122,7 +1168,16 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                     </div>
 
                     <div>
-                      <label className="block text-white font-bold mb-1">البريد الإلكتروني الأساسي *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-white font-bold">البريد الإلكتروني الأساسي *</label>
+                        <button
+                          type="button"
+                          onClick={() => setFormAdditionalEmails([...formAdditionalEmails, ''])}
+                          className="text-[11px] text-indigo-300 hover:text-indigo-200 font-bold flex items-center gap-1 bg-indigo-950/80 px-2 py-0.5 rounded-lg border border-indigo-500/40 cursor-pointer"
+                        >
+                          <span>إضافة بريد آخر +</span>
+                        </button>
+                      </div>
                       <input 
                         type="email"
                         required
@@ -1131,6 +1186,38 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                         placeholder="merchant@example.com"
                         className="w-full h-10 px-3 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 font-mono font-bold"
                       />
+
+                      {/* Additional Emails List */}
+                      {formAdditionalEmails.length > 0 && (
+                        <div className="mt-2.5 space-y-2">
+                          {formAdditionalEmails.map((addEmail, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input 
+                                type="email"
+                                value={addEmail}
+                                onChange={(e) => {
+                                  const updated = [...formAdditionalEmails];
+                                  updated[idx] = e.target.value;
+                                  setFormAdditionalEmails(updated);
+                                }}
+                                placeholder={`بريد إلكتروني إضافي #${idx + 1}`}
+                                className="w-full h-9 px-3 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = formAdditionalEmails.filter((_, i) => i !== idx);
+                                  setFormAdditionalEmails(updated);
+                                }}
+                                className="p-2 rounded-xl bg-red-950/80 text-red-300 hover:bg-red-900 border border-red-500/40 shrink-0 text-xs cursor-pointer"
+                                title="حذف هذا البريد"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1167,6 +1254,43 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                         <option value="paused">متوقف مؤقتاً (Paused)</option>
                       </select>
                     </div>
+                  </div>
+                </div>
+
+                {/* Subscribed Platforms Selection Section */}
+                <div className="p-5 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-3">
+                  <h4 className="text-xs font-black text-white border-b border-slate-800 pb-2 flex items-center gap-2">
+                    <Store className="w-4 h-4 text-emerald-400" />
+                    <span>المنصات وقنوات البيع المشترك فيها التاجر (كنز، رنين، هومزمارت، راية، وغيرها):</span>
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                    {AVAILABLE_EGYPT_PLATFORMS.map((plat) => {
+                      const isChecked = formPlatforms.includes(plat.id);
+                      return (
+                        <label
+                          key={plat.id}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border transition cursor-pointer ${
+                            isChecked
+                              ? 'bg-emerald-950/60 border-emerald-500/50 text-white font-black'
+                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormPlatforms([...formPlatforms, plat.id]);
+                              } else {
+                                setFormPlatforms(formPlatforms.filter(p => p !== plat.id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                          />
+                          <span className="truncate">{plat.name}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 

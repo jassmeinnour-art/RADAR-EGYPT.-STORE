@@ -13,6 +13,8 @@ import {
   resolveDynamicStoreAmazonCredentials,
   validateMerchantAmazonSpApiTokens
 } from './platformLaunchHelper';
+import { saveAllRecordsToDB, STORES } from './offlineIndexedDB';
+import { recordSyncSuccess } from './syncSuccessTracker';
 
 const CATALOG_STORAGE_PREFIX = 'merchant_catalog_items_v1_';
 const REPRICING_LOG_STORAGE_PREFIX = 'merchant_repricing_audit_logs_v1_';
@@ -428,6 +430,7 @@ export function saveMerchantCatalog(merchantId: string, products: MerchantCatalo
   const key = `${CATALOG_STORAGE_PREFIX}${merchantId}`;
   try {
     localStorage.setItem(key, JSON.stringify(products));
+    saveAllRecordsToDB(STORES.CATALOG, products).catch(() => {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {
         detail: { merchantId, productsCount: products.length, timestamp: Date.now() }
@@ -545,6 +548,7 @@ export async function pullLiveCatalogForMerchant(
           const normalizedProducts = data.products.map(ensureDefaultRepricingRule);
           saveMerchantCatalog(merchantId, normalizedProducts);
           syncMerchantsAssignedProducts(normalizedProducts);
+          recordSyncSuccess('amazon_sp_api_catalog', normalizedProducts.length);
           return normalizedProducts;
         }
       } else {
@@ -603,6 +607,7 @@ export async function refreshMerchantCompetitorPricing(
     if (res.ok && parsedResponse.isJson && Array.isArray(parsedResponse.data?.products) && parsedResponse.data.products.length > 0) {
       const updated = parsedResponse.data.products.map(ensureDefaultRepricingRule);
       saveMerchantCatalog(merchant.id, updated);
+      recordSyncSuccess('competitor_pricing_compare', updated.length);
       return updated;
     }
   } catch (e) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getAllRecordsFromDB, STORES } from '../utils/offlineIndexedDB';
+import { getLastSyncSuccess, recordSyncSuccess, SYNC_SUCCESS_EVENT } from '../utils/syncSuccessTracker';
 
 export interface OfflineStatus {
   isOffline: boolean;
@@ -22,6 +23,8 @@ export function useOfflineStatus(): OfflineStatus {
   const [cachedMerchantsCount, setCachedMerchantsCount] = useState<number>(0);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     try {
+      const rec = getLastSyncSuccess();
+      if (rec?.formattedDateTime) return rec.formattedDateTime;
       return localStorage.getItem('radar_last_offline_sync_time');
     } catch {
       return null;
@@ -68,12 +71,23 @@ export function useOfflineStatus(): OfflineStatus {
   useEffect(() => {
     refreshOfflineCounts();
 
+    const handleSyncSuccess = (event?: any) => {
+      if (event?.detail?.formattedDateTime) {
+        setLastSyncedAt(event.detail.formattedDateTime);
+      } else {
+        const latest = getLastSyncSuccess();
+        if (latest?.formattedDateTime) {
+          setLastSyncedAt(latest.formattedDateTime);
+        }
+      }
+      refreshOfflineCounts();
+    };
+
     const handleOnline = () => {
       setIsOffline(false);
       try {
-        const now = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        localStorage.setItem('radar_last_offline_sync_time', now);
-        setLastSyncedAt(now);
+        const record = recordSyncSuccess('network_online');
+        setLastSyncedAt(record.formattedDateTime);
       } catch {
         // ignore
       }
@@ -87,6 +101,9 @@ export function useOfflineStatus(): OfflineStatus {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener(SYNC_SUCCESS_EVENT as any, handleSyncSuccess);
+    window.addEventListener('SyncSuccess' as any, handleSyncSuccess);
+    window.addEventListener('storage', handleSyncSuccess);
 
     // Periodic check every 30s
     const interval = setInterval(() => {
@@ -96,6 +113,9 @@ export function useOfflineStatus(): OfflineStatus {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener(SYNC_SUCCESS_EVENT as any, handleSyncSuccess);
+      window.removeEventListener('SyncSuccess' as any, handleSyncSuccess);
+      window.removeEventListener('storage', handleSyncSuccess);
       clearInterval(interval);
     };
   }, [checkConnection, refreshOfflineCounts]);
