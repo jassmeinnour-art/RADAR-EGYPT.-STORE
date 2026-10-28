@@ -69,6 +69,7 @@ import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
+import { CURRENT_APP_VERSION, APP_VERSION_STORAGE_KEY } from './pwaRegister';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
 
 
@@ -268,22 +269,32 @@ export default function App() {
 
   const handleForceRefreshAndClearCache = async () => {
     try {
-      showToast('جاري تحديث التطبيق ومسح الذاكرة المؤقتة وجلب أحدث المزايا... 🔄');
-      if ('caches' in window) {
+      showToast('جاري تحديث واجهات وأكواد التطبيق في الخلفية مع الاحتفاظ الكامل ببيانات التجار ومتاجرك المسجلة ✓');
+      // 1. مسح ذاكرة التخزين المؤقتة للملفات الثابتة فقط (CSS / JS / Images cache)
+      if (typeof window !== 'undefined' && 'caches' in window) {
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map((name) => caches.delete(name)));
       }
-      if ('serviceWorker' in navigator) {
+      // 2. تحديث Service Worker لجلب أحدث البناءات البرمجية دون مسح البيانات
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (const registration of registrations) {
-          await registration.unregister();
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          await registration.update().catch(() => {});
         }
       }
-      localStorage.clear();
-      sessionStorage.clear();
+      // 3. تحديث رقم الإصدار المعتمد في الذاكرة لمنع ظهور إشعارات تحديث متكررة
+      try {
+        localStorage.setItem(APP_VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
+      } catch {
+        // safe fallback
+      }
+      // تنويه هام: يُمنع منعاً باتاً استدعاء localStorage.clear() أو مسح IndexedDB الخاصة بالتجار
       setTimeout(() => {
         window.location.reload();
-      }, 600);
+      }, 500);
     } catch (e) {
       window.location.reload();
     }

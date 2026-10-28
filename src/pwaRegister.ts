@@ -3,7 +3,7 @@ const updateCallbacks = new Set<UpdateCallback>();
 let globalUpdateSW: ((reloadPage?: boolean) => Promise<void>) | null = null;
 let isUpdatePending = false;
 
-export const CURRENT_APP_VERSION = '2.7.0';
+export const CURRENT_APP_VERSION = '2.8.0';
 export const APP_VERSION_STORAGE_KEY = 'app_installed_version';
 
 export function onPWAUpdateAvailable(cb: UpdateCallback): () => void {

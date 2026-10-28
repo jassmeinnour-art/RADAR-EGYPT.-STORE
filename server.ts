@@ -143,7 +143,7 @@ app.get('/api/health', (req, res) => {
 
 // Server Boot Time & Live App Version Check Endpoint (Live/PWA Update Mechanism)
 const SERVER_BOOT_TIME = Date.now();
-const APP_VERSION = '2.5.0'; // Updated with Live/PWA Smart Update Mechanism
+const APP_VERSION = '2.8.0'; // Updated version synchronized with PWA and frontend release
 
 app.get('/api/app-version', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

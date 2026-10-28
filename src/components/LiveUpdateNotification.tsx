@@ -207,15 +207,15 @@ export const LiveUpdateNotification: React.FC<LiveUpdateNotificationProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-sm font-black text-white flex items-center gap-1.5">
-                  <span>يوجد تحديث جديد للمنظومة</span>
+                  <span>تحديث برمجي جديد متاح للمنظومة</span>
                   <span className="text-sky-300">⚡</span>
                 </h4>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 text-[10px] font-black border border-emerald-400/30">
-                  إصدار جديد متاح
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 text-[10px] font-black border border-emerald-400/30 font-mono">
+                  v{serverVersion || 'أحدث'}
                 </span>
               </div>
               <p className="text-xs text-indigo-100/90 mt-1 leading-relaxed">
-                تم توفير ميزات وتعديلات جديدة للمشروع من خلال ستوديو جوجل. اضغط للتحديث لتفريغ الكاش القديم والتحويل للنسخة الأحدث فوراً.
+                تم توفير ميزات وتحديثات برمجية جديدة. سيتم تحديث أكواد الواجهة في الخلفية بسلاسة مع الاحتفاظ بنسبة 100% بكافة بياناتك ومتاجرك المسجلة.
               </p>
             </div>
           </div>
@@ -225,7 +225,7 @@ export const LiveUpdateNotification: React.FC<LiveUpdateNotificationProps> = ({
             id="btn-dismiss-app-update"
             onClick={dismissBanner}
             className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors shrink-0"
-            title="إخفاء التنبيه مؤقتاً (يمكنك التحديث لاحقاً من الزر العائم)"
+            title="إخفاء التنبيه مؤقتاً"
           >
             <X className="w-4 h-4" />
           </button>
@@ -243,12 +243,12 @@ export const LiveUpdateNotification: React.FC<LiveUpdateNotificationProps> = ({
             {isUpdating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                <span>جاري تفريغ الكاش وتطبيق التحديث...</span>
+                <span>جاري تحديث الواجهات بأمان...</span>
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4 text-slate-950" />
-                <span>تحديث الآن وتفريغ الكاش ⚡</span>
+                <span>تحديث أكواد الواجهة بأمان ⚡</span>
               </>
             )}
           </button>

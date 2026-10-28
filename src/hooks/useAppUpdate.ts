@@ -30,42 +30,45 @@ export interface AppUpdateState {
 const BOOT_TIME_STORAGE_KEY = 'merchant_radar_server_boot_time';
 const DISMISSED_SESSION_KEY = 'merchant_radar_update_banner_dismissed';
 
-export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateState {
-  // Ensure stored version is initialized on first visit and checked first to prevent repeated popups
-  const [hasUpdate, setHasUpdate] = useState<boolean>(() => {
-    try {
-      const installedVersion = localStorage.getItem(APP_VERSION_STORAGE_KEY);
-      if (!installedVersion) {
-        localStorage.setItem(APP_VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
-        return false;
-      }
-      if (installedVersion === CURRENT_APP_VERSION) {
-        return false;
-      }
-      return true;
-    } catch {
-      return isPWAUpdateAvailable();
-    }
-  });
+/**
+ * Checks if the remote version string is strictly newer than the current version string.
+ * Example: '2.8.1' > '2.8.0' -> true, '2.8.0' > '2.8.0' -> false, '2.5.0' > '2.8.0' -> false.
+ */
+export function isNewerVersion(remote: string | null | undefined, current: string): boolean {
+  if (!remote || !current) return false;
+  const cleanRemote = remote.trim().replace(/^v/i, '');
+  const cleanCurrent = current.trim().replace(/^v/i, '');
+  if (cleanRemote === cleanCurrent) return false;
 
-  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(() => {
+  const parseParts = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0);
+  const r = parseParts(cleanRemote);
+  const c = parseParts(cleanCurrent);
+
+  for (let i = 0; i < Math.max(r.length, c.length); i++) {
+    const rVal = r[i] ?? 0;
+    const cVal = c[i] ?? 0;
+    if (rVal > cVal) return true;
+    if (rVal < cVal) return false;
+  }
+  return false;
+}
+
+export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateState {
+  // Synchronize current version to localStorage immediately on bundle load
+  if (typeof window !== 'undefined') {
     try {
-      const installedVersion = localStorage.getItem(APP_VERSION_STORAGE_KEY);
-      if (!installedVersion || installedVersion === CURRENT_APP_VERSION) {
-        return false;
-      }
-      const dismissed = sessionStorage.getItem(DISMISSED_SESSION_KEY) === 'true';
-      return !dismissed;
+      localStorage.setItem(APP_VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
     } catch {
-      return false;
+      // safe fallback
     }
-  });
+  }
+
+  const [hasUpdate, setHasUpdate] = useState<boolean>(false);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
-  const [updateSource, setUpdateSource] = useState<'service_worker' | 'server_build' | 'manual' | null>(
-    isPWAUpdateAvailable() ? 'service_worker' : null
-  );
+  const [updateSource, setUpdateSource] = useState<'service_worker' | 'server_build' | 'manual' | null>(null);
   const [serverVersion, setServerVersion] = useState<string | null>(CURRENT_APP_VERSION);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(() => {
@@ -79,26 +82,12 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
   const initialBootTimeRef = useRef<number | null>(null);
   const apiEndpointUnavailableRef = useRef<boolean>(false);
 
-  // Check server version & stored localStorage version first (with graceful static fallback if /api/app-version returns 404)
+  // Check server version & stored version
   const checkServerVersion = useCallback(async (isManual = false): Promise<boolean> => {
     try {
-      // 1. Check stored version in localStorage first
-      let installedVersion = CURRENT_APP_VERSION;
-      try {
-        const stored = localStorage.getItem(APP_VERSION_STORAGE_KEY);
-        if (!stored) {
-          localStorage.setItem(APP_VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
-          installedVersion = CURRENT_APP_VERSION;
-        } else {
-          installedVersion = stored;
-        }
-      } catch {
-        // ignore storage errors
-      }
-
       let data: any = null;
 
-      // 2. Try dynamic backend endpoint unless previously confirmed unavailable (404) in static hosting
+      // 1. Try dynamic backend endpoint
       if (!apiEndpointUnavailableRef.current) {
         try {
           const response = await fetch(`/api/app-version?_t=${Date.now()}`, {
@@ -120,7 +109,19 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
         }
       }
 
-      // 3. Fallback directly to local CURRENT_APP_VERSION if API endpoint is unavailable (avoids network / fetch errors on static hosts)
+      // 2. Fallback to static app-version.json if dynamic endpoint is 404
+      if (!data) {
+        try {
+          const staticRes = await fetch(`/app-version.json?_t=${Date.now()}`);
+          if (staticRes.ok) {
+            data = await staticRes.json();
+          }
+        } catch {
+          // safe fallback
+        }
+      }
+
+      // 3. Fallback to local CURRENT_APP_VERSION
       if (!data) {
         data = {
           success: true,
@@ -145,15 +146,10 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
           }
         }
 
-        // Prevent repeated popups: if the user's installed version in localStorage already matches the latest version, do not show update popup
-        if (installedVersion === remoteVersion && installedVersion === CURRENT_APP_VERSION) {
-          setHasUpdate(false);
-          setShowUpdateModal(false);
-          return false;
-        }
+        // Only trigger update notification if the server version is strictly NEWER than CURRENT_APP_VERSION
+        const isNewer = isNewerVersion(remoteVersion, CURRENT_APP_VERSION);
 
-        // Only trigger update notification if version differs from installed version
-        if (remoteVersion !== installedVersion || CURRENT_APP_VERSION !== installedVersion) {
+        if (isNewer) {
           setHasUpdate(true);
           setShowUpdateModal(true);
           setUpdateSource('server_build');
@@ -164,9 +160,14 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
             // ignore
           }
           if (isManual) {
-            onShowToast?.('تم اكتشاف إصدار أحدث للمنصة! 🚀');
+            onShowToast?.(`تم اكتشاف تحديث برمجي جديد للمنصة (v${remoteVersion})! 🚀`);
           }
           return true;
+        } else {
+          // Same version or older: no update needed
+          setHasUpdate(false);
+          setShowUpdateModal(false);
+          return false;
         }
       }
       return false;
@@ -175,26 +176,18 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
     }
   }, [onShowToast]);
 
-  // Comprehensive check for updates (Checks stored version first + Service Worker + Server Endpoint)
+  // Comprehensive check for updates
   const checkForUpdates = useCallback(async (isManual = false): Promise<boolean> => {
     setIsChecking(true);
     let found = false;
 
-    const installedVersion = (() => {
-      try {
-        return localStorage.getItem(APP_VERSION_STORAGE_KEY) || CURRENT_APP_VERSION;
-      } catch {
-        return CURRENT_APP_VERSION;
-      }
-    })();
-
-    // 1. Check Service Worker registration update (only if not in iframe and version not already dismissed/installed)
+    // 1. Check Service Worker registration update
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.self === window.top) {
       try {
         const registration = await navigator.serviceWorker.getRegistration();
         if (registration) {
-          await registration.update();
-          if (registration.waiting && installedVersion !== CURRENT_APP_VERSION) {
+          await registration.update().catch(() => {});
+          if (registration.waiting) {
             setHasUpdate(true);
             setShowUpdateModal(true);
             setUpdateSource('service_worker');
@@ -203,7 +196,7 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
           }
         }
       } catch {
-        // Safe silent fallback in restricted environments
+        // Safe silent fallback
       }
     }
 
@@ -214,56 +207,59 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
     setIsChecking(false);
 
     if (isManual && !found) {
-      onShowToast?.('أنت تستخدم بالفعل أحدث إصدار من رادار التاجر الذكي ✓');
+      onShowToast?.(`أنت تستخدم بالفعل أحدث إصدار من رادار التاجر الذكي (v${CURRENT_APP_VERSION}) ✓`);
     }
 
     return found;
   }, [checkServerVersion, onShowToast]);
 
-  // One-Click Clean Update Handler (إصلاح دالة التحديث وتفريغ الكاش بضغطة واحدة)
+  // One-Click Clean Update Handler: Only purges CSS/JS Cache, NEVER touches merchant data or localStorage
   const applyUpdate = useCallback(async () => {
     setIsUpdating(true);
-    onShowToast?.('جاري تفريغ الذاكرة المؤقتة (Cache) وتطبيق التحديث فوراً... ⚡');
+    onShowToast?.('جاري تطبيق التحديث وتحديث أكواد الواجهة مع الحفاظ التام على بيانات متاجرك... ⚡');
 
     try {
-      // 1. إرسال أمر SKIP_WAITING فوراً لجميع الـ Service Workers المسجلين
+      // 1. إرسال أمر SKIP_WAITING للـ Service Worker لجلب الكود الجديد فوراً
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (const reg of registrations) {
           if (reg.waiting) {
             reg.waiting.postMessage({ type: 'SKIP_WAITING' });
           }
-          // محاولة إلغاء التسجيل أيضاً لضمان التحميل من الخادم مباشرة
-          await reg.unregister();
+          await reg.update().catch(() => {});
         }
       }
 
-      // 2. مسح كافة ملفات الكاش المخزنة في المتصفح فوراً
+      // 2. مسح ملفات الكاش الثابتة فقط (CSS/JS) لضمان تحميل الواجهات الجديدة
       if (typeof window !== 'undefined' && 'caches' in window) {
         const cacheKeys = await caches.keys();
         await Promise.all(cacheKeys.map((key) => caches.delete(key)));
       }
 
-      // 3. تحديث رقم الإصدار في LocalStorage
-      const targetVersion = serverVersion || CURRENT_APP_VERSION;
+      // 3. تحديث رقم الإصدار المعتمد في LocalStorage (دون المساس ببيانات التجار أو المتاجر)
+      const targetVersion = serverVersion && isNewerVersion(serverVersion, CURRENT_APP_VERSION)
+        ? serverVersion
+        : CURRENT_APP_VERSION;
+
       try {
         localStorage.setItem(APP_VERSION_STORAGE_KEY, targetVersion);
         sessionStorage.removeItem(BOOT_TIME_STORAGE_KEY);
         sessionStorage.setItem(DISMISSED_SESSION_KEY, 'true');
       } catch (e) {
-        console.error('Storage update failed:', e);
+        console.warn('Storage update failed:', e);
       }
 
-      // 4. إغلاق الواجهة فوراً
+      // 4. إغلاق نوافذ التحديث فوراً
       setShowUpdateModal(false);
       setHasUpdate(false);
       setIsBannerDismissed(true);
 
-      // 5. إجبار المتصفح على إعادة التحميل فوراً
-      window.location.reload();
+      // 5. إعادة تحميل الواجهة لتطبيق الكود الجديد
+      setTimeout(() => {
+        window.location.reload();
+      }, 400);
     } catch (error) {
-      console.error('Error during applying update:', error);
-      // إعادة تحميل كخيار أخير في حالة حدوث أي خطأ
+      console.warn('Error during applying update:', error);
       window.location.reload();
     }
   }, [onShowToast, serverVersion]);
