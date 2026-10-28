@@ -55,6 +55,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageToggle } from './components/LanguageToggle';
 import { DailyTaskListSidebar } from './components/DailyTaskListSidebar';
 import { AllMerchantsDirectoryDrawer } from './components/AllMerchantsDirectoryDrawer';
+import { ToolbarTooltip } from './components/ToolbarTooltip';
 import { AppSidebar } from './components/AppSidebar';
 import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
@@ -179,6 +180,7 @@ export default function App() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState<boolean>(false);
   const [isAllMerchantsHubOpen, setIsAllMerchantsHubOpen] = useState<boolean>(false);
+  const [merchantsHubInitialTab, setMerchantsHubInitialTab] = useState<'directory' | 'manual_form' | 'trending'>('directory');
   const [isWaybillCropperOpen, setIsWaybillCropperOpen] = useState<boolean>(false);
   const [isBulkWaybillModalOpen, setIsBulkWaybillModalOpen] = useState<boolean>(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
@@ -506,24 +508,41 @@ export default function App() {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Master Merchant Management & Fast Registration Button (Deep Indigo Blue, No Yellow) */}
-            <button
-              onClick={() => setIsAllMerchantsHubOpen(true)}
-              className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
-              title="المركز الشامل لإدارة بيانات التجار، عرض التفاصيل وإضافة تجار جدد بسهولة"
+            {/* Master Merchant Management & Fast Registration Button (Manual Form No CSV) */}
+            <ToolbarTooltip
+              title="إدارة بيانات التجار (يدوياً)"
+              description="فتح نموذج الإدخال اليدوي الكامل لكتابة وتعديل بيانات المتجر، معرفات المنصات (Seller IDs)، والبريد وحفظها مباشرة بدون CSV."
+              badge="إدخال يدوي مباشر"
             >
-              <Building2 className="w-4 h-4 text-indigo-200 shrink-0" />
-              <span>🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
-            </button>
+              <button
+                onClick={() => {
+                  setMerchantsHubInitialTab('manual_form');
+                  setIsAllMerchantsHubOpen(true);
+                }}
+                className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Building2 className="w-4 h-4 text-white shrink-0" />
+                <span>🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
+              </button>
+            </ToolbarTooltip>
 
-            <button
-              onClick={() => setIsAllMerchantsHubOpen(true)}
-              className="px-3.5 py-2 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"
-              title="دليل كافة التجار والمتاجر في السوق المصري"
+            {/* Merchant Directory Button */}
+            <ToolbarTooltip
+              title="دليل التجار الشامل"
+              description="استعراض بطاقات جميع المتاجر، تفضيلاتهم، منتجاتهم، طلباتهم، وطباعة بوالص الشحن الخاصة بهم مباشرة."
+              badge="الدليل الشامل"
             >
-              <Store className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>دليل التجار</span>
-            </button>
+              <button
+                onClick={() => {
+                  setMerchantsHubInitialTab('directory');
+                  setIsAllMerchantsHubOpen(true);
+                }}
+                className="px-3.5 py-2.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-white border border-emerald-500/30 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+              >
+                <Store className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span>دليل التجار</span>
+              </button>
+            </ToolbarTooltip>
 
             {/* Visual Style Control Panel Launch Button */}
             <button
@@ -968,8 +987,10 @@ export default function App() {
       <AllMerchantsDirectoryDrawer 
         isOpen={isAllMerchantsHubOpen} 
         onClose={() => setIsAllMerchantsHubOpen(false)} 
+        initialTab={merchantsHubInitialTab}
         onShowToast={showToast}
         onSelectMerchant={(id) => showToast(`تم اختيار المتجر (${id}) للتحكم والمتابعة الفورية ⚡`)}
+        onOpenWaybillModal={(merchant) => setIsWaybillCropperOpen(true)}
       />
 
       {isPaymentModalOpen && (

@@ -1158,6 +1158,45 @@ export function updateMerchantCredentials(
 }
 
 /**
+ * Updates an entire merchant client record manually with direct save (No CSV required).
+ */
+export function updateExistingMerchant(updatedMerchant: RemoteMerchantClient): RemoteMerchantClient {
+  const list = loadAllRegisteredMerchants();
+  const index = list.findIndex(m => m.id === updatedMerchant.id);
+  const now = new Date().toISOString();
+  const normalized = ensureMerchantTrialFields({
+    ...updatedMerchant,
+    createdAt: updatedMerchant.createdAt || now
+  });
+
+  if (index !== -1) {
+    list[index] = normalized;
+    saveAllRegisteredMerchants(list);
+    saveMerchantStoreCredentialsToFirestore(normalized).catch(() => {});
+    return normalized;
+  } else {
+    const newList = [normalized, ...list];
+    saveAllRegisteredMerchants(newList);
+    saveMerchantStoreCredentialsToFirestore(normalized).catch(() => {});
+    return normalized;
+  }
+}
+
+/**
+ * Deletes a merchant store record directly and persists changes.
+ */
+export function deleteExistingMerchant(merchantId: string): boolean {
+  const list = loadAllRegisteredMerchants();
+  const filtered = list.filter(m => m.id !== merchantId);
+  if (filtered.length !== list.length) {
+    saveAllRegisteredMerchants(filtered);
+    return true;
+  }
+  return false;
+}
+
+
+/**
  * Validates and extracts a merchant's Amazon SP-API credentials (`AMAZON_REFRESH_TOKEN` & `SELLER_ID`)
  * directly from the merchant's stored State/LocalStorage/Firestore or provided form inputs.
  * Recognizes any stored or entered token (such as `amzn1.pa.o...` or `Atzr|...`) immediately as valid.

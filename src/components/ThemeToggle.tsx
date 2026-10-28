@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, Monitor, Clock } from 'lucide-react';
+import { Sun, Moon, Monitor, Clock, Sparkles } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 
@@ -30,37 +30,45 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
     }
 
     let msg = '';
-    if (nextMode === 'dark') msg = '🌙 تم تفعيل الوضع الليلي (Dark Mode) بنجاح';
-    else if (nextMode === 'light') msg = '☀️ تم تفعيل الوضع النهاري (Light Mode) بنجاح';
-    else if (nextMode === 'scheduled') msg = '⏰ تم تفعيل الوضع المجدول (حسب التوقيت المحلي) بنجاح';
-    else msg = '🖥️ تم تفعيل الوضع التلقائي (حسب إعدادات النظام)';
+    if (nextMode === 'dark') msg = '🌙 تم تفعيل الوضع الليلي (Dark Mode - كحلي عميق وفضاء داكن) بنجاح';
+    else if (nextMode === 'light') msg = '☀️ تم تفعيل الوضع النهاري (Light Mode - أوف-وايت نقي وتباين فائق) بنجاح';
+    else if (nextMode === 'scheduled') msg = '⏰ تم تفعيل الوضع المجدول (حسب التوقيت المحلي ومؤشرات الوقت) بنجاح';
+    else msg = '🖥️ تم تفعيل الوضع التلقائي (حسب إعدادات النظام) بنجاح';
 
     onToggleNotification?.(msg);
   };
 
-  // 1. Icon-only variant (Clean circular button)
+  // 1. Icon-only variant
   if (variant === 'icon') {
     return (
       <button
         type="button"
         id="btn-theme-toggle-icon"
         onClick={handleCycle}
-        aria-label="تبديل مظهر النظام"
-        title={colorMode === 'system' ? 'الوضع التلقائي مفعّل' : colorMode === 'scheduled' ? 'الوضع المجدول مفعّل' : (isDark ? 'الوضع الليلي مفعّل' : 'الوضع النهاري مفعّل')}
-        className={`relative p-2 rounded-xl transition-all duration-300 flex items-center justify-center cursor-pointer select-none border shadow-sm active:scale-95 ${
-          isDark
-            ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/30 hover:border-amber-400 shadow-amber-500/10'
-            : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300 hover:border-slate-400 shadow-slate-200/50'
+        aria-label="تبديل مظهر النظام والأوضاع"
+        title={
+          colorMode === 'system' ? 'الوضع التلقائي (System Auto) مفعّل' : 
+          colorMode === 'scheduled' ? 'الوضع المجدول (Time Scheduled) مفعّل' : 
+          (isDark ? 'الوضع الليلي (Dark Mode - فضاء كحلي) مفعّل' : 'الوضع النهاري (Light Mode - أوف-وايت نقي) مفعّل')
+        }
+        className={`relative p-2 rounded-xl transition-all duration-300 flex items-center justify-center cursor-pointer select-none border shadow-md active:scale-95 ${
+          colorMode === 'scheduled'
+            ? 'bg-gradient-to-br from-purple-950 to-indigo-900 text-amber-300 border-amber-400/50 shadow-purple-900/30'
+            : colorMode === 'system'
+            ? 'bg-gradient-to-br from-sky-950 to-blue-900 text-sky-300 border-sky-400/50 shadow-sky-900/30'
+            : isDark
+            ? 'bg-slate-900 text-amber-300 border-amber-500/40 shadow-slate-950'
+            : 'bg-white text-slate-950 border-slate-300 shadow-slate-200 hover:bg-slate-50'
         } ${className}`}
       >
         {colorMode === 'system' ? (
-          <Monitor className="w-4 h-4 text-sky-400" />
+          <Monitor className="w-4 h-4 text-cyan-300 animate-pulse" />
         ) : colorMode === 'scheduled' ? (
-          <Clock className="w-4 h-4 text-emerald-400" />
+          <Clock className="w-4 h-4 text-amber-300 animate-spin" style={{ animationDuration: '12s' }} />
         ) : isDark ? (
-          <Sun className="w-4 h-4 text-amber-400" />
+          <Moon className="w-4 h-4 text-amber-300" />
         ) : (
-          <Moon className="w-4 h-4 text-indigo-600" />
+          <Sun className="w-4 h-4 text-slate-950 font-black" />
         )}
       </button>
     );
@@ -74,73 +82,65 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         id="btn-theme-toggle-compact"
         onClick={handleCycle}
         aria-label="تبديل مظهر النظام"
-        className={`relative inline-flex items-center h-8 w-32 px-1 rounded-full border transition-all duration-300 cursor-pointer select-none ${
-          isDark
-            ? 'bg-slate-900 border-amber-500/40 shadow-inner'
-            : 'bg-slate-200 border-slate-300 shadow-inner'
+        className={`relative inline-flex items-center h-8 w-36 px-1 rounded-full border transition-all duration-300 cursor-pointer select-none shadow-md ${
+          colorMode === 'scheduled'
+            ? 'bg-purple-950 border-purple-500/60'
+            : colorMode === 'system'
+            ? 'bg-sky-950 border-sky-500/60'
+            : isDark
+            ? 'bg-slate-900 border-slate-700'
+            : 'bg-slate-100 border-slate-300'
         } ${className}`}
       >
-        <div className="flex justify-between w-full px-2 text-[8px] font-bold z-0">
-          <span className={colorMode === 'light' ? 'text-slate-950' : 'text-slate-400'}>Light</span>
-          <span className={colorMode === 'system' ? 'text-slate-950' : 'text-slate-400'}>Auto</span>
-          <span className={colorMode === 'scheduled' ? 'text-slate-950' : 'text-slate-400'}>Time</span>
-          <span className={colorMode === 'dark' ? 'text-slate-950' : 'text-slate-400'}>Dark</span>
+        <div className="flex justify-between w-full px-2 text-[9px] font-black z-0">
+          <span className={colorMode === 'light' ? 'text-slate-950 font-black' : 'text-slate-400'}>النهاري</span>
+          <span className={colorMode === 'system' ? 'text-cyan-300 font-black' : 'text-slate-400'}>تلقائي</span>
+          <span className={colorMode === 'scheduled' ? 'text-amber-300 font-black' : 'text-slate-400'}>مجدول</span>
+          <span className={colorMode === 'dark' ? 'text-white font-black' : 'text-slate-400'}>الليلي</span>
         </div>
         <span
-          className={`absolute flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 shadow-md z-10 ${
-            colorMode === 'light' ? 'left-1 bg-white text-amber-500' : 
-            colorMode === 'system' ? 'left-[28%] bg-sky-500 text-white' : 
-            colorMode === 'scheduled' ? 'left-[58%] bg-emerald-500 text-white' :
-            'right-1 bg-amber-500 text-slate-950'
+          className={`absolute flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 shadow-lg z-10 ${
+            colorMode === 'light' ? 'left-1 bg-white text-slate-950 border border-slate-300' : 
+            colorMode === 'system' ? 'left-[26%] bg-cyan-600 text-white border border-cyan-400' : 
+            colorMode === 'scheduled' ? 'left-[54%] bg-purple-600 text-amber-200 border border-purple-400' :
+            'right-1 bg-slate-950 text-amber-400 border border-slate-700'
           }`}
         >
-          {colorMode === 'system' ? <Monitor className="w-3 h-3" /> : colorMode === 'scheduled' ? <Clock className="w-3 h-3" /> : (isDark ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />)}
+          {colorMode === 'system' ? <Monitor className="w-3 h-3 text-white" /> : colorMode === 'scheduled' ? <Clock className="w-3 h-3 text-amber-200" /> : (isDark ? <Moon className="w-3 h-3 text-amber-300" /> : <Sun className="w-3 h-3 text-slate-950" />)}
         </span>
       </button>
     );
   }
 
-  // 3. Full / Pill variant with text badge and shortcut hint
+  // 3. Full Pill or Banner variant
   return (
     <button
       type="button"
-      id="btn-theme-toggle-pill"
       onClick={handleCycle}
-      aria-label="تبديل مظهر النظام"
-      title="انقر لتبديل المظهر (نهاري/ليلي/تلقائي/مجدول) - اختصار: Ctrl+D"
-      className={`group px-3 py-1.5 rounded-xl border text-xs font-bold transition-all duration-300 flex items-center gap-2 cursor-pointer select-none active:scale-95 shadow-sm ${
-        isDark
-          ? 'bg-slate-950 hover:bg-slate-800 text-amber-200 border-amber-500/40 hover:border-amber-400'
-          : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300 hover:border-slate-400'
+      className={`px-3.5 py-2 rounded-2xl border transition-all flex items-center gap-2 cursor-pointer shadow-md ${
+        colorMode === 'scheduled'
+          ? 'bg-gradient-to-r from-purple-950 to-indigo-900 text-amber-200 border-purple-500/50'
+          : colorMode === 'system'
+          ? 'bg-gradient-to-r from-sky-950 to-blue-900 text-cyan-200 border-sky-500/50'
+          : isDark
+          ? 'bg-slate-900 text-white border-slate-700'
+          : 'bg-white text-slate-950 border-slate-300'
       } ${className}`}
     >
-      <div className={`p-1 rounded-lg transition-transform duration-300 group-hover:scale-110 ${
-        colorMode === 'system' ? 'bg-sky-500/20 text-sky-400' : colorMode === 'scheduled' ? 'bg-emerald-500/20 text-emerald-400' : (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-50 text-indigo-600')
-      }`}>
-        {colorMode === 'system' ? (
-          <Monitor className="w-3.5 h-3.5" />
-        ) : colorMode === 'scheduled' ? (
-          <Clock className="w-3.5 h-3.5" />
-        ) : isDark ? (
-          <Sun className="w-3.5 h-3.5" />
-        ) : (
-          <Moon className="w-3.5 h-3.5" />
-        )}
-      </div>
-
+      {colorMode === 'system' ? (
+        <Monitor className="w-4 h-4 text-cyan-300" />
+      ) : colorMode === 'scheduled' ? (
+        <Clock className="w-4 h-4 text-amber-300" />
+      ) : isDark ? (
+        <Moon className="w-4 h-4 text-amber-300" />
+      ) : (
+        <Sun className="w-4 h-4 text-slate-950" />
+      )}
       {showLabel && (
-        <span className="font-bold text-[11px] whitespace-nowrap">
-          {colorMode === 'system' ? 'المظهر: تلقائي 🖥️' : colorMode === 'scheduled' ? 'المظهر: مجدول ⏰' : (isDark ? 'الوضع الليلي 🌙' : 'الوضع النهاري ☀️')}
+        <span className="text-xs font-black">
+          {colorMode === 'system' ? 'الوضع التلقائي (System)' : colorMode === 'scheduled' ? 'الوضع المجدول (Time)' : (isDark ? 'الوضع الليلي (Dark)' : 'الوضع النهاري (Light)')}
         </span>
       )}
-
-      <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold hidden sm:inline-block ${
-        isDark ? 'bg-slate-800 text-amber-300' : 'bg-slate-100 text-slate-600'
-      }`}>
-        Ctrl+D
-      </span>
     </button>
   );
 };
-
-export default ThemeToggle;
