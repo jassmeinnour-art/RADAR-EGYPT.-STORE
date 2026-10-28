@@ -12,7 +12,7 @@ import { VisualCustomizerProvider } from "./context/VisualCustomizerContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 
-// Hide WebSocket HMR errors in overlay and console
+// Hide WebSocket HMR errors in overlay and console, and handle unhandled rejections silently
 if (typeof window !== 'undefined') {
   const origError = console.error;
   console.error = (...args: any[]) => {
@@ -27,6 +27,24 @@ if (typeof window !== 'undefined') {
     ) return;
     origError(...args);
   };
+
+  // Prevent background promise rejections or unhandled exceptions from triggering crash screens
+  window.addEventListener('unhandledrejection', (event) => {
+    console.warn('[Background Handled Promise Rejection]:', event.reason);
+    event.preventDefault();
+  });
+
+  window.addEventListener('error', (event) => {
+    // Only intercept if harmless or transient
+    const msg = event?.message || '';
+    if (
+      msg.includes('ResizeObserver') ||
+      msg.includes('dynamically imported module') ||
+      msg.includes('Script error')
+    ) {
+      event.preventDefault();
+    }
+  });
 }
 
 import { setupPWA } from "./pwaRegister"

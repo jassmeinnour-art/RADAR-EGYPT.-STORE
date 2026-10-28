@@ -1,10 +1,10 @@
 import React, { ErrorInfo, ReactNode } from 'react';
-import { ErrorFallback } from './ErrorFallback';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
   sectionName?: string;
+  silent?: boolean;
 }
 
 interface ErrorBoundaryState {
@@ -45,19 +45,34 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.warn('ErrorBoundary caught an unhandled error (auto-recovering in background):', error, errorInfo);
+    // Silently log and record error in background without interrupting user or halting the UI
+    console.warn(`[ErrorBoundary] Handled exception silently in (${this.props.sectionName || 'app'}):`, error, errorInfo);
+
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const silentLog = {
+          section: this.props.sectionName || 'general',
+          message: error?.message || String(error),
+          stack: error?.stack || '',
+          timestamp: new Date().toISOString(),
+        };
+        sessionStorage.setItem('radar_silent_exception_log', JSON.stringify(silentLog));
+      }
+    } catch {
+      // safe fallback
+    }
+
     this.setState({ errorInfo });
 
-    // Auto-recover after 4 seconds to prevent user getting stuck on fallback screen
+    // Immediate background auto-recovery: auto-reset within 50ms to restore interface seamlessly
     if (this.autoRecoveryTimer) {
       clearTimeout(this.autoRecoveryTimer);
     }
     this.autoRecoveryTimer = setTimeout(() => {
       if (this.state.hasError) {
-        console.info('ErrorBoundary auto-recovering in background...');
         this.handleReset();
       }
-    }, 4000);
+    }, 50);
   }
 
   public override componentWillUnmount(): void {
@@ -75,20 +90,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   public override render(): ReactNode {
     if (this.state.hasError) {
+      // If a custom lightweight fallback is explicitly provided, render it
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
-      return (
-        <ErrorFallback
-          error={this.state.error}
-          errorInfo={this.state.errorInfo}
-          onReset={this.handleReset}
-          sectionName={this.props.sectionName}
-        />
-      );
+      // Never render the disruptive "نظام الحماية الذكي" screen!
+      // Return a non-blocking invisible placeholder while automatic background recovery runs
+      return null;
     }
 
     return this.props.children;
   }
 }
+

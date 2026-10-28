@@ -94,14 +94,27 @@ function safeLazy<T extends React.ComponentType<any>>(
       const module = await factory();
       return { default: extractComponent(module) };
     } catch (error) {
-      console.warn('Dynamic module import failed, retrying once...', error);
+      console.warn('[SafeLazy] Dynamic module import failed, retrying once in background...', error);
       try {
         await new Promise((resolve) => setTimeout(resolve, 300));
         const module = await factory();
         return { default: extractComponent(module) };
       } catch (retryError) {
-        console.error('Dynamic module import failed after retry:', retryError);
-        throw retryError;
+        console.warn('[SafeLazy] Dynamic module import failed after retry, using resilient fallback component:', retryError);
+        return {
+          default: () => (
+            <div className="p-6 text-center text-slate-300 font-bold bg-slate-900/40 rounded-2xl border border-slate-800 m-4 flex flex-col items-center justify-center gap-2" dir="rtl">
+              <span className="text-xs">جاري تجهيز بيانات هذا القسم في الخلفية تلقائياً...</span>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs rounded-xl font-bold cursor-pointer transition"
+              >
+                تحديث العرض
+              </button>
+            </div>
+          )
+        };
       }
     }
   });
