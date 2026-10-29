@@ -16,93 +16,113 @@ import {
 } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 
-import { saveAllRecordsToDB, getAllRecordsFromDB, STORES } from '../utils/offlineIndexedDB';
-
-export interface DailyTask {
-  id: string;
-  title: string;
-  priority: 'low' | 'medium' | 'high';
-  completed: boolean;
-  createdAt: string;
-}
+import { useAuth } from '../context/AuthContext';
+import { taskService } from '../services/taskService';
+import { MerchantTask } from '../types';
 
 export function DailyTaskListSidebar() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<DailyTask[]>(() => {
-    try {
-      const saved = localStorage.getItem('radar_merchant_daily_tasks');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.warn('Failed to load daily tasks:', e);
-    }
-    return [];
-  });
-
+  const [tasks, setTasks] = useState<MerchantTask[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
 
-  // Load from IndexedDB on initial mount
+  // Load from Firestore on initial mount
   useEffect(() => {
-    async function restoreFromIndexedDB() {
-      try {
-        const idbTasks = await getAllRecordsFromDB<DailyTask>(STORES.TASKS);
-        if (idbTasks && idbTasks.length > 0) {
-          setTasks(idbTasks);
+    async function loadTasks() {
+      if (user) {
+        try {
+          const loadedTasks = await taskService.getTasks(user.uid);
+          setTasks(loadedTasks);
+        } catch (err) {
+          console.warn('Failed to load tasks from Firestore:', err);
         }
-      } catch (err) {
-        console.warn('Failed to load tasks from IndexedDB:', err);
       }
     }
-    restoreFromIndexedDB();
-  }, []);
+    loadTasks();
+  }, [user]);
 
-  // Save to both LocalStorage and IndexedDB whenever tasks change
+  // Overdue task alert
   useEffect(() => {
-    try {
-      localStorage.setItem('radar_merchant_daily_tasks', JSON.stringify(tasks));
-      saveAllRecordsToDB(STORES.TASKS, tasks);
-    } catch (e) {
-      console.warn('Failed to save daily tasks:', e);
+    async function checkOverdue() {
+      if (user) {
+        try {
+          const overdue = await taskService.getOverdueTasks(user.uid);
+          const importantOverdue = overdue.filter(t => t.isImportant);
+          if (importantOverdue.length > 0) {
+            const { sendDesktopNotification } = await import('../services/notificationService');
+            sendDesktopNotification('⚠️ تنبيه: مهمة هامة متأخرة!', {
+              body: `لديك ${importantOverdue.length} مهمة هامة متأخرة عن موعدها. يرجى المراجعة.`,
+              tag: 'overdue-task-alert',
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to check overdue tasks:', err);
+        }
+      }
     }
-  }, [tasks]);
+    // Check every 5 minutes
+    const interval = setInterval(checkOverdue, 5 * 60 * 1000);
+    checkOverdue();
+    return () => clearInterval(interval);
+  }, [user]);
 
-  const addTask = (e: React.FormEvent) => {
+  const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !user) return;
 
-    const newTask: DailyTask = {
-      id: 'task_' + Date.now(),
+    const newTask: Omit<MerchantTask, 'id' | 'userId' | 'createdAt'> = {
       title: newTitle.trim(),
-      priority: newPriority,
-      completed: false,
-      createdAt: new Date().toISOString()
+      description: '',
+      dueDate: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+      isImportant: newPriority === 'high',
+      isCompleted: false,
+      isRecurring: false,
     };
 
-    setTasks([newTask, ...tasks]);
-    setNewTitle('');
+    try {
+      const taskId = await taskService.addTask(user.uid, newTask);
+      setTasks([{ id: taskId, userId: user.uid, createdAt: new Date().toISOString(), ...newTask }, ...tasks]);
+      setNewTitle('');
+    } catch (err) {
+      console.error('Failed to add task:', err);
+    }
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTask = async (id: string) => {
+    if (!user) return;
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    try {
+      await taskService.updateTask(user.uid, id, { isCompleted: !task.isCompleted });
+      setTasks(tasks.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+    }
   };
 
-  const deleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const deleteTask = async (id: string) => {
+    if (!user) return;
+    try {
+      await taskService.deleteTask(user.uid, id);
+      setTasks(tasks.filter(t => t.id !== id));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
   };
 
   const filteredTasks = tasks.filter(t => {
-    if (filter === 'active') return !t.completed;
-    if (filter === 'completed') return t.completed;
+    if (filter === 'active') return !t.isCompleted;
+    if (filter === 'completed') return t.isCompleted;
     return true;
   });
 
-  const activeCount = tasks.filter(t => !t.completed).length;
+  const activeCount = tasks.filter(t => !t.isCompleted).length;
 
-  const handleReorder = (newFilteredTasks: DailyTask[]) => {
+  const handleReorder = (newFilteredTasks: MerchantTask[]) => {
     const filteredIds = new Set(filteredTasks.map(t => t.id));
     let filteredIdx = 0;
     const result = tasks.map(task => {
@@ -242,7 +262,7 @@ export function DailyTaskListSidebar() {
                 filter === 'completed' ? 'bg-slate-800 text-amber-300 border border-slate-700' : 'text-slate-400 hover:text-white'
               }`}
             >
-              المكتملة ({tasks.filter(t => t.completed).length})
+              المكتملة ({tasks.filter(t => t.isCompleted).length})
             </button>
           </div>
         </div>
@@ -279,13 +299,11 @@ export function DailyTaskListSidebar() {
           ) : (
             filteredTasks.map((task) => {
               const priorityColor = 
-                task.priority === 'high' ? 'text-red-400 bg-red-500/10 border-red-500/30' :
-                task.priority === 'medium' ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' :
+                task.isImportant ? 'text-red-400 bg-red-500/10 border-red-500/30' :
                 'text-sky-400 bg-sky-500/10 border-sky-500/30';
 
               const priorityLabel = 
-                task.priority === 'high' ? 'عاجلة' :
-                task.priority === 'medium' ? 'متوسطة' : 'عادية';
+                task.isImportant ? 'عاجلة' : 'عادية';
 
               const isBeingDragged = draggedTaskId === task.id;
 
@@ -296,7 +314,7 @@ export function DailyTaskListSidebar() {
                   onDragStart={() => setDraggedTaskId(task.id)}
                   onDragEnd={() => setDraggedTaskId(null)}
                   className={`p-3 rounded-xl border transition-all flex items-start gap-3 group relative select-none ${
-                    task.completed 
+                    task.isCompleted 
                       ? 'bg-slate-950/40 border-slate-800/60 opacity-60' 
                       : 'bg-slate-950/90 border-slate-800 hover:border-amber-500/40 shadow-md'
                   } ${
@@ -338,9 +356,9 @@ export function DailyTaskListSidebar() {
                   <button
                     onClick={() => toggleTask(task.id)}
                     className="mt-0.5 text-slate-400 hover:text-amber-400 transition shrink-0"
-                    title={task.completed ? 'إلغاء الإكمال' : 'إكمال المهمة'}
+                    title={task.isCompleted ? 'إلغاء الإكمال' : 'إكمال المهمة'}
                   >
-                    {task.completed ? (
+                    {task.isCompleted ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                     ) : (
                       <Circle className="w-5 h-5 text-slate-500 hover:text-amber-400" />
@@ -348,7 +366,7 @@ export function DailyTaskListSidebar() {
                   </button>
 
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold leading-relaxed ${task.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                    <p className={`text-xs font-bold leading-relaxed ${task.isCompleted ? 'line-through text-slate-500' : 'text-slate-200'}`}>
                       {task.title}
                     </p>
                     <div className="flex items-center gap-2 mt-2">

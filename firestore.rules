@@ -156,6 +156,18 @@ service cloud.firestore {
              (!('notifyOnInventoryLow' in data) || (data.notifyOnInventoryLow is bool));
     }
 
+    function isValidMerchantTask(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 250 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 64)) &&
+             (!('isImportant' in data) || (data.isImportant is bool)) &&
+             (!('isCompleted' in data) || (data.isCompleted is bool)) &&
+             (!('isRecurring' in data) || (data.isRecurring is bool)) &&
+             (!('recurrenceRule' in data) || (data.recurrenceRule is string && data.recurrenceRule.size() <= 100));
+    }
+
     // Multi-Tenant Merchant Store Records & Dynamic Amazon SP-API Credentials
     match /merchant_stores/{merchantId} {
       allow read: if true;
@@ -250,6 +262,14 @@ service cloud.firestore {
       match /whatsapp_settings/{settingsId} {
         allow get, list, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) && isValidId(settingsId) && isValidWhatsAppSettings(incoming());
+      }
+
+      // Sub-collection: Tasks
+      match /tasks/{taskId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(taskId) && isValidMerchantTask(incoming());
+        allow update: if isOwner(userId) && isValidMerchantTask(incoming()) &&
+                        incoming().userId == existing().userId;
       }
 
       // Sub-collection: Activity Logs (سجل عمليات المستخدم)

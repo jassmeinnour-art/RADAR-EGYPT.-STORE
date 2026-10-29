@@ -15,6 +15,8 @@ import {
 } from './platformLaunchHelper';
 import { saveAllRecordsToDB, STORES } from './offlineIndexedDB';
 import { recordSyncSuccess } from './syncSuccessTracker';
+import { auth } from '../firebase';
+import { logPriceChange } from './priceHistoryManager';
 
 const CATALOG_STORAGE_PREFIX = 'merchant_catalog_items_v1_';
 const REPRICING_LOG_STORAGE_PREFIX = 'merchant_repricing_audit_logs_v1_';
@@ -648,11 +650,11 @@ export async function refreshMerchantCompetitorPricing(
 /**
  * Updates a product price and recalculates Buy Box competitiveness immediately
  */
-export function updateMerchantProductPrice(
+export async function updateMerchantProductPrice(
   merchantId: string,
   productId: string,
   newPrice: number
-): MerchantCatalogProduct | null {
+): Promise<MerchantCatalogProduct | null> {
   const catalog = loadMerchantCatalog(merchantId);
   const index = catalog.findIndex(p => p.id === productId);
   if (index === -1) return null;
@@ -678,6 +680,11 @@ export function updateMerchantProductPrice(
 
   catalog[index] = updated;
   saveMerchantCatalog(merchantId, catalog);
+
+  // Log price change
+  if (auth.currentUser) {
+    await logPriceChange(auth.currentUser.uid, productId, newPrice);
+  }
 
   // Send update to server if needed
   fetch('/api/merchant/catalog/reprice', {

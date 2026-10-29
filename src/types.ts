@@ -2101,6 +2101,20 @@ export interface AIPricingTimingPrediction {
   analyzedAt: string;
 }
 
+export interface MerchantTask {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  dueDate: string; // ISO string
+  isImportant: boolean;
+  isCompleted: boolean;
+  isRecurring: boolean;
+  recurrenceRule?: string; // e.g. "weekly"
+  createdAt: string; // ISO string
+  updatedAt?: string; // ISO string
+}
+
 // Auto-Pricing Engine Types
 export * from './types/autoPricing';
 

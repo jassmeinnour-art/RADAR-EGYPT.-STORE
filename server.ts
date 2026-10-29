@@ -2603,6 +2603,97 @@ app.get('/api/inventory/whatsapp/logs', (req, res) => {
   });
 });
 
+// Endpoint: AI Stock Depletion Forecasting & Restock Advisor (Gemini 3.8 Flash)
+app.post('/api/gemini/inventory-forecast', async (req, res) => {
+  try {
+    const { product = {}, metrics = {} } = req.body;
+
+    const title = product.title || 'منتج تجاري';
+    const sku = product.sku || 'SKU';
+    const currentStock = product.stockQuantity ?? metrics.currentStock ?? 10;
+    const dailyVelocity = metrics.dailySalesVelocity ?? 1.5;
+    const daysToStockout = metrics.daysToStockout ?? Math.floor(currentStock / dailyVelocity);
+    const estimatedStockoutDate = metrics.estimatedStockoutDate || 'خلال أيام';
+    const price = product.merchantPrice || product.buyBoxPrice || 1000;
+    const platform = product.platform === 'amazon_eg' ? 'أمازون مصر (FBA)' : 'نون مصر (FBN)';
+
+    const systemPrompt = `أنت الخبير الذكي لإدارة وحسابات المخزون والتنبؤ بنفاد السلع للتجار في السوق المصري (السوق المحلي، FBA أمازون مصر، FBN نون مصر، وموردين شارع عبد العزيز والعتبة ومول البستان).
+مهمتك تقديم تحليل تنبؤي دقيق بنفاد المخزون وتوصيات إعادة الطلب بالذكاء الاصطناعي باللغة العربية.
+
+قم بالرد بصيغة JSON حصرية وصارمة:
+{
+  "aiAdvisorSummary": "تحليل تنفيذي شامل ومختصر (3-4 جمل) يوضح للتاجر حالة المخزون الحالية، التقييم التنبؤي لموعد النفاد، والمخاطر المترتبة على فقدان الـ Buy Box في أمازون ونون مصر مع نصيحة توريد فورية.",
+  "recommendedReorderQty": 35,
+  "urgencyScore": 92,
+  "suggestedActionTitle": "إرسال أمر توريد عاجل لمورد شارع عبد العزيز",
+  "egyptFulfillmentInsights": {
+    "fbaLeadTime": "2-4 أيام عمل بمستودعات العاشر من رمضان أو 6 أكتوبر",
+    "fbnLeadTime": "3-5 أيام عمل بمستودع نون بطريق مصر الإسماعيلية",
+    "wholesaleHubRecommendation": "موردين شارع عبد العزيز ومول البستان وسط البلد - تسليم كاش فوري",
+    "peakSeasonMultiplier": 1.25
+  },
+  "suggestedWhatsAppText": "السلام عليكم م/ المورد المحترم، نود طلب توريد عاجل بـ 35 قطعة من الصنف ${title} نظراً لوصول المخزون لحد النفاد وشحنها لمستودعنا بالقاهرة."
+}`;
+
+    const promptText = `بيانات المنتج والمخزون الحالية:
+- اسم المنتج: ${title}
+- الكود / SKU: ${sku}
+- المنصة الرئيسية: ${platform}
+- الرصيد الحالي بالمخزن: ${currentStock} قطعة
+- سرعة البيع اليومية المقدرة: ${dailyVelocity} قطعة/يوم
+- الأيام المتبقية حتى النفاد: ${daysToStockout} أيام (تاريخ النفاد المتوقع: ${estimatedStockoutDate})
+- سعر البيع الحالي: ${price} ج.م
+
+قم بتحليل مخاطر النفاد وتوليد توصيات إعادة الطلب بالذكاء الاصطناعي.`;
+
+    let forecastResult: any = null;
+    try {
+      const response = await generateWithGeminiFallback({
+        contents: promptText,
+        systemInstruction: systemPrompt,
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      });
+
+      if (response.text) {
+        forecastResult = JSON.parse(response.text);
+      }
+    } catch (aiErr: any) {
+      console.warn('[Gemini Inventory Forecast] API error, falling back:', aiErr?.message || aiErr);
+    }
+
+    if (!forecastResult || !forecastResult.aiAdvisorSummary) {
+      const recQty = Math.max(15, Math.ceil(dailyVelocity * 30));
+      forecastResult = {
+        aiAdvisorSummary: daysToStockout <= 5
+          ? `🔴 تنبيه حرج: المخزون الحالي (${currentStock} قطعة) يوشك على النفاد خلال ${daysToStockout} أيام (بحلول ${estimatedStockoutDate}). خروج المنتج من الخدمة سيفقدك صدارة الـ Buy Box في ${platform}. نوصي بإصدار أمر توريد بـ ${recQty} قطعة فوراً.`
+          : `🟢 حالة المخزون مستقرة ومؤمنة لمدة ${daysToStockout} يوماً بمعدل بيع ${dailyVelocity} قطعة/يوم. نقطة إعادة الطلب الموصى بها هي عند وصول الرصيد إلى ${Math.ceil(dailyVelocity * 5)} قطع.`,
+        recommendedReorderQty: recQty,
+        urgencyScore: daysToStockout <= 5 ? 95 : 30,
+        suggestedActionTitle: daysToStockout <= 5 ? 'إعادة توريد عاجلة' : 'متابعة حركة المبيعات',
+        egyptFulfillmentInsights: {
+          fbaLeadTime: '2 - 4 أيام عمل بمستودع أمازون مصر (العاشر من رمضان / 6 أكتوبر)',
+          fbnLeadTime: '3 - 5 أيام عمل بمستودع نون إكسبرس (طريق الإسماعيلية)',
+          wholesaleHubRecommendation: 'مستوردين وشركات الجملة بشارع عبد العزيز ومول البستان بالقاهرة',
+          peakSeasonMultiplier: 1.2
+        }
+      };
+    }
+
+    res.json({
+      success: true,
+      data: forecastResult
+    });
+
+  } catch (error: any) {
+    console.error('Error in /api/gemini/inventory-forecast:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'فشل في توليد التنبؤ بنفاد المخزون بالذكاء الاصطناعي'
+    });
+  }
+});
+
 // -------------------------------------------------------------
 // Merchant Store Syncing API & Status Tracking
 // -------------------------------------------------------------

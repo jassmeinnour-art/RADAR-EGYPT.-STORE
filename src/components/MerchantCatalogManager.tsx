@@ -47,6 +47,7 @@ import {
   autoTagProductCatalog,
   ProductAutoTag
 } from '../utils/productAutoTagger';
+import { StockForecastModal } from './StockForecastModal';
 import {
   loadMerchantCatalog,
   saveMerchantCatalog,
@@ -71,9 +72,17 @@ import {
   getActiveMerchantProfile,
   setActiveMerchantProfile
 } from '../services/merchantProfileService';
+import { PriceHistoryModal } from './PriceHistoryModal';
 import { MerchantProfilesModal } from './MerchantProfilesModal';
 import { sendWhatsAppMessageToPhone } from '../services/whatsappService';
 import { SortableDashboardGrid, SortableDashboardCard } from './SortableDashboardGrid';
+import { SwipeableProductCard } from './SwipeableProductCard';
+import {
+  getStoredWatchlist,
+  toggleWatchlist,
+  isProductWatchlisted
+} from '../services/watchlistNotificationService';
+import { ProductData } from '../types';
 
 interface MerchantCatalogManagerProps {
   selectedMerchant?: RemoteMerchantClient | null;
@@ -225,6 +234,9 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Stock Depletion Forecast Modal State
+  const [stockForecastProduct, setStockForecastProduct] = useState<MerchantCatalogProduct | null>(null);
+
   // Merchant Multi-Profiles State & Dialog
   const [isProfilesModalOpen, setIsProfilesModalOpen] = useState(false);
   const [activeMerchantProfile, setActiveMerchantProfileState] = useState<MerchantProfile>(() => getActiveMerchantProfile());
@@ -320,13 +332,71 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [minPriceFilter, setMinPriceFilter] = useState<string>('');
   const [maxPriceFilter, setMaxPriceFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | MerchantCatalogPricingStatus>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [tagCustomInput, setTagCustomInput] = useState<string>('');
   const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'gap_desc' | 'gap_asc' | 'price_desc' | 'price_asc' | 'stock'>('gap_desc');
 
+  // Display View Mode: Table vs Mobile Touch Swipe Cards
+  const [catalogViewMode, setCatalogViewMode] = useState<'cards' | 'table'>('table');
+
+  // Watchlist State (Track product IDs added to watchlist)
+  const [watchlistedIds, setWatchlistedIds] = useState<string[]>(() => {
+    return getStoredWatchlist().map(w => w.productId);
+  });
+
+  // Sync Watchlist state when changed in other tabs/modals
+  useEffect(() => {
+    const handleWatchlistUpdated = () => {
+      setWatchlistedIds(getStoredWatchlist().map(w => w.productId));
+    };
+    window.addEventListener('merchant_watchlist_updated', handleWatchlistUpdated);
+    return () => window.removeEventListener('merchant_watchlist_updated', handleWatchlistUpdated);
+  }, []);
+
+  // Watchlist Toggle Handler for Product Cards
+  const handleToggleWatchlistProduct = (prod: MerchantCatalogProduct) => {
+    const productData: ProductData = {
+      id: prod.id,
+      title: prod.title,
+      brand: prod.brand,
+      category: prod.category,
+      sku: prod.sku,
+      barcode: prod.asin || prod.sku,
+      imageUrl: prod.imageUrl,
+      currentLowestPrice: prod.lowestCompetitorPrice || prod.merchantPrice,
+      currency: 'ج.م',
+      merchantOffers: (prod.competitors || []).map(c => ({
+        id: c.id,
+        merchantName: c.sellerName,
+        storeType: 'online' as const,
+        platform: c.platform,
+        price: c.price,
+        currency: 'ج.م',
+        rating: 4.5,
+        reviewCount: 12,
+        deliveryTime: 'توصيل سريع',
+        deliveryCost: 'مجاني',
+        isVerified: true,
+        stockStatus: 'in_stock' as const
+      }))
+    };
+
+    const { isWatchlisted } = toggleWatchlist(productData);
+    setWatchlistedIds(getStoredWatchlist().map(w => w.productId));
+    if (onShowToast) {
+      onShowToast(
+        isWatchlisted
+          ? `⭐ تم إضافة المنتج "${prod.sku}" إلى قائمة المتابعة بنجاح!`
+          : `🗑️ تم إزالة المنتج "${prod.sku}" من قائمة المتابعة`
+      );
+    }
+  };
+
   // Modals State
   const [inspectProduct, setInspectProduct] = useState<MerchantCatalogProduct | null>(null);
+  const [historyModalProduct, setHistoryModalProduct] = useState<MerchantCatalogProduct | null>(null);
   const [repriceProduct, setRepriceProduct] = useState<MerchantCatalogProduct | null>(null);
   const [newPriceInput, setNewPriceInput] = useState<number>(0);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -446,11 +516,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   };
 
   // Apply Reprice
-  const handleApplyReprice = (e: React.FormEvent) => {
+  const handleApplyReprice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repriceProduct || !activeMerchantId) return;
 
-    const updated = updateMerchantProductPrice(activeMerchantId, repriceProduct.id, Number(newPriceInput));
+    const updated = await updateMerchantProductPrice(activeMerchantId, repriceProduct.id, Number(newPriceInput));
     if (updated) {
       setProducts(loadMerchantCatalog(activeMerchantId));
       if (onShowToast) {
@@ -461,10 +531,10 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   };
 
   // Quick match Buy Box
-  const handleMatchBuyBox = (prod: MerchantCatalogProduct) => {
+  const handleMatchBuyBox = async (prod: MerchantCatalogProduct) => {
     if (!activeMerchantId) return;
     const targetPrice = prod.buyBoxPrice;
-    const updated = updateMerchantProductPrice(activeMerchantId, prod.id, targetPrice);
+    const updated = await updateMerchantProductPrice(activeMerchantId, prod.id, targetPrice);
     if (updated) {
       setProducts(loadMerchantCatalog(activeMerchantId));
       if (onShowToast) {
@@ -474,10 +544,10 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   };
 
   // Quick undercut Buy Box by 5 EGP
-  const handleBeatBuyBox = (prod: MerchantCatalogProduct) => {
+  const handleBeatBuyBox = async (prod: MerchantCatalogProduct) => {
     if (!activeMerchantId) return;
     const targetPrice = Math.max(1, prod.buyBoxPrice - 5);
-    const updated = updateMerchantProductPrice(activeMerchantId, prod.id, targetPrice);
+    const updated = await updateMerchantProductPrice(activeMerchantId, prod.id, targetPrice);
     if (updated) {
       setProducts(loadMerchantCatalog(activeMerchantId));
       if (onShowToast) {
@@ -628,6 +698,9 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageBase64: p.imageUrl, maxWidth: 400, quality: 65 })
           });
+
+          if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
           const result = await res.json();
           if (result.success && result.data.optimizedBase64) {
             updatedProducts[i] = { ...p, imageUrl: result.data.optimizedBase64 };
@@ -635,6 +708,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
           }
         } catch (err) {
           console.warn(`Failed to optimize image for ${p.sku}`, err);
+          // Continue with next image even if one fails
         }
       }
       
@@ -661,6 +735,15 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (Array.isArray(p.tags)) {
         p.tags.forEach(t => set.add(t));
       }
+    });
+    return Array.from(set);
+  }, [products]);
+
+  // Extract unique available categories across catalog for filter dropdown
+  const availableCatalogCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => {
+      if (p.category) set.add(p.category);
     });
     return Array.from(set);
   }, [products]);
@@ -822,6 +905,9 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         if (p.pricingStatus !== statusFilter) return false;
       }
 
+      // Category filter
+      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+
       // Tag filter
       if (tagFilter !== 'all') {
         const autoTags = extractAutoTags(p);
@@ -864,7 +950,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (sortBy === 'stock') return b.stockQuantity - a.stockQuantity;
       return 0;
     });
-  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, searchQuery, sortBy, pinnedProductIds, showPinnedOnly, currentMerchant?.dataMode]);
+  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, categoryFilter, searchQuery, sortBy, pinnedProductIds, showPinnedOnly, currentMerchant?.dataMode]);
 
   // Catalog Summary KPIs
   const summary = useMemo(() => calculateCatalogSummary(products), [products]);
@@ -1523,6 +1609,21 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 </select>
               </div>
 
+              {/* Category Filter Dropdown */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-slate-500 font-bold">التصنيف:</span>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="h-8 px-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                >
+                  <option value="all">كل التصنيفات ({availableCatalogCategories.length})</option>
+                  {availableCatalogCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Tag Filter Dropdown */}
               <div className="flex items-center gap-1">
                 <span className="text-xs text-purple-700 font-bold flex items-center gap-1">
@@ -1573,13 +1674,14 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 </button>
               )}
 
-              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || tagFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '' || showPinnedOnly) && (
+              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || categoryFilter !== 'all' || tagFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '' || showPinnedOnly) && (
                 <button
                   type="button"
                   onClick={() => {
                     setPlatformFilter('all');
                     setSyncStatusFilter('all');
                     setPriceTierFilter('all');
+                    setCategoryFilter('all');
                     setTagFilter('all');
                     setMinPriceFilter('');
                     setMaxPriceFilter('');
@@ -1759,6 +1861,37 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+            {/* View Mode Toggle Switcher: Table vs Mobile Touch Swipe Cards */}
+            <div className="flex items-center p-1 bg-slate-200/80 rounded-2xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setCatalogViewMode('table')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+                  catalogViewMode === 'table'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="عرض جدول البيانات الشامل"
+              >
+                <span>📊</span>
+                <span>جدول البيانات</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCatalogViewMode('cards')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+                  catalogViewMode === 'cards'
+                    ? 'bg-indigo-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="عرض بطاقات السحب الذكية للهواتف (Swipe Gestures)"
+              >
+                <span>📱</span>
+                <span>بطاقات السحب (Swipe)</span>
+              </button>
+            </div>
+
             {/* Export Reports Button (Excel / CSV via xlsx) */}
             <ExportReportsButton
               onExport={handleExportCatalogPrices}
@@ -1785,6 +1918,51 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               <RefreshCw className="w-3.5 h-3.5" />
               <span>إعادة ضبط الفلاتر</span>
             </button>
+          </div>
+        ) : catalogViewMode === 'cards' ? (
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Mobile Touch Swipe Gesture Instruction Banner */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl shrink-0">📱</span>
+                <div>
+                  <span className="font-black text-amber-300 block text-xs font-['Alexandria']">
+                    بطاقات المنتجات الذكية الداعمة للسحب (Swipe Gestures) للهواتف:
+                  </span>
+                  <span className="text-slate-300 text-[11px] leading-relaxed">
+                    👉 اسحب البطاقة لليمين لإرسال المنتج لقائمة المتابعة ⭐ | 👈 اسحب لليسار لفتح إعدادات تعديل السعر السريع ⚡
+                  </span>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold shrink-0">
+                Touch Native Gestures 👈👉
+              </span>
+            </div>
+
+            {/* Swipeable Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProducts.map((prod) => (
+                <SwipeableProductCard
+                  key={prod.id}
+                  product={prod}
+                  searchQuery={searchQuery}
+                  isPinned={pinnedProductIds.includes(prod.id)}
+                  isWatchlisted={watchlistedIds.includes(prod.id)}
+                  onTogglePin={handleTogglePinProduct}
+                  onOpenReprice={handleOpenReprice}
+                  onShowHistory={(p) => setHistoryModalProduct(p)}
+                  onInspect={(p) => setInspectProduct(p)}
+                  onToggleWatchlist={handleToggleWatchlistProduct}
+                  onMatchBuyBox={handleMatchBuyBox}
+                  onToggleRepricer={handleToggleProductRepricer}
+                  onOpenRuleModal={handleOpenRuleModal}
+                  onCopy={handleCopy}
+                  copiedId={copiedId}
+                  onSetTagFilter={setTagFilter}
+                  onOpenStockForecast={(p) => setStockForecastProduct(p)}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -2119,6 +2297,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                             <span>تعديل السعر</span>
                           </button>
 
+                          {/* Price History Button */}
+                          <button
+                            type="button"
+                            onClick={() => setHistoryModalProduct(prod)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
+                            title="عرض سجل تطور السعر التاريخي"
+                          >
+                            <TrendingUp className="w-3 h-3" />
+                            <span>سجل</span>
+                          </button>
+
                           {/* Quick Match Button if not winner */}
                           {!isWinning && (
                             <button
@@ -2377,6 +2566,15 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         </div>
       )}
 
+      {/* MODAL 1.5: Price History */}
+      {historyModalProduct && (
+        <PriceHistoryModal
+          productId={historyModalProduct.id}
+          productTitle={historyModalProduct.title}
+          onClose={() => setHistoryModalProduct(null)}
+        />
+      )}
+
       {/* MODAL 2: Quick Reprice & Match Buy Box */}
       {repriceProduct && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -2630,14 +2828,52 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">رابط صورة المنتج (URL)</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
-                />
+                <label className="font-bold text-slate-700 block mb-1">رابط صورة المنتج (URL) أو رفع صورة للتحليل الذكي</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    className="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onloadend = async () => {
+                        const base64 = reader.result as string;
+                        setNewImageUrl(base64);
+                        if (onShowToast) onShowToast('🤖 جاري تحليل المنتج بالذكاء الاصطناعي...');
+                        try {
+                          const res = await fetch('/api/analyze-product', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ imageBase64: base64 })
+                          });
+                          const result = await res.json();
+                          if (result.success && result.data) {
+                            setNewTitle(result.data.title);
+                            setNewPrice(result.data.suggestedRetailPrice);
+                            if (onShowToast) onShowToast('✅ تم تحليل المنتج وتعبئة البيانات بنجاح!');
+                          }
+                        } catch (err) {
+                          console.error('AI Analysis failed:', err);
+                          if (onShowToast) onShowToast('⚠️ فشل التحليل الذكي للصورة');
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className="hidden"
+                    id="product-image-upload"
+                  />
+                  <label htmlFor="product-image-upload" className="px-3 py-2 bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold cursor-pointer hover:bg-indigo-200 flex items-center">
+                    🖼️ رفع وتحليل
+                  </label>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
@@ -2877,6 +3113,28 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
           </div>
         </div>
+      )}
+
+      {/* MODAL: AI Stock Depletion Forecast & Restock Advisor */}
+      {stockForecastProduct && (
+        <StockForecastModal
+          product={stockForecastProduct}
+          isOpen={Boolean(stockForecastProduct)}
+          onClose={() => setStockForecastProduct(null)}
+          onOpenWhatsAppSupplier={(p, qty) => {
+            setStockForecastProduct(null);
+            if (onShowToast) {
+              onShowToast(`💬 جاري إعداد أمر التوريد بـ ${qty} قطعة لصنف "${p.sku}" عبر الواتساب...`);
+            }
+            const phone = p.merchantOffers?.[0]?.url || '01000000000';
+            let cleanPhone = phone.replace(/[^0-9]/g, '');
+            if (cleanPhone.startsWith('01') && cleanPhone.length === 11) {
+              cleanPhone = '2' + cleanPhone;
+            }
+            const msg = `السلام عليكم ورحمة الله وبركاته،\nأمر توريد عاجل لصنف: ${p.title} (SKU: ${p.sku})\nالكمية المطلوبة: ${qty} قطعة.\nنرجو التأكيد وموعد التسليم بمستودع القاهرة.`;
+            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+          }}
+        />
       )}
 
     </div>

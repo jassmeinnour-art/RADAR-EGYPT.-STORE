@@ -265,6 +265,37 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId"]
+    },
+    "PriceHistoryEntry": {
+      "title": "PriceHistoryEntry",
+      "description": "Historical price point for a product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "price": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "productId", "price", "timestamp"]
+    },
+    "MerchantTask": {
+      "title": "MerchantTask",
+      "description": "Merchant daily tasks, alerts, and recurring schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 250 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "isImportant": { "type": "boolean" },
+        "isCompleted": { "type": "boolean" },
+        "isRecurring": { "type": "boolean" },
+        "recurrenceRule": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "dueDate", "createdAt"]
     }
   },
   "firestore": {
@@ -308,6 +339,10 @@
       "schema": "MerchantProduct",
       "description": "Merchant customized and scanned product catalog"
     },
+    "/users/{userId}/products/{productId}/priceHistory/{entryId}": {
+      "schema": "PriceHistoryEntry",
+      "description": "Historical price tracking for merchant products"
+    },
     "/users/{userId}/watchlist/{itemId}": {
       "schema": "WatchlistDocument",
       "description": "Merchant watchlist items"
@@ -331,6 +366,10 @@
     "/users/{userId}/whatsapp_settings/{settingsId}": {
       "schema": "WhatsAppSettings",
       "description": "User WhatsApp configuration for alerts"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "MerchantTask",
+      "description": "Merchant tasks, alerts, and schedules"
     }
   }
 }
