@@ -92,20 +92,82 @@ function detectDeviceInfo(): DeviceBrowserInfo {
   };
 }
 
+/**
+ * Intelligent detection of PWA standalone installed mode
+ * Checks display-mode: standalone/fullscreen, navigator.standalone (iOS Safari),
+ * android-app:// referrer, and persistent installed state.
+ */
+export function checkIsStandaloneMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const isStandaloneMedia = Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    const isFullscreenMedia = Boolean(window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches);
+    const isMinimalUiMedia = Boolean(window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches);
+    const isNavigatorStandalone = Boolean((window.navigator as unknown as { standalone?: boolean })?.standalone === true);
+    const isAndroidReferrer = Boolean(typeof document !== 'undefined' && document.referrer && document.referrer.includes('android-app://'));
+    const isUrlSourcePwa = Boolean(window.location && (window.location.search.includes('source=pwa') || window.location.search.includes('mode=standalone')));
+    const isStoredInstalled = Boolean(localStorage.getItem('pwa_is_installed_mode') === 'true');
+
+    return (
+      isStandaloneMedia ||
+      isFullscreenMedia ||
+      isMinimalUiMedia ||
+      isNavigatorStandalone ||
+      isAndroidReferrer ||
+      isUrlSourcePwa ||
+      isStoredInstalled
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => checkIsStandaloneMode());
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
+    return checkIsStandaloneMode() ? null : globalDeferredPrompt;
+  });
   const [deviceInfo, setDeviceInfo] = useState<DeviceBrowserInfo>(detectDeviceInfo());
   const [isInIframe, setIsInIframe] = useState(false);
   const [isMobilePromptDismissed, setIsMobilePromptDismissed] = useState(false);
 
   useEffect(() => {
-    // Detect standalone mode (already running installed as PWA)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      document.referrer.includes('android-app://');
-    setIsInstalled(isStandalone);
+    // Re-verify standalone mode (already running installed as PWA on phone/desktop)
+    const standaloneActive = checkIsStandaloneMode();
+    if (standaloneActive) {
+      setIsInstalled(true);
+      try {
+        localStorage.setItem('pwa_is_installed_mode', 'true');
+      } catch {
+        // safe fallback
+      }
+    } else {
+      setIsInstalled(false);
+    }
+
+    // Media query listener for real-time display-mode transitions
+    let mediaQuery: MediaQueryList | null = null;
+    let handleMediaChange: ((e: MediaQueryListEvent) => void) | null = null;
+    try {
+      if (window.matchMedia) {
+        mediaQuery = window.matchMedia('(display-mode: standalone)');
+        handleMediaChange = (e: MediaQueryListEvent) => {
+          if (e.matches) {
+            setIsInstalled(true);
+            try {
+              localStorage.setItem('pwa_is_installed_mode', 'true');
+            } catch {
+              // ignore
+            }
+          }
+        };
+        if (mediaQuery.addEventListener) {
+          mediaQuery.addEventListener('change', handleMediaChange);
+        }
+      }
+    } catch {
+      // safe fallback
+    }
 
     // Re-detect device info with actual screen size
     const info = detectDeviceInfo();
@@ -123,14 +185,19 @@ export function usePWAInstall() {
       // ignore storage errors
     }
 
-    // Sync with global prompt
-    if (globalDeferredPrompt && !deferredPrompt) {
+    // Sync with global prompt only if not installed
+    if (!standaloneActive && globalDeferredPrompt && !deferredPrompt) {
       setDeferredPrompt(globalDeferredPrompt);
     }
 
     const listener = (prompt: BeforeInstallPromptEvent | null) => {
+      if (checkIsStandaloneMode()) {
+        setIsInstalled(true);
+        setDeferredPrompt(null);
+        return;
+      }
       setDeferredPrompt(prompt);
-      if (!prompt && (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as unknown as { standalone?: boolean }).standalone === true)) {
+      if (!prompt && checkIsStandaloneMode()) {
         setIsInstalled(true);
       }
     };
@@ -138,6 +205,9 @@ export function usePWAInstall() {
     promptListeners.add(listener);
 
     const handleBeforeInstallPrompt = (e: Event) => {
+      if (checkIsStandaloneMode()) {
+        return;
+      }
       e.preventDefault();
       globalDeferredPrompt = e as BeforeInstallPromptEvent;
       setDeferredPrompt(globalDeferredPrompt);
@@ -145,6 +215,11 @@ export function usePWAInstall() {
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
+      try {
+        localStorage.setItem('pwa_is_installed_mode', 'true');
+      } catch {
+        // ignore
+      }
       globalDeferredPrompt = null;
       setDeferredPrompt(null);
     };
@@ -156,6 +231,9 @@ export function usePWAInstall() {
       promptListeners.delete(listener);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      if (mediaQuery && handleMediaChange && mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleMediaChange);
+      }
     };
   }, [deferredPrompt]);
 
@@ -230,7 +308,7 @@ export function usePWAInstall() {
   };
 
   return {
-    isInstallable: Boolean(deferredPrompt || globalDeferredPrompt),
+    isInstallable: isInstalled ? false : Boolean(deferredPrompt || globalDeferredPrompt),
     isInstalled,
     isIOS: deviceInfo.isIOS,
     isAndroid: deviceInfo.isAndroid,

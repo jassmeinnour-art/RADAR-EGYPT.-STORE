@@ -50,9 +50,31 @@ button[class*="bg-indigo-"] {
 }
 
 /* ==========================================================================
-   GLOBAL UTILITIES
+   GLOBAL UTILITIES & MOBILE RESPONSIVENESS
    ========================================================================== */
-html { font-family: 'Cairo', sans-serif; }
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  font-family: 'Cairo', sans-serif;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 [dir="rtl"] { text-align: right; }
 img, svg { max-width: 100%; height: auto; }
 

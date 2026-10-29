@@ -1282,6 +1282,34 @@ Generate 10 to 14 high-ranking keywords covering easy-to-rank golden opportuniti
   }
 });
 
+// Endpoint: AI Product Auto-Tagging
+app.post('/api/generate-tags', async (req, res) => {
+  try {
+    const { title, description } = req.body;
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Title is required' });
+    }
+
+    const prompt = `Analyze this product and suggest relevant tags for an Egyptian E-commerce platform.
+    Product Title: ${title}
+    Description: ${description || 'No description provided'}
+    
+    Return ONLY a JSON array of tag labels (Arabic strings). Keep it concise.
+    Example: ["إلكترونيات", "عرض خاص", "أجهزة منزلية"]`;
+
+    const response = await generateWithGeminiFallback({
+      contents: [{ parts: [{ text: prompt }] }],
+      responseMimeType: 'application/json',
+      temperature: 0.3,
+    });
+
+    res.json({ success: true, tags: JSON.parse(response.text) });
+  } catch (error) {
+    console.error('Error in /api/generate-tags:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate tags' });
+  }
+});
+
 // Endpoint 3: 1-Click Multi-Platform Publish & Sync
 app.post('/api/publish-to-platforms', async (req, res) => {
   try {

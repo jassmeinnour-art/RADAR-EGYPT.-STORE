@@ -30,7 +30,9 @@ import {
   Lock,
   Crown,
   Tag,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Pin,
+  PinOff
 } from 'lucide-react';
 import { 
   MerchantCatalogProduct, 
@@ -59,6 +61,7 @@ import {
   executeAutomatedRepricingForMerchant,
   ensureDefaultRepricingRule
 } from '../utils/merchantCatalogManager';
+import { generateAiTags } from '../utils/aiTagGenerator';
 import { loadAllRegisteredMerchants, evaluateMerchantSubscriptionState } from '../utils/platformLaunchHelper';
 import { ExportReportsButton } from './ExportReportsButton';
 import { exportMerchantCatalogPricesToSpreadsheet } from '../utils/competitorPriceExport';
@@ -106,8 +109,57 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   onShowToast
 }) => {
   const [allMerchants, setAllMerchants] = useState<RemoteMerchantClient[]>(() => loadAllRegisteredMerchants());
+  
+  // Pinned / Favorite Merchants State (stored in localStorage)
+  const [pinnedMerchantIds, setPinnedMerchantIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('merchant_radar_pinned_merchant_ids');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['merchant-step-queen'];
+  });
+
+  const handleTogglePinMerchant = (merchantId: string) => {
+    setPinnedMerchantIds(prev => {
+      const exists = prev.includes(merchantId);
+      const updated = exists ? prev.filter(id => id !== merchantId) : [merchantId, ...prev];
+      try {
+        localStorage.setItem('merchant_radar_pinned_merchant_ids', JSON.stringify(updated));
+      } catch {}
+      if (onShowToast) {
+        const targetStore = allMerchants.find(m => m.id === merchantId)?.storeName || 'المتجر';
+        onShowToast(
+          exists
+            ? `📌 تم إلغاء تثبيت التاجر "${targetStore}" من أعلى القائمة`
+            : `⭐📌 تم تجميد وتثبيت التاجر المفضل "${targetStore}" في أعلى الجدول والقائمة لتسهيل الوصول الدائم!`
+        );
+      }
+      return updated;
+    });
+  };
+
+  const sortedMerchants = useMemo(() => {
+    return [...allMerchants].sort((a, b) => {
+      const aPinned = pinnedMerchantIds.includes(a.id);
+      const bPinned = pinnedMerchantIds.includes(b.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
+  }, [allMerchants, pinnedMerchantIds]);
+
   const [activeMerchantId, setActiveMerchantId] = useState<string>(() => {
-    return selectedMerchant?.id || allMerchants[0]?.id || 'merchant-step-queen';
+    if (selectedMerchant?.id) return selectedMerchant.id;
+    try {
+      const savedPinned = localStorage.getItem('merchant_radar_pinned_merchant_ids');
+      if (savedPinned) {
+        const list: string[] = JSON.parse(savedPinned);
+        if (list.length > 0 && allMerchants.some(m => m.id === list[0])) {
+          return list[0];
+        }
+      }
+    } catch {}
+    return allMerchants[0]?.id || 'merchant-step-queen';
   });
 
   // When prop selectedMerchant changes, update local state
@@ -125,6 +177,46 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [products, setProducts] = useState<MerchantCatalogProduct[]>(() => {
     return loadMerchantCatalog(activeMerchantId);
   });
+
+  // Pinned Rows in Catalog Table (Stored in localStorage per merchant)
+  const [pinnedProductIds, setPinnedProductIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`merchant_catalog_pinned_rows_${activeMerchantId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Re-sync pinned products when switching merchant
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`merchant_catalog_pinned_rows_${activeMerchantId}`);
+      setPinnedProductIds(saved ? JSON.parse(saved) : []);
+    } catch {
+      setPinnedProductIds([]);
+    }
+  }, [activeMerchantId]);
+
+  const handleTogglePinProduct = (productId: string) => {
+    setPinnedProductIds(prev => {
+      const exists = prev.includes(productId);
+      const updated = exists ? prev.filter(id => id !== productId) : [productId, ...prev];
+      try {
+        localStorage.setItem(`merchant_catalog_pinned_rows_${activeMerchantId}`, JSON.stringify(updated));
+      } catch {}
+      if (onShowToast) {
+        const targetProd = products.find(p => p.id === productId);
+        const label = targetProd ? targetProd.sku : 'الصف';
+        onShowToast(
+          exists
+            ? `📌 تم إلغاء تجميد الصف "${label}" من أعلى الجدول`
+            : `📌 تم تجميد وتثبيت صف "${label}" في أعلى الجدول بنجاح لتسهيل الوصول إليه دائماً!`
+        );
+      }
+      return updated;
+    });
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
@@ -230,6 +322,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | MerchantCatalogPricingStatus>('all');
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [tagCustomInput, setTagCustomInput] = useState<string>('');
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'gap_desc' | 'gap_asc' | 'price_desc' | 'price_asc' | 'stock'>('gap_desc');
 
   // Modals State
@@ -606,12 +699,15 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   };
 
   // Add Product Submit
-  const handleAddNewProduct = (e: React.FormEvent) => {
+  const handleAddNewProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newSku.trim() || !activeMerchantId) {
       if (onShowToast) onShowToast('⚠️ يرجى ملء اسم المنتج وكود الـ SKU');
       return;
     }
+
+    // Generate AI tags
+    const aiTags = await generateAiTags(newTitle, '');
 
     const lowestComp = Math.round(newPrice * 0.95);
     const buyBox = Math.round(newPrice * 0.97);
@@ -659,6 +755,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
     const newProd: MerchantCatalogProduct = {
       ...(tempProd as any),
+      tags: aiTags,
       repricingRule: {
         ...ensureDefaultRepricingRule(tempProd as any).repricingRule!,
         enabled: true
@@ -684,7 +781,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     setNewImageUrl('');
 
     if (onShowToast) {
-      onShowToast(`🎉 تم إضافة المنتج "${newProd.sku}" إلى كتالوج "${currentMerchant?.storeName}" بنجاح!`);
+      onShowToast(`🎉 تم إضافة المنتج "${newProd.sku}" مع تصنيفات ذكية بنجاح!`);
     }
   };
 
@@ -748,8 +845,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         if (!inTitle && !inSku && !inAsin && !inBrand && !inCompetitor && !inPlatform && !inPlatformName) return false;
       }
 
+      // Pinned only toggle filter
+      if (showPinnedOnly && !pinnedProductIds.includes(p.id)) return false;
+
       return true;
     }).sort((a, b) => {
+      // 1. Pinned rows are ALWAYS frozen and stay at the very top of the table
+      const aPinned = pinnedProductIds.includes(a.id);
+      const bPinned = pinnedProductIds.includes(b.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
+      // 2. Regular user-selected sorting criteria
       if (sortBy === 'gap_desc') return b.priceGapPercent - a.priceGapPercent;
       if (sortBy === 'gap_asc') return a.priceGapPercent - b.priceGapPercent;
       if (sortBy === 'price_desc') return b.merchantPrice - a.merchantPrice;
@@ -757,7 +864,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (sortBy === 'stock') return b.stockQuantity - a.stockQuantity;
       return 0;
     });
-  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, searchQuery, sortBy, currentMerchant?.dataMode]);
+  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, searchQuery, sortBy, pinnedProductIds, showPinnedOnly, currentMerchant?.dataMode]);
 
   // Catalog Summary KPIs
   const summary = useMemo(() => calculateCatalogSummary(products), [products]);
@@ -844,7 +951,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             </p>
           </div>
 
-          {/* Active Merchant Selector and Key Config */}
+          {/* Active Merchant Selector, Pin Favorite, and Key Config */}
           <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full lg:w-auto">
             <div className="flex items-center gap-2">
               <Store className="w-4 h-4 text-sky-400 shrink-0" />
@@ -855,14 +962,38 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                   onChange={(e) => setActiveMerchantId(e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-white rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer focus:border-indigo-500"
                 >
-                  {allMerchants.map(m => (
-                    <option key={m.id} value={m.id}>
-                      🏬 {m.storeName} ({m.city || 'مصر'})
-                    </option>
-                  ))}
+                  {sortedMerchants.map(m => {
+                    const isPinned = pinnedMerchantIds.includes(m.id);
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {isPinned ? '📌 ⭐ ' : '🏬 '}{m.storeName} ({m.city || 'مصر'}){isPinned ? ' [المفضل مثبت]' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
+
+            {/* Pin Active Merchant as Favorite Button */}
+            <button
+              type="button"
+              onClick={() => handleTogglePinMerchant(activeMerchantId)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0 ${
+                pinnedMerchantIds.includes(activeMerchantId)
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow-md ring-2 ring-amber-400/30'
+                  : 'bg-slate-900/80 hover:bg-slate-800 text-amber-300 border-slate-700 hover:border-amber-500/50'
+              }`}
+              title={
+                pinnedMerchantIds.includes(activeMerchantId)
+                  ? 'إلغاء تثبيت هذا التاجر المفضل'
+                  : 'تجميد وتثبيت هذا التاجر كتاجر مفضل في أعلى القائمة والجدول 📌'
+              }
+            >
+              <Pin className={`w-3.5 h-3.5 ${pinnedMerchantIds.includes(activeMerchantId) ? 'fill-current rotate-45 text-slate-950' : ''}`} />
+              <span className="whitespace-nowrap">
+                {pinnedMerchantIds.includes(activeMerchantId) ? 'المفضل مثبت ⭐' : 'تثبيت التاجر 📌'}
+              </span>
+            </button>
 
             {onOpenManageApisModal && (
               <button
@@ -878,6 +1009,48 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
           </div>
 
         </div>
+
+        {/* Quick Pinned Merchants Ribbon (تجميد والوصول الفوري للتجار المفضلين) */}
+        {pinnedMerchantIds.length > 0 && (
+          <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5">
+                <Pin className="w-3.5 h-3.5 fill-current rotate-45 text-amber-400" />
+                <span>التجار المفضلون المثبتون في الأعلى:</span>
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {sortedMerchants.filter(m => pinnedMerchantIds.includes(m.id)).map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setActiveMerchantId(m.id)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 border ${
+                      activeMerchantId === m.id
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md ring-2 ring-amber-300/40'
+                        : 'bg-slate-900/90 text-slate-200 border-slate-700 hover:bg-slate-800 hover:border-amber-500/40'
+                    }`}
+                    title={`التبديل إلى كتالوج متجر "${m.storeName}"`}
+                  >
+                    <span>⭐ {m.storeName}</span>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTogglePinMerchant(m.id);
+                      }}
+                      title="إلغاء تثبيت هذا التاجر"
+                      className="text-slate-400 hover:text-rose-400 text-xs px-0.5"
+                    >
+                      ×
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono">
+              ({pinnedMerchantIds.length} تاجر مثبت بالأعلى)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* KPI Overview Cards with Drag & Drop Reordering */}
@@ -1383,7 +1556,24 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 </select>
               </div>
 
-              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || tagFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '') && (
+              {/* Show Pinned Only Filter Button */}
+              {pinnedProductIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPinnedOnly(prev => !prev)}
+                  className={`h-8 px-3 rounded-xl border text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                    showPinnedOnly
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm ring-2 ring-amber-300/40'
+                      : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                  }`}
+                  title={showPinnedOnly ? 'إلغاء التصفية وعرض كافة المنتجات' : 'عرض الصفوف والمنتجات المثبتة في الأعلى فقط'}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${showPinnedOnly ? 'fill-current rotate-45 text-slate-950' : 'text-amber-700'}`} />
+                  <span>المثبت فقط ({pinnedProductIds.length})</span>
+                </button>
+              )}
+
+              {(platformFilter !== 'all' || syncStatusFilter !== 'all' || priceTierFilter !== 'all' || tagFilter !== 'all' || minPriceFilter !== '' || maxPriceFilter !== '' || statusFilter !== 'all' || searchQuery !== '' || showPinnedOnly) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1395,6 +1585,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                     setMaxPriceFilter('');
                     setStatusFilter('all');
                     setSearchQuery('');
+                    setShowPinnedOnly(false);
                   }}
                   className="h-8 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer"
                 >
@@ -1549,6 +1740,12 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-mono font-bold">
                   {filteredProducts.length} منتج
                 </span>
+                {pinnedProductIds.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-black flex items-center gap-1 shadow-xs">
+                    <Pin className="w-3 h-3 fill-current rotate-45" />
+                    <span>{pinnedProductIds.length} صفوف مجمدة بالأعلى 📌</span>
+                  </span>
+                )}
                 {currentMerchant && (
                   <span className="text-xs text-slate-500 font-bold hidden sm:inline">
                     • متجر: {currentMerchant.storeName}
@@ -1556,7 +1753,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                مراقبة حية لأسعار أمازون ونون، رصد الـ Buy Box، وهوامش فارق السعر التنافسي
+                مراقبة حية لأسعار أمازون ونون، رصد الـ Buy Box، وهوامش فارق السعر التنافسي مع إمكانية تثبيت الصفوف المفضلة في الأعلى دائماً
               </p>
             </div>
           </div>
@@ -1594,6 +1791,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             <table className="w-full text-right text-xs">
               <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-200 font-bold text-[11px]">
                 <tr>
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">تثبيت 📌</th>
                   <th className="py-3.5 px-4">المنتج والتصنيف</th>
                   <th className="py-3.5 px-3">المنصة</th>
                   <th className="py-3.5 px-3">معرفات (SKU / ASIN)</th>
@@ -1605,7 +1803,6 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                   <th className="py-3.5 px-3">المخزون والشحن</th>
                   <th className="py-3.5 px-3">حالة السعر</th>
                   <th className="py-3.5 px-3">آخر تحديث</th>
-                  <th className="py-3.5 px-3">آخر تحديث</th>
                   <th className="py-3.5 px-4 text-center">إجراءات سريعة</th>
                 </tr>
               </thead>
@@ -1613,14 +1810,34 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 {filteredProducts.map((prod) => {
                   const isHigher = prod.priceGapAmount > 0;
                   const isWinning = prod.isBuyBoxWinner;
+                  const isPinned = pinnedProductIds.includes(prod.id);
 
                   return (
                     <tr key={prod.id} className={`hover:bg-slate-50/70 transition-colors ${
-                      (prod.stockQuantity ?? 0) <= (prod.lowStockThreshold ?? 5) 
-                        ? 'bg-amber-50/30 border-r-4 border-r-amber-500' 
-                        : ''
+                      isPinned
+                        ? 'bg-amber-50/80 border-r-4 border-r-amber-500 shadow-xs'
+                        : (prod.stockQuantity ?? 0) <= (prod.lowStockThreshold ?? 5) 
+                          ? 'bg-amber-50/30 border-r-4 border-r-amber-500' 
+                          : ''
                     }`}>
                       
+                      {/* Pin Column */}
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePinProduct(prod.id)}
+                          className={`p-1.5 sm:p-2 rounded-xl transition cursor-pointer inline-flex items-center justify-center ${
+                            isPinned
+                              ? 'bg-amber-500 text-slate-950 font-black shadow-md hover:bg-amber-400 ring-2 ring-amber-300'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 border border-slate-200/60'
+                          }`}
+                          title={isPinned ? 'إلغاء تجميد وتثبيت الصف من أعلى الجدول' : 'تجميد هذا الصف وتثبيته في أعلى الجدول دائماً 📌'}
+                          aria-label={isPinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى'}
+                        >
+                          <Pin className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isPinned ? 'fill-current rotate-45 text-slate-950' : ''}`} />
+                        </button>
+                      </td>
+
                       {/* Product Info */}
                       <td className="py-3.5 px-4 min-w-[240px]">
                         <div className="flex items-center gap-3">
@@ -1633,9 +1850,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                             }}
                           />
                           <div className="min-w-0 space-y-0.5">
-                            <h4 className="font-bold text-slate-900 line-clamp-1 text-xs" title={prod.title}>
-                              <HighlightedText text={prod.title} highlight={searchQuery} />
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {isPinned && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black shrink-0">
+                                  <Pin className="w-2.5 h-2.5 fill-current rotate-45" />
+                                  <span>مثبت بالأعلى 📌</span>
+                                </span>
+                              )}
+                              <h4 className="font-bold text-slate-900 line-clamp-1 text-xs" title={prod.title}>
+                                <HighlightedText text={prod.title} highlight={searchQuery} />
+                              </h4>
+                            </div>
                             <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-slate-600">{prod.brand}</span>
                               <span>·</span>
@@ -1928,6 +2153,21 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                               <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                           )}
+
+                          {/* Quick Pin Toggle in Actions Column */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePinProduct(prod.id)}
+                            className={`p-1.5 rounded-lg transition cursor-pointer border ${
+                              isPinned
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                                : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 border-slate-200'
+                            }`}
+                            title={isPinned ? 'إلغاء تجميد وتثبيت الصف' : 'تجميد هذا الصف وتثبيته في أعلى الجدول 📌'}
+                            aria-label={isPinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى'}
+                          >
+                            <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current rotate-45 text-amber-800' : ''}`} />
+                          </button>
 
                         </div>
                       </td>

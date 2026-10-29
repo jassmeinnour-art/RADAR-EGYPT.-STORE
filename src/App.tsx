@@ -69,6 +69,7 @@ import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
+import { useAppUpdate } from './hooks/useAppUpdate';
 import { CURRENT_APP_VERSION, APP_VERSION_STORAGE_KEY } from './pwaRegister';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
 
@@ -240,17 +241,24 @@ export default function App() {
   // Subscription & 3-day Grace Period Hook
   const subscriptionState = useSubscription(profile);
 
-  // PWA & Installation Hook
-  const { isInstallable, install: triggerPWAInstall } = usePWAInstall();
+  // PWA & Installation Hook (Strictly suppresses install prompts when running in standalone mode)
+  const { isInstallable, isInstalled, install: triggerPWAInstall } = usePWAInstall();
+  const { hasUpdate, applyUpdate, isUpdating, serverVersion } = useAppUpdate(showToast);
   const [showInstallBar, setShowInstallBar] = useState<boolean>(false);
 
   useEffect(() => {
+    if (isInstalled) {
+      setShowInstallBar(false);
+      return;
+    }
     const timer = setTimeout(() => {
-      setShowInstallBar(true);
+      if (!isInstalled) {
+        setShowInstallBar(true);
+      }
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isInstalled]);
 
   const handleInstallPwa = async () => {
     if (isInstallable) {
@@ -424,7 +432,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20" dir="rtl">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 w-full max-w-full overflow-x-hidden" dir="rtl">
       
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
@@ -437,13 +445,13 @@ export default function App() {
         </div>
       )}
 
-      {/* PWA Installation Bar */}
-      {showInstallBar && (
-        <div className="bg-slate-900 border-b border-amber-600/30 px-4 py-2 sticky top-0 z-50 backdrop-blur-md">
-          <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* PWA Installation Bar - STRICTLY hidden when already installed in standalone mode */}
+      {showInstallBar && !isInstalled && (
+        <div className="bg-slate-900 border-b border-amber-600/30 px-3 sm:px-4 py-2 sticky top-0 z-50 backdrop-blur-md w-full max-w-full overflow-x-hidden">
+          <div className="w-full max-w-full px-2 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-300 font-bold font-mono">PWA</span>
-              <span className="text-slate-300 font-medium">رادار التاجر متاح للتثبيت كبرنامج مكتبي وتطبيق أندرويد متكامل:</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-300 font-bold font-mono text-[10px] sm:text-xs">PWA</span>
+              <span className="text-slate-300 font-medium text-[11px] sm:text-xs">رادار التاجر متاح للتثبيت كبرنامج مكتبي وتطبيق أندرويد متكامل:</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button 
@@ -502,17 +510,17 @@ export default function App() {
       </div>
 
       {/* Top Header Navigation */}
-      <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-3 flex flex-wrap items-center justify-between gap-3">
+      <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40 w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
           
           {/* Brand Logo & Bayyaa Hub */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div 
               onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
-              className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition"
+              className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition shrink-0"
               title="رادار التاجر الذكي - منصة بياع"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20 shrink-0">
                 <img 
                   src={headerBrandLogo} 
                   alt="رادار التاجر - بياع" 
@@ -530,10 +538,10 @@ export default function App() {
               </div>
               <div className="flex flex-col text-right">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-base font-black text-white font-['Alexandria']">رادار التاجر</span>
+                  <span className="text-sm sm:text-base font-black text-white font-['Alexandria']">رادار التاجر</span>
                   <span className="text-[9px] font-black bg-amber-700 text-white px-1.5 py-0.2 rounded-md">بياع EG</span>
                 </div>
-                <span className="text-[10px] text-amber-300 font-mono font-bold">RADAR EGYPT v54</span>
+                <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono font-bold">RADAR EGYPT v54</span>
               </div>
             </div>
 
@@ -541,7 +549,7 @@ export default function App() {
             {isOwner && (
               <button
                 onClick={() => setShowOwnerDashboard((prev) => !prev)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-md ${
+                className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-md shrink-0 ${
                   showOwnerDashboard 
                     ? 'bg-amber-600 text-white border-amber-500' 
                     : 'bg-amber-600/10 text-amber-300 border-amber-600/30 hover:bg-amber-600/20'
@@ -549,13 +557,13 @@ export default function App() {
                 title="لوحة تحكم المالكة العليا (Super Admin) - اختصار: O"
               >
                 <Crown className="w-3.5 h-3.5 text-amber-300" />
-                <span>Super Admin</span>
+                <span className="hidden sm:inline">Super Admin</span>
               </button>
             )}
           </div>
 
           {/* Quick Header Actions */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
             {/* Master Merchant Management & Fast Registration Button (Manual Form No CSV) */}
             <ToolbarTooltip
               title="إدارة بيانات التجار (يدوياً)"
@@ -567,10 +575,11 @@ export default function App() {
                   setMerchantsHubInitialTab('manual_form');
                   setIsAllMerchantsHubOpen(true);
                 }}
-                className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Building2 className="w-4 h-4 text-white shrink-0" />
-                <span>🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
+                <span className="hidden sm:inline">🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
+                <span className="sm:hidden">إضافة تاجر ➕</span>
               </button>
             </ToolbarTooltip>
 
@@ -585,7 +594,7 @@ export default function App() {
                   setMerchantsHubInitialTab('directory');
                   setIsAllMerchantsHubOpen(true);
                 }}
-                className="px-3.5 py-2.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-white border border-emerald-500/30 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                className="px-3 sm:px-3.5 py-2 sm:py-2.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-white border border-emerald-500/30 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1.5 sm:gap-2 shadow-sm cursor-pointer whitespace-nowrap"
               >
                 <Store className="w-4 h-4 text-emerald-300 shrink-0" />
                 <span>دليل التجار</span>
@@ -597,11 +606,12 @@ export default function App() {
               type="button"
               id="btn-header-visual-customizer-app"
               onClick={toggleCustomizer}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
               title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
             >
-              <Palette className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>🎨 تنسيق الواجهة</span>
+              <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">🎨 تنسيق الواجهة</span>
+              <span className="sm:hidden">🎨 تنسيق</span>
             </button>
 
             {/* Watchlist & Price Alerts Web Notifications Center Button */}
@@ -609,13 +619,14 @@ export default function App() {
               type="button"
               id="btn-header-watchlist-notifications"
               onClick={() => setIsWatchlistNotifModalOpen(true)}
-              className="relative px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              className="relative px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
               title="مركز تنبيهات الأسعار الفورية (Web Notifications API)"
             >
-              <Bell className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>تنبيهات الأسعار 🔔</span>
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">تنبيهات الأسعار 🔔</span>
+              <span className="sm:hidden">التنبيهات 🔔</span>
               {watchlistCount > 0 && (
-                <span className="w-5 h-5 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[10px] font-black">
+                <span className="w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-black">
                   {watchlistCount}
                 </span>
               )}
@@ -623,32 +634,36 @@ export default function App() {
 
             <button
               onClick={() => setIsFocusMode(!isFocusMode)}
-              className={`p-2 rounded-xl border text-xs font-bold transition flex items-center gap-2 ${
+              className={`p-1.5 sm:p-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
                 isFocusMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
               }`}
               title={isFocusMode ? 'إلغاء وضع التركيز' : 'تفعيل وضع التركيز'}
             >
-              {isFocusMode ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 shrink-0" />}
+              {isFocusMode ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
             </button>
 
             <ThemeToggle variant="pill" />
             <LanguageToggle />
             <CloudSyncStatusWidget onShowToast={showToast} />
 
-            {/* Force Refresh & Clear Cache Button */}
-            <button
-              type="button"
-              onClick={handleForceRefreshAndClearCache}
-              className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/40 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
-              title="مسح الذاكرة المؤقتة وجلب أحدث إصدار وتحديثات التطبيق والمزايا فوراً"
-            >
-              <RefreshCw className="w-4 h-4 shrink-0" />
-              <span>تحديث التطبيق والمزايا 🔄</span>
-            </button>
+            {/* Smart Update Button: STRICTLY hidden by default, ONLY rendered if hasUpdate === true */}
+            {hasUpdate && (
+              <button
+                type="button"
+                id="btn-header-smart-update"
+                onClick={applyUpdate}
+                disabled={isUpdating}
+                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/50 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer whitespace-nowrap animate-pulse"
+                title={`تم الكشف عن إصدار جديد (v${serverVersion || 'أحدث'}) - انقر لتحديث الأكواد`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isUpdating ? 'animate-spin' : ''}`} />
+                <span>{isUpdating ? 'جاري التحديث...' : `تحديث متوفر (v${serverVersion}) ⚡`}</span>
+              </button>
+            )}
 
             <button
               onClick={handleSignOut}
-              className="px-3.5 py-2 bg-red-950/60 hover:bg-red-900 text-red-200 border border-red-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2"
+              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-red-950/60 hover:bg-red-900 text-red-200 border border-red-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             >
               <span>تسجيل الخروج</span>
             </button>
@@ -1126,11 +1141,11 @@ export default function App() {
       {/* Visual Customizer Modal */}
       <VisualCustomizerModal />
 
-      {/* Mobile Floating PWA Installation Prompt & Bottom Dock */}
-      <MobilePWAInstallPrompt onShowToast={showToast} />
+      {/* Mobile Floating PWA Installation Prompt & Bottom Dock - Strictly hidden when already installed in standalone mode */}
+      {!isInstalled && <MobilePWAInstallPrompt onShowToast={showToast} />}
 
-      {/* Multi-Platform PWA Installation & Certificate Modal */}
-      <PlatformInstallMatrixModal onShowToast={showToast} />
+      {/* Multi-Platform PWA Installation & Certificate Modal - Strictly hidden when already installed */}
+      {!isInstalled && <PlatformInstallMatrixModal onShowToast={showToast} />}
 
       {/* Collapsible Navigation Sidebar */}
       <AppSidebar
@@ -1145,7 +1160,7 @@ export default function App() {
         onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
         onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
         onOpenOnboarding={() => setShowOnboarding(true)}
-        onForceRefresh={handleForceRefreshAndClearCache}
+        onForceRefresh={hasUpdate ? applyUpdate : undefined}
         isOwner={isOwner}
         trialDaysRemaining={subscriptionState.trialRemainingTime?.days ?? 3}
       />

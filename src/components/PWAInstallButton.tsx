@@ -72,12 +72,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   };
 
 
-  // If already installed, we still keep the button accessible for re-install, multi-device, and certificate download
-  const isInstalledBadge = isInstalled ? (
-    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-1.5 py-0.2 rounded font-mono">
-      مثبت ✓
-    </span>
-  ) : null;
+  // If already installed or running in standalone PWA mode, completely hide all install buttons
+  if (isInstalled) {
+    return null;
+  }
 
   return (
     <>
