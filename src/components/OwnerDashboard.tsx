@@ -29,6 +29,7 @@ import {
   Check,
   Package
 } from 'lucide-react';
+import { OpportunityRadar } from './OpportunityRadar';
 import { SalesTrendsWidget } from './SalesTrendsWidget';
 import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
@@ -149,7 +150,7 @@ export default function OwnerDashboard() {
   const [activeTab, setActiveTab] = useState<'merchants' | 'subscriptions' | 'reports'>('merchants');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingMerchant, setEditingMerchant] = useState<MerchantRecord | null>(null);
-  const [widgetOrder, setWidgetOrder] = useState(['merchants', 'subscriptions', 'reports', 'sales']);
+  const [widgetOrder, setWidgetOrder] = useState(['radar', 'merchants', 'subscriptions', 'reports', 'sales']);
 
   // Inline Form State
   const [storeName, setStoreName] = useState('');
@@ -314,6 +315,8 @@ export default function OwnerDashboard() {
 
   const renderWidget = (id: string) => {
     switch (id) {
+      case 'radar':
+        return <OpportunityRadar />;
       case 'merchants':
         return (
           <button

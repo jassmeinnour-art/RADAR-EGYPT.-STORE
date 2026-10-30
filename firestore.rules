@@ -285,6 +285,13 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isValidId(itemId);
         allow update: if isOwner(userId);
       }
+      
+      // Sub-collection: Opportunities (رادار الفرص)
+      match /opportunities/{opportunityId} {
+        allow get, list: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
     }
 
     // Top-level User Activity & System Audit Logs

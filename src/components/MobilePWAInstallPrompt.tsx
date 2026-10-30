@@ -48,7 +48,8 @@ export const MobilePWAInstallPrompt: React.FC<MobilePWAInstallPromptProps> = ({ 
   const [selectedTab, setSelectedTab] = useState<MobileBrowserType>(browser === 'safari' ? 'safari' : 'chrome');
 
   // Don't display if already installed
-  if (isInstalled) return null;
+  const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
+  if (isInstalled || isStandalone) return null;
 
   const handleApkDownload = () => {
     downloadApkDirectly();

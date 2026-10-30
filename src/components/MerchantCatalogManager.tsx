@@ -32,7 +32,10 @@ import {
   Tag,
   Image as ImageIcon,
   Pin,
-  PinOff
+  PinOff,
+  Download,
+  FileSpreadsheet,
+  FileJson
 } from 'lucide-react';
 import { 
   MerchantCatalogProduct, 
@@ -48,6 +51,14 @@ import {
   ProductAutoTag
 } from '../utils/productAutoTagger';
 import { StockForecastModal } from './StockForecastModal';
+import { 
+  MerchantAdvancedFilterPanel, 
+  MerchantPlatformStatusFilter, 
+  MerchantProductCountFilter, 
+  MerchantLastSyncFilter, 
+  MerchantMetadataStats 
+} from './MerchantAdvancedFilterPanel';
+import { MerchantProductDistributionChart } from './MerchantProductDistributionChart';
 import {
   loadMerchantCatalog,
   saveMerchantCatalog,
@@ -181,6 +192,228 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const currentMerchant = useMemo(() => {
     return allMerchants.find(m => m.id === activeMerchantId) || selectedMerchant || allMerchants[0];
   }, [allMerchants, activeMerchantId, selectedMerchant]);
+
+  // Advanced Merchant Filtering State (حالة المنصة، عدد المنتجات، توقيت آخر مزامنة)
+  const [merchantPlatformStatusFilter, setMerchantPlatformStatusFilter] = useState<MerchantPlatformStatusFilter>('all');
+  const [merchantProductCountFilter, setMerchantProductCountFilter] = useState<MerchantProductCountFilter>('all');
+  const [merchantLastSyncFilter, setMerchantLastSyncFilter] = useState<MerchantLastSyncFilter>('all');
+  const [merchantSearchQuery, setMerchantSearchQuery] = useState<string>('');
+  const [merchantMinProductsInput, setMerchantMinProductsInput] = useState<string>('');
+  const [merchantMaxProductsInput, setMerchantMaxProductsInput] = useState<string>('');
+  const [syncTimestampTrigger, setSyncTimestampTrigger] = useState<number>(0);
+
+  // Helper to format Arabic relative time for sync
+  const formatArabicRelativeTime = (isoString: string | null): string => {
+    if (!isoString) return 'لم تتم المزامنة بعد';
+    try {
+      const date = new Date(isoString);
+      const diffMs = Date.now() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 2) return 'الآن (منذ لحظات) ⚡';
+      if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
+      if (diffHours === 1) return 'منذ ساعة واحدة';
+      if (diffHours === 2) return 'منذ ساعتين';
+      if (diffHours < 24) return `منذ ${diffHours} ساعات`;
+      if (diffDays === 1) return 'أمس';
+      if (diffDays === 2) return 'منذ يومين';
+      if (diffDays < 7) return `منذ ${diffDays} أيام`;
+      return date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return 'تاريخ غير صالح';
+    }
+  };
+
+  // Compute per-merchant metadata stats for filtering & cards
+  const merchantStatsMap = useMemo<Record<string, MerchantMetadataStats>>(() => {
+    const map: Record<string, MerchantMetadataStats> = {};
+    allMerchants.forEach(m => {
+      const catalogItems = loadMerchantCatalog(m.id);
+      const productsCount = Math.max(catalogItems.length, m.assignedProductIds?.length || 0, m.trackedProductsCount || 0);
+
+      const hasConfiguredApi = Boolean(m.apiCredentials?.isConfigured) || m.dataMode === 'live';
+      const hasConnectedPortal = Boolean(
+        m.platformCredentials && Object.values(m.platformCredentials).some(c => c.isConnected)
+      );
+      const isPlatformActive = (m.status === 'active' || hasConfiguredApi || hasConnectedPortal) && m.status !== 'paused';
+
+      let lastSyncTs: string | null = null;
+      try {
+        const localSync = localStorage.getItem(`merchant_catalog_last_sync_${m.id}`);
+        if (localSync) {
+          lastSyncTs = localSync;
+        } else if (m.platformCredentials) {
+          const syncTimes = Object.values(m.platformCredentials)
+            .map(c => c.lastSyncedAt)
+            .filter((t): t is string => Boolean(t));
+          if (syncTimes.length > 0) {
+            syncTimes.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+            lastSyncTs = syncTimes[0];
+          }
+        }
+        if (!lastSyncTs && m.apiCredentials?.lastTestedAt) {
+          lastSyncTs = m.apiCredentials.lastTestedAt;
+        }
+        if (!lastSyncTs && catalogItems.length > 0) {
+          const itemTimes = catalogItems
+            .map(p => p.lastRefreshedAt || p.lastUpdated)
+            .filter((t): t is string => Boolean(t));
+          if (itemTimes.length > 0) {
+            itemTimes.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+            lastSyncTs = itemTimes[0];
+          }
+        }
+      } catch {}
+
+      const connectedPlatforms = (m.platformsSubscribed || []).map(p => {
+        if (p === 'amazon_eg') return 'أمازون مصر';
+        if (p === 'noon_eg') return 'نون مصر';
+        if (p === 'jumia_eg') return 'جوميا مصر';
+        if (p === 'kenzz_eg') return 'كنز';
+        if (p === 'raneen_eg') return 'رنين';
+        if (p === 'homzmart_eg') return 'هومزمارت';
+        return p;
+      });
+
+      map[m.id] = {
+        productsCount,
+        isPlatformActive,
+        lastSyncTimestamp: lastSyncTs,
+        lastSyncFormatted: formatArabicRelativeTime(lastSyncTs),
+        connectedPlatforms
+      };
+    });
+    return map;
+  }, [allMerchants, activeMerchantId, syncTimestampTrigger]);
+
+  // Filtered merchants based on platform status, number of products, and last sync timestamp
+  const filteredMerchants = useMemo(() => {
+    return sortedMerchants.filter(m => {
+      const stats = merchantStatsMap[m.id] || {
+        productsCount: 0,
+        isPlatformActive: false,
+        lastSyncTimestamp: null,
+        lastSyncFormatted: 'لم تتم المزامنة بعد',
+        connectedPlatforms: []
+      };
+
+      // 1. Platform status filter (active / inactive)
+      if (merchantPlatformStatusFilter === 'active' && !stats.isPlatformActive) {
+        return false;
+      }
+      if (merchantPlatformStatusFilter === 'inactive' && stats.isPlatformActive) {
+        return false;
+      }
+
+      // 2. Number of products filter
+      const pCount = stats.productsCount;
+      if (merchantProductCountFilter === 'has_products' && pCount <= 0) {
+        return false;
+      }
+      if (merchantProductCountFilter === 'zero_products' && pCount !== 0) {
+        return false;
+      }
+      if (merchantProductCountFilter === '1_to_10' && (pCount < 1 || pCount > 10)) {
+        return false;
+      }
+      if (merchantProductCountFilter === '11_to_50' && (pCount < 11 || pCount > 50)) {
+        return false;
+      }
+      if (merchantProductCountFilter === 'more_than_50' && pCount <= 50) {
+        return false;
+      }
+      if (merchantProductCountFilter === 'custom') {
+        const minVal = merchantMinProductsInput !== '' ? Number(merchantMinProductsInput) : null;
+        const maxVal = merchantMaxProductsInput !== '' ? Number(merchantMaxProductsInput) : null;
+        if (minVal !== null && pCount < minVal) return false;
+        if (maxVal !== null && pCount > maxVal) return false;
+      }
+
+      // 3. Last sync timestamp filter
+      if (merchantLastSyncFilter !== 'all') {
+        if (merchantLastSyncFilter === 'never') {
+          if (stats.lastSyncTimestamp) return false;
+        } else {
+          if (!stats.lastSyncTimestamp) return false;
+          const syncDate = new Date(stats.lastSyncTimestamp).getTime();
+          const ageHours = (Date.now() - syncDate) / (1000 * 60 * 60);
+
+          if (merchantLastSyncFilter === 'last_24h' && ageHours > 24) {
+            return false;
+          }
+          if (merchantLastSyncFilter === 'last_7d' && ageHours > 24 * 7) {
+            return false;
+          }
+          if (merchantLastSyncFilter === 'last_30d' && ageHours > 24 * 30) {
+            return false;
+          }
+        }
+      }
+
+      // 4. Search query
+      if (merchantSearchQuery.trim()) {
+        const q = merchantSearchQuery.trim().toLowerCase();
+        const matchStore = (m.storeName || '').toLowerCase().includes(q);
+        const matchContact = (m.contactPerson || '').toLowerCase().includes(q);
+        const matchCity = (m.city || '').toLowerCase().includes(q);
+        const matchPhone = (m.phone || '').toLowerCase().includes(q);
+        const matchEmail = (m.primaryEmail || '').toLowerCase().includes(q);
+        const matchPlatforms = stats.connectedPlatforms.some(p => p.toLowerCase().includes(q));
+        if (!matchStore && !matchContact && !matchCity && !matchPhone && !matchEmail && !matchPlatforms) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    sortedMerchants, 
+    merchantStatsMap, 
+    merchantPlatformStatusFilter, 
+    merchantProductCountFilter, 
+    merchantLastSyncFilter, 
+    merchantSearchQuery,
+    merchantMinProductsInput,
+    merchantMaxProductsInput
+  ]);
+
+  const handleResetMerchantFilters = () => {
+    setMerchantPlatformStatusFilter('all');
+    setMerchantProductCountFilter('all');
+    setMerchantLastSyncFilter('all');
+    setMerchantSearchQuery('');
+    setMerchantMinProductsInput('');
+    setMerchantMaxProductsInput('');
+    if (onShowToast) {
+      onShowToast('🔄 تم إعادة ضبط جميع فلاتر التجار وإظهار القائمة الكاملة!');
+    }
+  };
+
+  const handleSyncMerchantNow = async (merchant: RemoteMerchantClient) => {
+    setIsLoading(true);
+    try {
+      const nowIso = new Date().toISOString();
+      localStorage.setItem(`merchant_catalog_last_sync_${merchant.id}`, nowIso);
+      setSyncTimestampTrigger(prev => prev + 1);
+      const items = await pullLiveCatalogForMerchant(merchant, platformFilter);
+      if (merchant.id === activeMerchantId) {
+        setProducts(items);
+      }
+      if (onShowToast) {
+        onShowToast(`⚡ تم بنجاح مزامنة كتالوج متجر "${merchant.storeName}" (${items.length} منتج)!`);
+      }
+    } catch (err: any) {
+      if (onShowToast) {
+        onShowToast(`❌ تعذر مزامنة الكتالوج: ${err?.message || 'خطأ في الشبكة'}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
 
   // Catalog State
   const [products, setProducts] = useState<MerchantCatalogProduct[]>(() => {
@@ -357,7 +590,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
   // Watchlist Toggle Handler for Product Cards
   const handleToggleWatchlistProduct = (prod: MerchantCatalogProduct) => {
-    const productData: ProductData = {
+    const productData: any = {
       id: prod.id,
       title: prod.title,
       brand: prod.brand,
@@ -460,6 +693,10 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     try {
       const updated = await pullLiveCatalogForMerchant(currentMerchant, platformFilter);
       setProducts(updated);
+      try {
+        localStorage.setItem(`merchant_catalog_last_sync_${currentMerchant.id}`, new Date().toISOString());
+        setSyncTimestampTrigger(prev => prev + 1);
+      } catch {}
       if (onShowToast) {
         onShowToast(`✅ تم بنجاح سحب وتحديث كتالوج منتجات "${currentMerchant.storeName}" (${updated.length} منتج)! 🛍️`);
       }
@@ -489,6 +726,10 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     try {
       const updated = await refreshMerchantCompetitorPricing(currentMerchant);
       setProducts(updated);
+      try {
+        localStorage.setItem(`merchant_catalog_last_sync_${currentMerchant.id}`, new Date().toISOString());
+        setSyncTimestampTrigger(prev => prev + 1);
+      } catch {}
       if (onShowToast) {
         onShowToast(`⚡ تم تحديث أسعار المنافسين والـ Buy Box لجميع منتجات "${currentMerchant.storeName}"!`);
       }
@@ -977,6 +1218,182 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     }
   };
 
+  // State & handler for Exporting Selected Merchant Data (JSON / CSV local backup)
+  const [isExportMerchantMenuOpen, setIsExportMerchantMenuOpen] = useState(false);
+
+  const handleExportMerchantData = (format: 'json' | 'csv') => {
+    if (!currentMerchant) {
+      if (onShowToast) {
+        onShowToast('⚠️ لم يتم العثور على بيانات التاجر المحدد للتصدير');
+      }
+      return;
+    }
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const safeStoreName = (currentMerchant.storeName || 'Merchant').replace(/[^\w\u0600-\u06FF-]/g, '_');
+
+    if (format === 'json') {
+      const backupData = {
+        exportMetadata: {
+          exportType: 'merchant_local_backup',
+          format: 'JSON',
+          version: '2.8.0',
+          exportedAt: new Date().toISOString(),
+          system: 'RADAR EGYPT (رادار التاجر في مصر)',
+          totalProductsCount: products.length,
+        },
+        merchant: {
+          id: currentMerchant.id,
+          storeName: currentMerchant.storeName,
+          contactPerson: currentMerchant.contactPerson,
+          primaryEmail: currentMerchant.primaryEmail,
+          additionalEmails: currentMerchant.additionalEmails || [],
+          phone: currentMerchant.phone,
+          city: currentMerchant.city,
+          platformsSubscribed: currentMerchant.platformsSubscribed || [],
+          assignedProductIds: currentMerchant.assignedProductIds || [],
+          weeklySalesTargetEGP: currentMerchant.weeklySalesTargetEGP,
+          currentWeeklySalesEGP: currentMerchant.currentWeeklySalesEGP,
+          currentWeeklyOrdersCount: currentMerchant.currentWeeklyOrdersCount,
+          averageProfitMarginPercent: currentMerchant.averageProfitMarginPercent,
+          buyBoxWinRatePercent: currentMerchant.buyBoxWinRatePercent,
+          reportDayOfWeek: currentMerchant.reportDayOfWeek,
+          autoSendWeeklyReport: currentMerchant.autoSendWeeklyReport,
+          sendWhatsAppReport: currentMerchant.sendWhatsAppReport,
+          status: currentMerchant.status,
+          dataMode: currentMerchant.dataMode,
+          subscriptionStatus: currentMerchant.subscriptionStatus,
+          createdAt: currentMerchant.createdAt,
+        },
+        summary,
+        catalog: products,
+        auditLogs,
+      };
+
+      const jsonString = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `نسخة_احتياطية_التاجر_${safeStoreName}_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      if (onShowToast) {
+        onShowToast(`💾 تم بنجاح تحميل النسخة الاحتياطية لبيانات "${currentMerchant.storeName}" بصيغة JSON!`);
+      }
+    } else {
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const rows: string[] = [];
+      rows.push('# ==============================================================');
+      rows.push('# تقرير النسخ الاحتياطي لبيانات التاجر - رادار التاجر الذكي (RADAR EGYPT)');
+      rows.push('# ==============================================================');
+      rows.push(`معرف التاجر (Merchant ID),${escapeCsv(currentMerchant.id)}`);
+      rows.push(`اسم المتجر (Store Name),${escapeCsv(currentMerchant.storeName)}`);
+      rows.push(`مسؤول التواصل (Contact Person),${escapeCsv(currentMerchant.contactPerson || '—')}`);
+      rows.push(`البريد الإلكتروني الأساسي (Email),${escapeCsv(currentMerchant.primaryEmail || '—')}`);
+      rows.push(`رقم الهاتف / واتساب (Phone),${escapeCsv(currentMerchant.phone || '—')}`);
+      rows.push(`المدينة / المحافظة (City),${escapeCsv(currentMerchant.city || '—')}`);
+      rows.push(`المنصات المرتبطة (Platforms),${escapeCsv((currentMerchant.platformsSubscribed || []).join(' | '))}`);
+      rows.push(`حالة المتجر (Status),${escapeCsv(currentMerchant.status || 'active')}`);
+      rows.push(`وضع البيانات (Data Mode),${escapeCsv(currentMerchant.dataMode === 'demo' ? 'تجريبي Sandbox' : 'حقيقي Live API')}`);
+      rows.push(`تاريخ النسخ الاحتياطي (Export Date),${escapeCsv(new Date().toLocaleString('ar-EG'))}`);
+      rows.push(`إجمالي عدد المنتجات بالكتالوج,${escapeCsv(products.length)}`);
+      rows.push(`نسبة الاستحواذ على Buy Box,${escapeCsv(summary.buyBoxWinRatePercent + '%')}`);
+      rows.push(`إجمالي قيمة المخزون التقديرية (ج.م),${escapeCsv(summary.totalCatalogValueEGP)}`);
+      rows.push('');
+      rows.push('# ==============================================================');
+      rows.push('# كتالوج منتجات التاجر وأسعار المنافسين والـ Buy Box');
+      rows.push('# ==============================================================');
+
+      const headers = [
+        'كود المنتج (SKU)',
+        'معرف المنصة (ASIN)',
+        'اسم المنتج (Title)',
+        'العلامة التجارية (Brand)',
+        'التصنيف (Category)',
+        'المنصة (Platform)',
+        'سعر بيع المتجر (ج.م)',
+        'تكلفة الجملة (ج.م)',
+        'اسم أرخص منافس',
+        'سعر أرخص منافس (ج.م)',
+        'سعر الـ Buy Box (ج.م)',
+        'فارق السعر عن المنافس (ج.م)',
+        'فارق السعر %',
+        'فائز بالـ Buy Box',
+        'حالة التسعير',
+        'المخزون المتوفر (قطع)',
+        'المعدل التلقائي مفعل',
+        'الحد الأدنى للسعر (Min Price)',
+        'الحد الأقصى للسعر (Max Price)',
+        'قيمة التفوق (Beat By)',
+        'تاريخ آخر تحديث'
+      ];
+      rows.push(headers.map(escapeCsv).join(','));
+
+      products.forEach((p) => {
+        const isWinner = p.isBuyBoxWinner || p.pricingStatus === 'winning_buybox' ? 'نعم 🏆' : 'لا';
+        const gap = p.merchantPrice - p.lowestCompetitorPrice;
+        const gapPercent = p.lowestCompetitorPrice > 0
+          ? Math.round(((p.merchantPrice - p.lowestCompetitorPrice) / p.lowestCompetitorPrice) * 100)
+          : 0;
+
+        let statusAr = 'غير محدد';
+        if (p.pricingStatus === 'winning_buybox') statusAr = 'فائز بالـ Buy Box';
+        else if (p.pricingStatus === 'competitive') statusAr = 'سعر منافس';
+        else if (p.pricingStatus === 'higher_than_buybox') statusAr = 'أعلى من الـ Buy Box';
+        else if (p.pricingStatus === 'needs_repricing') statusAr = 'بحاجة لتعديل السعر';
+
+        const line = [
+          p.sku || '',
+          p.asin || '',
+          p.title || '',
+          p.brand || '',
+          p.category || '',
+          p.platform || '',
+          p.merchantPrice || 0,
+          p.estimatedCostEGP ?? '—',
+          p.lowestCompetitorName || '—',
+          p.lowestCompetitorPrice || 0,
+          p.buyBoxPrice || 0,
+          gap,
+          gapPercent + '%',
+          isWinner,
+          statusAr,
+          p.stockQuantity ?? 0,
+          p.repricingRule?.enabled ? 'مفعل 🟢' : 'معطل ⚪',
+          p.repricingRule?.minPrice ?? '—',
+          p.repricingRule?.maxPrice ?? '—',
+          p.repricingRule?.beatCompetitorBy ?? '—',
+          p.lastUpdated || ''
+        ];
+        rows.push(line.map(escapeCsv).join(','));
+      });
+
+      const csvContent = '\uFEFF' + rows.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `نسخة_احتياطية_التاجر_${safeStoreName}_${dateStr}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      if (onShowToast) {
+        onShowToast(`📊 تم بنجاح تحميل النسخة الاحتياطية لبيانات "${currentMerchant.storeName}" بصيغة CSV!`);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Subscription / 3-Day Free Trial Lock Notice if Merchant Trial Expired */}
@@ -1042,17 +1459,30 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             <div className="flex items-center gap-2">
               <Store className="w-4 h-4 text-sky-400 shrink-0" />
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 block font-semibold">التاجر المحدد:</span>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-0.5">
+                  <span>التاجر المحدد:</span>
+                  {filteredMerchants.length !== sortedMerchants.length && (
+                    <span className="text-[9px] text-amber-400 font-bold">
+                      ({filteredMerchants.length} من {sortedMerchants.length})
+                    </span>
+                  )}
+                </div>
                 <select
                   value={activeMerchantId}
                   onChange={(e) => setActiveMerchantId(e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-white rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer focus:border-indigo-500"
                 >
-                  {sortedMerchants.map(m => {
+                  {(filteredMerchants.some(m => m.id === activeMerchantId) 
+                    ? filteredMerchants 
+                    : [currentMerchant, ...filteredMerchants].filter(Boolean)
+                  ).map(m => {
                     const isPinned = pinnedMerchantIds.includes(m.id);
+                    const stats = merchantStatsMap[m.id];
+                    const activePill = stats?.isPlatformActive ? '🟢' : '⚪';
+                    const prodCount = stats?.productsCount ?? 0;
                     return (
                       <option key={m.id} value={m.id}>
-                        {isPinned ? '📌 ⭐ ' : '🏬 '}{m.storeName} ({m.city || 'مصر'}){isPinned ? ' [المفضل مثبت]' : ''}
+                        {isPinned ? '📌 ⭐ ' : '🏬 '}{m.storeName} ({m.city || 'مصر'}) [{activePill} | {prodCount} منتج]{isPinned ? ' [المفضل مثبت]' : ''}
                       </option>
                     );
                   })}
@@ -1092,6 +1522,75 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 <span>مفاتيح الربط 🔑</span>
               </button>
             )}
+
+            {/* Export Selected Merchant Data (تصدير بيانات التاجر بصيغة JSON أو CSV للنسخ الاحتياطي المحلي) */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsExportMerchantMenuOpen(prev => !prev)}
+                className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded-xl border border-emerald-500/40 text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                title="تصدير بيانات التاجر المختارة بصيغة JSON أو CSV للنسخ الاحتياطي المحلي"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>تصدير بيانات التاجر 📥</span>
+                <ChevronDown className={`w-3 h-3 text-emerald-400 transition-transform ${isExportMerchantMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isExportMerchantMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsExportMerchantMenuOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-2 w-72 bg-slate-900 border border-emerald-500/40 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 space-y-1.5 text-right">
+                    <div className="px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-slate-300">
+                      <span className="text-[11px] font-black text-emerald-400">نسخ احتياطي محلي للتاجر</span>
+                      <span className="text-[10px] text-slate-400 font-mono">({products.length} منتج)</span>
+                    </div>
+
+                    <p className="px-3 text-[10px] text-slate-400 leading-tight">
+                      اختر صيغة التصدير لحفظ بيانات المتجر والكتالوج على جهازك:
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportMerchantData('json');
+                        setIsExportMerchantMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-right rounded-xl hover:bg-slate-800 text-slate-100 hover:text-emerald-300 text-xs font-bold transition flex items-center justify-between gap-2 cursor-pointer group border border-transparent hover:border-emerald-500/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileJson className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition shrink-0" />
+                        <div>
+                          <div className="text-xs font-black text-white group-hover:text-emerald-300">تصدير JSON (شامل)</div>
+                          <div className="text-[10px] text-slate-400">نسخة احتياطية كاملة للمتجر والكتالوج والقواعد</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700 font-mono font-bold">.JSON</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportMerchantData('csv');
+                        setIsExportMerchantMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-right rounded-xl hover:bg-slate-800 text-slate-100 hover:text-sky-300 text-xs font-bold transition flex items-center justify-between gap-2 cursor-pointer group border border-transparent hover:border-sky-500/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="w-4 h-4 text-sky-400 group-hover:scale-110 transition shrink-0" />
+                        <div>
+                          <div className="text-xs font-black text-white group-hover:text-sky-300">تصدير CSV (إكسل)</div>
+                          <div className="text-[10px] text-slate-400">جدول بيانات متوافق مع Excel و Google Sheets</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-700 font-mono font-bold">.CSV</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
         </div>
@@ -1138,6 +1637,32 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
           </div>
         )}
       </div>
+
+      {/* Advanced Merchant Filtering System (نظام فلترة التجار المتقدم: حالة المنصة، عدد المنتجات، توقيت آخر مزامنة) */}
+      <MerchantAdvancedFilterPanel
+        allMerchants={allMerchants}
+        filteredMerchants={filteredMerchants}
+        activeMerchantId={activeMerchantId}
+        pinnedMerchantIds={pinnedMerchantIds}
+        merchantStatsMap={merchantStatsMap}
+        platformStatusFilter={merchantPlatformStatusFilter}
+        productCountFilter={merchantProductCountFilter}
+        lastSyncFilter={merchantLastSyncFilter}
+        searchQuery={merchantSearchQuery}
+        minProductsInput={merchantMinProductsInput}
+        maxProductsInput={merchantMaxProductsInput}
+        onPlatformStatusChange={setMerchantPlatformStatusFilter}
+        onProductCountChange={setMerchantProductCountFilter}
+        onLastSyncChange={setMerchantLastSyncFilter}
+        onSearchQueryChange={setMerchantSearchQuery}
+        onMinProductsChange={setMerchantMinProductsInput}
+        onMaxProductsChange={setMerchantMaxProductsInput}
+        onResetFilters={handleResetMerchantFilters}
+        onSelectMerchant={setActiveMerchantId}
+        onTogglePinMerchant={handleTogglePinMerchant}
+        onSyncMerchantNow={handleSyncMerchantNow}
+        isSyncingCurrentMerchant={isLoading}
+      />
 
       {/* KPI Overview Cards with Drag & Drop Reordering */}
       <SortableDashboardGrid
@@ -1265,6 +1790,14 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               return null;
           }
         }}
+      />
+
+      {/* Distribution of Products Across Active vs Inactive Merchants (Recharts Bar Chart) */}
+      <MerchantProductDistributionChart
+        allMerchants={allMerchants}
+        merchantStatsMap={merchantStatsMap}
+        activeMerchantId={activeMerchantId}
+        onSelectMerchant={setActiveMerchantId}
       />
 
       {/* Floor Price Reached Warning Banner (تنبيه الوصول للحد الأدنى للسعر) */}
@@ -3126,7 +3659,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             if (onShowToast) {
               onShowToast(`💬 جاري إعداد أمر التوريد بـ ${qty} قطعة لصنف "${p.sku}" عبر الواتساب...`);
             }
-            const phone = p.merchantOffers?.[0]?.url || '01000000000';
+            const phone = (p as any).merchantOffers?.[0]?.url || '01000000000';
             let cleanPhone = phone.replace(/[^0-9]/g, '');
             if (cleanPhone.startsWith('01') && cleanPhone.length === 11) {
               cleanPhone = '2' + cleanPhone;

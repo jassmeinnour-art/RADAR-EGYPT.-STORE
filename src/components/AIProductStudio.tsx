@@ -73,14 +73,21 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: uploadedImage, productTitle: productData?.title || 'منتج' }),
       });
-      const res = await response.json();
+      
+      let res;
+      try {
+          res = await response.json();
+      } catch (jsonErr) {
+          throw new Error('فشل في معالجة استجابة السيرفر (بيانات غير صالحة)');
+      }
+
       if (res.success) {
         if (res.data?.processedImage) {
           setUploadedImage(res.data.processedImage);
         }
         showToast('تمت إزالة الخلفية وتحسين جودة الصورة ونقلها لخلفية استوديو نقية! ✨');
       } else {
-        throw new Error(res.error);
+        throw new Error(res.error || 'حدث خطأ غير معروف في السيرفر');
       }
     } catch (err: any) {
       showToast(`عذراً، حدث خطأ: ${err.message}`);

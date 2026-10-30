@@ -65,6 +65,7 @@ import { StatsMonitor } from './components/StatsMonitor';
 import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
+import { BayyaaAndMersadOverviewSection } from './components/BayyaaAndMersadOverviewSection';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
@@ -421,9 +422,17 @@ export default function App() {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">جاري تحميل التطبيق...</div>}>
         <LoginPage 
-          onLoginSuccess={() => {
+          onLoginSuccess={async () => {
             const stored = localStorage.getItem('radar_user');
             if (stored) setLocalUser(JSON.parse(stored));
+            // Trigger push notification permission request
+            import('./services/fcmNotificationService').then(({ requestPushNotificationPermission }) => {
+              requestPushNotificationPermission().then(res => {
+                if (res.success) {
+                  showToast('تم تفعيل تنبيهات المتصفح بنجاح! 🔔');
+                }
+              });
+            });
           }}
           onBackToLanding={() => setShowLandingPage(true)}
         />
@@ -903,6 +912,22 @@ export default function App() {
                       فتح لوحة تحكم Super Admin 👑
                     </button>
                   </div>
+                )}
+
+                {/* Prominent Combined Section: Bayyaa Platform & Mersad Philosophy Side-by-Side */}
+                {!isFocusMode && (
+                  <BayyaaAndMersadOverviewSection
+                    onOpenMerchantsDirectory={() => {
+                      setMerchantsHubInitialTab('directory');
+                      setIsAllMerchantsHubOpen(true);
+                    }}
+                    onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
+                    onOpenRadar={() => {
+                      setActiveWorkspaceTab('radar');
+                      setShowOwnerDashboard(false);
+                    }}
+                    onShowToast={showToast}
+                  />
                 )}
 
                 {/* 2. Top KPI Overview Cards Grid (Verified by KPIDashboard tests) */}
