@@ -194,3 +194,55 @@ export async function deleteRecordFromDB(storeName: StoreName, id: string): Prom
     return false;
   }
 }
+
+/**
+ * Persists the entire merchant catalog to IndexedDB for seamless offline browsing
+ */
+export async function saveMerchantCatalogToIndexedDB<T extends { id: string; merchantId?: string }>(
+  merchantId: string,
+  products: T[]
+): Promise<boolean> {
+  if (!merchantId) return false;
+  try {
+    // 1. Save full array under merchant-specific key
+    const arraySaved = await saveRecordToDB(STORES.CATALOG, `merchant_catalog_${merchantId}`, products);
+    // 2. Also save individual product records for item-level lookups
+    if (products.length > 0) {
+      await saveAllRecordsToDB(STORES.CATALOG, products);
+    }
+    return arraySaved;
+  } catch (err) {
+    console.warn(`[IndexedDB] Failed to cache catalog for merchant ${merchantId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Retrieves the cached merchant catalog from IndexedDB when offline
+ */
+export async function getMerchantCatalogFromIndexedDB<T extends { id: string; merchantId?: string }>(
+  merchantId: string
+): Promise<T[]> {
+  if (!merchantId) return [];
+  try {
+    // 1. Direct fetch by merchant catalog key
+    const cachedArray = await getRecordFromDB<T[]>(STORES.CATALOG, `merchant_catalog_${merchantId}`);
+    if (Array.isArray(cachedArray) && cachedArray.length > 0) {
+      return cachedArray;
+    }
+
+    // 2. Fallback: filter from all records in the catalog store
+    const allRecords = await getAllRecordsFromDB<T>(STORES.CATALOG);
+    const matching = allRecords.filter((item) => {
+      if (!item) return false;
+      // Skip array records that might have been stored under keyPath 'id'
+      if (Array.isArray(item)) return false;
+      return (item as any).merchantId === merchantId;
+    });
+
+    return matching;
+  } catch (err) {
+    console.warn(`[IndexedDB] Failed to load cached catalog for merchant ${merchantId}:`, err);
+    return [];
+  }
+}

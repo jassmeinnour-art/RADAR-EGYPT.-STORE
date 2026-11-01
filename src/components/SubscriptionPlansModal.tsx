@@ -94,7 +94,7 @@ export const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
   const [merchants, setMerchants] = useState<RemoteMerchantClient[]>(() => loadAllRegisteredMerchants());
   const [targetMerchantId, setTargetMerchantId] = useState<string>(() => {
     const loadedMerchants = loadAllRegisteredMerchants();
-    return activeMerchantId || loadedMerchants[0]?.id || 'merchant-step-queen';
+    return activeMerchantId || loadedMerchants[0]?.id || 'merchant-mahmeud-said';
   });
 
   useEffect(() => {

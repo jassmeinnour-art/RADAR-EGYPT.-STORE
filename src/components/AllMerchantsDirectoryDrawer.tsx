@@ -558,7 +558,16 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
           onShowToast(`✅ تم تحديث بيانات المتجر "${updatedRecord.storeName}" بنجاح وحفظها مباشرة!`);
         }
       } else {
-        // Create brand new merchant manually
+        // Unique validation guard: Check if already registered
+        const existingList = loadAllRegisteredMerchants();
+        const cleanEmail = formPrimaryEmail.trim().toLowerCase();
+        const cleanName = formStoreName.trim().toLowerCase();
+        const duplicateExisting = existingList.find(m => 
+          (cleanEmail && m.primaryEmail?.trim().toLowerCase() === cleanEmail) ||
+          (cleanName && m.storeName?.trim().toLowerCase() === cleanName)
+        );
+
+        // Create or update existing merchant with Unique Constraint protection
         const created = addNewRegisteredMerchant({
           storeName: formStoreName,
           contactPerson: formContactPerson || 'مسؤول المتجر',
@@ -587,7 +596,11 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
         updateExistingMerchant(fullyEnriched);
 
         if (onShowToast) {
-          onShowToast(`🎉 تم تسجيل وإضافة التاجر "${created.storeName}" بنجاح في الدليل والنظام!`);
+          if (duplicateExisting) {
+            onShowToast(`ℹ️ التاجر "${created.storeName}" مسجل مسبقاً، تم تحديث بياناته ومنع إنشاء سجل مكرر!`);
+          } else {
+            onShowToast(`🎉 تم تسجيل وإضافة التاجر "${created.storeName}" بنجاح في الدليل والنظام!`);
+          }
         }
         if (onSelectMerchant) {
           onSelectMerchant(created.id);

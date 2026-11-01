@@ -13,7 +13,12 @@ import {
   resolveDynamicStoreAmazonCredentials,
   validateMerchantAmazonSpApiTokens
 } from './platformLaunchHelper';
-import { saveAllRecordsToDB, STORES } from './offlineIndexedDB';
+import { 
+  saveAllRecordsToDB, 
+  saveMerchantCatalogToIndexedDB, 
+  getMerchantCatalogFromIndexedDB, 
+  STORES 
+} from './offlineIndexedDB';
 import { recordSyncSuccess } from './syncSuccessTracker';
 import { auth } from '../firebase';
 import { logPriceChange } from './priceHistoryManager';
@@ -389,15 +394,15 @@ function getInitialSeedCatalogForMerchant(_merchantId: string, _storeName: strin
 }
 
 /**
- * Loads the catalog for a specific merchant from localStorage and synchronizes with Cloud Firestore
+ * Loads the catalog for a specific merchant from localStorage and synchronizes with Cloud Firestore / IndexedDB
  */
 export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[] {
   if (!merchantId) return [];
 
   const key = `${CATALOG_STORAGE_PREFIX}${merchantId}`;
 
-  // Non-blocking real-time background fetch from Cloud Firestore
-  if (typeof window !== 'undefined') {
+  // Non-blocking background fetch from Cloud Firestore (when online)
+  if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
     fetchMerchantCatalogFromCloud(merchantId).then(cloudItems => {
       if (Array.isArray(cloudItems) && cloudItems.length > 0) {
         try {
@@ -406,8 +411,27 @@ export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[
           if (cloudItems.length !== currentLocal.length || JSON.stringify(cloudItems) !== JSON.stringify(currentLocal)) {
             localStorage.setItem(key, JSON.stringify(cloudItems));
             saveAllRecordsToDB(STORES.CATALOG, cloudItems).catch(() => {});
+            saveMerchantCatalogToIndexedDB(merchantId, cloudItems).catch(() => {});
             window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {
-              detail: { merchantId, productsCount: cloudItems.length, timestamp: Date.now() }
+              detail: { merchantId, productsCount: cloudItems.length, timestamp: Date.now(), source: 'cloud' }
+            }));
+          }
+        } catch {}
+      }
+    }).catch(() => {});
+  }
+
+  // Check IndexedDB if localStorage has no items or when offline
+  if (typeof window !== 'undefined') {
+    getMerchantCatalogFromIndexedDB<MerchantCatalogProduct>(merchantId).then(offlineItems => {
+      if (Array.isArray(offlineItems) && offlineItems.length > 0) {
+        try {
+          const raw = localStorage.getItem(key);
+          const currentLocal = raw ? JSON.parse(raw) : [];
+          if (currentLocal.length === 0 || offlineItems.length > currentLocal.length) {
+            localStorage.setItem(key, JSON.stringify(offlineItems));
+            window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {
+              detail: { merchantId, productsCount: offlineItems.length, timestamp: Date.now(), source: 'indexeddb_offline' }
             }));
           }
         } catch {}
@@ -446,7 +470,25 @@ export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[
 }
 
 /**
- * Saves the catalog for a specific merchant to localStorage and Cloud Firestore
+ * Loads the catalog directly from IndexedDB offline storage
+ */
+export async function loadMerchantCatalogOffline(merchantId: string): Promise<MerchantCatalogProduct[]> {
+  if (!merchantId) return [];
+  try {
+    const idbItems = await getMerchantCatalogFromIndexedDB<MerchantCatalogProduct>(merchantId);
+    if (Array.isArray(idbItems) && idbItems.length > 0) {
+      return idbItems.map(ensureDefaultRepricingRule);
+    }
+  } catch (err) {
+    console.warn(`[OfflineCatalog] Failed to load catalog from IndexedDB for ${merchantId}:`, err);
+  }
+
+  // Fallback to localStorage
+  return loadMerchantCatalog(merchantId);
+}
+
+/**
+ * Saves the catalog for a specific merchant to localStorage, IndexedDB, and Cloud Firestore
  */
 export function saveMerchantCatalog(merchantId: string, products: MerchantCatalogProduct[]): void {
   if (!merchantId) return;
@@ -454,6 +496,7 @@ export function saveMerchantCatalog(merchantId: string, products: MerchantCatalo
   try {
     localStorage.setItem(key, JSON.stringify(products));
     saveAllRecordsToDB(STORES.CATALOG, products).catch(() => {});
+    saveMerchantCatalogToIndexedDB(merchantId, products).catch(() => {});
     saveMerchantCatalogToCloud(merchantId, products).catch(() => {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {

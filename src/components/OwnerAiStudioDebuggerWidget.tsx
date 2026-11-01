@@ -57,8 +57,8 @@ export const OwnerAiStudioDebuggerWidget: React.FC<OwnerAiStudioDebuggerWidgetPr
   currentProduct,
   connectedPlatforms = [],
   unresolvedSyncErrors = [],
-  activeMerchantId = 'merchant-step-queen',
-  activeMerchantName = 'Step QUeen',
+  activeMerchantId = 'merchant-mahmeud-said',
+  activeMerchantName = 'متجر محمود سعيد (Mahmeud Said Store)',
   onShowToast,
 }) => {
   const { user, profile, isDbConnected, isOwner } = useAuth();

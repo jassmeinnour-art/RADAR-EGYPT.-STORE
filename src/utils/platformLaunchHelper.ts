@@ -4,7 +4,9 @@ import {
   fetchMerchantStoreCredentialsFromFirestore,
   fetchAllMerchantStoresFromFirestore,
   saveAllMerchantsToCloud,
-  fetchMerchantsFromCloud
+  fetchMerchantsFromCloud,
+  purgeDuplicateMerchantsFromCloud,
+  deleteMerchantStoreFromCloud
 } from '../services/firestoreSync';
 import { AMAZON_SP_API_CONFIG } from '../config/amazonSpApiConfig';
 import { encryptLwaRefreshToken, decryptLwaRefreshToken, isEncryptedLwaToken } from './lwaTokenCrypto';
@@ -901,7 +903,147 @@ export function updateMerchantSubscriptionStatus(
 }
 
 /**
- * Retrieves all registered merchants from localStorage with safe background cloud sync.
+ * Normalizes a store name for strict uniqueness checks.
+ */
+export function normalizeStoreNameForDedup(name?: string): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[\s\-_.,/\\()]/g, '')
+    .trim();
+}
+
+/**
+ * Identifies whether a merchant record belongs to Mahmoud Saeed / Mahmeud Said in Arabic or English.
+ */
+export function isMahmoudSaeedMerchant(m?: Partial<RemoteMerchantClient> | null): boolean {
+  if (!m) return false;
+  const id = (m.id || '').toLowerCase();
+  const store = (m.storeName || '').toLowerCase();
+  const contact = (m.contactPerson || '').toLowerCase();
+  const email = (m.primaryEmail || '').toLowerCase();
+
+  if (id === 'merchant-mahmeud-said') return true;
+
+  const matchesArabic = store.includes('محمود') || contact.includes('محمود') || 
+                        store.includes('سعيد') || contact.includes('سعيد');
+  const matchesEnglish = store.includes('mahm') || store.includes('saeed') || store.includes('said') ||
+                         contact.includes('mahm') || contact.includes('saeed') || contact.includes('said') ||
+                         email.includes('mahm') || email.includes('saeed') || email.includes('said');
+
+  return matchesArabic || matchesEnglish;
+}
+
+/**
+ * Deduplicates a list of merchants:
+ * 1. Purges legacy dummy merchants ('step-queen', 'star-steel', 'art-deco', 'royal-furniture').
+ * 2. Unifies all records belonging to Mahmoud Saeed into a single canonical record ('merchant-mahmeud-said').
+ * 3. Enforces strict uniqueness on (id, primaryEmail, normalized storeName).
+ * Returns { deduped: RemoteMerchantClient[], purgedIds: string[] }
+ */
+export function deduplicateMerchantsList(merchants: RemoteMerchantClient[]): {
+  deduped: RemoteMerchantClient[];
+  purgedIds: string[];
+} {
+  const seenIds = new Set<string>();
+  const seenEmails = new Set<string>();
+  const seenStoreNames = new Set<string>();
+  const deduped: RemoteMerchantClient[] = [];
+  const purgedIds: string[] = [];
+
+  const legacyDummyKeywords = [
+    'step-queen',
+    'step queen',
+    'ستب كوين',
+    'star-steel',
+    'star steel',
+    'ستار ستيل',
+    'art-deco',
+    'art deco',
+    'أرت ديكو',
+    'royal-furniture',
+    'royal furniture',
+    'رويال فورنتشر'
+  ];
+
+  let canonicalMahmoudSaeed: RemoteMerchantClient | null = null;
+
+  for (const raw of merchants) {
+    if (!raw) continue;
+    const item = ensureMerchantTrialFields(raw);
+    const id = item.id || '';
+    const lowerId = id.toLowerCase();
+    const lowerStore = (item.storeName || '').toLowerCase();
+
+    // 1. Purge legacy dummy mock merchants
+    const isLegacyDummy = legacyDummyKeywords.some(kw => lowerId.includes(kw) || lowerStore.includes(kw));
+    if (isLegacyDummy) {
+      if (id) purgedIds.push(id);
+      continue;
+    }
+
+    // 2. Unify all Mahmoud Saeed duplicate records into exactly ONE canonical record
+    if (isMahmoudSaeedMerchant(item)) {
+      if (!canonicalMahmoudSaeed) {
+        canonicalMahmoudSaeed = {
+          ...item,
+          id: 'merchant-mahmeud-said',
+          storeName: 'متجر محمود سعيد (Mahmeud Said Store)',
+          contactPerson: 'محمود سعيد',
+          primaryEmail: item.primaryEmail || 'mahmeud.said@merchantradar.eg',
+          status: 'active',
+          dataMode: 'live',
+        };
+      } else {
+        // Collect duplicate ID to delete from Cloud Firestore and local storage
+        if (id && id !== 'merchant-mahmeud-said') {
+          purgedIds.push(id);
+        }
+        // Merge enriched fields if available
+        if (item.apiCredentials?.amazonSellerId && !canonicalMahmoudSaeed.apiCredentials?.amazonSellerId) {
+          canonicalMahmoudSaeed.apiCredentials = {
+            ...canonicalMahmoudSaeed.apiCredentials,
+            amazonSellerId: item.apiCredentials.amazonSellerId
+          };
+        }
+      }
+      continue;
+    }
+
+    // 3. Unique validation constraint for other merchants
+    const normEmail = (item.primaryEmail || '').trim().toLowerCase();
+    const normStore = normalizeStoreNameForDedup(item.storeName);
+
+    if (
+      seenIds.has(id) || 
+      (normEmail && seenEmails.has(normEmail)) || 
+      (normStore && seenStoreNames.has(normStore))
+    ) {
+      // Duplicate entry detected - purge
+      if (id) purgedIds.push(id);
+      continue;
+    }
+
+    seenIds.add(id);
+    if (normEmail) seenEmails.add(normEmail);
+    if (normStore) seenStoreNames.add(normStore);
+    deduped.push(item);
+  }
+
+  // Prepend the single canonical record for Mahmoud Saeed
+  if (canonicalMahmoudSaeed) {
+    deduped.unshift(canonicalMahmoudSaeed);
+  } else if (DEFAULT_REGISTERED_MERCHANTS.length > 0) {
+    deduped.unshift(DEFAULT_REGISTERED_MERCHANTS[0]);
+  }
+
+  return { deduped, purgedIds };
+}
+
+/**
+ * Retrieves all registered merchants with strict deduplication and background cloud sync.
  */
 export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
   // Trigger background cloud sync in non-blocking manner
@@ -909,20 +1051,19 @@ export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
     fetchMerchantsFromCloud().then(cloudMerchants => {
       if (Array.isArray(cloudMerchants) && cloudMerchants.length > 0) {
         try {
+          const { deduped, purgedIds } = deduplicateMerchantsList(cloudMerchants);
+
+          // If duplicate records were found in cloud, immediately purge them from Firestore
+          if (purgedIds.length > 0) {
+            purgeDuplicateMerchantsFromCloud(purgedIds).catch(() => {});
+          }
+
           const rawLocal = localStorage.getItem(STORAGE_MERCHANTS_LIST_KEY);
           const localParsed = rawLocal ? JSON.parse(rawLocal) : [];
-          if (cloudMerchants.length !== localParsed.length || JSON.stringify(cloudMerchants) !== JSON.stringify(localParsed)) {
-            const seen = new Set<string>();
-            const deduped: RemoteMerchantClient[] = [];
-            for (const item of cloudMerchants) {
-              if (!item) continue;
-              const normalized = ensureMerchantTrialFields(item);
-              if (!seen.has(normalized.id)) {
-                seen.add(normalized.id);
-                deduped.push(normalized);
-              }
-            }
+
+          if (deduped.length !== localParsed.length || JSON.stringify(deduped) !== JSON.stringify(localParsed)) {
             localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
+            saveAllRecordsToDB(STORES.MERCHANTS, deduped).catch(() => {});
             window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
           }
         } catch {}
@@ -935,20 +1076,10 @@ export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const seen = new Set<string>();
-        const deduped: RemoteMerchantClient[] = [];
-        const excludedDummyIds = new Set(['merchant-step-queen', 'merchant-star-steel', 'merchant-art-deco', 'merchant-royal-furniture']);
-        for (const item of parsed) {
-          if (!item || !item.id || excludedDummyIds.has(item.id)) continue;
-          const normalized = ensureMerchantTrialFields(item);
-          const id =
-            normalized.id && !seen.has(normalized.id)
-              ? normalized.id
-              : `merch-${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`;
-          if (!excludedDummyIds.has(id)) {
-            seen.add(id);
-            deduped.push(id === normalized.id ? normalized : { ...normalized, id });
-          }
+        const { deduped, purgedIds } = deduplicateMerchantsList(parsed);
+        if (purgedIds.length > 0) {
+          localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
+          purgeDuplicateMerchantsFromCloud(purgedIds).catch(() => {});
         }
         if (deduped.length > 0) {
           return deduped;
@@ -956,26 +1087,29 @@ export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
       }
     }
   } catch {}
-  // Seed with default real merchant (mahmeud said)
+
+  // Seed with default single real merchant (Mahmeud Said)
   const seeded = DEFAULT_REGISTERED_MERCHANTS.map(ensureMerchantTrialFields);
   saveAllRegisteredMerchants(seeded);
   return seeded;
 }
 
 /**
- * Saves all registered merchants to localStorage and syncs with Cloud Firestore.
+ * Saves all registered merchants with strict deduplication to localStorage and Cloud Firestore.
  */
 export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): void {
   try {
-    const seen = new Set<string>();
-    const deduped = (merchants || []).filter(m => {
-      if (!m || !m.id || seen.has(m.id)) return false;
-      seen.add(m.id);
-      return true;
-    });
+    const { deduped, purgedIds } = deduplicateMerchantsList(merchants || []);
+
     localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
     saveAllRecordsToDB(STORES.MERCHANTS, deduped).catch(() => {});
     saveAllMerchantsToCloud(deduped).catch(() => {});
+
+    // Asynchronously delete purged duplicates from Cloud Firestore
+    if (purgedIds.length > 0) {
+      purgeDuplicateMerchantsFromCloud(purgedIds).catch(() => {});
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
     }
@@ -983,7 +1117,8 @@ export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): v
 }
 
 /**
- * Registers and saves a new merchant store instantly.
+ * Registers and saves a new merchant store with strict Unique Constraint validation.
+ * Prevents adding duplicate merchants if email, storeName, or person already exists.
  */
 export function addNewRegisteredMerchant(data: {
   storeName: string;
@@ -995,15 +1130,53 @@ export function addNewRegisteredMerchant(data: {
   platforms?: string[];
 }): RemoteMerchantClient {
   const list = loadAllRegisteredMerchants();
+  const cleanEmail = (data.primaryEmail || '').trim().toLowerCase();
+  const cleanStoreName = (data.storeName || '').trim();
+  const normStore = normalizeStoreNameForDedup(cleanStoreName);
+
+  // 1. Unique Validation Guard: check if storeName or email already registered
+  const existingIdx = list.findIndex(m => {
+    if (cleanEmail && m.primaryEmail?.trim().toLowerCase() === cleanEmail) return true;
+    if (cleanStoreName && normalizeStoreNameForDedup(m.storeName) === normStore) return true;
+    if (isMahmoudSaeedMerchant(m) && isMahmoudSaeedMerchant({ storeName: cleanStoreName, contactPerson: data.contactPerson, primaryEmail: cleanEmail })) {
+      return true;
+    }
+    return false;
+  });
+
+  if (existingIdx !== -1) {
+    // Merchant already exists! Return updated record without creating a duplicate copy
+    const existing = list[existingIdx];
+    const updated: RemoteMerchantClient = {
+      ...existing,
+      storeName: cleanStoreName || existing.storeName,
+      contactPerson: data.contactPerson?.trim() || existing.contactPerson,
+      primaryEmail: cleanEmail || existing.primaryEmail,
+      phone: data.phone?.trim() || existing.phone,
+      city: data.city?.trim() || existing.city,
+      platformsSubscribed: (data.platforms && data.platforms.length > 0) ? (data.platforms as RemoteMerchantPlatformCode[]) : existing.platformsSubscribed,
+      apiCredentials: {
+        ...(existing.apiCredentials || { dataMode: 'live' }),
+        amazonSellerId: data.sellerId?.trim() || existing.apiCredentials?.amazonSellerId,
+        dataMode: 'live',
+        isConfigured: true
+      }
+    };
+    list[existingIdx] = updated;
+    saveAllRegisteredMerchants(list);
+    return updated;
+  }
+
+  // 2. Create brand new unique merchant
   const id = `merchant-${Date.now()}`;
   const now = new Date().toISOString();
   const trialEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
   const newMerchant: RemoteMerchantClient = {
     id,
-    storeName: data.storeName.trim(),
+    storeName: cleanStoreName,
     contactPerson: data.contactPerson.trim() || 'مسؤول المتجر',
-    primaryEmail: data.primaryEmail.trim().toLowerCase(),
+    primaryEmail: cleanEmail,
     additionalEmails: [],
     phone: data.phone?.trim() || '+20 10 0000 0000',
     city: data.city?.trim() || 'القاهرة',
@@ -1041,6 +1214,24 @@ export function addNewRegisteredMerchant(data: {
   const updatedList = [newMerchant, ...list];
   saveAllRegisteredMerchants(updatedList);
   return newMerchant;
+}
+
+// Immediate Self-Executing Startup Deduplication Routine
+if (typeof window !== 'undefined') {
+  try {
+    const raw = localStorage.getItem(STORAGE_MERCHANTS_LIST_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const { deduped, purgedIds } = deduplicateMerchantsList(parsed);
+        if (purgedIds.length > 0 || deduped.length !== parsed.length) {
+          localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
+          saveAllRecordsToDB(STORES.MERCHANTS, deduped).catch(() => {});
+          purgeDuplicateMerchantsFromCloud(purgedIds).catch(() => {});
+        }
+      }
+    }
+  } catch {}
 }
 
 /**
@@ -1261,8 +1452,8 @@ export async function resolveDynamicStoreAmazonCredentials(
       }
     : (storedMatch || storedMerchants[0]);
 
-  const merchantId = localMerchant?.id || activeId || 'merchant-step-queen';
-  const merchantName = localMerchant?.storeName || 'المتجر النشط';
+  const merchantId = localMerchant?.id || activeId || 'merchant-mahmeud-said';
+  const merchantName = localMerchant?.storeName || 'متجر محمود سعيد (Mahmeud Said Store)';
   const dataMode: 'live' | 'demo' = localMerchant?.dataMode || localMerchant?.apiCredentials?.dataMode || 'live';
 
   // 1. Validate direct merchant State / LocalStorage / Override fields first
@@ -1481,9 +1672,9 @@ export async function syncRegisteredMerchantsWithFirestore(): Promise<RemoteMerc
 export function getActiveManagedMerchantId(): string {
   try {
     const saved = localStorage.getItem(STORAGE_ACTIVE_MANAGED_MERCHANT_KEY);
-    if (saved) return saved;
+    if (saved && saved !== 'merchant-step-queen' && saved !== 'merchant-star-steel') return saved;
   } catch {}
-  return 'merchant-step-queen';
+  return 'merchant-mahmeud-said';
 }
 
 /**

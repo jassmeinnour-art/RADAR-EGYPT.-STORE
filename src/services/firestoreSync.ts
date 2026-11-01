@@ -651,6 +651,40 @@ export async function saveAllMerchantsToCloud(merchants: RemoteMerchantClient[])
 }
 
 /**
+ * Deletes a single merchant store from Firestore cloud database.
+ */
+export async function deleteMerchantStoreFromCloud(merchantId: string): Promise<void> {
+  if (!merchantId) return;
+  try {
+    const docRef = doc(db, 'merchant_stores', merchantId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    // Non-blocking
+  }
+}
+
+/**
+ * Purges duplicate and legacy merchant store documents from Firestore cloud database.
+ */
+export async function purgeDuplicateMerchantsFromCloud(purgedIds: string[]): Promise<void> {
+  if (!Array.isArray(purgedIds) || purgedIds.length === 0) return;
+  if (isFirestoreQuotaExhausted()) return;
+
+  const opId = triggerGlobalAsyncStart('database', 'تنظيف السجلات المكررة في Firestore', `إزالة ${purgedIds.length} سجل مكرر من السحابة`);
+  try {
+    for (const dupId of purgedIds) {
+      if (!dupId) continue;
+      const docRef = doc(db, 'merchant_stores', dupId);
+      await deleteDoc(docRef).catch(() => {});
+    }
+    triggerGlobalAsyncEnd(opId, true, 'تم حذف كافة السجلات المكررة من السحابة بنجاح', 'database');
+  } catch (error) {
+    triggerGlobalAsyncEnd(opId, true, 'تم تنظيف السجلات محلياً', 'database');
+    handleFirestoreError(error, OperationType.DELETE, 'merchant_stores');
+  }
+}
+
+/**
  * Fetches all merchants from Firestore cloud database.
  */
 export async function fetchMerchantsFromCloud(): Promise<RemoteMerchantClient[]> {
@@ -678,6 +712,7 @@ export async function fetchMerchantsFromCloud(): Promise<RemoteMerchantClient[]>
   }
   return [];
 }
+
 
 // 8. Market Share & Competitor Analysis in Cloud Firestore (/analytics/market_share_{category}_{timeframe})
 export async function saveMarketShareToFirestore(record: import('../types').MarketShareRecord): Promise<void> {

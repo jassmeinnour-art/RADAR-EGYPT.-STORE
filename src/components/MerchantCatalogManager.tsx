@@ -35,7 +35,10 @@ import {
   PinOff,
   Download,
   FileSpreadsheet,
-  FileJson
+  FileJson,
+  Wifi,
+  WifiOff,
+  Database
 } from 'lucide-react';
 import { 
   MerchantCatalogProduct, 
@@ -61,6 +64,7 @@ import {
 import { MerchantProductDistributionChart } from './MerchantProductDistributionChart';
 import {
   loadMerchantCatalog,
+  loadMerchantCatalogOffline,
   saveMerchantCatalog,
   pullLiveCatalogForMerchant,
   refreshMerchantCompetitorPricing,
@@ -136,8 +140,22 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       const saved = localStorage.getItem('merchant_radar_pinned_merchant_ids');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return ['merchant-step-queen'];
+    return ['merchant-mahmeud-said'];
   });
+
+  // Listen for merchants list updates and deduplication events
+  useEffect(() => {
+    const handleMerchantsUpdated = (e: any) => {
+      const list = e.detail || loadAllRegisteredMerchants();
+      if (Array.isArray(list) && list.length > 0) {
+        setAllMerchants(list);
+      }
+    };
+    window.addEventListener('merchant_radar_merchants_updated', handleMerchantsUpdated);
+    return () => {
+      window.removeEventListener('merchant_radar_merchants_updated', handleMerchantsUpdated);
+    };
+  }, []);
 
   const handleTogglePinMerchant = (merchantId: string) => {
     setPinnedMerchantIds(prev => {
@@ -179,7 +197,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         }
       }
     } catch {}
-    return allMerchants[0]?.id || 'merchant-step-queen';
+    return allMerchants[0]?.id || 'merchant-mahmeud-said';
   });
 
   // When prop selectedMerchant changes, update local state
@@ -467,6 +485,30 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [isOptimizingImages, setIsOptimizingImages] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Online / Offline State with IndexedDB fallback
+  const [isOffline, setIsOffline] = useState<boolean>(() => typeof navigator !== 'undefined' && !navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      if (onShowToast) {
+        onShowToast('🟢 تم استعادة الاتصال بالإنترنت - رادار التاجر متصل سحابياً!');
+      }
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      if (onShowToast) {
+        onShowToast('📶 وضع عدم الاتصال: يمكنك تصفح واستعراض الكتالوج والمنتجات المحفوظة في IndexedDB محلياً.');
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Stock Depletion Forecast Modal State
   const [stockForecastProduct, setStockForecastProduct] = useState<MerchantCatalogProduct | null>(null);
 
@@ -646,7 +688,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newLowStockThreshold, setNewLowStockThreshold] = useState<number>(5);
 
-  // Reload catalog when merchant changes, and auto-fetch real catalog if empty
+  // Reload catalog when merchant changes, and auto-fetch real catalog if empty (with IndexedDB fallback)
   useEffect(() => {
     let isMounted = true;
     if (activeMerchantId) {
@@ -654,19 +696,27 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       setProducts(items);
       setAuditLogs(loadMerchantRepricingAuditLog(activeMerchantId));
 
-      // Auto-sync real merchant catalog if none stored yet
-      if (items.length === 0 && currentMerchant) {
-        setIsLoading(true);
-        pullLiveCatalogForMerchant(currentMerchant, platformFilter)
-          .then(pulled => {
-            if (isMounted && Array.isArray(pulled)) {
-              setProducts(pulled);
-            }
-          })
-          .catch(() => {})
-          .finally(() => {
-            if (isMounted) setIsLoading(false);
-          });
+      // Attempt to load from IndexedDB if empty or when offline
+      if (items.length === 0) {
+        loadMerchantCatalogOffline(activeMerchantId).then(idbItems => {
+          if (!isMounted) return;
+          if (Array.isArray(idbItems) && idbItems.length > 0) {
+            setProducts(idbItems);
+          } else if (currentMerchant && (typeof navigator === 'undefined' || navigator.onLine)) {
+            // Auto-sync real merchant catalog if none stored yet and online
+            setIsLoading(true);
+            pullLiveCatalogForMerchant(currentMerchant, platformFilter)
+              .then(pulled => {
+                if (isMounted && Array.isArray(pulled)) {
+                  setProducts(pulled);
+                }
+              })
+              .catch(() => {})
+              .finally(() => {
+                if (isMounted) setIsLoading(false);
+              });
+          }
+        });
       }
     }
     return () => {
@@ -685,11 +735,36 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     return () => window.removeEventListener('merchant_catalog_updated', handleCatalogUpdate);
   }, [activeMerchantId]);
 
-  // Pull / Sync Catalog action
+  // Pull / Sync Catalog action (with offline IndexedDB fallback)
   const handlePullCatalog = async () => {
     if (!currentMerchant) return;
     setIsLoading(true);
     setIsRateLimited(false);
+
+    // If offline, retrieve from IndexedDB local storage
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        const offlineItems = await loadMerchantCatalogOffline(currentMerchant.id);
+        if (offlineItems.length > 0) {
+          setProducts(offlineItems);
+          if (onShowToast) {
+            onShowToast(`📶 وضع عدم الاتصال: تم استعراض ${offlineItems.length} منتج محفوظ محلياً عبر IndexedDB لمتجر "${currentMerchant.storeName}"!`);
+          }
+        } else {
+          if (onShowToast) {
+            onShowToast('📶 أنت في وضع عدم الاتصال ولا توجد منتجات مخزنة محلياً لهذا المتجر بعد.');
+          }
+        }
+      } catch (err: any) {
+        if (onShowToast) {
+          onShowToast('⚠️ تعذر قراءة بيانات الكتالوج من التخزين المؤقت المحلي');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
       const updated = await pullLiveCatalogForMerchant(currentMerchant, platformFilter);
       setProducts(updated);
@@ -1426,6 +1501,35 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         </div>
       )}
       
+      {/* Offline Mode IndexedDB Notification Banner */}
+      {isOffline && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 text-white border-2 border-amber-500/60 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center shrink-0">
+              <WifiOff className="w-6 h-6 text-amber-300" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black font-['Alexandria'] text-amber-200 flex items-center gap-2 flex-wrap">
+                <span>وضع العمل بدون اتصال بالإنترنت (Offline Mode) 📶</span>
+                <span className="px-2 py-0.5 rounded-full text-[11px] bg-amber-500/30 text-amber-200 border border-amber-400/40 font-bold">
+                  كتالوج IndexedDB محفوظ ({products.length} منتج)
+                </span>
+              </h4>
+              <p className="text-xs text-slate-300 mt-1">
+                تصفح واستعراض كامل لمنتجات متجر "{currentMerchant?.storeName}" المخزنة محلياً في متصفحك عبر IndexedDB حتى في حال انقطاع الشبكة.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 text-amber-300 border border-amber-500/30 text-xs font-bold">
+              <Database className="w-3.5 h-3.5" />
+              تخزين محلي مؤقت آمن
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner & Multi-Merchant Ribbon */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 text-white shadow-xl">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
@@ -1443,6 +1547,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               }`}>
                 {currentMerchant?.dataMode === 'demo' ? '🧪 وضع تجريبي Sandbox' : '🟢 بيانات حقيقية Live API'}
               </span>
+              {isOffline ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-amber-500/20 text-amber-300 border-amber-500/30 flex items-center gap-1">
+                  <WifiOff className="w-3 h-3" />
+                  <span>وضع بدون اتصال (IndexedDB)</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-sky-500/20 text-sky-300 border-sky-500/30 flex items-center gap-1">
+                  <Wifi className="w-3 h-3" />
+                  <span>متصل سحابياً</span>
+                </span>
+              )}
             </div>
 
             <h1 className="text-xl sm:text-2xl font-black font-['Alexandria']">

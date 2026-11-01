@@ -137,8 +137,8 @@ export const AmazonMultiItemWaybillCropperModal: React.FC<AmazonMultiItemWaybill
       paymentMethod: 'cod',
       isPaid: false,
       orderStatus: 'scheduled',
-      merchantId: activeMerchant?.id || 'merchant-step-queen',
-      merchantName: activeMerchant?.storeName || 'Step QUeen'
+      merchantId: activeMerchant?.id || 'merchant-mahmeud-said',
+      merchantName: activeMerchant?.storeName || 'متجر محمود سعيد'
     };
   }, [orders, selectedOrderId, activeMerchant]);
 
