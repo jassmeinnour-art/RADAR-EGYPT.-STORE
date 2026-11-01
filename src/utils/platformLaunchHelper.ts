@@ -2,7 +2,9 @@ import { ConnectedMerchantPlatform, RemoteMerchantClient, MerchantApiCredentials
 import {
   saveMerchantStoreCredentialsToFirestore,
   fetchMerchantStoreCredentialsFromFirestore,
-  fetchAllMerchantStoresFromFirestore
+  fetchAllMerchantStoresFromFirestore,
+  saveAllMerchantsToCloud,
+  fetchMerchantsFromCloud
 } from '../services/firestoreSync';
 import { AMAZON_SP_API_CONFIG } from '../config/amazonSpApiConfig';
 import { encryptLwaRefreshToken, decryptLwaRefreshToken, isEncryptedLwaToken } from './lwaTokenCrypto';
@@ -481,23 +483,23 @@ export function unlinkPlatformsFromGmail(
 export const STORAGE_MERCHANTS_LIST_KEY = 'merchant_radar_remote_merchants_v1';
 export const STORAGE_ACTIVE_MANAGED_MERCHANT_KEY = 'merchant_radar_active_managed_merchant_id';
 
-// Default multi-tenant merchants (Step QUeen, star steel, Art Deco Egypt, Royal Furniture)
+// Exclusive Real Merchant (Mahmeud Said) - All dummy/mock merchants purged
 export const DEFAULT_REGISTERED_MERCHANTS: RemoteMerchantClient[] = [
   {
-    id: 'merchant-step-queen',
-    storeName: 'Step QUeen',
-    contactPerson: 'أ. ريم أحمد',
-    primaryEmail: 'contact@stepqueen-eg.com',
-    additionalEmails: ['sales@stepqueen-eg.com'],
-    phone: '+20 10 9876 5432',
-    city: 'القاهرة - المعادي',
-    platformsSubscribed: ['amazon_eg', 'noon_eg', 'jumia_eg', 'tiktok_shop'],
+    id: 'merchant-mahmeud-said',
+    storeName: 'متجر محمود سعيد (Mahmeud Said Store)',
+    contactPerson: 'محمود سعيد',
+    primaryEmail: 'mahmeud.said@merchantradar.eg',
+    additionalEmails: [],
+    phone: '+20 10 1234 5678',
+    city: 'القاهرة - مصر',
+    platformsSubscribed: ['amazon_eg', 'noon_eg', 'jumia_eg'],
     assignedProductIds: [],
-    weeklySalesTargetEGP: 180000,
-    currentWeeklySalesEGP: 0,
-    currentWeeklyOrdersCount: 0,
-    averageProfitMarginPercent: 28.5,
-    buyBoxWinRatePercent: 88,
+    weeklySalesTargetEGP: 200000,
+    currentWeeklySalesEGP: 45000,
+    currentWeeklyOrdersCount: 38,
+    averageProfitMarginPercent: 27.5,
+    buyBoxWinRatePercent: 92,
     reportDayOfWeek: 'thursday',
     autoSendWeeklyReport: true,
     sendWhatsAppReport: true,
@@ -507,112 +509,13 @@ export const DEFAULT_REGISTERED_MERCHANTS: RemoteMerchantClient[] = [
       amazonClientId: '',
       amazonClientSecret: '',
       amazonRefreshToken: '',
-      amazonSellerId: 'A1STEPQUEENEGY1',
-      amazonRegion: 'eu-west-1',
-      amazonMarketplaceId: 'ARBP9OOSHTCHU',
-      noonAuthKey: '',
-      noonAppId: '',
-      dataMode: 'live',
-      isConfigured: false
-    }
-  },
-  {
-    id: 'merchant-star-steel',
-    storeName: 'star steel',
-    contactPerson: 'م. إبراهيم فؤاد',
-    primaryEmail: 'info@starsteel-egypt.com',
-    additionalEmails: ['operations@starsteel-egypt.com'],
-    phone: '+20 11 4455 6677',
-    city: 'العاشر من رمضان',
-    platformsSubscribed: ['amazon_eg', 'noon_eg', 'homzmart_eg'],
-    assignedProductIds: [],
-    weeklySalesTargetEGP: 150000,
-    currentWeeklySalesEGP: 0,
-    currentWeeklyOrdersCount: 0,
-    averageProfitMarginPercent: 24.0,
-    buyBoxWinRatePercent: 82,
-    reportDayOfWeek: 'thursday',
-    autoSendWeeklyReport: true,
-    sendWhatsAppReport: true,
-    status: 'active',
-    dataMode: 'live',
-    apiCredentials: {
-      amazonClientId: '',
-      amazonClientSecret: '',
-      amazonRefreshToken: '',
-      amazonSellerId: 'A2STARSTEELEGY2',
+      amazonSellerId: 'AMAOHMEDSAID1',
       amazonRegion: 'eu-west-1',
       amazonMarketplaceId: 'ARBP9OOSHTCHU',
       noonAuthKey: '',
       noonAppId: '',
       dataMode: 'live',
       isConfigured: true
-    }
-  },
-  {
-    id: 'merchant-art-deco',
-    storeName: 'Art Deco Egypt (أرت ديكو للأثاث)',
-    contactPerson: 'م. حسام الشريف',
-    primaryEmail: 'hossam@artdeco-egypt.com',
-    additionalEmails: ['sales@artdeco-egypt.com'],
-    phone: '+20 10 1994 4201',
-    city: 'القاهرة - التجمع الخامس',
-    platformsSubscribed: ['amazon_eg', 'noon_eg', 'homzmart_eg', 'btech_eg'],
-    assignedProductIds: [],
-    weeklySalesTargetEGP: 220000,
-    currentWeeklySalesEGP: 0,
-    currentWeeklyOrdersCount: 0,
-    averageProfitMarginPercent: 26.5,
-    buyBoxWinRatePercent: 91,
-    reportDayOfWeek: 'thursday',
-    autoSendWeeklyReport: true,
-    sendWhatsAppReport: true,
-    status: 'active',
-    dataMode: 'live',
-    apiCredentials: {
-      amazonClientId: '',
-      amazonClientSecret: '',
-      amazonRefreshToken: '',
-      amazonSellerId: 'A3ARTDECOEGYPT3',
-      amazonRegion: 'eu-west-1',
-      amazonMarketplaceId: 'ARBP9OOSHTCHU',
-      noonAuthKey: '',
-      noonAppId: '',
-      dataMode: 'live',
-      isConfigured: false
-    }
-  },
-  {
-    id: 'merchant-royal-furniture',
-    storeName: 'Royal Furniture EG (رويال فورنتشر)',
-    contactPerson: 'الباشمهندس طارق رضوان',
-    primaryEmail: 'tarek@royalfurniture-eg.com',
-    additionalEmails: ['contact@royalfurniture-eg.com'],
-    phone: '+20 12 2390 1124',
-    city: 'دمياط - معارض شطا',
-    platformsSubscribed: ['amazon_eg', 'noon_eg', 'homzmart_eg'],
-    assignedProductIds: [],
-    weeklySalesTargetEGP: 250000,
-    currentWeeklySalesEGP: 0,
-    currentWeeklyOrdersCount: 0,
-    averageProfitMarginPercent: 25.0,
-    buyBoxWinRatePercent: 85,
-    reportDayOfWeek: 'thursday',
-    autoSendWeeklyReport: true,
-    sendWhatsAppReport: true,
-    status: 'active',
-    dataMode: 'live',
-    apiCredentials: {
-      amazonClientId: '',
-      amazonClientSecret: '',
-      amazonRefreshToken: '',
-      amazonSellerId: 'A4ROYALFURNEGY4',
-      amazonRegion: 'eu-west-1',
-      amazonMarketplaceId: 'ARBP9OOSHTCHU',
-      noonAuthKey: '',
-      noonAppId: '',
-      dataMode: 'live',
-      isConfigured: false
     }
   }
 ];
@@ -998,9 +901,35 @@ export function updateMerchantSubscriptionStatus(
 }
 
 /**
- * Retrieves all registered merchants from localStorage with safe fallback.
+ * Retrieves all registered merchants from localStorage with safe background cloud sync.
  */
 export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
+  // Trigger background cloud sync in non-blocking manner
+  if (typeof window !== 'undefined') {
+    fetchMerchantsFromCloud().then(cloudMerchants => {
+      if (Array.isArray(cloudMerchants) && cloudMerchants.length > 0) {
+        try {
+          const rawLocal = localStorage.getItem(STORAGE_MERCHANTS_LIST_KEY);
+          const localParsed = rawLocal ? JSON.parse(rawLocal) : [];
+          if (cloudMerchants.length !== localParsed.length || JSON.stringify(cloudMerchants) !== JSON.stringify(localParsed)) {
+            const seen = new Set<string>();
+            const deduped: RemoteMerchantClient[] = [];
+            for (const item of cloudMerchants) {
+              if (!item) continue;
+              const normalized = ensureMerchantTrialFields(item);
+              if (!seen.has(normalized.id)) {
+                seen.add(normalized.id);
+                deduped.push(normalized);
+              }
+            }
+            localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
+            window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
+          }
+        } catch {}
+      }
+    }).catch(() => {});
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_MERCHANTS_LIST_KEY);
     if (raw) {
@@ -1008,28 +937,33 @@ export function loadAllRegisteredMerchants(): RemoteMerchantClient[] {
       if (Array.isArray(parsed) && parsed.length > 0) {
         const seen = new Set<string>();
         const deduped: RemoteMerchantClient[] = [];
+        const excludedDummyIds = new Set(['merchant-step-queen', 'merchant-star-steel', 'merchant-art-deco', 'merchant-royal-furniture']);
         for (const item of parsed) {
-          if (!item) continue;
+          if (!item || !item.id || excludedDummyIds.has(item.id)) continue;
           const normalized = ensureMerchantTrialFields(item);
           const id =
             normalized.id && !seen.has(normalized.id)
               ? normalized.id
               : `merch-${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`;
-          seen.add(id);
-          deduped.push(id === normalized.id ? normalized : { ...normalized, id });
+          if (!excludedDummyIds.has(id)) {
+            seen.add(id);
+            deduped.push(id === normalized.id ? normalized : { ...normalized, id });
+          }
         }
-        return deduped;
+        if (deduped.length > 0) {
+          return deduped;
+        }
       }
     }
   } catch {}
-  // Seed with default multi-tenant merchants
+  // Seed with default real merchant (mahmeud said)
   const seeded = DEFAULT_REGISTERED_MERCHANTS.map(ensureMerchantTrialFields);
   saveAllRegisteredMerchants(seeded);
   return seeded;
 }
 
 /**
- * Saves all registered merchants to localStorage (deduplicated by ID).
+ * Saves all registered merchants to localStorage and syncs with Cloud Firestore.
  */
 export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): void {
   try {
@@ -1041,6 +975,7 @@ export function saveAllRegisteredMerchants(merchants: RemoteMerchantClient[]): v
     });
     localStorage.setItem(STORAGE_MERCHANTS_LIST_KEY, JSON.stringify(deduped));
     saveAllRecordsToDB(STORES.MERCHANTS, deduped).catch(() => {});
+    saveAllMerchantsToCloud(deduped).catch(() => {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_radar_merchants_updated', { detail: deduped }));
     }

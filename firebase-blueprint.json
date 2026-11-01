@@ -303,6 +303,10 @@
       "schema": "MerchantStoreCredentials",
       "description": "Multi-tenant merchant store records and dynamic Amazon SP-API credentials (Refresh Token and Seller ID)"
     },
+    "/merchant_stores/{merchantId}/catalog/{productId}": {
+      "schema": "MerchantProduct",
+      "description": "Merchant catalog products and competitor pricing synchronized to cloud database"
+    },
     "/owner_debug_logs/{logId}": {
       "schema": "OwnerDebugLog",
       "description": "Owner real-time debug and diagnostic logs for Google AI Studio troubleshooting"

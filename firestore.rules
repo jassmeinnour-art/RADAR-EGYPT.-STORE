@@ -173,6 +173,12 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isValidId(merchantId) && isValidMerchantStoreCredentials(incoming());
       allow delete: if isSignedIn();
+
+      // Sub-collection: Merchant Catalog Products & Pricing
+      match /catalog/{productId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
     }
 
     // Top-level Owner Real-Time Debug Logs Collection (owner_debug_logs)

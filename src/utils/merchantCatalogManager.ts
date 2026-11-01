@@ -17,6 +17,7 @@ import { saveAllRecordsToDB, STORES } from './offlineIndexedDB';
 import { recordSyncSuccess } from './syncSuccessTracker';
 import { auth } from '../firebase';
 import { logPriceChange } from './priceHistoryManager';
+import { saveMerchantCatalogToCloud, fetchMerchantCatalogFromCloud } from '../services/firestoreSync';
 
 const CATALOG_STORAGE_PREFIX = 'merchant_catalog_items_v1_';
 const REPRICING_LOG_STORAGE_PREFIX = 'merchant_repricing_audit_logs_v1_';
@@ -388,12 +389,32 @@ function getInitialSeedCatalogForMerchant(_merchantId: string, _storeName: strin
 }
 
 /**
- * Loads the catalog for a specific merchant from localStorage, returning an empty array if none exists
+ * Loads the catalog for a specific merchant from localStorage and synchronizes with Cloud Firestore
  */
 export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[] {
   if (!merchantId) return [];
 
   const key = `${CATALOG_STORAGE_PREFIX}${merchantId}`;
+
+  // Non-blocking real-time background fetch from Cloud Firestore
+  if (typeof window !== 'undefined') {
+    fetchMerchantCatalogFromCloud(merchantId).then(cloudItems => {
+      if (Array.isArray(cloudItems) && cloudItems.length > 0) {
+        try {
+          const raw = localStorage.getItem(key);
+          const currentLocal = raw ? JSON.parse(raw) : [];
+          if (cloudItems.length !== currentLocal.length || JSON.stringify(cloudItems) !== JSON.stringify(currentLocal)) {
+            localStorage.setItem(key, JSON.stringify(cloudItems));
+            saveAllRecordsToDB(STORES.CATALOG, cloudItems).catch(() => {});
+            window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {
+              detail: { merchantId, productsCount: cloudItems.length, timestamp: Date.now() }
+            }));
+          }
+        } catch {}
+      }
+    }).catch(() => {});
+  }
+
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
@@ -425,7 +446,7 @@ export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[
 }
 
 /**
- * Saves the catalog for a specific merchant to localStorage
+ * Saves the catalog for a specific merchant to localStorage and Cloud Firestore
  */
 export function saveMerchantCatalog(merchantId: string, products: MerchantCatalogProduct[]): void {
   if (!merchantId) return;
@@ -433,6 +454,7 @@ export function saveMerchantCatalog(merchantId: string, products: MerchantCatalo
   try {
     localStorage.setItem(key, JSON.stringify(products));
     saveAllRecordsToDB(STORES.CATALOG, products).catch(() => {});
+    saveMerchantCatalogToCloud(merchantId, products).catch(() => {});
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('merchant_catalog_updated', {
         detail: { merchantId, productsCount: products.length, timestamp: Date.now() }

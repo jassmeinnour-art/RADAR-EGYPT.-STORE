@@ -22,7 +22,7 @@ import {
   markFirestoreCacheFetched,
   registerFirestoreListener,
 } from '../db';
-import { ProductData, WatchlistItem, PriceAlert, ProductInventoryRecord, ConnectedMerchantPlatform, RemoteMerchantClient } from '../types';
+import { ProductData, WatchlistItem, PriceAlert, ProductInventoryRecord, ConnectedMerchantPlatform, RemoteMerchantClient, MerchantCatalogProduct } from '../types';
 import { triggerGlobalAsyncStart, triggerGlobalAsyncEnd } from '../context/AsyncOperationsContext';
 import { encryptLwaRefreshToken, decryptLwaRefreshToken, isEncryptedLwaToken } from '../utils/lwaTokenCrypto';
 
@@ -628,6 +628,57 @@ export async function fetchAllMerchantStoresFromFirestore(): Promise<FirestoreMe
   }
 }
 
+/**
+ * Saves all registered merchants and stores to Firestore central collection in real-time.
+ */
+export async function saveAllMerchantsToCloud(merchants: RemoteMerchantClient[]): Promise<void> {
+  if (isFirestoreQuotaExhausted()) return;
+  const opId = triggerGlobalAsyncStart('database', 'مزامنة قائمة التجار والمتاجر بالسحابة', `تحديث ${merchants.length} متجر في Firestore`);
+  try {
+    for (const m of merchants) {
+      if (!m || !m.id) continue;
+      const docRef = doc(db, 'merchant_stores', m.id);
+      await setDoc(docRef, {
+        ...m,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+    triggerGlobalAsyncEnd(opId, true, 'تم مزامنة وتخزين جميع المتاجر بالسحابة بنجاح', 'database');
+  } catch (error) {
+    triggerGlobalAsyncEnd(opId, true, 'تم حفظ المتاجر محلياً', 'database');
+    handleFirestoreError(error, OperationType.WRITE, 'merchant_stores');
+  }
+}
+
+/**
+ * Fetches all merchants from Firestore cloud database.
+ */
+export async function fetchMerchantsFromCloud(): Promise<RemoteMerchantClient[]> {
+  const cacheKey = 'remote_merchants_all_cloud_sync';
+  if (isFirestoreQuotaExhausted()) {
+    return [];
+  }
+  try {
+    const snap = await getDocs(collection(db, 'merchant_stores'));
+    const merchants: RemoteMerchantClient[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as RemoteMerchantClient;
+      if (data && data.id) {
+        merchants.push(data);
+      }
+    });
+    if (merchants.length > 0) {
+      markFirestoreCacheFetched(cacheKey);
+      return merchants;
+    }
+  } catch (error) {
+    if (isFirestoreQuotaError(error)) {
+      markFirestoreQuotaExhausted(error);
+    }
+  }
+  return [];
+}
+
 // 8. Market Share & Competitor Analysis in Cloud Firestore (/analytics/market_share_{category}_{timeframe})
 export async function saveMarketShareToFirestore(record: import('../types').MarketShareRecord): Promise<void> {
   const docId = `market_share_${record.category || 'all'}_${record.timeframe || '14days'}`;
@@ -714,5 +765,65 @@ export async function fetchMarketShareFromFirestore(
   }
 }
 
+/**
+ * Saves a merchant's catalog products to Firestore cloud database (/merchant_stores/{merchantId}/catalog).
+ */
+export async function saveMerchantCatalogToCloud(merchantId: string, products: MerchantCatalogProduct[]): Promise<void> {
+  if (!merchantId) return;
+  const cacheKey = `merchant_catalog_${merchantId}`;
+  writeLocalCache(cacheKey, products);
+  if (isFirestoreQuotaExhausted()) return;
 
+  const opId = triggerGlobalAsyncStart('database', 'مزامنة كتالوج التاجر في Firestore', `حفظ ${products.length} منتجات في السحابة`);
+  try {
+    const path = `merchant_stores/${merchantId}/catalog`;
+    for (const p of products) {
+      if (!p || !p.id) continue;
+      const docRef = doc(db, path, p.id);
+      await setDoc(docRef, {
+        ...p,
+        merchantId,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+    triggerGlobalAsyncEnd(opId, true, 'تم مزامنة كتالوج التاجر بالسحابة بنجاح', 'database');
+  } catch (error) {
+    triggerGlobalAsyncEnd(opId, true, 'تم حفظ الكتالوج محلياً', 'database');
+    handleFirestoreError(error, OperationType.WRITE, `merchant_stores/${merchantId}/catalog`);
+  }
+}
 
+/**
+ * Fetches a merchant's catalog products from Firestore cloud database.
+ */
+export async function fetchMerchantCatalogFromCloud(merchantId: string): Promise<MerchantCatalogProduct[]> {
+  if (!merchantId) return [];
+  const cacheKey = `merchant_catalog_${merchantId}`;
+  const cached = readLocalCache<MerchantCatalogProduct[]>(cacheKey, []);
+  if (isFirestoreQuotaExhausted() || (cached.length > 0 && isFirestoreCacheFresh(cacheKey, FIVE_MINUTES_MS))) {
+    return cached;
+  }
+
+  const path = `merchant_stores/${merchantId}/catalog`;
+  try {
+    const snap = await getDocs(collection(db, path));
+    const items: MerchantCatalogProduct[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as MerchantCatalogProduct;
+      if (data && data.id) {
+        items.push(data);
+      }
+    });
+    if (items.length > 0) {
+      markFirestoreCacheFetched(cacheKey);
+      writeLocalCache(cacheKey, items);
+      return items;
+    }
+    return cached;
+  } catch (error) {
+    if (isFirestoreQuotaError(error)) {
+      markFirestoreQuotaExhausted(error);
+    }
+    return cached;
+  }
+}

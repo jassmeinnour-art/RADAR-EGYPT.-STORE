@@ -1,5 +1,6 @@
 import { ProductData, MerchantOffer, ConnectedMerchantPlatform } from '../types';
 import { logApiSyncFailure } from './apiErrorLoggingService';
+import { saveLiveProductsToCloud, fetchLiveProductsFromCloud } from './firestoreSync';
 
 export const LIVE_PRODUCTS_STORAGE_KEY = 'merchant_radar_live_products_v2';
 export const LIVE_SYNC_LOGS_KEY = 'merchant_radar_sync_logs_v1';
@@ -818,10 +819,28 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Loads authentic live products from localStorage, purging any past dummy products.
- * Starts clean (empty array) until real products are synced from the merchant's store.
+ * Loads authentic live products with real-time Cloud Firestore synchronization and local caching.
  */
 export function loadStoredLiveProducts(): ProductData[] {
+  // Non-blocking real-time background fetch from Cloud Firestore
+  if (typeof window !== 'undefined') {
+    fetchLiveProductsFromCloud('all').then(cloudProducts => {
+      if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
+        try {
+          const raw = localStorage.getItem(LIVE_PRODUCTS_STORAGE_KEY);
+          const currentLocal = raw ? JSON.parse(raw) : [];
+          if (cloudProducts.length !== currentLocal.length || JSON.stringify(cloudProducts) !== JSON.stringify(currentLocal)) {
+            const cleaned = purgeDummyProducts(cloudProducts);
+            localStorage.setItem(LIVE_PRODUCTS_STORAGE_KEY, JSON.stringify(cleaned));
+            window.dispatchEvent(new CustomEvent('merchant_radar_live_products_updated', {
+              detail: { products: cleaned }
+            }));
+          }
+        } catch {}
+      }
+    }).catch(() => {});
+  }
+
   try {
     const raw = localStorage.getItem(LIVE_PRODUCTS_STORAGE_KEY);
     if (raw) {
@@ -833,20 +852,21 @@ export function loadStoredLiveProducts(): ProductData[] {
         }
       }
     }
-    return AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY;
+    return purgeDummyProducts(AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY);
   } catch (e) {
     console.error('Failed to load stored live products:', e);
-    return AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY;
+    return [];
   }
 }
 
 /**
- * Saves real live products to localStorage and notifies the application.
+ * Saves real live products to localStorage and Cloud Firestore.
  */
 export function saveStoredLiveProducts(products: ProductData[]): void {
   try {
     const clean = purgeDummyProducts(products);
     localStorage.setItem(LIVE_PRODUCTS_STORAGE_KEY, JSON.stringify(clean));
+    saveLiveProductsToCloud('all', clean).catch(() => {});
     window.dispatchEvent(new CustomEvent('merchant_radar_live_products_updated', {
       detail: { products: clean }
     }));
