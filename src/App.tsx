@@ -67,6 +67,7 @@ import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
 import { BayyaaAndMersadOverviewSection } from './components/BayyaaAndMersadOverviewSection';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
+import { AnimatedLogosBackground } from './components/AnimatedLogosBackground';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
@@ -441,8 +442,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 w-full max-w-full overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 w-full max-w-full overflow-x-hidden relative" dir="rtl">
       
+      {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
+      <AnimatedLogosBackground />
+
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
 

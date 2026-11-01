@@ -36,7 +36,7 @@ import { useVisualCustomizer, DEFAULT_VISUAL_SETTINGS } from '../context/VisualC
 import { VisualCustomizerModal } from './VisualCustomizerModal';
 import officialBayyaaImage from '../assets/images/regenerated_image_1792996566255.jpg';
 import { LoginRadarAndBayyaaGuideSection } from './LoginRadarAndBayyaaGuideSection';
-import { FloatingAnimatedLogosBackground } from './FloatingAnimatedLogosBackground';
+import { AnimatedLogosBackground } from './AnimatedLogosBackground';
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -286,8 +286,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
   return (
     <div className="min-h-screen bg-[#08090D] text-slate-100 flex flex-col justify-between font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 relative overflow-x-hidden" dir="rtl">
       
-      {/* Fullscreen Floating Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
-      <FloatingAnimatedLogosBackground isFixedFullscreen={true} />
+      {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
+      <AnimatedLogosBackground />
 
       {/* Background ambient lighting */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />

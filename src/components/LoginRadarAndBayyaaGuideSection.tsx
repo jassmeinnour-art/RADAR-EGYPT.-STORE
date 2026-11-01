@@ -20,7 +20,6 @@ import {
   Globe
 } from 'lucide-react';
 import officialBayyaaImage from '../assets/images/regenerated_image_1792996566255.jpg';
-import { FloatingAnimatedLogosBackground } from './FloatingAnimatedLogosBackground';
 import { motion } from 'framer-motion';
 
 interface LoginRadarAndBayyaaGuideSectionProps {
@@ -113,8 +112,7 @@ export const LoginRadarAndBayyaaGuideSection: React.FC<LoginRadarAndBayyaaGuideS
         </div>
       </motion.div>
 
-      {/* 2. Floating Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
-      <FloatingAnimatedLogosBackground isFixedFullscreen={false} />
+      {/* 2. Floating Animated Logos Background is rendered globally in background */}
 
       {/* 3. Side-by-Side: Standalone Bayyaa Promotional Ad AND Mersad Radar Philosophy */}
       <motion.div
