@@ -226,6 +226,27 @@ export interface ConnectedMerchantPlatform {
   autoWeeklyReportEmail?: boolean;
   isConnected: boolean;
   autoSyncPrice: boolean;
+  // Specialized platform-specific credentials
+  awsAccessKey?: string;
+  secretKey?: string;
+  refreshToken?: string;
+  noonPartnerId?: string;
+  noonClientId?: string;
+  noonSecretKey?: string;
+  noonWarehouseId?: string;
+  jumiaUserEmail?: string;
+  jumiaApiKey?: string;
+  jumiaShopId?: string;
+  homzmartSupplierId?: string;
+  homzmartApiKey?: string;
+  homzmartToken?: string;
+  raneenMerchantId?: string;
+  raneenApiKey?: string;
+  raneenSecret?: string;
+  rayaMerchantId?: string;
+  rayaApiKey?: string;
+  kenzzMerchantId?: string;
+  kenzzApiKey?: string;
   status: 'active' | 'syncing' | 'pending' | 'error' | 'disconnected' | 'maintenance';
   isMaintenanceMode?: boolean;
   scheduledMaintenance?: {
@@ -551,14 +572,44 @@ export interface MerchantApiCredentials {
   amazonClientSecret?: string;
   amazonRefreshToken?: string;
   amazonSellerId?: string; // SELLER_ID / Merchant Token in Amazon Seller Central
+  amazonAwsAccessKey?: string;
   amazonRegion?: string; // 'eu-west-1' | 'us-east-1' | 'us-west-2'
   amazonMarketplaceId?: string; // 'ARBP9OOSHTCHU' for Egypt
+  awsAccessKey?: string;
+  awsSecretKey?: string;
+  secretKey?: string;
+  refreshToken?: string;
 
   // Noon Partner API
+  noonPartnerId?: string;
+  noonClientId?: string;
   noonAuthKey?: string;
   noonAppId?: string;
   noonSecretKey?: string;
   noonWarehouseId?: string;
+
+  // Jumia Seller API
+  jumiaUserEmail?: string;
+  jumiaApiKey?: string;
+  jumiaShopId?: string;
+
+  // Homzmart Supplier API
+  homzmartSupplierId?: string;
+  homzmartApiKey?: string;
+  homzmartToken?: string;
+
+  // Raneen Marketplace API
+  raneenMerchantId?: string;
+  raneenApiKey?: string;
+  raneenSecret?: string;
+
+  // Raya Shop API
+  rayaMerchantId?: string;
+  rayaApiKey?: string;
+
+  // Kenzz Partner API
+  kenzzMerchantId?: string;
+  kenzzApiKey?: string;
 
   // Courier API (Bosta, etc.)
   bostaApiKey?: string;
@@ -661,6 +712,29 @@ export interface RemoteMerchantClient {
     merchantStoreUrl?: string;
     isConnected?: boolean;
     lastSyncedAt?: string;
+    // Specialized platform-specific credentials
+    awsAccessKey?: string;
+    secretKey?: string;
+    refreshToken?: string;
+    region?: string;
+    marketplaceId?: string;
+    noonPartnerId?: string;
+    noonClientId?: string;
+    noonSecretKey?: string;
+    noonWarehouseId?: string;
+    jumiaUserEmail?: string;
+    jumiaApiKey?: string;
+    jumiaShopId?: string;
+    homzmartSupplierId?: string;
+    homzmartApiKey?: string;
+    homzmartToken?: string;
+    raneenMerchantId?: string;
+    raneenApiKey?: string;
+    raneenSecret?: string;
+    rayaMerchantId?: string;
+    rayaApiKey?: string;
+    kenzzMerchantId?: string;
+    kenzzApiKey?: string;
   }>;
 }
 

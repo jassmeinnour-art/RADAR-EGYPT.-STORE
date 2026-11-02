@@ -148,6 +148,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           action: () => onOpenAllMerchantsHub()
         },
         {
+          id: 'traders_sync_tab',
+          label: 'ربط المتاجر ومزامنة الكتالوج ⚡',
+          icon: <Building2 className="w-4 h-4 text-sky-300" />,
+          isActive: activeTab === 'traders_sync',
+          action: () => onSelectTab('traders_sync'),
+          badge: 'Email & Seller ID 🔄'
+        },
+        {
           id: 'auto_pricing',
           label: 'محرك التسعير الآلي التنافسي',
           icon: <Zap className="w-4 h-4 text-orange-300" />,

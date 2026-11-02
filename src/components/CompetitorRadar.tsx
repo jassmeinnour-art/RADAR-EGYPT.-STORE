@@ -203,12 +203,59 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
   // WhatsApp Automated Alerts & Auto-Repricing Modal State
   const [isWhatsAppRepriceModalOpen, setIsWhatsAppRepriceModalOpen] = useState<boolean>(false);
   const [selectedWhatsAppCompetitor, setSelectedWhatsAppCompetitor] = useState<MerchantOffer | null>(null);
+
+  // Competitor Product Image AI Analysis State
+  const [isCompetitorImageModalOpen, setIsCompetitorImageModalOpen] = useState<boolean>(false);
+  const [competitorImageUrlInput, setCompetitorImageUrlInput] = useState<string>('');
+  const [selectedCompetitorForImageAnalysis, setSelectedCompetitorForImageAnalysis] = useState<MerchantOffer | null>(null);
+  const [isAnalyzingCompetitorImage, setIsAnalyzingCompetitorImage] = useState<boolean>(false);
+  const [competitorImageAnalysisResult, setCompetitorImageAnalysisResult] = useState<any | null>(null);
+
   // Ref to track last alerted price and prevent repetitive audio spam
   const lastAlertedPriceRef = useRef<number | null>(null);
   const onShowToastRef = useRef(onShowToast);
   const playPriceAlertSoundRef = useRef(playPriceAlertSound);
   onShowToastRef.current = onShowToast;
   playPriceAlertSoundRef.current = playPriceAlertSound;
+
+  const handleExecuteCompetitorImageAnalysis = async (targetUrl?: string) => {
+    const urlToAnalyze = (targetUrl || competitorImageUrlInput || product?.imageUrl || '').trim();
+    if (!urlToAnalyze) {
+      if (onShowToast) onShowToast('يرجى إدخال أو لصق رابط صورة المنافس للتحليل 📸');
+      return;
+    }
+
+    setIsAnalyzingCompetitorImage(true);
+    try {
+      const res = await fetch('/api/analyze-competitor-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: urlToAnalyze,
+          competitorName: selectedCompetitorForImageAnalysis?.merchantName || 'منافس بالرادار',
+          platformName: selectedCompetitorForImageAnalysis?.platformName || 'منصة تجارية',
+          productTitle: product?.title || 'منتج تجاري'
+        }),
+      });
+
+      const resultData = await res.json();
+      if (resultData.success && resultData.data) {
+        setCompetitorImageAnalysisResult(resultData.data);
+        if (onShowToast) {
+          onShowToast('✨ اكتمل تحليل صورة المنافس بالـ AI! استعرض التوصيات لتطوير صور متجرك 📸');
+        }
+      } else {
+        throw new Error(resultData.error || 'فشل في تحليل الصورة');
+      }
+    } catch (err: any) {
+      console.error('Error analyzing competitor image:', err);
+      if (onShowToast) {
+        onShowToast('⚠️ تعذر تحليل صورة المنافس، تم توفير الاقتراحات الذكية التلقائية.');
+      }
+    } finally {
+      setIsAnalyzingCompetitorImage(false);
+    }
+  };
 
   // Watchlist synchronization and Web Notification support
   const [internalWatchlisted, setInternalWatchlisted] = useState<boolean>(() => {
@@ -783,6 +830,30 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </button>
                 </ToolbarTooltip>
               )}
+
+              <ToolbarTooltip
+                title="تحليل صورة المنافس بالذكاء الاصطناعي"
+                description="رفع أو لصق رابط صورة منتج منافس لتحليلها بـ AI وتلقي توصيات مخصصة لتطوير صورك"
+                badge="AI Visual 📸"
+                icon={Camera}
+                theme="sky"
+                side="top"
+              >
+                <button
+                  type="button"
+                  id="btn-radar-analyze-competitor-image-top"
+                  onClick={() => {
+                    if (!competitorImageUrlInput && filteredOffers.length > 0) {
+                      setCompetitorImageUrlInput(filteredOffers[0].merchantLogo || product?.imageUrl || '');
+                    }
+                    setIsCompetitorImageModalOpen(true);
+                  }}
+                  className="h-10 px-3.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 active:scale-95 text-purple-300 border border-purple-500/40 hover:border-purple-300 text-xs font-black flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
+                >
+                  <Camera className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>تحليل صورة المنافس (AI) 📸</span>
+                </button>
+              </ToolbarTooltip>
 
               {onOpenPeriodicReports && (
                 <ToolbarTooltip
@@ -1723,6 +1794,31 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                           </ToolbarTooltip>
 
                           <ToolbarTooltip
+                            title="تحليل صورة هذا المنافس بالـ AI"
+                            description={`تحليل صوره وعروض متجر (${offer.merchantName}) بالـ AI واستخراج فرص للتفوق عليه`}
+                            icon={Camera}
+                            theme="indigo"
+                            side="top"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCompetitorForImageAnalysis(offer);
+                                const imgUrl = offer.merchantLogo || product?.imageUrl || '';
+                                setCompetitorImageUrlInput(imgUrl);
+                                setIsCompetitorImageModalOpen(true);
+                                if (imgUrl) {
+                                  handleExecuteCompetitorImageAnalysis(imgUrl);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 active:scale-95 text-purple-300 text-xs font-bold transition-all border border-purple-500/40 cursor-pointer shadow-2xs"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-purple-400" />
+                              <span>تحليل الصورة (AI)</span>
+                            </button>
+                          </ToolbarTooltip>
+
+                          <ToolbarTooltip
                             title="زيارة صفحة المنافس"
                             description={`الانتقال المباشر لمتجر (${offer.merchantName}) للتحقق من شروط العرض وتوافر المخزون`}
                             icon={ExternalLink}
@@ -2120,6 +2216,246 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           }
         }}
       />
+
+      {/* Competitor Image AI Analysis Modal */}
+      {isCompetitorImageModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn text-right font-['Cairo']"
+          dir="rtl"
+          onClick={() => setIsCompetitorImageModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-3xl bg-slate-900 border border-slate-700/80 rounded-3xl p-4 sm:p-6 shadow-2xl text-slate-100 space-y-5 max-h-[92vh] overflow-y-auto font-['Cairo']"
+            onClick={(e) => e.stopPropagation()}
+            id="competitor-image-analysis-modal"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0 shadow-xs">
+                  <Camera className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      مُحلل صور المنافسين بالذكاء الاصطناعي (AI Visual Audit)
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">
+                      السوق المصري • Amazon EG / Noon / Jumia
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white font-['Alexandria'] mt-1">
+                    تحليل صورة المنافس واستخراج توصيات لتطوير صور متجرك 📸
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCompetitorImageModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer shrink-0"
+                title="إغلاق النافذة"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Input Section: URL or Selector */}
+            <div className="space-y-3 bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
+              <label className="block text-xs font-bold text-slate-200">
+                أدخل أو الصق رابط صورة المنتج المنافس (Image URL) للتحليل:
+              </label>
+              <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                <input
+                  type="url"
+                  value={competitorImageUrlInput}
+                  onChange={(e) => setCompetitorImageUrlInput(e.target.value)}
+                  placeholder="مثال: https://m.media-amazon.com/images/I/... أو رابط صورة المنافس"
+                  dir="ltr"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs focus:border-purple-500 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleExecuteCompetitorImageAnalysis()}
+                  disabled={isAnalyzingCompetitorImage}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-purple-950/50 disabled:opacity-60 shrink-0"
+                >
+                  {isAnalyzingCompetitorImage ? (
+                    <>
+                      <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      <span>جاري تحليل الصورة بـ AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-purple-200 fill-purple-200" />
+                      <span>تحليل الصورة بالـ AI ✨</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Quick select from current competitor offers if available */}
+              {filteredOffers.length > 0 && (
+                <div className="pt-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] text-slate-400 font-bold">أو اختر صورة أحد منافسي هذا الصنف مباشرة:</span>
+                  {filteredOffers.slice(0, 4).map((offer) => (
+                    <button
+                      key={offer.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCompetitorForImageAnalysis(offer);
+                        const img = offer.merchantLogo || product?.imageUrl || '';
+                        setCompetitorImageUrlInput(img);
+                        handleExecuteCompetitorImageAnalysis(img);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border border-slate-700"
+                    >
+                      <span>{offer.merchantLogo && offer.merchantLogo.length <= 4 ? offer.merchantLogo : '🏬'}</span>
+                      <span>{offer.merchantName} ({offer.price} ج.م)</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Preview & Results Display */}
+            {competitorImageAnalysisResult ? (
+              <div className="space-y-4 animate-fadeIn">
+                {/* Top Score Banner */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-950 border border-purple-500/40 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      <img
+                        src={competitorImageAnalysisResult.imageUrl || competitorImageUrlInput || product?.imageUrl}
+                        alt="صورة المنافس"
+                        className="w-full h-full object-contain rounded-xl"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-300">منافس: <strong className="text-white">{competitorImageAnalysisResult.competitorName || 'منافس بالرادار'}</strong></span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">
+                          {competitorImageAnalysisResult.platformName || 'أمازون مصر / نون'}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-black text-white mt-0.5">
+                        {competitorImageAnalysisResult.winningConceptTitle || 'المفهوم البصري التنافسي'}
+                      </h4>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/80 px-4 py-2.5 rounded-xl border border-purple-500/30 text-center shrink-0">
+                    <span className="text-[10px] text-slate-400 block font-bold">تقييم جودة جلب الانتباه CTR:</span>
+                    <span className="text-xl font-black font-mono text-purple-300">
+                      {competitorImageAnalysisResult.overallVisualScore || 80} / 100
+                    </span>
+                  </div>
+                </div>
+
+                {/* Grid: Strengths vs Flaws */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Strengths */}
+                  <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>نقاط القوة البصرية لدى المنافس (حوافز الشراء):</span>
+                    </div>
+                    <ul className="space-y-1.5 text-xs text-slate-300">
+                      {(competitorImageAnalysisResult.visualStrengths || []).map((st: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                          <span>{st}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Flaws / Weaknesses */}
+                  <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-2xl space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      <span>سقطات صورة المنافس (فرصتك للتفوق عليه):</span>
+                    </div>
+                    <ul className="space-y-1.5 text-xs text-slate-300">
+                      {(competitorImageAnalysisResult.visualFlaws || []).map((fl: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-amber-400 font-bold shrink-0">⚠️</span>
+                          <span>{fl}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Actionable Improvement Tips for Merchant */}
+                <div className="p-4 bg-slate-950 border border-purple-500/30 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-2 font-black text-sm text-purple-300">
+                    <Sparkles className="w-4 h-4 text-purple-400 fill-purple-400" />
+                    <span>توصيات AI لتطوير صور منتجك والتفوق على المنافس:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {(competitorImageAnalysisResult.imageImprovementTips || []).map((tip: string, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 text-[11px] font-mono font-bold flex items-center justify-center shrink-0 border border-purple-500/30">
+                          {idx + 1}
+                        </span>
+                        <span className="leading-relaxed">{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Platform Compliance Scores */}
+                {competitorImageAnalysisResult.platformCompliance && (
+                  <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="font-bold text-slate-300">توافق المعايير المصرية:</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                        أمازون مصر: {competitorImageAnalysisResult.platformCompliance.amazonEgScore}%
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 font-bold">
+                        نون مصر: {competitorImageAnalysisResult.platformCompliance.noonEgScore}%
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-300 font-bold">
+                        جوميا مصر: {competitorImageAnalysisResult.platformCompliance.jumiaEgScore}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Winning Concept Footer Action */}
+                <div className="p-4 bg-gradient-to-r from-indigo-950 to-slate-950 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-indigo-300 block">الفكرة التصميمية المقترحة لصورك:</span>
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                      {competitorImageAnalysisResult.winningConceptDescription}
+                    </p>
+                  </div>
+
+                  {onOpenStudio && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCompetitorImageModalOpen(false);
+                        onOpenStudio();
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-950/60 shrink-0"
+                    >
+                      <Camera className="w-4 h-4 text-purple-200" />
+                      <span>تطبيق التوصيات بالاستوديو 🎨</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

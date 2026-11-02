@@ -111,6 +111,42 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifySuccess, setVerifySuccess] = useState(false);
 
+  // Dedicated Amazon SP-API Fields
+  const [amazonAwsAccessKey, setAmazonAwsAccessKey] = useState(platform?.awsAccessKey || '');
+  const [amazonSecretKey, setAmazonSecretKey] = useState(platform?.secretKey || '');
+  const [amazonRefreshToken, setAmazonRefreshToken] = useState(platform?.refreshToken || platform?.mwsAuthToken || '');
+  const [amazonRegion, setAmazonRegion] = useState('eu-west-1');
+  const [amazonMarketplaceId, setAmazonMarketplaceId] = useState('ARBP9OOSHTCHU');
+
+  // Dedicated Noon Partner Fields
+  const [noonPartnerId, setNoonPartnerId] = useState(platform?.noonPartnerId || '');
+  const [noonClientId, setNoonClientId] = useState(platform?.noonClientId || '');
+  const [noonSecretKey, setNoonSecretKey] = useState(platform?.noonSecretKey || '');
+  const [noonWarehouseId, setNoonWarehouseId] = useState(platform?.noonWarehouseId || '');
+
+  // Dedicated Jumia Seller Center Fields
+  const [jumiaUserEmail, setJumiaUserEmail] = useState(platform?.jumiaUserEmail || '');
+  const [jumiaApiKey, setJumiaApiKey] = useState(platform?.jumiaApiKey || '');
+  const [jumiaShopId, setJumiaShopId] = useState(platform?.jumiaShopId || '');
+
+  // Dedicated Homzmart Supplier Fields
+  const [homzmartSupplierId, setHomzmartSupplierId] = useState(platform?.homzmartSupplierId || '');
+  const [homzmartApiKey, setHomzmartApiKey] = useState(platform?.homzmartApiKey || '');
+  const [homzmartToken, setHomzmartToken] = useState(platform?.homzmartToken || '');
+
+  // Dedicated Raneen Marketplace Fields
+  const [raneenMerchantId, setRaneenMerchantId] = useState(platform?.raneenMerchantId || '');
+  const [raneenApiKey, setRaneenApiKey] = useState(platform?.raneenApiKey || '');
+  const [raneenSecret, setRaneenSecret] = useState(platform?.raneenSecret || '');
+
+  // Dedicated Raya Shop Fields
+  const [rayaMerchantId, setRayaMerchantId] = useState(platform?.rayaMerchantId || '');
+  const [rayaApiKey, setRayaApiKey] = useState(platform?.rayaApiKey || '');
+
+  // Dedicated Kenzz Partner Fields
+  const [kenzzMerchantId, setKenzzMerchantId] = useState(platform?.kenzzMerchantId || '');
+  const [kenzzApiKey, setKenzzApiKey] = useState(platform?.kenzzApiKey || '');
+
   // Competitor CSV State
   const [dragActive, setDragActive] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
@@ -135,26 +171,53 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
 
     const matched = remoteMerchants.find(m => m.id === targetMerchId);
     const creds = matched?.platformCredentials?.[platform.code];
+    const apiCreds = matched?.apiCredentials;
 
-    if (creds) {
-      setSellerName(creds.sellerName || matched?.storeName || platform.sellerName || '');
-      setSellerId(creds.sellerId || platform.sellerId || (matched ? `EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}` : ''));
-      setMerchantEmail(creds.merchantEmail || matched?.primaryEmail || platform.merchantEmail || '');
-      setMwsAuthToken(creds.mwsAuthToken || platform.mwsAuthToken || '');
-      setApiKey(creds.apiKey || platform.apiKey || '');
-      setSellerLoginId(creds.sellerLoginId || platform.sellerLoginId || '');
-      if (creds.sellerPortalUrl) setSellerPortalUrl(creds.sellerPortalUrl);
-      if (creds.merchantStoreUrl) setMerchantStoreUrl(creds.merchantStoreUrl);
-    } else {
-      setSellerName(platform.sellerName || matched?.storeName || '');
-      setSellerId(platform.sellerId || (matched ? `EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}` : ''));
-      setMerchantEmail(platform.merchantEmail || matched?.primaryEmail || '');
-      setMwsAuthToken(platform.mwsAuthToken || '');
-      setSellerLoginId(platform.sellerLoginId || '');
-      setApiKey(platform.apiKey || '');
-      setMerchantStoreUrl(platform.merchantStoreUrl || '');
-      setSellerPortalUrl(platform ? getPlatformSellerPortalUrl(platform) : '');
-    }
+    setSellerName(creds?.sellerName || matched?.storeName || platform.sellerName || '');
+    setSellerId(creds?.sellerId || platform.sellerId || (matched ? `EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}` : ''));
+    setMerchantEmail(creds?.merchantEmail || matched?.primaryEmail || platform.merchantEmail || '');
+    setMwsAuthToken(creds?.mwsAuthToken || platform.mwsAuthToken || '');
+    setApiKey(creds?.apiKey || platform.apiKey || '');
+    setSellerLoginId(creds?.sellerLoginId || platform.sellerLoginId || '');
+    if (creds?.sellerPortalUrl) setSellerPortalUrl(creds.sellerPortalUrl);
+    else setSellerPortalUrl(getPlatformSellerPortalUrl(platform));
+    if (creds?.merchantStoreUrl) setMerchantStoreUrl(creds.merchantStoreUrl);
+
+    // Amazon
+    setAmazonAwsAccessKey(creds?.awsAccessKey || apiCreds?.amazonAwsAccessKey || apiCreds?.amazonClientId || platform.awsAccessKey || '');
+    setAmazonSecretKey(creds?.secretKey || apiCreds?.amazonClientSecret || platform.secretKey || '');
+    setAmazonRefreshToken(creds?.refreshToken || creds?.mwsAuthToken || apiCreds?.amazonRefreshToken || platform.refreshToken || platform.mwsAuthToken || '');
+    setAmazonRegion(creds?.region || apiCreds?.amazonRegion || 'eu-west-1');
+    setAmazonMarketplaceId(creds?.marketplaceId || apiCreds?.amazonMarketplaceId || 'ARBP9OOSHTCHU');
+
+    // Noon
+    setNoonPartnerId(creds?.noonPartnerId || apiCreds?.noonPartnerId || platform.noonPartnerId || '');
+    setNoonClientId(creds?.noonClientId || apiCreds?.noonClientId || apiCreds?.noonAppId || platform.noonClientId || '');
+    setNoonSecretKey(creds?.noonSecretKey || apiCreds?.noonSecretKey || apiCreds?.noonAuthKey || platform.noonSecretKey || '');
+    setNoonWarehouseId(creds?.noonWarehouseId || apiCreds?.noonWarehouseId || platform.noonWarehouseId || '');
+
+    // Jumia
+    setJumiaUserEmail(creds?.jumiaUserEmail || apiCreds?.jumiaUserEmail || matched?.primaryEmail || platform.jumiaUserEmail || '');
+    setJumiaApiKey(creds?.jumiaApiKey || apiCreds?.jumiaApiKey || creds?.apiKey || platform.jumiaApiKey || '');
+    setJumiaShopId(creds?.jumiaShopId || apiCreds?.jumiaShopId || creds?.sellerId || platform.jumiaShopId || '');
+
+    // Homzmart
+    setHomzmartSupplierId(creds?.homzmartSupplierId || apiCreds?.homzmartSupplierId || creds?.sellerId || platform.homzmartSupplierId || '');
+    setHomzmartApiKey(creds?.homzmartApiKey || apiCreds?.homzmartApiKey || creds?.apiKey || platform.homzmartApiKey || '');
+    setHomzmartToken(creds?.homzmartToken || apiCreds?.homzmartToken || platform.homzmartToken || '');
+
+    // Raneen
+    setRaneenMerchantId(creds?.raneenMerchantId || apiCreds?.raneenMerchantId || creds?.sellerId || platform.raneenMerchantId || '');
+    setRaneenApiKey(creds?.raneenApiKey || apiCreds?.raneenApiKey || creds?.apiKey || platform.raneenApiKey || '');
+    setRaneenSecret(creds?.raneenSecret || apiCreds?.raneenSecret || platform.raneenSecret || '');
+
+    // Raya
+    setRayaMerchantId(creds?.rayaMerchantId || apiCreds?.rayaMerchantId || creds?.sellerId || platform.rayaMerchantId || '');
+    setRayaApiKey(creds?.rayaApiKey || apiCreds?.rayaApiKey || creds?.apiKey || platform.rayaApiKey || '');
+
+    // Kenzz
+    setKenzzMerchantId(creds?.kenzzMerchantId || apiCreds?.kenzzMerchantId || creds?.sellerId || platform.kenzzMerchantId || '');
+    setKenzzApiKey(creds?.kenzzApiKey || apiCreds?.kenzzApiKey || creds?.apiKey || platform.kenzzApiKey || '');
 
     setCredentialsNotes(platform.credentialsNotes || '');
     setAutoSyncPrice(platform.autoSyncPrice ?? true);
@@ -177,20 +240,51 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
     const matched = remoteMerchants.find(m => m.id === merchantId);
     if (matched) {
       const creds = matched.platformCredentials?.[platform?.code];
-      if (creds) {
-        setSellerName(creds.sellerName || matched.storeName);
-        setSellerId(creds.sellerId || `EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}`);
-        setMerchantEmail(creds.merchantEmail || matched.primaryEmail);
-        setMwsAuthToken(creds.mwsAuthToken || '');
-        setApiKey(creds.apiKey || '');
-        setSellerLoginId(creds.sellerLoginId || '');
-        if (creds.sellerPortalUrl) setSellerPortalUrl(creds.sellerPortalUrl);
-        if (creds.merchantStoreUrl) setMerchantStoreUrl(creds.merchantStoreUrl);
-      } else {
-        setMerchantEmail(matched.primaryEmail);
-        setSellerName(matched.storeName);
-        setSellerId(`EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}`);
-      }
+      const apiCreds = matched.apiCredentials;
+
+      setSellerName(creds?.sellerName || matched.storeName);
+      setSellerId(creds?.sellerId || `EG-${matched.id.toUpperCase().replace('MERCH-', 'M')}`);
+      setMerchantEmail(creds?.merchantEmail || matched.primaryEmail);
+      setMwsAuthToken(creds?.mwsAuthToken || '');
+      setApiKey(creds?.apiKey || '');
+      setSellerLoginId(creds?.sellerLoginId || '');
+      if (creds?.sellerPortalUrl) setSellerPortalUrl(creds.sellerPortalUrl);
+      if (creds?.merchantStoreUrl) setMerchantStoreUrl(creds.merchantStoreUrl);
+
+      // Amazon
+      setAmazonAwsAccessKey(creds?.awsAccessKey || apiCreds?.amazonAwsAccessKey || apiCreds?.amazonClientId || '');
+      setAmazonSecretKey(creds?.secretKey || apiCreds?.amazonClientSecret || '');
+      setAmazonRefreshToken(creds?.refreshToken || creds?.mwsAuthToken || apiCreds?.amazonRefreshToken || '');
+
+      // Noon
+      setNoonPartnerId(creds?.noonPartnerId || apiCreds?.noonPartnerId || '');
+      setNoonClientId(creds?.noonClientId || apiCreds?.noonClientId || apiCreds?.noonAppId || '');
+      setNoonSecretKey(creds?.noonSecretKey || apiCreds?.noonSecretKey || apiCreds?.noonAuthKey || '');
+      setNoonWarehouseId(creds?.noonWarehouseId || apiCreds?.noonWarehouseId || '');
+
+      // Jumia
+      setJumiaUserEmail(creds?.jumiaUserEmail || apiCreds?.jumiaUserEmail || matched.primaryEmail || '');
+      setJumiaApiKey(creds?.jumiaApiKey || apiCreds?.jumiaApiKey || '');
+      setJumiaShopId(creds?.jumiaShopId || apiCreds?.jumiaShopId || '');
+
+      // Homzmart
+      setHomzmartSupplierId(creds?.homzmartSupplierId || apiCreds?.homzmartSupplierId || '');
+      setHomzmartApiKey(creds?.homzmartApiKey || apiCreds?.homzmartApiKey || '');
+      setHomzmartToken(creds?.homzmartToken || apiCreds?.homzmartToken || '');
+
+      // Raneen
+      setRaneenMerchantId(creds?.raneenMerchantId || apiCreds?.raneenMerchantId || '');
+      setRaneenApiKey(creds?.raneenApiKey || apiCreds?.raneenApiKey || '');
+      setRaneenSecret(creds?.raneenSecret || apiCreds?.raneenSecret || '');
+
+      // Raya
+      setRayaMerchantId(creds?.rayaMerchantId || apiCreds?.rayaMerchantId || '');
+      setRayaApiKey(creds?.rayaApiKey || apiCreds?.rayaApiKey || '');
+
+      // Kenzz
+      setKenzzMerchantId(creds?.kenzzMerchantId || apiCreds?.kenzzMerchantId || '');
+      setKenzzApiKey(creds?.kenzzApiKey || apiCreds?.kenzzApiKey || '');
+
       setVerifySuccess(true);
     }
   };
@@ -206,10 +300,39 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
     e.preventDefault();
     const emailStr = merchantEmail.trim().toLowerCase();
     const isGmail = emailStr.endsWith('@gmail.com');
+    const platCode = (platform.code || platform.id).toLowerCase();
+
+    // Determine platform-specific sellerId and apiKey
+    let effectiveSellerId = sellerId.trim();
+    let effectiveApiKey = apiKey.trim();
+
+    if (platCode.includes('amazon')) {
+      effectiveSellerId = sellerId.trim();
+      effectiveApiKey = amazonSecretKey.trim() || amazonAwsAccessKey.trim();
+    } else if (platCode.includes('noon')) {
+      effectiveSellerId = noonPartnerId.trim() || noonClientId.trim() || sellerId.trim();
+      effectiveApiKey = noonSecretKey.trim() || noonClientId.trim();
+    } else if (platCode.includes('jumia')) {
+      effectiveSellerId = jumiaShopId.trim() || sellerId.trim();
+      effectiveApiKey = jumiaApiKey.trim();
+    } else if (platCode.includes('homzmart')) {
+      effectiveSellerId = homzmartSupplierId.trim() || sellerId.trim();
+      effectiveApiKey = homzmartApiKey.trim();
+    } else if (platCode.includes('raneen')) {
+      effectiveSellerId = raneenMerchantId.trim() || sellerId.trim();
+      effectiveApiKey = raneenApiKey.trim();
+    } else if (platCode.includes('raya')) {
+      effectiveSellerId = rayaMerchantId.trim() || sellerId.trim();
+      effectiveApiKey = rayaApiKey.trim();
+    } else if (platCode.includes('kenzz')) {
+      effectiveSellerId = kenzzMerchantId.trim() || sellerId.trim();
+      effectiveApiKey = kenzzApiKey.trim();
+    }
+
     const updated: ConnectedMerchantPlatform = {
       ...platform,
       sellerName: sellerName.trim() || matchedRemoteMerchant?.storeName || 'متجر التاجر المعتمد',
-      sellerId: sellerId.trim() || `SELLER-${Date.now().toString().slice(-6)}`,
+      sellerId: effectiveSellerId || `SELLER-${Date.now().toString().slice(-6)}`,
       merchantEmail: merchantEmail.trim() || matchedRemoteMerchant?.primaryEmail || '',
       merchantStoreUrl: merchantStoreUrl.trim(),
       sellerPortalUrl: sellerPortalUrl.trim() || undefined,
@@ -217,11 +340,32 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
       linkedGmail: isGmail ? emailStr : (platform.linkedGmail || (platform.isGmailLinked ? platform.merchantEmail : undefined)),
       directLaunchSupported: true,
       linkedMerchantClientId: linkedMerchantId || undefined,
-      apiKey: apiKey.trim() || undefined,
-      mwsAuthToken: mwsAuthToken.trim() || undefined,
+      apiKey: effectiveApiKey || undefined,
+      mwsAuthToken: (amazonRefreshToken.trim() || mwsAuthToken.trim()) || undefined,
       sellerLoginId: sellerLoginId.trim() || undefined,
       managerAgencyEmail: effectiveAgencyManagerEmail,
       credentialsNotes: credentialsNotes.trim() || undefined,
+      // Platform-specific credentials
+      awsAccessKey: amazonAwsAccessKey.trim() || undefined,
+      secretKey: amazonSecretKey.trim() || undefined,
+      refreshToken: amazonRefreshToken.trim() || undefined,
+      noonPartnerId: noonPartnerId.trim() || undefined,
+      noonClientId: noonClientId.trim() || undefined,
+      noonSecretKey: noonSecretKey.trim() || undefined,
+      noonWarehouseId: noonWarehouseId.trim() || undefined,
+      jumiaUserEmail: jumiaUserEmail.trim() || undefined,
+      jumiaApiKey: jumiaApiKey.trim() || undefined,
+      jumiaShopId: jumiaShopId.trim() || undefined,
+      homzmartSupplierId: homzmartSupplierId.trim() || undefined,
+      homzmartApiKey: homzmartApiKey.trim() || undefined,
+      homzmartToken: homzmartToken.trim() || undefined,
+      raneenMerchantId: raneenMerchantId.trim() || undefined,
+      raneenApiKey: raneenApiKey.trim() || undefined,
+      raneenSecret: raneenSecret.trim() || undefined,
+      rayaMerchantId: rayaMerchantId.trim() || undefined,
+      rayaApiKey: rayaApiKey.trim() || undefined,
+      kenzzMerchantId: kenzzMerchantId.trim() || undefined,
+      kenzzApiKey: kenzzApiKey.trim() || undefined,
       autoSyncPrice,
       autoSyncOrders,
       autoWeeklyReportEmail,
@@ -229,7 +373,7 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
       status: 'active',
       hasSyncError: false,
       syncError: undefined,
-      lastSyncedAt: 'الآن (تم الربط والتزامن)',
+      lastSyncedAt: 'الآن (تم الربط والتزامن المستقل 🔐)',
     };
     onSave(updated, linkedMerchantId);
     onClose();
@@ -346,6 +490,14 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
   if (!isOpen || !platform) return null;
 
   const platformDisplayName = platform.name.split('(')[0].trim();
+  const platCode = (platform.code || platform.id || '').toLowerCase();
+  const isAmazon = platCode.includes('amazon');
+  const isNoon = platCode.includes('noon');
+  const isJumia = platCode.includes('jumia');
+  const isHomzmart = platCode.includes('homzmart');
+  const isRaneen = platCode.includes('raneen');
+  const isRaya = platCode.includes('raya');
+  const isKenzz = platCode.includes('kenzz');
 
   const displayedRows = (parseResult?.validRows || []).concat(parseResult?.invalidRows || []).filter(row => {
     if (previewFilter === 'valid') return row.isValid;
@@ -636,92 +788,624 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
                   </div>
                 </div>
 
-                {/* Seller ID */}
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">
-                    معرّف البائع / رمز التاجر (Seller ID / Merchant Token)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={sellerId}
-                      onChange={(e) => setSellerId(e.target.value)}
-                      placeholder="مثال: A2EUQ1WTGCTBG2 أو EG-MKT-9912"
-                      dir="ltr"
-                      className="w-full px-3.5 py-2.5 pl-9 rounded-xl bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 outline-none text-slate-100 font-mono text-left"
-                    />
-                    <Key className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  </div>
-                </div>
+                {/* DEDICATED INDEPENDENT PLATFORM CREDENTIALS FORMS */}
+                {/* 1. Amazon SP-API Dedicated Form */}
+                {isAmazon && (
+                  <div className="sm:col-span-2 p-4 bg-amber-950/20 border border-amber-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-xs">
+                          📦
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-amber-200">
+                            مفاتيح الربط البرمجي الحصري لأمازون مصر (Amazon SP-API)
+                          </h4>
+                          <p className="text-[10px] text-amber-400/80">
+                            Seller ID, AWS Access Key, Secret Key & LWA Refresh Token
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
 
-                {/* MWS Auth Token / SP-API Refresh Token */}
-                <div className="sm:col-span-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-slate-300 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-sky-400" />
-                      <span>رمز تفويض المطور / الوكالة (MWS Auth Token / SP-API Token) - اختياري</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      {showSensitiveTokens ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{showSensitiveTokens ? 'إخفاء الرمز' : 'إظهار الرمز'}</span>
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showSensitiveTokens ? 'text' : 'password'}
-                      value={mwsAuthToken}
-                      onChange={(e) => setMwsAuthToken(e.target.value)}
-                      placeholder="amzn.mws.4ea4a731-3b16-464a-8822-xxxxxxxxxxxx"
-                      dir="ltr"
-                      className="w-full px-3.5 py-2.5 pl-10 rounded-xl bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 outline-none text-slate-100 font-mono text-left text-xs"
-                    />
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    رمز التفويض الذي يستخرجه التاجر من حسابه ليمنحك كمدير تسويق صلاحية جلب الطلبات والمزامنة التلقائية للمتجر.
-                  </p>
-                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Seller ID */}
+                      <div>
+                        <label className="block font-bold text-amber-200 mb-1 text-xs">
+                          معرّف البائع في أمازون (Seller ID / Merchant Token) *
+                        </label>
+                        <input
+                          type="text"
+                          value={sellerId}
+                          onChange={(e) => setSellerId(e.target.value.trim())}
+                          placeholder="مثال: A2EUQ1WTGCTBG2"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 focus:border-amber-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
 
-                {/* Seller Login ID */}
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">
-                    اسم المستخدم أو معرّف دخول المتجر (Seller Login ID) - اختياري
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={sellerLoginId}
-                      onChange={(e) => setSellerLoginId(e.target.value)}
-                      placeholder="مثال: admin_seller_eg"
-                      dir="ltr"
-                      className="w-full px-3.5 py-2.5 pl-9 rounded-xl bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 outline-none text-slate-100 font-mono text-left"
-                    />
-                    <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  </div>
-                </div>
+                      {/* AWS Access Key */}
+                      <div>
+                        <label className="block font-bold text-amber-200 mb-1 text-xs">
+                          مفتاح وصول AWS (AWS Access Key ID)
+                        </label>
+                        <input
+                          type="text"
+                          value={amazonAwsAccessKey}
+                          onChange={(e) => setAmazonAwsAccessKey(e.target.value.trim())}
+                          placeholder="AKIAIOSFODNN7EXAMPLE"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 focus:border-amber-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
 
-                {/* API Key / Token */}
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1 flex items-center justify-between">
-                    <span>مفتاح API التاجر (API Key / Client Secret)</span>
-                    <span className="text-[10px] text-slate-400">مشفر ومحمي</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showSensitiveTokens ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="••••••••••••••••••••••••••••••••"
-                      dir="ltr"
-                      className="w-full px-3.5 py-2.5 pl-10 rounded-xl bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 outline-none text-slate-100 font-mono text-left"
-                    />
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      {/* Secret Key */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-amber-200 text-xs">
+                            المفتاح السري (AWS Secret Key / LWA Secret)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-amber-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={amazonSecretKey}
+                          onChange={(e) => setAmazonSecretKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 focus:border-amber-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      {/* LWA Refresh Token */}
+                      <div>
+                        <label className="block font-bold text-amber-200 mb-1 text-xs">
+                          رمز تفويض LWA (LWA Refresh Token)
+                        </label>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={amazonRefreshToken}
+                          onChange={(e) => setAmazonRefreshToken(e.target.value.trim())}
+                          placeholder="Atzr|IQEBLz4F6g..."
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 focus:border-amber-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      {/* Region & Marketplace */}
+                      <div>
+                        <label className="block font-bold text-slate-300 mb-1 text-xs">
+                          نطاق وسيرفر أمازون (Region)
+                        </label>
+                        <select
+                          value={amazonRegion}
+                          onChange={(e) => setAmazonRegion(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs font-semibold outline-none"
+                        >
+                          <option value="eu-west-1">أوروبا ومصر والشرق الأوسط (eu-west-1) [افتراضي]</option>
+                          <option value="us-east-1">أمريكا الشمالية (us-east-1)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-300 mb-1 text-xs">
+                          معرّف سوق مصر (Marketplace ID)
+                        </label>
+                        <input
+                          type="text"
+                          value={amazonMarketplaceId}
+                          disabled
+                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 font-mono text-xs cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* 2. Noon Partner Dedicated Form */}
+                {isNoon && (
+                  <div className="sm:col-span-2 p-4 bg-yellow-950/20 border border-yellow-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-yellow-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-300 font-bold flex items-center justify-center text-xs">
+                          🟡
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-yellow-200">
+                            مفاتيح الربط البرمجي الحصري لمنصة نون مصر (Noon Partner API)
+                          </h4>
+                          <p className="text-[10px] text-yellow-400/80">
+                            Noon Partner ID, Client ID & Secret Key / Token
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-yellow-200 mb-1 text-xs">
+                          معرّف الشريك في نون (Noon Partner ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={noonPartnerId}
+                          onChange={(e) => setNoonPartnerId(e.target.value.trim())}
+                          placeholder="e.g. partner_eg_noon_889211"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-yellow-500/40 focus:border-yellow-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-yellow-200 mb-1 text-xs">
+                          معرّف العميل (Noon Client ID / App ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={noonClientId}
+                          onChange={(e) => setNoonClientId(e.target.value.trim())}
+                          placeholder="e.g. app_noon_egypt_live"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-yellow-500/40 focus:border-yellow-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-yellow-200 text-xs">
+                            المفتاح السري / التوكن (Secret Key / Auth Token) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-yellow-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={noonSecretKey}
+                          onChange={(e) => setNoonSecretKey(e.target.value.trim())}
+                          placeholder="auth_key_live_noon_sec_..."
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-yellow-500/40 focus:border-yellow-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-yellow-200 mb-1 text-xs">
+                          معرّف المستودع (Noon Warehouse ID) - اختياري
+                        </label>
+                        <input
+                          type="text"
+                          value={noonWarehouseId}
+                          onChange={(e) => setNoonWarehouseId(e.target.value.trim())}
+                          placeholder="e.g. wh_cairo_fbn_01"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-yellow-500/40 focus:border-yellow-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Jumia Seller Center Dedicated Form */}
+                {isJumia && (
+                  <div className="sm:col-span-2 p-4 bg-orange-950/20 border border-orange-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-orange-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-300 font-bold flex items-center justify-center text-xs">
+                          🟠
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-orange-200">
+                            مفاتيح الربط البرمجي الحصري لجوميا مصر (Jumia Seller Center API)
+                          </h4>
+                          <p className="text-[10px] text-orange-400/80">
+                            Jumia User Email, API Key & Shop ID
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-orange-200 mb-1 text-xs">
+                          بريد حساب البائع في جوميا (Jumia User Email) *
+                        </label>
+                        <input
+                          type="email"
+                          value={jumiaUserEmail}
+                          onChange={(e) => setJumiaUserEmail(e.target.value.trim())}
+                          placeholder="seller@jumia-store.eg"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-orange-500/40 focus:border-orange-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-orange-200 text-xs">
+                            مفتاح الـ API الخاص بجوميا (Jumia API Key) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-orange-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={jumiaApiKey}
+                          onChange={(e) => setJumiaApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-orange-500/40 focus:border-orange-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-orange-200 mb-1 text-xs">
+                          معرّف المتجر / البائع (Jumia Shop ID / Seller ID)
+                        </label>
+                        <input
+                          type="text"
+                          value={jumiaShopId}
+                          onChange={(e) => setJumiaShopId(e.target.value.trim())}
+                          placeholder="مثال: JM-EG-88219"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-orange-500/40 focus:border-orange-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Homzmart Dedicated Form */}
+                {isHomzmart && (
+                  <div className="sm:col-span-2 p-4 bg-purple-950/20 border border-purple-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center text-xs">
+                          🟣
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-purple-200">
+                            مفاتيح الربط البرمجي لهومزمارت (Homzmart Seller API)
+                          </h4>
+                          <p className="text-[10px] text-purple-400/80">
+                            Homzmart Supplier ID, API Key & Access Token
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-purple-200 mb-1 text-xs">
+                          معرّف المورّد في هومزمارت (Homzmart Supplier ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={homzmartSupplierId}
+                          onChange={(e) => setHomzmartSupplierId(e.target.value.trim())}
+                          placeholder="e.g. HMZ-SUPPLIER-4421"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-purple-500/40 focus:border-purple-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-purple-200 text-xs">
+                            مفتاح الـ API الخاص بهومزمارت (API Key) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-purple-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={homzmartApiKey}
+                          onChange={(e) => setHomzmartApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-purple-500/40 focus:border-purple-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-purple-200 mb-1 text-xs">
+                          رمز التوثيق السري (Homzmart Access Token) - اختياري
+                        </label>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={homzmartToken}
+                          onChange={(e) => setHomzmartToken(e.target.value.trim())}
+                          placeholder="Bearer eyJhbGciOiJIUzI1NiIs..."
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-purple-500/40 focus:border-purple-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Raneen Dedicated Form */}
+                {isRaneen && (
+                  <div className="sm:col-span-2 p-4 bg-red-950/20 border border-red-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-red-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-red-500/20 text-red-300 font-bold flex items-center justify-center text-xs">
+                          🔴
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-red-200">
+                            مفاتيح الربط البرمجي لرنين (Raneen Marketplace)
+                          </h4>
+                          <p className="text-[10px] text-red-400/80">
+                            Raneen Merchant ID, API Key & Secret Token
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-red-200 mb-1 text-xs">
+                          معرّف التاجر في رنين (Raneen Merchant ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={raneenMerchantId}
+                          onChange={(e) => setRaneenMerchantId(e.target.value.trim())}
+                          placeholder="e.g. RNN-STORE-881"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-red-500/40 focus:border-red-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-red-200 text-xs">
+                            مفتاح الـ API لرنين (Raneen API Key) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-red-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={raneenApiKey}
+                          onChange={(e) => setRaneenApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-red-500/40 focus:border-red-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-red-200 mb-1 text-xs">
+                          المفتاح السري لرنين (Raneen Secret Token)
+                        </label>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={raneenSecret}
+                          onChange={(e) => setRaneenSecret(e.target.value.trim())}
+                          placeholder="rnn_sec_live_..."
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-red-500/40 focus:border-red-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. Raya Shop Dedicated Form */}
+                {isRaya && (
+                  <div className="sm:col-span-2 p-4 bg-sky-950/20 border border-sky-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-sky-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-300 font-bold flex items-center justify-center text-xs">
+                          🔵
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-sky-200">
+                            مفاتيح الربط البرمجي لراية شوب (Raya Shop Partner)
+                          </h4>
+                          <p className="text-[10px] text-sky-400/80">
+                            Raya Merchant ID & API Key
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-sky-200 mb-1 text-xs">
+                          معرّف البائع في راية (Raya Merchant ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={rayaMerchantId}
+                          onChange={(e) => setRayaMerchantId(e.target.value.trim())}
+                          placeholder="e.g. RAYA-SELLER-12"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-sky-500/40 focus:border-sky-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-sky-200 text-xs">
+                            مفتاح API راية (Raya API Key) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-sky-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={rayaApiKey}
+                          onChange={(e) => setRayaApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-sky-500/40 focus:border-sky-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. Kenzz Partner Dedicated Form */}
+                {isKenzz && (
+                  <div className="sm:col-span-2 p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center text-xs">
+                          🟢
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-emerald-200">
+                            مفاتيح الربط البرمجي لكنز (Kenzz Partner API)
+                          </h4>
+                          <p className="text-[10px] text-emerald-400/80">
+                            Kenzz Merchant ID & API Key
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        مستقل تماماً
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-emerald-200 mb-1 text-xs">
+                          معرّف التاجر في كنز (Kenzz Merchant ID) *
+                        </label>
+                        <input
+                          type="text"
+                          value={kenzzMerchantId}
+                          onChange={(e) => setKenzzMerchantId(e.target.value.trim())}
+                          placeholder="e.g. KNZ-MERCHANT-55"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-emerald-500/40 focus:border-emerald-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-emerald-200 text-xs">
+                            مفتاح API الخاص بكنز (Kenzz API Key) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSensitiveTokens(!showSensitiveTokens)}
+                            className="text-[10px] text-emerald-300 hover:underline cursor-pointer"
+                          >
+                            {showSensitiveTokens ? 'إخفاء' : 'إظهار'}
+                          </button>
+                        </div>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={kenzzApiKey}
+                          onChange={(e) => setKenzzApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          required
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-emerald-500/40 focus:border-emerald-400 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. Fallback for other custom platforms */}
+                {!isAmazon && !isNoon && !isJumia && !isHomzmart && !isRaneen && !isRaya && !isKenzz && (
+                  <div className="sm:col-span-2 p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-300 mb-1 text-xs">
+                          معرّف المتجر / البائع (Store / Merchant ID)
+                        </label>
+                        <input
+                          type="text"
+                          value={sellerId}
+                          onChange={(e) => setSellerId(e.target.value.trim())}
+                          placeholder="e.g. STORE-001"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-300 mb-1 text-xs">
+                          مفتاح API (API Key / Token)
+                        </label>
+                        <input
+                          type={showSensitiveTokens ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value.trim())}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          dir="ltr"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 outline-none text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Store URL */}
                 <div className="sm:col-span-2">

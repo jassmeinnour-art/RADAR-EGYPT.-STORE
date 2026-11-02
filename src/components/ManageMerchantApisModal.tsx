@@ -68,7 +68,9 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
 }) => {
   const [merchants, setMerchants] = useState<RemoteMerchantClient[]>([]);
   const [selectedMerchantId, setSelectedMerchantId] = useState<string>('');
-  const [activePlatformTab, setActivePlatformTab] = useState<'amazon' | 'noon' | 'bosta' | 'general' | 'advanced'>('amazon');
+  const [activePlatformTab, setActivePlatformTab] = useState<
+    'amazon' | 'noon' | 'jumia' | 'homzmart' | 'raneen' | 'kenzz_raya' | 'bosta' | 'general' | 'advanced'
+  >('amazon');
   
   // Merchant Info Form
   const [storeName, setStoreName] = useState('');
@@ -78,11 +80,12 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
   const [city, setCity] = useState('');
   const [dataMode, setDataMode] = useState<'live' | 'demo'>('live');
 
-  // Amazon SP-API Form (Multi-Tenant: Refresh Token & Seller ID per store; Client ID & Secret from AMAZON_SP_API_CONFIG)
-  const [amazonClientId, setAmazonClientId] = useState('');
+  // Amazon SP-API Form (Dedicated: Seller ID, AWS Access Key, Secret Key, LWA Refresh Token)
+  const [amazonSellerId, setAmazonSellerId] = useState('');
+  const [amazonAwsAccessKey, setAmazonAwsAccessKey] = useState('');
   const [amazonClientSecret, setAmazonClientSecret] = useState('');
   const [amazonRefreshToken, setAmazonRefreshToken] = useState('');
-  const [amazonSellerId, setAmazonSellerId] = useState('');
+  const [amazonClientId, setAmazonClientId] = useState('');
   const [amazonRegion, setAmazonRegion] = useState('eu-west-1');
   const [amazonMarketplaceId, setAmazonMarketplaceId] = useState('ARBP9OOSHTCHU');
   const [showAmazonSecret, setShowAmazonSecret] = useState(false);
@@ -90,12 +93,43 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
   const [showAdvancedDeveloperKeys, setShowAdvancedDeveloperKeys] = useState(false);
   const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
 
-  // Noon API Form
+  // Noon Partner API Form (Dedicated: Noon Partner ID, Client ID, Secret Key / Token, Warehouse ID)
+  const [noonPartnerId, setNoonPartnerId] = useState('');
+  const [noonClientId, setNoonClientId] = useState('');
+  const [noonSecretKey, setNoonSecretKey] = useState('');
   const [noonAuthKey, setNoonAuthKey] = useState('');
   const [noonAppId, setNoonAppId] = useState('');
-  const [noonSecretKey, setNoonSecretKey] = useState('');
   const [noonWarehouseId, setNoonWarehouseId] = useState('');
   const [showNoonSecret, setShowNoonSecret] = useState(false);
+  const [showNoonToken, setShowNoonToken] = useState(false);
+
+  // Jumia Form (Dedicated: Shop ID, User Email, API Key)
+  const [jumiaShopId, setJumiaShopId] = useState('');
+  const [jumiaUserEmail, setJumiaUserEmail] = useState('');
+  const [jumiaApiKey, setJumiaApiKey] = useState('');
+  const [showJumiaSecret, setShowJumiaSecret] = useState(false);
+
+  // Homzmart Form (Dedicated: Supplier ID, API Key, Token)
+  const [homzmartSupplierId, setHomzmartSupplierId] = useState('');
+  const [homzmartApiKey, setHomzmartApiKey] = useState('');
+  const [homzmartToken, setHomzmartToken] = useState('');
+  const [showHomzmartSecret, setShowHomzmartSecret] = useState(false);
+
+  // Raneen Form (Dedicated: Merchant ID, API Key, Secret)
+  const [raneenMerchantId, setRaneenMerchantId] = useState('');
+  const [raneenApiKey, setRaneenApiKey] = useState('');
+  const [raneenSecret, setRaneenSecret] = useState('');
+  const [showRaneenSecret, setShowRaneenSecret] = useState(false);
+
+  // Raya Form
+  const [rayaMerchantId, setRayaMerchantId] = useState('');
+  const [rayaApiKey, setRayaApiKey] = useState('');
+  const [showRayaSecret, setShowRayaSecret] = useState(false);
+
+  // Kenzz Form
+  const [kenzzMerchantId, setKenzzMerchantId] = useState('');
+  const [kenzzApiKey, setKenzzApiKey] = useState('');
+  const [showKenzzSecret, setShowKenzzSecret] = useState(false);
 
   // Bosta Form
   const [bostaApiKey, setBostaApiKey] = useState('');
@@ -227,21 +261,56 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
       dataMode: target.dataMode || 'live'
     };
 
-    const platCreds = target.platformCredentials?.['amazon_eg'];
+    const platCredsAmazon = target.platformCredentials?.['amazon_eg'];
+    const platCredsNoon = target.platformCredentials?.['noon_eg'];
+    const platCredsJumia = target.platformCredentials?.['jumia_eg'];
+    const platCredsHomzmart = target.platformCredentials?.['homzmart_eg'];
+    const platCredsRaneen = target.platformCredentials?.['raneen_eg'];
+    const platCredsRaya = target.platformCredentials?.['raya_eg'];
+    const platCredsKenzz = target.platformCredentials?.['kenzz_eg'];
 
+    // Amazon SP-API
     setAmazonClientId(creds.amazonClientId || '');
-    setAmazonClientSecret(creds.amazonClientSecret || '');
-    const rawSavedToken = creds.amazonRefreshToken || platCreds?.mwsAuthToken || '';
+    setAmazonClientSecret(creds.amazonClientSecret || platCredsAmazon?.secretKey || '');
+    const rawSavedToken = creds.amazonRefreshToken || platCredsAmazon?.refreshToken || platCredsAmazon?.mwsAuthToken || '';
     setAmazonRefreshToken(decryptLwaRefreshToken(rawSavedToken));
-    setAmazonSellerId(creds.amazonSellerId || platCreds?.sellerId || '');
+    setAmazonSellerId(creds.amazonSellerId || platCredsAmazon?.sellerId || '');
+    setAmazonAwsAccessKey(creds.awsAccessKey || platCredsAmazon?.awsAccessKey || '');
     setAmazonRegion(creds.amazonRegion || 'eu-west-1');
     setAmazonMarketplaceId(creds.amazonMarketplaceId || 'ARBP9OOSHTCHU');
 
-    setNoonAuthKey(creds.noonAuthKey || '');
-    setNoonAppId(creds.noonAppId || '');
-    setNoonSecretKey(creds.noonSecretKey || '');
-    setNoonWarehouseId(creds.noonWarehouseId || '');
+    // Noon Partner
+    setNoonPartnerId(creds.noonPartnerId || platCredsNoon?.noonPartnerId || platCredsNoon?.sellerId || '');
+    setNoonClientId(creds.noonClientId || creds.noonAppId || platCredsNoon?.noonClientId || '');
+    setNoonSecretKey(creds.noonSecretKey || platCredsNoon?.noonSecretKey || '');
+    setNoonAuthKey(creds.noonAuthKey || platCredsNoon?.apiKey || '');
+    setNoonAppId(creds.noonAppId || platCredsNoon?.noonClientId || '');
+    setNoonWarehouseId(creds.noonWarehouseId || platCredsNoon?.noonWarehouseId || '');
 
+    // Jumia
+    setJumiaShopId(creds.jumiaShopId || platCredsJumia?.jumiaShopId || platCredsJumia?.sellerId || '');
+    setJumiaUserEmail(creds.jumiaUserEmail || platCredsJumia?.jumiaUserEmail || platCredsJumia?.merchantEmail || '');
+    setJumiaApiKey(creds.jumiaApiKey || platCredsJumia?.jumiaApiKey || platCredsJumia?.apiKey || '');
+
+    // Homzmart
+    setHomzmartSupplierId(creds.homzmartSupplierId || platCredsHomzmart?.homzmartSupplierId || platCredsHomzmart?.sellerId || '');
+    setHomzmartApiKey(creds.homzmartApiKey || platCredsHomzmart?.homzmartApiKey || platCredsHomzmart?.apiKey || '');
+    setHomzmartToken(creds.homzmartToken || platCredsHomzmart?.homzmartToken || '');
+
+    // Raneen
+    setRaneenMerchantId(creds.raneenMerchantId || platCredsRaneen?.raneenMerchantId || platCredsRaneen?.sellerId || '');
+    setRaneenApiKey(creds.raneenApiKey || platCredsRaneen?.raneenApiKey || platCredsRaneen?.apiKey || '');
+    setRaneenSecret(creds.raneenSecret || platCredsRaneen?.raneenSecret || '');
+
+    // Raya
+    setRayaMerchantId(creds.rayaMerchantId || platCredsRaya?.rayaMerchantId || platCredsRaya?.sellerId || '');
+    setRayaApiKey(creds.rayaApiKey || platCredsRaya?.rayaApiKey || platCredsRaya?.apiKey || '');
+
+    // Kenzz
+    setKenzzMerchantId(creds.kenzzMerchantId || platCredsKenzz?.kenzzMerchantId || platCredsKenzz?.sellerId || '');
+    setKenzzApiKey(creds.kenzzApiKey || platCredsKenzz?.kenzzApiKey || platCredsKenzz?.apiKey || '');
+
+    // Bosta & Advanced
     setBostaApiKey(creds.bostaApiKey || '');
     setAdvancedWebhookSecret(creds.advancedWebhookSecret || '');
     setRedirectUri(creds.redirectUri || 'https://ais-pre-cb7qhbahqlyxmzg4wbchd2-68418496670.europe-west2.run.app/api/auth/callback');
@@ -337,16 +406,49 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
     const effectiveSellerId = amazonSellerId.trim() || current.apiCredentials?.amazonSellerId || validated.sellerId;
 
     const updatedCreds: MerchantApiCredentials = {
+      // Amazon SP-API (Isolated)
       amazonClientId: amazonClientId.trim(),
       amazonClientSecret: amazonClientSecret.trim(),
       amazonRefreshToken: encryptedToken,
       amazonSellerId: effectiveSellerId,
       amazonRegion: amazonRegion.trim() || 'eu-west-1',
       amazonMarketplaceId: amazonMarketplaceId.trim() || 'ARBP9OOSHTCHU',
-      noonAuthKey: noonAuthKey.trim(),
-      noonAppId: noonAppId.trim(),
+      awsAccessKey: amazonAwsAccessKey.trim(),
+      secretKey: amazonClientSecret.trim(),
+      refreshToken: encryptedToken,
+
+      // Noon Partner (Isolated)
+      noonPartnerId: noonPartnerId.trim(),
+      noonClientId: noonClientId.trim() || noonAppId.trim(),
       noonSecretKey: noonSecretKey.trim(),
+      noonAuthKey: noonAuthKey.trim(),
+      noonAppId: noonAppId.trim() || noonClientId.trim(),
       noonWarehouseId: noonWarehouseId.trim(),
+
+      // Jumia (Isolated)
+      jumiaShopId: jumiaShopId.trim(),
+      jumiaUserEmail: jumiaUserEmail.trim(),
+      jumiaApiKey: jumiaApiKey.trim(),
+
+      // Homzmart (Isolated)
+      homzmartSupplierId: homzmartSupplierId.trim(),
+      homzmartApiKey: homzmartApiKey.trim(),
+      homzmartToken: homzmartToken.trim(),
+
+      // Raneen (Isolated)
+      raneenMerchantId: raneenMerchantId.trim(),
+      raneenApiKey: raneenApiKey.trim(),
+      raneenSecret: raneenSecret.trim(),
+
+      // Raya (Isolated)
+      rayaMerchantId: rayaMerchantId.trim(),
+      rayaApiKey: rayaApiKey.trim(),
+
+      // Kenzz (Isolated)
+      kenzzMerchantId: kenzzMerchantId.trim(),
+      kenzzApiKey: kenzzApiKey.trim(),
+
+      // Bosta & Advanced
       bostaApiKey: bostaApiKey.trim(),
       advancedWebhookSecret: advancedWebhookSecret.trim(),
       redirectUri: redirectUri.trim(),
@@ -374,10 +476,80 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
           ...(current.platformCredentials?.['amazon_eg'] || {}),
           sellerName: storeName.trim() || current.storeName,
           sellerId: effectiveSellerId,
+          awsAccessKey: amazonAwsAccessKey.trim(),
+          secretKey: amazonClientSecret.trim(),
+          refreshToken: encryptedToken,
           merchantEmail: primaryEmail.trim() || current.primaryEmail,
           mwsAuthToken: encryptedToken || current.platformCredentials?.['amazon_eg']?.mwsAuthToken || '',
-          isConnected: true,
-          lastSyncedAt: 'الآن (مشفر ومربوط عبر LWA & Firestore 🔐)'
+          isConnected: Boolean(effectiveSellerId || encryptedToken),
+          lastSyncedAt: 'الآن (مشفر ومربوط عبر Amazon SP-API & Firestore 🔐)'
+        },
+        noon_eg: {
+          ...(current.platformCredentials?.['noon_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: noonPartnerId.trim() || current.platformCredentials?.['noon_eg']?.sellerId || '',
+          noonPartnerId: noonPartnerId.trim(),
+          noonClientId: noonClientId.trim() || noonAppId.trim(),
+          noonSecretKey: noonSecretKey.trim(),
+          noonWarehouseId: noonWarehouseId.trim(),
+          apiKey: noonAuthKey.trim() || noonSecretKey.trim(),
+          merchantEmail: primaryEmail.trim() || current.primaryEmail,
+          isConnected: Boolean(noonPartnerId.trim() || noonAuthKey.trim() || noonClientId.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Noon Partner API 🟡)'
+        },
+        jumia_eg: {
+          ...(current.platformCredentials?.['jumia_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: jumiaShopId.trim() || current.platformCredentials?.['jumia_eg']?.sellerId || '',
+          jumiaShopId: jumiaShopId.trim(),
+          jumiaUserEmail: jumiaUserEmail.trim(),
+          jumiaApiKey: jumiaApiKey.trim(),
+          apiKey: jumiaApiKey.trim(),
+          merchantEmail: jumiaUserEmail.trim() || primaryEmail.trim() || current.primaryEmail,
+          isConnected: Boolean(jumiaShopId.trim() || jumiaApiKey.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Jumia Seller Center 🟠)'
+        },
+        homzmart_eg: {
+          ...(current.platformCredentials?.['homzmart_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: homzmartSupplierId.trim() || current.platformCredentials?.['homzmart_eg']?.sellerId || '',
+          homzmartSupplierId: homzmartSupplierId.trim(),
+          homzmartApiKey: homzmartApiKey.trim(),
+          homzmartToken: homzmartToken.trim(),
+          apiKey: homzmartApiKey.trim(),
+          isConnected: Boolean(homzmartSupplierId.trim() || homzmartApiKey.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Homzmart API 🟣)'
+        },
+        raneen_eg: {
+          ...(current.platformCredentials?.['raneen_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: raneenMerchantId.trim() || current.platformCredentials?.['raneen_eg']?.sellerId || '',
+          raneenMerchantId: raneenMerchantId.trim(),
+          raneenApiKey: raneenApiKey.trim(),
+          raneenSecret: raneenSecret.trim(),
+          apiKey: raneenApiKey.trim(),
+          isConnected: Boolean(raneenMerchantId.trim() || raneenApiKey.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Raneen Seller API 🔴)'
+        },
+        raya_eg: {
+          ...(current.platformCredentials?.['raya_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: rayaMerchantId.trim() || current.platformCredentials?.['raya_eg']?.sellerId || '',
+          rayaMerchantId: rayaMerchantId.trim(),
+          rayaApiKey: rayaApiKey.trim(),
+          apiKey: rayaApiKey.trim(),
+          isConnected: Boolean(rayaMerchantId.trim() || rayaApiKey.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Raya Shop 🔵)'
+        },
+        kenzz_eg: {
+          ...(current.platformCredentials?.['kenzz_eg'] || {}),
+          sellerName: storeName.trim() || current.storeName,
+          sellerId: kenzzMerchantId.trim() || current.platformCredentials?.['kenzz_eg']?.sellerId || '',
+          kenzzMerchantId: kenzzMerchantId.trim(),
+          kenzzApiKey: kenzzApiKey.trim(),
+          apiKey: kenzzApiKey.trim(),
+          isConnected: Boolean(kenzzMerchantId.trim() || kenzzApiKey.trim()),
+          lastSyncedAt: 'الآن (مربوط عبر Kenzz API 🟢)'
         }
       }
     };
@@ -524,8 +696,12 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
   if (!isOpen) return null;
 
   const currentMerchant = merchants.find(m => m.id === selectedMerchantId);
-  const isAmazonConfigured = Boolean(amazonSellerId.trim() || amazonRefreshToken.trim());
-  const isNoonConfigured = Boolean(noonAuthKey.trim() && noonAppId.trim());
+  const isAmazonConfigured = Boolean(amazonSellerId.trim() || amazonRefreshToken.trim() || amazonAwsAccessKey.trim());
+  const isNoonConfigured = Boolean(noonPartnerId.trim() || noonAuthKey.trim() || noonClientId.trim());
+  const isJumiaConfigured = Boolean(jumiaShopId.trim() || jumiaApiKey.trim());
+  const isHomzmartConfigured = Boolean(homzmartSupplierId.trim() || homzmartApiKey.trim());
+  const isRaneenConfigured = Boolean(raneenMerchantId.trim() || raneenApiKey.trim());
+  const isKenzzRayaConfigured = Boolean(rayaMerchantId.trim() || kenzzMerchantId.trim());
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
@@ -778,11 +954,11 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
           </div>
 
           {/* Platform Tabs Navigation */}
-          <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto pb-px">
+          <div className="border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto pb-px scrollbar-thin">
             <button
               type="button"
               onClick={() => setActivePlatformTab('amazon')}
-              className={`pb-3 px-3.5 text-xs font-bold transition flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
                 activePlatformTab === 'amazon'
                   ? 'border-indigo-600 text-indigo-700'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -790,66 +966,134 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
             >
               <span>أمازون مصر (Amazon SP-API)</span>
               {isAmazonConfigured ? (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
               ) : (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-500">غير مكتمل</span>
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">غير مكتمل</span>
               )}
             </button>
 
             <button
               type="button"
               onClick={() => setActivePlatformTab('noon')}
-              className={`pb-3 px-3.5 text-xs font-bold transition flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
                 activePlatformTab === 'noon'
                   ? 'border-sky-600 text-sky-700'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <span>نون مصر (Noon Partner API)</span>
+              <span>نون مصر (Noon Partner)</span>
               {isNoonConfigured ? (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
               ) : (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePlatformTab('jumia')}
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
+                activePlatformTab === 'jumia'
+                  ? 'border-amber-600 text-amber-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>جوميا مصر (Jumia Center)</span>
+              {isJumiaConfigured ? (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePlatformTab('homzmart')}
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
+                activePlatformTab === 'homzmart'
+                  ? 'border-purple-600 text-purple-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>هومزمارت (Homzmart)</span>
+              {isHomzmartConfigured ? (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePlatformTab('raneen')}
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
+                activePlatformTab === 'raneen'
+                  ? 'border-rose-600 text-rose-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>رنين (Raneen)</span>
+              {isRaneenConfigured ? (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePlatformTab('kenzz_raya')}
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
+                activePlatformTab === 'kenzz_raya'
+                  ? 'border-teal-600 text-teal-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>راية وكينز (Raya & Kenzz)</span>
+              {isKenzzRayaConfigured ? (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-700 font-bold">مضبوط</span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-slate-100 text-slate-500">اختياري</span>
               )}
             </button>
 
             <button
               type="button"
               onClick={() => setActivePlatformTab('bosta')}
-              className={`pb-3 px-3.5 text-xs font-bold transition flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
                 activePlatformTab === 'bosta'
                   ? 'border-rose-600 text-rose-700'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <Truck className="w-3.5 h-3.5" />
-              <span>شركة الشحن (Bosta Egypt)</span>
+              <span>بوسطة للشحن</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActivePlatformTab('general')}
-              className={`pb-3 px-3.5 text-xs font-bold transition flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
                 activePlatformTab === 'general'
                   ? 'border-slate-800 text-slate-900'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <Store className="w-3.5 h-3.5" />
-              <span>بيانات المتجر والتاجر</span>
+              <span>بيانات المتجر</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActivePlatformTab('advanced')}
-              className={`pb-3 px-3.5 text-xs font-bold transition flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              className={`pb-3 px-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer whitespace-nowrap ${
                 activePlatformTab === 'advanced'
                   ? 'border-amber-600 text-amber-950 font-black'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
-              <span>إعدادات ربط APIs المتقدمة (Client Secrets & URIs)</span>
+              <span>إعدادات متقدمة</span>
             </button>
           </div>
 
@@ -914,15 +1158,15 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Merchant Seller ID (SELLER_ID) - The ONLY required merchant field */}
-                <div className="space-y-1.5 md:col-span-2 bg-amber-50/40 p-4 rounded-2xl border border-amber-200">
+                {/* 1. Seller ID */}
+                <div className="space-y-1.5 md:col-span-2 bg-amber-50/50 p-4 rounded-2xl border border-amber-200">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                       <Store className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>معرّف التاجر في أمازون (Merchant ID / Seller ID / Merchant Token) *</span>
+                      <span>معرّف التاجر في أمازون (Seller ID / Merchant Token) *</span>
                     </label>
-                    <span className="text-[10px] text-amber-900 font-bold bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-md">
-                      المعرّف الوحيد المطلوب لربط المتجر
+                    <span className="text-[10px] text-amber-900 font-bold bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
+                      مطلوب لربط المتجر
                     </span>
                   </div>
                   <input
@@ -941,6 +1185,65 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                   </div>
                 </div>
 
+                {/* 2. AWS Access Key */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-800">مفتاح وصول AWS (AWS Access Key ID)</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="AKIAIOSFODNN7EXAMPLE"
+                    value={amazonAwsAccessKey}
+                    onChange={(e) => setAmazonAwsAccessKey(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                {/* 3. Secret Key */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800">المفتاح السري (Secret Key / Client Secret)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAmazonSecret(!showAmazonSecret)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showAmazonSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showAmazonSecret ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showAmazonSecret ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    value={amazonClientSecret}
+                    onChange={(e) => setAmazonClientSecret(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                {/* 4. LWA Refresh Token */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800">رمز التحديث الدائم (LWA Refresh Token)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAmazonToken(!showAmazonToken)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showAmazonToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showAmazonToken ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showAmazonToken ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="Atzr|IwEBI... (يتم ملؤه تلقائياً عند التفويض أو إدخاله يدوياً)"
+                    value={amazonRefreshToken}
+                    onChange={(e) => setAmazonRefreshToken(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
+                  />
+                </div>
+
                 {/* Region */}
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-800">سيرفر ونطاق الربط (Region Endpoint)</label>
@@ -955,7 +1258,7 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                   </select>
                 </div>
 
-                {/* Marketplace ID & Master App Status */}
+                {/* Marketplace ID */}
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-700">معرف سوق أمازون مصر (Marketplace ID)</label>
                   <input
@@ -966,66 +1269,6 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                     className="w-full font-mono text-xs bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-600 cursor-not-allowed"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">مفاتيح تطبيق المطور الرئيسي (Master Developer App)</label>
-                  <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs">
-                    <span className="text-slate-700 font-semibold">تُقرأ من <code className="font-mono text-indigo-700">AMAZON_SP_API_CONFIG</code></span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvancedDeveloperKeys(!showAdvancedDeveloperKeys)}
-                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
-                    >
-                      {showAdvancedDeveloperKeys ? 'إخفاء التخصيص' : 'تخصيص متقدم (اختياري)'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Optional Advanced Override for Client ID / Secret if needed */}
-                {showAdvancedDeveloperKeys && (
-                  <>
-                    <div className="space-y-1.5 md:col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                      <p className="text-[11px] text-slate-600 mb-2 font-medium">
-                        💡 بشكل افتراضي يعتمد النظام على <code className="font-mono">DEFAULT_CLIENT_ID</code> و <code className="font-mono">DEFAULT_CLIENT_SECRET</code> من ملف الإعدادات الثابتة. يمكنك ترك الحقول التالية فارغة تماماً:
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label className="font-bold text-slate-700 block mb-1">LWA Client ID (تجاوز اختياري)</label>
-                          <input
-                            type="text"
-                            dir="ltr"
-                            placeholder="يُجلب تلقائياً من DEFAULT_CLIENT_ID"
-                            value={amazonClientId}
-                            onChange={(e) => setAmazonClientId(e.target.value)}
-                            className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="font-bold text-slate-700">LWA Client Secret (تجاوز اختياري)</label>
-                            <button
-                              type="button"
-                              onClick={() => setShowAmazonSecret(!showAmazonSecret)}
-                              className="text-[11px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-                            >
-                              {showAmazonSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                              <span>{showAmazonSecret ? 'إخفاء' : 'إظهار'}</span>
-                            </button>
-                          </div>
-                          <input
-                            type={showAmazonSecret ? 'text' : 'password'}
-                            dir="ltr"
-                            placeholder="يُجلب تلقائياً من DEFAULT_CLIENT_SECRET"
-                            value={amazonClientSecret}
-                            onChange={(e) => setAmazonClientSecret(e.target.value)}
-                            className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
               </div>
 
               {/* Test Amazon Connection Button & Result Panel */}
@@ -1082,45 +1325,36 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="font-bold text-slate-700">Noon Auth Key / API Key</label>
+                {/* 1. Noon Partner ID */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">معرّف شريك نون (Noon Partner ID) *</label>
                   <input
                     type="text"
                     dir="ltr"
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    value={noonAuthKey}
-                    onChange={(e) => setNoonAuthKey(e.target.value)}
-                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
+                    placeholder="مثال: PRT_CAI_88204"
+                    value={noonPartnerId}
+                    onChange={(e) => setNoonPartnerId(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800 font-bold"
                   />
                 </div>
 
+                {/* 2. Client ID / App ID */}
                 <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Noon App ID</label>
+                  <label className="font-bold text-slate-700">معرّف العميل والتطبيق (Client ID / App ID)</label>
                   <input
                     type="text"
                     dir="ltr"
                     placeholder="noon_partner_app_eg_..."
-                    value={noonAppId}
-                    onChange={(e) => setNoonAppId(e.target.value)}
+                    value={noonClientId}
+                    onChange={(e) => setNoonClientId(e.target.value.trim())}
                     className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
                   />
                 </div>
 
+                {/* 3. Secret Key */}
                 <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700">Noon Warehouse / Fulfillment Center ID</label>
-                  <input
-                    type="text"
-                    dir="ltr"
-                    placeholder="WH-CAI-FURN-01"
-                    value={noonWarehouseId}
-                    onChange={(e) => setNoonWarehouseId(e.target.value)}
-                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
-                  />
-                </div>
-
-                <div className="space-y-1.5 md:col-span-2">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-700">Noon Secret Key (المفتاح السري)</label>
+                    <label className="font-bold text-slate-700">المفتاح السري (Noon Secret Key)</label>
                     <button
                       type="button"
                       onClick={() => setShowNoonSecret(!showNoonSecret)}
@@ -1138,6 +1372,375 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                     onChange={(e) => setNoonSecretKey(e.target.value)}
                     className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
                   />
+                </div>
+
+                {/* 4. Auth Key / Bearer Token */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700">رمز التفويض (Noon Auth Token / Key)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNoonToken(!showNoonToken)}
+                      className="text-xs text-sky-700 hover:text-sky-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showNoonToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showNoonToken ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showNoonToken ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    value={noonAuthKey}
+                    onChange={(e) => setNoonAuthKey(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                {/* 5. Warehouse / FC ID */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-bold text-slate-700">معرّف المستودع / مركز الشحن (Warehouse / Fulfillment Center ID)</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="WH-CAI-FURN-01"
+                    value={noonWarehouseId}
+                    onChange={(e) => setNoonWarehouseId(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-sky-500 outline-none text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Jumia Seller Center Credentials */}
+          {activePlatformTab === 'jumia' && (
+            <div className="space-y-4">
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-800">بيانات ربط جوميا مصر (Jumia Seller Center API)</span>
+                  </div>
+                  <a
+                    href="https://sellercenter.jumia.com.eg"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-amber-700 hover:text-amber-900 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>لوحة سيلر سنترال جوميا</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  تسمح بسحب وتحديث طلبات الأثاث والمخزون المعروض في جوميا مصر وتوليد أرقام التتبع وبوالص الشحن عبر Jumia Logistics.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">معرّف المتجر في جوميا (Jumia Shop ID / Identifier) *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="EG_SHOP_10294"
+                    value={jumiaShopId}
+                    onChange={(e) => setJumiaShopId(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none text-slate-800 font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">البريد الإلكتروني لحساب جوميا سيلر (User ID / Email) *</label>
+                  <input
+                    type="email"
+                    dir="ltr"
+                    placeholder="seller@furniture-eg.com"
+                    value={jumiaUserEmail}
+                    onChange={(e) => setJumiaUserEmail(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700">مفتاح API الخاص بجوميا (Jumia API Key / Token) *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowJumiaSecret(!showJumiaSecret)}
+                      className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showJumiaSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showJumiaSecret ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showJumiaSecret ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="jumia_api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    value={jumiaApiKey}
+                    onChange={(e) => setJumiaApiKey(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none text-slate-800"
+                  />
+                  <span className="text-[10px] text-slate-500 block">
+                    يمكن استخراج المفتاح من Jumia Seller Center ➔ Settings ➔ Manage Users ➔ API Key.
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Homzmart Credentials */}
+          {activePlatformTab === 'homzmart' && (
+            <div className="space-y-4">
+              <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-800">بيانات ربط منصة هومزمارت مصر (Homzmart Seller Portal API)</span>
+                  </div>
+                  <a
+                    href="https://seller.homzmart.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-purple-700 hover:text-purple-900 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>بوابة موردي هومزمارت</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  تسمح بإدارة كتالوج الأثاث والديكور على هومزمارت وسحب أوامر التوريد ومزامنة المخزون اللحظي مع المعارض.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">معرّف المورّد في هومزمارت (Supplier / Vendor ID) *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="HZ-SUP-49210"
+                    value={homzmartSupplierId}
+                    onChange={(e) => setHomzmartSupplierId(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-800 font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">مفتاح الـ API المخصص (Homzmart API Key) *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="hz_key_live_xxxxxxxxxxxxxxxx"
+                    value={homzmartApiKey}
+                    onChange={(e) => setHomzmartApiKey(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700">رمز التوثيق (Homzmart Authorization Bearer Token)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowHomzmartSecret(!showHomzmartSecret)}
+                      className="text-xs text-purple-700 hover:text-purple-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showHomzmartSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showHomzmartSecret ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showHomzmartSecret ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="Bearer eyJhbGciOiJIUzI1Ni..."
+                    value={homzmartToken}
+                    onChange={(e) => setHomzmartToken(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Raneen Credentials */}
+          {activePlatformTab === 'raneen' && (
+            <div className="space-y-4">
+              <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-800">بيانات ربط رنين مصر (Raneen Seller API)</span>
+                  </div>
+                  <a
+                    href="https://seller.raneen.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-rose-700 hover:text-rose-900 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>بوابة تجار رنين</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  ربط متجر التاجر مع منصة رنين لسحب طلبات التجهيزات المنزلية والمفروشات ومزامنة الأسعار اللحظية.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">معرّف التاجر في رنين (Merchant ID) *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="RN-MERCH-3310"
+                    value={raneenMerchantId}
+                    onChange={(e) => setRaneenMerchantId(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-rose-500 outline-none text-slate-800 font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">مفتاح API رنين (Raneen API Key) *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="rn_key_live_xxxxxxxxxxxxxxxx"
+                    value={raneenApiKey}
+                    onChange={(e) => setRaneenApiKey(e.target.value.trim())}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-rose-500 outline-none text-slate-800"
+                  />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700">المفتاح السري (Raneen Secret Key)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRaneenSecret(!showRaneenSecret)}
+                      className="text-xs text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showRaneenSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showRaneenSecret ? 'إخفاء' : 'إظهار'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showRaneenSecret ? 'text' : 'password'}
+                    dir="ltr"
+                    placeholder="rn_secret_xxxxxxxxxxxxxxxxxxxxxxxx"
+                    value={raneenSecret}
+                    onChange={(e) => setRaneenSecret(e.target.value)}
+                    className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-rose-500 outline-none text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Raya & Kenzz Credentials */}
+          {activePlatformTab === 'kenzz_raya' && (
+            <div className="space-y-4">
+              {/* Raya Shop Section */}
+              <div className="bg-teal-50/70 border border-teal-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-800">بيانات ربط راية شوب مصر (Raya Shop Partner API)</span>
+                  </div>
+                  <a
+                    href="https://www.rayashop.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>بوابة شركاء راية</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mt-3">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">معرّف التاجر في راية (Raya Merchant ID)</label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      placeholder="RAYA-M-9912"
+                      value={rayaMerchantId}
+                      onChange={(e) => setRayaMerchantId(e.target.value.trim())}
+                      className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700">مفتاح API راية شوب (Raya API Key)</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowRayaSecret(!showRayaSecret)}
+                        className="text-xs text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
+                      >
+                        {showRayaSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showRayaSecret ? 'إخفاء' : 'إظهار'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showRayaSecret ? 'text' : 'password'}
+                      dir="ltr"
+                      placeholder="raya_api_key_xxxxxxxx"
+                      value={rayaApiKey}
+                      onChange={(e) => setRayaApiKey(e.target.value)}
+                      className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Kenzz Section */}
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-800">بيانات ربط كينز مصر (Kenzz Egypt Partner API)</span>
+                  </div>
+                  <a
+                    href="https://kenzz.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>بوابة شركاء كينز</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mt-3">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">معرّف التاجر في كينز (Kenzz Merchant ID)</label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      placeholder="KNZ-SELLER-104"
+                      value={kenzzMerchantId}
+                      onChange={(e) => setKenzzMerchantId(e.target.value.trim())}
+                      className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700">مفتاح API كينز (Kenzz API Key)</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowKenzzSecret(!showKenzzSecret)}
+                        className="text-xs text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
+                      >
+                        {showKenzzSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showKenzzSecret ? 'إخفاء' : 'إظهار'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showKenzzSecret ? 'text' : 'password'}
+                      dir="ltr"
+                      placeholder="knz_api_key_xxxxxxxx"
+                      value={kenzzApiKey}
+                      onChange={(e) => setKenzzApiKey(e.target.value)}
+                      className="w-full font-mono text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-800"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

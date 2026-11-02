@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ProductData, MerchantOffer, PublishResult } from '../types';
+import { MultiAngleShotsStudio } from './MultiAngleShotsStudio';
 
 interface AIProductStudioProps {
   onShowToast?: (msg: string) => void;
@@ -37,6 +38,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
   onShowToast,
   currency = 'ج.م'
 }) => {
+  const [studioMode, setStudioMode] = useState<'multi_angle' | 'single_workflow'>('multi_angle');
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -241,10 +243,45 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Image Area & Steps Logic */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* Studio Mode Switcher */}
+      <div className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 w-max">
+        <button
+          onClick={() => setStudioMode('multi_angle')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+            studioMode === 'multi_angle'
+              ? 'bg-amber-500 text-slate-950 shadow-lg'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>أستوديو التصميم المتعدد الزوايا (6 زوايا معتمدة) 📸</span>
+        </button>
+
+        <button
+          onClick={() => setStudioMode('single_workflow')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+            studioMode === 'single_workflow'
+              ? 'bg-amber-500 text-slate-950 shadow-lg'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <Wand2 className="w-4 h-4" />
+          <span>المحلل الشامل والنشر السريع للمنصات ⚡</span>
+        </button>
+      </div>
+
+      {studioMode === 'multi_angle' ? (
+        <MultiAngleShotsStudio
+          initialImage={uploadedImage}
+          productTitle={productData?.title || 'منتج تجاري'}
+          category={productData?.category || 'عام'}
+          onShowToast={onShowToast}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Left Column: Image Area & Steps Logic */}
+          <div className="lg:col-span-8 space-y-6">
           
           {/* Step 1: Upload & Enhance */}
           {activeStep === 1 && (
@@ -688,6 +725,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
 
         </div>
       </div>
+      )}
     </div>
   );
 };

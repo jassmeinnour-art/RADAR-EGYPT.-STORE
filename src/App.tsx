@@ -136,6 +136,7 @@ const ShippingManagementDashboard = safeLazy(() => import('./components/Shipping
 const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine'));
+const TraderStoreSyncManager = safeLazy(() => import('./components/TraderStoreSyncManager'));
 import { WatchlistNotificationModal } from './components/WatchlistNotificationModal';
 import { getStoredWatchlist } from './services/watchlistNotificationService';
 
@@ -159,6 +160,7 @@ export type WorkspaceTab =
   | 'auto_pricing' 
   | 'price_comparison' 
   | 'platforms_guide' 
+  | 'traders_sync'
   | 'help';
 
 export default function App() {
@@ -1068,6 +1070,10 @@ export default function App() {
 
                   {activeWorkspaceTab === 'platforms_guide' && (
                     <PlatformsGuideManager />
+                  )}
+
+                  {activeWorkspaceTab === 'traders_sync' && (
+                    <TraderStoreSyncManager currency="ج.م" onShowToast={showToast} />
                   )}
 
                   {activeWorkspaceTab === 'help' && (

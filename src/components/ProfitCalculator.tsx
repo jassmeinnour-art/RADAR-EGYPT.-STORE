@@ -44,7 +44,21 @@ export interface ProductProfitItem {
   commissionPercent: number;
   shippingFee: number;
   packagingFee: number;
+  weightKg?: number;
+  carrierName?: string;
 }
+
+// Egyptian Logistics & Shipping Carriers Rates Configuration
+export const EGYPT_CARRIERS = {
+  bosta: { id: 'bosta', name: 'بوسطة (Bosta Logistics)', baseRate: 45, extraPerKg: 10, baseWeightKg: 1, badge: '45 ج + 10 ج/كجم إضافي' },
+  aramex: { id: 'aramex', name: 'أرامكس مصر (Aramex Express)', baseRate: 60, extraPerKg: 12, baseWeightKg: 1, badge: '60 ج + 12 ج/كجم إضافي' },
+  egypt_post: { id: 'egypt_post', name: 'البريد المصري (Egypt Post)', baseRate: 35, extraPerKg: 7, baseWeightKg: 1, badge: '35 ج + 7 ج/كجم إضافي' },
+  shipblu: { id: 'shipblu', name: 'شيب أوت / مرسال (ShipBlu)', baseRate: 40, extraPerKg: 8, baseWeightKg: 1, badge: '40 ج + 8 ج/كجم إضافي' },
+  amazon_easyship: { id: 'amazon_easyship', name: 'أمازون مصر (Easy Ship)', baseRate: 35, extraPerKg: 10, baseWeightKg: 1, badge: '35 ج + 10 ج/كجم إضافي' },
+  noon_express: { id: 'noon_express', name: 'نون مصر (Noon Express Direct)', baseRate: 40, extraPerKg: 10, baseWeightKg: 1, badge: '40 ج + 10 ج/كجم إضافي' },
+};
+
+export type CarrierKey = keyof typeof EGYPT_CARRIERS;
 
 const DEFAULT_SAMPLE_PRODUCTS: ProductProfitItem[] = [];
 
@@ -67,6 +81,22 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
   const [shippingFee, setShippingFee] = useState<number>(35);
   const [packagingFee, setPackagingFee] = useState<number>(15);
   const [returnBufferPercent, setReturnBufferPercent] = useState<number>(2);
+
+  // Weight-Based Shipping Toggle State
+  const [enableWeightShipping, setEnableWeightShipping] = useState<boolean>(false);
+  const [productWeightKg, setProductWeightKg] = useState<number>(1.5);
+  const [selectedCarrier, setSelectedCarrier] = useState<CarrierKey>('bosta');
+
+  // Compute Weight-Based Expected Shipping Fee
+  const calculatedWeightShippingFee = useMemo(() => {
+    const carrier = EGYPT_CARRIERS[selectedCarrier];
+    if (!carrier) return 35;
+    const extraKg = Math.max(0, Math.ceil(productWeightKg - carrier.baseWeightKg));
+    return carrier.baseRate + (extraKg * carrier.extraPerKg);
+  }, [productWeightKg, selectedCarrier]);
+
+  // Active Shipping Fee (either manual or weight-calculated)
+  const activeShippingFee = enableWeightShipping ? calculatedWeightShippingFee : shippingFee;
 
   // Merchant Table State
   const [merchantProducts, setMerchantProducts] = useState<ProductProfitItem[]>(() => {
@@ -108,7 +138,9 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
     if (p !== 'custom') {
       const preset = platformPresets[p];
       setCommissionPercent(preset.commission);
-      setShippingFee(preset.shipping);
+      if (!enableWeightShipping) {
+        setShippingFee(preset.shipping);
+      }
       setPackagingFee(preset.packaging);
     }
   };
@@ -117,14 +149,14 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
   const calculations = useMemo(() => {
     const commAmount = Math.round((sellingPrice * commissionPercent) / 100);
     const returnRisk = Math.round((sellingPrice * returnBufferPercent) / 100);
-    const totalDeductions = commAmount + shippingFee + packagingFee + returnRisk;
+    const totalDeductions = commAmount + activeShippingFee + packagingFee + returnRisk;
     const netProfit = sellingPrice - wholesaleCost - totalDeductions;
     const marginPercent = sellingPrice > 0 ? Math.round((netProfit / sellingPrice) * 1000) / 10 : 0;
     const roiPercent = wholesaleCost > 0 ? Math.round((netProfit / wholesaleCost) * 1000) / 10 : 0;
 
     // Break Even Price
     const varDec = (commissionPercent + returnBufferPercent) / 100;
-    const fixedCosts = wholesaleCost + shippingFee + packagingFee;
+    const fixedCosts = wholesaleCost + activeShippingFee + packagingFee;
     const breakEven = varDec < 1 ? Math.ceil(fixedCosts / (1 - varDec)) : fixedCosts;
 
     return {
@@ -136,7 +168,7 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
       roiPercent,
       breakEven,
     };
-  }, [sellingPrice, wholesaleCost, commissionPercent, shippingFee, packagingFee, returnBufferPercent]);
+  }, [sellingPrice, wholesaleCost, commissionPercent, activeShippingFee, packagingFee, returnBufferPercent]);
 
   // Merchant Table Product Profit Calculation Helper
   const calculateItemProfit = (item: ProductProfitItem) => {
@@ -356,18 +388,157 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">تكلفة الشحن والتوصيل ({currency})</label>
-              <input
-                type="number"
-                min={0}
-                value={shippingFee}
-                onChange={(e) => {
-                  setPlatform('custom');
-                  setShippingFee(Math.max(0, Number(e.target.value)));
-                }}
-                className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold text-sm outline-none font-mono"
-              />
+            {/* Weight-Based Shipping Toggle & Section */}
+            <div className="sm:col-span-2 p-4 rounded-2xl bg-slate-950/90 border border-amber-500/30 space-y-4">
+              
+              {/* Toggle Switch Header */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-xl transition ${enableWeightShipping ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-slate-900 text-slate-500'}`}>
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                      <span>حساب الشحن التلقائي حسب وزن المنتج وشركة الشحن</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px]">ميزة جديدة 🚚</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      احتساب تكلفة الشحن المتوقعة بدقة بناءً على الوزن بالكيلوجرام وتعريفة شركات الشحن في مصر
+                    </p>
+                  </div>
+                </div>
+
+                {/* Switch Button */}
+                <button
+                  type="button"
+                  onClick={() => setEnableWeightShipping(!enableWeightShipping)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    enableWeightShipping ? 'bg-amber-500' : 'bg-slate-800'
+                  }`}
+                  role="switch"
+                  aria-checked={enableWeightShipping}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-950 shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      enableWeightShipping ? 'translate-x-0' : '-translate-x-5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Weight & Carrier Controls (Visible when Toggle ON) */}
+              {enableWeightShipping ? (
+                <div className="space-y-4 pt-3 border-t border-slate-800/80 animate-in fade-in duration-200">
+                  
+                  {/* Weight Slider & Input */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+                      <label className="flex items-center gap-1 text-amber-300">
+                        <span>وزن المنتج الشامل بالتغليف (كجم)</span>
+                      </label>
+                      <span className="font-mono text-amber-400 font-black text-sm bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                        {productWeightKg} كجم
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={30}
+                        step={0.1}
+                        value={productWeightKg}
+                        onChange={(e) => setProductWeightKg(Math.max(0.1, Number(e.target.value)))}
+                        className="w-full accent-amber-500 h-2 bg-slate-900 rounded-lg cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min={0.1}
+                        max={100}
+                        step={0.1}
+                        value={productWeightKg}
+                        onChange={(e) => setProductWeightKg(Math.max(0.1, Number(e.target.value)))}
+                        className="w-20 h-9 text-center rounded-xl bg-slate-900 border border-slate-800 text-white font-mono font-bold text-xs outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    {/* Quick Weight Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[10px] text-slate-500 font-bold">أوزان شائعة:</span>
+                      {[0.5, 1, 1.5, 2, 3, 5, 10].map((w) => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setProductWeightKg(w)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-mono transition cursor-pointer ${
+                            productWeightKg === w
+                              ? 'bg-amber-500 text-slate-950 font-black'
+                              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800'
+                          }`}
+                        >
+                          {w} كجم
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Courier Carrier Selection Grid */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 block">شركة اللوجستيات والشحن المحددة</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {(Object.keys(EGYPT_CARRIERS) as CarrierKey[]).map((key) => {
+                        const carrier = EGYPT_CARRIERS[key];
+                        const isSelected = selectedCarrier === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedCarrier(key)}
+                            className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="text-xs font-bold block truncate">{carrier.name}</span>
+                            <span className="text-[10px] text-slate-500 block font-mono mt-0.5">{carrier.badge}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dynamic Rate Summary Banner */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30 flex items-center justify-between text-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-slate-400 font-bold block">تكلفة الشحن المتوقعة حسب الوزن:</span>
+                      <span className="text-slate-300 font-mono text-[11px]">
+                        الأساسي ({EGYPT_CARRIERS[selectedCarrier].baseRate} {currency}) + {Math.max(0, Math.ceil(productWeightKg - 1))} كجم إضافي
+                      </span>
+                    </div>
+                    <div className="text-emerald-400 font-mono font-black text-base">
+                      ={calculatedWeightShippingFee} {currency}
+                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                /* Manual Shipping Cost Input (When Toggle is OFF) */
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-300">تكلفة الشحن والتوصيل الثابتة ({currency})</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={shippingFee}
+                    onChange={(e) => {
+                      setPlatform('custom');
+                      setShippingFee(Math.max(0, Number(e.target.value)));
+                    }}
+                    className="w-full h-10 px-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-bold text-sm outline-none font-mono focus:border-amber-500"
+                  />
+                </div>
+              )}
+
             </div>
 
           </div>
@@ -415,8 +586,15 @@ export const ProfitCalculator: React.FC<ProfitCalculatorProps> = ({
                 <span className="font-mono text-amber-400">-{calculations.commAmount.toLocaleString()} {currency}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800/80 text-slate-300">
-                <span>تكلفة الشحن والتغليف:</span>
-                <span className="font-mono text-sky-400">-{(shippingFee + packagingFee).toLocaleString()} {currency}</span>
+                <span>
+                  تكلفة الشحن والتغليف:
+                  {enableWeightShipping && (
+                    <span className="block text-[10px] text-amber-400/80 font-mono">
+                      (وزن {productWeightKg} كجم • {EGYPT_CARRIERS[selectedCarrier]?.name.split(' ')[0]})
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono text-sky-400">-{(activeShippingFee + packagingFee).toLocaleString()} {currency}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800/80 text-slate-300">
                 <span>مخصص مخاطر المرتجعات ({returnBufferPercent}%):</span>

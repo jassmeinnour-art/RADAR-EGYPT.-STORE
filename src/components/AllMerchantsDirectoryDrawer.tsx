@@ -816,7 +816,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
             <ToolbarTooltip
               title="تصدير بيانات التجار (CSV)"
               description="تنزيل جدول شامل يحتوي على كافة المتاجر، معرّفات المنصات، وسائل التواصل وحالة الربط."
@@ -825,9 +825,9 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
               <button
                 type="button"
                 onClick={handleExportMerchantsCsv}
-                className="px-3.5 py-2 rounded-xl bg-teal-800 hover:bg-teal-700 text-white font-bold text-xs shadow-md flex items-center gap-2 cursor-pointer active:scale-95 transition-all border border-teal-500/30"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-teal-800 hover:bg-teal-700 text-white font-bold text-xs shadow-md flex items-center gap-2 cursor-pointer active:scale-95 transition-all border border-teal-500/30 grow sm:grow-0 justify-center"
               >
-                <FileSpreadsheet className="w-4 h-4 text-white" />
+                <FileSpreadsheet className="w-4 h-4 text-white shrink-0" />
                 <span>تصدير CSV 📊</span>
               </button>
             </ToolbarTooltip>
@@ -839,7 +839,7 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
               <button
                 type="button"
                 onClick={onClose}
-                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors border border-slate-700"
+                className="w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors border border-slate-700 shrink-0"
               >
                 <X className="w-5 h-5 text-white" />
               </button>
@@ -847,9 +847,11 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
           </div>
         </div>
 
-        {/* Workspace Sub-Tabs Navigation */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-6 py-2 bg-slate-950/60 overflow-x-auto gap-2">
-          <div className="flex items-center gap-2">
+        {/* Workspace Sub-Tabs Navigation (Mobile-First Responsive Grid) */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-slate-800 px-4 sm:px-6 py-2.5 bg-slate-950/80 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+            
+            {/* Button 1: دليل التجار الشامل */}
             <ToolbarTooltip
               title="دليل التجار الشامل"
               description="استعراض بطاقات جميع المتاجر، تفضيلاتهم، المنتجات، الطلبات، وطباعة بوالص الشحن مباشرة."
@@ -858,19 +860,20 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
               <button
                 type="button"
                 onClick={() => setActiveTab('directory')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 cursor-pointer ${
+                className={`w-full min-h-[44px] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === 'directory'
                     ? 'bg-indigo-700 text-white shadow-lg border border-indigo-400/40'
-                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent'
+                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
                 }`}
               >
-                <Store className="w-4 h-4 text-white" />
+                <Store className="w-4 h-4 text-white shrink-0" />
                 <span>🏢 دليل التجار الشامل ({merchants.length})</span>
               </button>
             </ToolbarTooltip>
 
+            {/* Button 2: إضافة تاجر يدوي جديد */}
             <ToolbarTooltip
-              title="إدارة وتعديل بيانات التجار يدوياً"
+              title="إضافة وتعديل بيانات التجار يدوياً"
               description="نموذج متكامل لكتابة وتعديل بيانات المتجر، معرفات المنصات (Seller IDs)، والبريد وحفظها مباشرة بدون CSV."
               badge="تحكم يدوي مباشر"
             >
@@ -880,17 +883,18 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
                   resetManualForm();
                   setActiveTab('manual_form');
                 }}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 cursor-pointer ${
+                className={`w-full min-h-[44px] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === 'manual_form'
-                    ? 'bg-indigo-700 text-white shadow-lg border border-indigo-400/40'
-                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent'
+                    ? 'bg-emerald-600 text-white shadow-lg border border-emerald-400/40'
+                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
                 }`}
               >
-                <Edit3 className="w-4 h-4 text-white" />
-                <span>✍️ إدارة وتعديل بيانات التجار (نموذج يدوي)</span>
+                <Plus className="w-4 h-4 text-white shrink-0" />
+                <span>✍️ إضافة تاجر يدوي جديد ➕</span>
               </button>
             </ToolbarTooltip>
 
+            {/* Button 3: منتجات التريند والطلب */}
             <ToolbarTooltip
               title="ترشيحات المنتجات الأكثر مبيعاً والـ Trending"
               description="فرص المنتجات الأعلى مبيعاً داخل مصر وخارجها لمساعدة التجار على اقتناص أرباح سريعة."
@@ -899,21 +903,21 @@ export const AllMerchantsDirectoryDrawer: React.FC<AllMerchantsDirectoryDrawerPr
               <button
                 type="button"
                 onClick={() => setActiveTab('trending')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 cursor-pointer ${
+                className={`w-full min-h-[44px] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === 'trending'
-                    ? 'bg-indigo-700 text-white shadow-lg border border-indigo-400/40'
-                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent'
+                    ? 'bg-amber-600 text-white shadow-lg border border-amber-400/40'
+                    : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
                 }`}
               >
-                <Flame className="w-4 h-4 text-white" />
-                <span>🔥 ترشيحات المنتجات الأكثر مبيعاً والـ Trending</span>
+                <Flame className="w-4 h-4 text-white shrink-0" />
+                <span>🔥 منتجات الـ Trending</span>
               </button>
             </ToolbarTooltip>
           </div>
 
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-300 font-bold">
+          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-300 font-bold shrink-0">
             <span>التاجر النشط بالنظام:</span>
-            <span className="px-2.5 py-1 rounded-lg bg-indigo-950 border border-indigo-500/40 text-white font-mono">
+            <span className="px-3 py-1.5 rounded-xl bg-indigo-950 border border-indigo-500/40 text-white font-mono font-bold">
               {getActiveManagedMerchantId()}
             </span>
           </div>

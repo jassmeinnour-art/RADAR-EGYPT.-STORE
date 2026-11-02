@@ -512,6 +512,62 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   // Stock Depletion Forecast Modal State
   const [stockForecastProduct, setStockForecastProduct] = useState<MerchantCatalogProduct | null>(null);
 
+  // AI Marketing Description & Catchy Headlines Generator State
+  const [selectedProductForAiCopy, setSelectedProductForAiCopy] = useState<MerchantCatalogProduct | null>(null);
+  const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState<boolean>(false);
+  const [isGeneratingAiCopy, setIsGeneratingAiCopy] = useState<boolean>(false);
+  const [aiCopyResult, setAiCopyResult] = useState<any | null>(null);
+  const [copiedCopyField, setCopiedCopyField] = useState<string | null>(null);
+
+  const handleGenerateAiCopyForProduct = async (prod: MerchantCatalogProduct) => {
+    setSelectedProductForAiCopy(prod);
+    setIsAiCopyModalOpen(true);
+    setIsGeneratingAiCopy(true);
+    setAiCopyResult(null);
+
+    try {
+      const res = await fetch('/api/generate-product-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: prod.title,
+          price: prod.merchantPrice,
+          currency: 'ج.م',
+          category: prod.category || 'عام',
+          brand: prod.brand || currentMerchant?.storeName || 'متجر معتمد',
+          sku: prod.sku
+        }),
+      });
+
+      const resultData = await res.json();
+      if (resultData.success && resultData.data) {
+        setAiCopyResult(resultData.data);
+        if (onShowToast) {
+          onShowToast(`✨ تم توليد العناوين والوصف التسويقي بـ AI للمنتج "${prod.sku}"! 🪄`);
+        }
+      } else {
+        throw new Error(resultData.error || 'فشل توليد المحتوى');
+      }
+    } catch (err: any) {
+      console.error('Error generating AI copy:', err);
+      if (onShowToast) {
+        onShowToast('⚠️ تعذر الاتصال بـ AI، تم توفير الاقتراحات التلقائية الذكية.');
+      }
+    } finally {
+      setIsGeneratingAiCopy(false);
+    }
+  };
+
+  const handleAdoptGeneratedTitle = (title: string) => {
+    if (!selectedProductForAiCopy || !activeMerchantId) return;
+    const updated = products.map(p => p.id === selectedProductForAiCopy.id ? { ...p, title } : p);
+    setProducts(updated);
+    saveMerchantCatalog(activeMerchantId, updated);
+    if (onShowToast) {
+      onShowToast(`🎯 تم اعتماد وتحديث عنوان المنتج إلى "${title}"!`);
+    }
+  };
+
   // Merchant Multi-Profiles State & Dialog
   const [isProfilesModalOpen, setIsProfilesModalOpen] = useState(false);
   const [activeMerchantProfile, setActiveMerchantProfileState] = useState<MerchantProfile>(() => getActiveMerchantProfile());
@@ -2945,6 +3001,17 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                             <span>تعديل السعر</span>
                           </button>
 
+                          {/* AI Marketing Description & Catchy Titles Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateAiCopyForProduct(prod)}
+                            className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-black text-[11px] transition inline-flex items-center gap-1 cursor-pointer border border-purple-200"
+                            title="توليد عناوين جذابة ووصف تسويقي احترافي بـ AI"
+                          >
+                            <Sparkles className="w-3 h-3 text-purple-600" />
+                            <span>وصف وعناوين AI</span>
+                          </button>
+
                           {/* Price History Button */}
                           <button
                             type="button"
@@ -3783,6 +3850,251 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
           }}
         />
+      )}
+
+      {/* MODAL: AI Professional Marketing Copy & Catchy Titles Generator */}
+      {isAiCopyModalOpen && selectedProductForAiCopy && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn text-right font-['Cairo']"
+          dir="rtl"
+          onClick={() => setIsAiCopyModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-3xl bg-slate-900 border border-slate-700/80 rounded-3xl p-4 sm:p-6 shadow-2xl text-slate-100 space-y-5 max-h-[92vh] overflow-y-auto font-['Cairo']"
+            onClick={(e) => e.stopPropagation()}
+            id="ai-product-copy-modal"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0 shadow-xs">
+                  <Sparkles className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      توليد محتوى المبيعات بالذكاء الاصطناعي (Gemini AI)
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">
+                      السوق المصري • Amazon EG / Noon / Jumia
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white font-['Alexandria'] mt-1">
+                    توليد عناوين بيعية وعروض تسويقية جذابة للمنتج 🪄
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsAiCopyModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer shrink-0"
+                title="إغلاق النافذة"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Selected Product Banner */}
+            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedProductForAiCopy.imageUrl}
+                  alt={selectedProductForAiCopy.title}
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-800"
+                />
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                    {selectedProductForAiCopy.title}
+                  </h4>
+                  <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                    SKU: <strong className="text-amber-300">{selectedProductForAiCopy.sku}</strong> | السعر الحالي: <strong className="text-emerald-400">{selectedProductForAiCopy.merchantPrice.toLocaleString('ar-EG')} ج.م</strong>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleGenerateAiCopyForProduct(selectedProductForAiCopy)}
+                disabled={isGeneratingAiCopy}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs flex items-center gap-2 transition cursor-pointer shadow-md disabled:opacity-60 shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingAiCopy ? 'animate-spin' : ''}`} />
+                <span>إعادة توليد المحتوى 🔄</span>
+              </button>
+            </div>
+
+            {/* Loading state */}
+            {isGeneratingAiCopy ? (
+              <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 space-y-3">
+                <div className="w-12 h-12 rounded-full border-3 border-purple-500/30 border-t-purple-400 animate-spin mx-auto" />
+                <h4 className="text-sm font-bold text-slate-200 font-['Alexandria']">
+                  جاري توليد العناوين والوصف التسويقي بذكاء Gemini...
+                </h4>
+                <p className="text-xs text-slate-400">
+                  صياغة عناوين بطل عالية النقر CTR واستخراج النقاط البيعية الجذابة للسوق المصري.
+                </p>
+              </div>
+            ) : aiCopyResult ? (
+              <div className="space-y-4 animate-fadeIn">
+                
+                {/* Section 1: Catchy Headlines */}
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-purple-300 flex items-center gap-1.5 font-['Alexandria']">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <span>عناوين بيعية بطل وجذابة مقترحة (Catchy Titles / Headlines):</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold">1-Click اعتماد أو نسخ</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(aiCopyResult.headlines || []).map((headline: string, idx: number) => (
+                      <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3 text-xs">
+                        <span className="font-bold text-white leading-relaxed flex-1">{headline}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleAdoptGeneratedTitle(headline)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[11px] transition border border-emerald-500/30 cursor-pointer"
+                            title="اعتماد كعنوان رئيسي لهذا المنتج بجدول الكتالوج"
+                          >
+                            <span>اعتماد كعنوان ✓</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(headline);
+                              setCopiedCopyField(`headline-${idx}`);
+                              setTimeout(() => setCopiedCopyField(null), 2000);
+                              if (onShowToast) onShowToast('📋 تم نسخ العنوان!');
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                            title="نسخ العنوان"
+                          >
+                            {copiedCopyField === `headline-${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section 2: Full Professional Marketing Description */}
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-purple-300 flex items-center gap-1.5 font-['Alexandria']">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <span>الوصف التسويقي الاحترافي (Professional Product Description):</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(aiCopyResult.fullMarketingDescription);
+                        setCopiedCopyField('description');
+                        setTimeout(() => setCopiedCopyField(null), 2000);
+                        if (onShowToast) onShowToast('📋 تم نسخ الوصف التسويقي الكامل!');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer border border-slate-700"
+                    >
+                      {copiedCopyField === 'description' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>نسخ الوصف الكامل</span>
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed font-sans">
+                    {aiCopyResult.fullMarketingDescription}
+                  </div>
+
+                  {/* Bullet Points */}
+                  {aiCopyResult.bulletPoints && aiCopyResult.bulletPoints.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                      <span className="text-[11px] font-bold text-slate-400 block">أبرز المزايا البيعية القوية (Bullet Points):</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {aiCopyResult.bulletPoints.map((bullet: string, i: number) => (
+                          <div key={i} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 text-xs text-slate-300 flex items-start gap-2">
+                            <span className="text-purple-400 font-bold shrink-0">✦</span>
+                            <span>{bullet}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 3: Social Media Ad Copy */}
+                {aiCopyResult.socialAdCopy && (
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-indigo-300 flex items-center gap-1.5 font-['Alexandria']">
+                        <span>📱 نص منشور إعلاني مخصص للسوشيال ميديا (Facebook / Instagram / WhatsApp):</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiCopyResult.socialAdCopy);
+                          setCopiedCopyField('social');
+                          setTimeout(() => setCopiedCopyField(null), 2000);
+                          if (onShowToast) onShowToast('📋 تم نسخ منشور السوشيال ميديا!');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer border border-indigo-500/30"
+                      >
+                        {copiedCopyField === 'social' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>نسخ الإعلان</span>
+                      </button>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans">
+                      {aiCopyResult.socialAdCopy}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prominent Section 4: Image Enhancement via AIProductStudio */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-slate-950 to-indigo-950 border-2 border-purple-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-950 border border-purple-500/40 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      <img
+                        src={selectedProductForAiCopy.imageUrl}
+                        alt={selectedProductForAiCopy.title}
+                        className="w-full h-full object-contain rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white font-['Alexandria']">
+                          تحسين وتطوير صورة المنتج بأداة AIProductStudio 🎨
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                          استوديو الكاميرا
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        إنشاء خلفيات استوديو، ضبط الإضاءة والظلال، واقتطاع وإبراز الزوايا الثلاثية الأبعاد 3D للمتاجر الكبرى.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAiCopyModalOpen(false);
+                      window.dispatchEvent(new CustomEvent('merchant_radar_open_studio', { detail: selectedProductForAiCopy }));
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-lg shadow-purple-950/60 shrink-0"
+                  >
+                    <ImageIcon className="w-4 h-4 text-purple-200" />
+                    <span>تحسين الصورة في استوديو AIProductStudio 🎨</span>
+                  </button>
+                </div>
+
+              </div>
+            ) : null}
+
+          </div>
+        </div>
       )}
 
     </div>

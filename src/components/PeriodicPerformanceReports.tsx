@@ -58,6 +58,7 @@ import {
   Cell
 } from 'recharts';
 import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
+import { PerformanceDashboard } from './PerformanceDashboard';
 import confetti from 'canvas-confetti';
 import { 
   ProductData, 
@@ -484,6 +485,15 @@ ${report.aiExecutiveSummary}
 
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 30-DAY PERFORMANCE DASHBOARD & PROFIT MARGIN EVOLUTION (PerformanceDashboard) */}
+      {/* ========================================================================= */}
+      <PerformanceDashboard
+        currency={currency}
+        catalogNetProfitTotal={report.totalNetProfitEGP}
+        onShowToast={onShowToast}
+      />
 
       {/* ========================================================================= */}
       {/* 2. ADVANCED RECHARTS GRAPHICAL SECTION (الرسوم البيانية التفاعلية المتقدمة) */}
