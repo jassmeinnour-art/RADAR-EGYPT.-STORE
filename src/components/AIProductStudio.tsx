@@ -28,6 +28,7 @@ import {
 import confetti from 'canvas-confetti';
 import { ProductData, MerchantOffer, PublishResult } from '../types';
 import { MultiAngleShotsStudio } from './MultiAngleShotsStudio';
+import { BackgroundCustomizer } from './BackgroundCustomizer';
 
 interface AIProductStudioProps {
   onShowToast?: (msg: string) => void;
@@ -38,7 +39,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
   onShowToast,
   currency = 'ج.م'
 }) => {
-  const [studioMode, setStudioMode] = useState<'multi_angle' | 'single_workflow'>('multi_angle');
+  const [studioMode, setStudioMode] = useState<'multi_angle' | 'bg_customizer' | 'single_workflow'>('bg_customizer');
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -244,7 +245,19 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
       </div>
 
       {/* Studio Mode Switcher */}
-      <div className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 w-max">
+      <div className="flex flex-wrap items-center gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 w-full sm:w-auto">
+        <button
+          onClick={() => setStudioMode('bg_customizer')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+            studioMode === 'bg_customizer'
+              ? 'bg-amber-500 text-slate-950 shadow-lg'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>مخصص الخلفيات الذكي (Background Customizer) 🎨</span>
+        </button>
+
         <button
           onClick={() => setStudioMode('multi_angle')}
           className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
@@ -253,8 +266,8 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
               : 'text-slate-300 hover:bg-slate-800'
           }`}
         >
-          <Sparkles className="w-4 h-4" />
-          <span>أستوديو التصميم المتعدد الزوايا (6 زوايا معتمدة) 📸</span>
+          <ImageIcon className="w-4 h-4" />
+          <span>أستوديو التصميم المتعدد الزوايا (6 زوايا) 📸</span>
         </button>
 
         <button
@@ -270,7 +283,13 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
         </button>
       </div>
 
-      {studioMode === 'multi_angle' ? (
+      {studioMode === 'bg_customizer' ? (
+        <BackgroundCustomizer
+          initialProductImage={uploadedImage}
+          productTitle={productData?.title || 'منتج تجاري'}
+          onShowToast={onShowToast}
+        />
+      ) : studioMode === 'multi_angle' ? (
         <MultiAngleShotsStudio
           initialImage={uploadedImage}
           productTitle={productData?.title || 'منتج تجاري'}
