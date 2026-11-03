@@ -565,6 +565,25 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 w-full max-w-full overflow-x-hidden relative" dir="rtl">
       
+      {/* Rotating Golden Globe / RADAR Watermark Logo in Background */}
+      <div 
+        className="fixed top-1/2 left-1/2 w-[600px] h-[600px] opacity-[0.07] z-0 pointer-events-none select-none overflow-hidden rounded-full"
+        style={{ animation: 'rotateGlobe 40s linear infinite' }}
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 200 200" className="w-full h-full text-amber-400 fill-none stroke-current stroke-[1.5]">
+          <circle cx="100" cy="100" r="90" strokeDasharray="4 4" />
+          <circle cx="100" cy="100" r="70" />
+          <circle cx="100" cy="100" r="50" strokeDasharray="2 2" />
+          <circle cx="100" cy="100" r="30" />
+          <line x1="10" y1="100" x2="190" y2="100" />
+          <line x1="100" y1="10" x2="100" y2="190" />
+          <ellipse cx="100" cy="100" rx="90" ry="35" />
+          <ellipse cx="100" cy="100" rx="35" ry="90" />
+          <polygon points="100,10 115,85 190,100 115,115 100,190 85,115 10,100 85,85" fill="currentColor" fillOpacity="0.15" />
+        </svg>
+      </div>
+
       {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
       <AnimatedLogosBackground />
 

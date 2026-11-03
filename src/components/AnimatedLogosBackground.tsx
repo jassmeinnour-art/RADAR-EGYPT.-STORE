@@ -5,67 +5,93 @@ interface AnimatedLogoItem {
   name: string;
   shortName: string;
   color: string;
-  top: string;
   left: string;
   animationDuration: string;
   animationDelay: string;
-  size: string;
+  sizePx: number;
 }
 
 const LOGOS: AnimatedLogoItem[] = [
-  { id: 'amz', name: 'أمازون مصر', shortName: 'Amazon', color: '#FF9900', top: '12%', left: '85%', animationDuration: '14s', animationDelay: '0s', size: 'text-xs' },
-  { id: 'noon', name: 'نون مصر', shortName: 'Noon', color: '#FEE000', top: '28%', left: '8%', animationDuration: '16s', animationDelay: '2s', size: 'text-xs' },
-  { id: 'jumia', name: 'جوميا مصر', shortName: 'Jumia', color: '#F68B1E', top: '75%', left: '80%', animationDuration: '18s', animationDelay: '1s', size: 'text-[11px]' },
-  { id: 'raneen', name: 'رنين', shortName: 'Raneen', color: '#0055A5', top: '68%', left: '12%', animationDuration: '15s', animationDelay: '3.5s', size: 'text-xs' },
-  { id: 'kenzz', name: 'كنز', shortName: 'Kenzz', color: '#10B981', top: '18%', left: '48%', animationDuration: '13s', animationDelay: '1.8s', size: 'text-[11px]' },
-  { id: 'homz', name: 'هومزمارت', shortName: 'Homzmart', color: '#6366F1', top: '45%', left: '90%', animationDuration: '17s', animationDelay: '2.5s', size: 'text-[10px]' },
-  { id: 'raya', name: 'راية', shortName: 'Raya', color: '#EF4444', top: '82%', left: '46%', animationDuration: '16s', animationDelay: '0.8s', size: 'text-[11px]' }
+  { id: 'amz-1', name: 'أمازون مصر', shortName: 'Amazon', color: '#FF9900', left: '6%', animationDuration: '18s', animationDelay: '0s', sizePx: 52 },
+  { id: 'noon-1', name: 'نون مصر', shortName: 'Noon', color: '#FEE000', left: '18%', animationDuration: '22s', animationDelay: '3s', sizePx: 48 },
+  { id: 'jumia-1', name: 'جوميا مصر', shortName: 'Jumia', color: '#F68B1E', left: '28%', animationDuration: '20s', animationDelay: '1s', sizePx: 42 },
+  { id: 'raneen-1', name: 'رنين', shortName: 'Raneen', color: '#0055A5', left: '38%', animationDuration: '25s', animationDelay: '5s', sizePx: 50 },
+  { id: 'kenzz-1', name: 'كنز', shortName: 'Kenzz', color: '#10B981', left: '48%', animationDuration: '16s', animationDelay: '2s', sizePx: 36 },
+  { id: 'homz-1', name: 'هومزمارت', shortName: 'Homzmart', color: '#6366F1', left: '58%', animationDuration: '24s', animationDelay: '4s', sizePx: 45 },
+  { id: 'bayyaa-1', name: 'منصة بياع', shortName: 'Bayyaa', color: '#FF6B00', left: '68%', animationDuration: '19s', animationDelay: '0.5s', sizePx: 58 },
+  { id: 'amz-2', name: 'أمازون مصر', shortName: 'Amazon', color: '#FF9900', left: '78%', animationDuration: '21s', animationDelay: '7s', sizePx: 40 },
+  { id: 'noon-2', name: 'نون مصر', shortName: 'Noon', color: '#FEE000', left: '88%', animationDuration: '27s', animationDelay: '2.5s', sizePx: 55 },
+  { id: 'jumia-2', name: 'جوميا مصر', shortName: 'Jumia', color: '#F68B1E', left: '12%', animationDuration: '17s', animationDelay: '8s', sizePx: 38 },
+  { id: 'raneen-2', name: 'رنين', shortName: 'Raneen', color: '#0055A5', left: '32%', animationDuration: '23s', animationDelay: '1.5s', sizePx: 46 },
+  { id: 'kenzz-2', name: 'كنز', shortName: 'Kenzz', color: '#10B981', left: '52%', animationDuration: '29s', animationDelay: '6s', sizePx: 54 },
+  { id: 'homz-2', name: 'هومزمارت', shortName: 'Homzmart', color: '#6366F1', left: '72%', animationDuration: '15s', animationDelay: '9s', sizePx: 34 },
+  { id: 'bayyaa-2', name: 'منصة بياع', shortName: 'Bayyaa', color: '#FF6B00', left: '82%', animationDuration: '26s', animationDelay: '4.5s', sizePx: 60 },
+  { id: 'amz-3', name: 'أمازون مصر', shortName: 'Amazon', color: '#FF9900', left: '92%', animationDuration: '20s', animationDelay: '11s', sizePx: 44 }
 ];
 
 export const AnimatedLogosBackground: React.FC = () => {
   return (
     <div 
-      className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-20 select-none" 
+      className="fixed inset-0 z-0 overflow-hidden select-none pointer-events-auto" 
       dir="rtl"
       aria-hidden="true"
     >
       {LOGOS.map((logo) => (
         <div
           key={logo.id}
-          className="absolute flex items-center gap-2 px-3.5 py-2 rounded-2xl border border-white/10 shadow-xl backdrop-blur-[1px] transition-all"
+          className="absolute bottom-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 shadow-2xl backdrop-blur-md opacity-25 hover:opacity-90 hover:scale-125 transition-all duration-300 cursor-pointer"
           style={{
-            top: logo.top,
             left: logo.left,
-            backgroundColor: `${logo.color}12`,
-            animation: `floatLogoKeyframe ${logo.animationDuration} ease-in-out infinite`,
+            backgroundColor: `${logo.color}22`,
+            borderColor: `${logo.color}55`,
+            animation: `bubbleFloatUp ${logo.animationDuration} linear infinite`,
             animationDelay: logo.animationDelay,
+            fontSize: `${Math.max(10, Math.round(logo.sizePx * 0.26))}px`,
           }}
+          title={logo.name}
         >
-          {/* Logo Bullet Icon */}
+          {/* Logo Bullet Dot */}
           <span 
-            className="w-3 h-3 rounded-full shadow-md animate-pulse"
-            style={{ backgroundColor: logo.color }}
+            className="rounded-full shadow-lg shrink-0 animate-pulse"
+            style={{ 
+              backgroundColor: logo.color,
+              width: `${Math.round(logo.sizePx * 0.22)}px`,
+              height: `${Math.round(logo.sizePx * 0.22)}px`
+            }}
           />
-          {/* Logo Name */}
-          <span className={`font-black tracking-wider ${logo.size}`} style={{ color: '#ffffff' }}>
+          {/* Logo Brand Name */}
+          <span className="font-black tracking-wide text-white whitespace-nowrap">
             {logo.name}
           </span>
         </div>
       ))}
 
-      {/* Global CSS Keyframes for smooth floating and drift */}
+      {/* Bubble Upward Keyframes */}
       <style>{`
-        @keyframes floatLogoKeyframe {
-          0%, 100% {
-            transform: translateY(0px) translateX(0px) scale(1);
-            opacity: 0.25;
+        @keyframes bubbleFloatUp {
+          0% {
+            transform: translateY(110vh) rotate(0deg) scale(0.85);
+            opacity: 0.15;
+          }
+          25% {
+            transform: translateY(80vh) rotate(6deg) scale(1);
+            opacity: 0.35;
           }
           50% {
-            transform: translateY(-22px) translateX(12px) scale(1.06);
-            opacity: 0.55;
+            transform: translateY(50vh) rotate(-6deg) scale(1.05);
+            opacity: 0.45;
+          }
+          75% {
+            transform: translateY(20vh) rotate(4deg) scale(1);
+            opacity: 0.35;
+          }
+          100% {
+            transform: translateY(-20vh) rotate(-8deg) scale(0.9);
+            opacity: 0.1;
           }
         }
       `}</style>
     </div>
   );
 };
+

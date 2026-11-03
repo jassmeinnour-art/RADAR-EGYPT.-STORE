@@ -136,3 +136,31 @@ div#root > div > div:nth-of-type(5) > div > div:nth-of-type(3) > div > div:nth-o
 [class*="bg-slate-50"] span, [class*="bg-slate-50"] p, [class*="bg-slate-50"] small {
   font-size: 16px !important;
 }
+
+/* ==========================================================================
+   CARD TEXT OVERFLOW & ROTATE WATERMARK GLOBE UTILITIES
+   ========================================================================== */
+.card, [class*="card"], .merchant-card, .product-card {
+  overflow: hidden !important;
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal;
+  height: auto;
+  min-height: fit-content;
+  padding: 20px;
+}
+
+.card p, .card div, .card span {
+  max-width: 100%;
+  line-height: 1.6;
+}
+
+@keyframes rotateGlobe {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
