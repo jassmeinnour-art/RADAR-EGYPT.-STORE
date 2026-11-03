@@ -230,44 +230,38 @@ export default function App() {
     };
   }, []);
 
-  const [appLoading, setAppLoading] = useState<boolean>(true);
-  const [showSkipButton, setShowSkipButton] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadingError, setLoadingError] = useState<boolean>(false);
 
   useEffect(() => {
-    // Timeout guard (3.5s max) - guarantees the app never hangs on loading screen
-    const timeout = setTimeout(() => {
-      console.log('Loading timeout reached (3.5s) - showing app anyway');
-      setAppLoading(false);
-    }, 3500);
+    const LOADING_TIMEOUT = 8000; // 8 ثواني
 
-    // Show Skip button after 1.5s
-    const skipTimer = setTimeout(() => {
-      setShowSkipButton(true);
-    }, 1500);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+      setLoadingError(true);
+    }, LOADING_TIMEOUT);
 
-    const loadSystemData = async () => {
+    const loadData = async () => {
       try {
         if (supabase) {
-          const { data, error } = await supabase.from('traders').select('*');
-          if (error) {
-            console.warn('Supabase initial fetch notice:', error);
-          }
+          const { data } = await supabase.from('traders').select('*');
         }
-      } catch (err) {
-        console.error('Data fetch error:', err);
-      } finally {
-        clearTimeout(timeout);
-        clearTimeout(skipTimer);
-        setAppLoading(false);
+      } catch (e) {
+        console.warn('Supabase not configured, running in demo mode');
+        // لا تفعل throw - استمر في العمل
       }
     };
 
-    loadSystemData();
+    loadData().then(() => {
+      clearTimeout(timer);
+      setIsLoading(false);
+    }).catch(() => {
+      clearTimeout(timer);
+      setIsLoading(false);
+      // لا توقف التطبيق - اعرض الصفحة فاضية
+    });
 
-    return () => {
-      clearTimeout(timeout);
-      clearTimeout(skipTimer);
-    };
+    return () => clearTimeout(timer);
   }, []);
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
@@ -482,52 +476,29 @@ export default function App() {
     }
   };
 
-  // If loading initial system data or auth state
-  if ((appLoading || authLoading) && !localUser) {
+  // If loading initial system data
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif] p-6 text-center space-y-6" dir="rtl">
-        <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-500 to-amber-700 p-1 shadow-2xl flex items-center justify-center animate-bounce border border-amber-400/30">
-          <RefreshCw className="w-8 h-8 text-slate-950 animate-spin" />
-        </div>
-
-        <div className="space-y-2 max-w-md">
-          <h2 className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">
-            جاري تحميل بيانات المنظومة والأسواق...
-          </h2>
-          <p className="text-xs sm:text-sm text-amber-300 font-bold">
-            رادار التاجر الذكي في مصر (RADAR EGYPT)
-          </p>
-          <p className="text-xs text-slate-400">
-            مزامنة سحابية فائقة السرعة للكتالوج، الأسعار، والمنافسين
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 flex-wrap justify-center pt-2">
-          <button
-            type="button"
-            onClick={() => {
-              localStorage.clear();
-              sessionStorage.clear();
-              window.location.reload();
-            }}
-            className="px-4 py-2.5 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-500/40 text-xs font-black transition flex items-center gap-2 shadow-lg cursor-pointer active:scale-95"
-            title="مسح ذاكرة الكاش بالكامل وإعادة تحميل الصفحة"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-red-400" />
-            <span>إعادة تحميل التطبيق (مسح الكاش) 🔄</span>
-          </button>
-
-          {showSkipButton && (
-            <button
-              type="button"
-              onClick={() => setAppLoading(false)}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-2 shadow-xl cursor-pointer active:scale-95 animate-in fade-in duration-300"
-            >
-              <Zap className="w-4 h-4 text-slate-950" />
-              <span>تخطي والمتابعة كضيف ⚡</span>
-            </button>
-          )}
-        </div>
+      <div className="loading-screen min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif] p-6 text-center space-y-6" dir="rtl">
+        <img 
+          src="/radar-logo.png" 
+          alt="رادار التاجر" 
+          className="w-24 h-24 object-contain animate-pulse drop-shadow-2xl" 
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = headerBrandLogo;
+          }} 
+        />
+        <p className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">جاري تحميل بيانات المنظومة...</p>
+        <div className="spinner w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin shadow-lg" />
+        <button 
+          type="button" 
+          onClick={() => setIsLoading(false)} 
+          className="skip-btn px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition cursor-pointer active:scale-95 flex items-center gap-2"
+        >
+          <Zap className="w-4 h-4 text-slate-950" />
+          <span>تخطي التحميل والدخول للتطبيق</span>
+        </button>
+        <p className="hint text-xs text-amber-300/80 font-bold">إذا استغرق وقتاً طويلاً، يرجى إعادة التحديث</p>
       </div>
     );
   }
