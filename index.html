@@ -10,6 +10,14 @@
     
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com;" />
     <script>
+      if (window.location.hostname.includes('dev.')) {
+        const meta = document.createElement('meta');
+        meta.name = 'robots';
+        meta.content = 'noindex, nofollow';
+        document.head.appendChild(meta);
+      }
+    </script>
+    <script>
       (function() {
         function isViteWsError(err) {
           if (!err) return false;
@@ -182,6 +190,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://firestore.googleapis.com" />
+    <link rel="preconnect" href="https://api.supabase.co" />
+    <link rel="dns-prefetch" href="https://generativelanguage.googleapis.com" />
     
     <!-- Preload Critical Assets -->
     <link rel="preload" href="/pwa-192x192.png" as="image" fetchpriority="high" />

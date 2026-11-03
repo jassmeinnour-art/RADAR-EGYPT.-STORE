@@ -74,6 +74,24 @@ app.use((req, res, next) => {
 // Middleware for parsing JSON with generous payload size for camera image uploads
 app.use(express.json({ limit: '30mb' }));
 
+// Dynamic robots.txt route: disallow indexing on dev domain, allow on main production domain
+app.get('/robots.txt', (req, res) => {
+  const host = ((req.headers['x-forwarded-host'] as string) || req.headers.host || '').toLowerCase();
+  res.type('text/plain');
+  if (host.includes('dev.')) {
+    return res.send('User-agent: *\nDisallow: /\n');
+  }
+  return res.send(`User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /api/private/
+
+Sitemap: https://radaregypt.store/sitemap.xml
+Crawl-delay: 1
+`);
+});
+
 // Candidate Gemini models prioritized according to @google/genai guidelines
 const GEMINI_CANDIDATE_MODELS = [
   'gemini-3.8-flash',
