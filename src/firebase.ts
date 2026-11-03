@@ -48,7 +48,6 @@ export const AMAZON_SP_API_CONFIG = {
   ENDPOINT: import.meta.env.VITE_AMAZON_SP_API_ENDPOINT || 'https://sellingpartnerapi-eu.amazon.com',
   REGION: import.meta.env.VITE_AMAZON_REGION || 'eu-west-1',
   MARKETPLACE_ID: import.meta.env.VITE_AMAZON_MARKETPLACE_ID || 'ARBP9OOSHTCHU',
-  DEFAULT_SELLER_ID: import.meta.env.VITE_AMAZON_DEFAULT_SELLER_ID || 'A2EUQ1WTGCTBG2',
   LWA_TOKEN_ENDPOINT: import.meta.env.VITE_AMAZON_LWA_ENDPOINT || 'https://api.amazon.com/auth/o2/token',
   LWA_GRANT_TYPE: 'refresh_token',
   COUNTRY_CODE: 'EG',

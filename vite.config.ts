@@ -3,14 +3,27 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 3000,
+    host: true
+  },
+  preview: {
+    port: 3000,
+    host: true
+  },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1200,
     minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'ui': ['lucide-react', 'recharts']
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'ui': ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
+          'motion': ['framer-motion', 'motion', 'canvas-confetti'],
+          'export-docs': ['jspdf', 'jspdf-autotable', 'html2canvas', 'xlsx'],
+          'analytics': ['@vercel/analytics', '@vercel/speed-insights'],
+          'genai': ['@google/genai']
         }
       }
     }

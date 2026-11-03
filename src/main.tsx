@@ -49,19 +49,24 @@ if (typeof window !== 'undefined') {
 
 import { setupPWA } from "./pwaRegister"
 
-// Initialize PWA Service Worker Registration
-if (typeof window !== 'undefined') {
+// Register Service Worker (sw.js)
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .then((registration) => {
+        console.log('[SW] Service Worker registered successfully:', registration.scope);
+      })
+      .catch((error) => {
+        console.warn('[SW] Service Worker registration failed:', error);
+      });
+  });
+
+  // Handle PWA update events in production
   if (import.meta.env.PROD) {
     setupPWA(() => {
       console.log('تحديث جديد متوفر في تطبيق رادار التاجر الذكي.');
     });
-  } else {
-    // Unregister service workers in preview / local dev mode to prevent stale HMR caching
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        regs.forEach((reg) => reg.unregister());
-      }).catch(() => {});
-    }
   }
 }
 

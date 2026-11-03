@@ -11,7 +11,6 @@ const AMAZON_SP_API_CONFIG = {
   DEFAULT_REGION: 'eu-west-1',
   DEFAULT_MARKETPLACE_ID: 'ARBP9OOSHTCHU',
   DEFAULT_REFRESH_TOKEN: 'Atzr|IwEBIA7x9K2mN4pQ6rS8tU0vW2xY4zA6bC8dE0fG2hI4jK6lM8nO0pQ2rS4tU6vW8xY0zA2bC4dE',
-  DEFAULT_SELLER_ID: 'A2EUQ1WTGCTBG2',
   DEFAULT_NOON_AUTH_KEY: 'noon_live_fallback_key_egypt_2026'
 } as const;
 
@@ -90,6 +89,15 @@ Disallow: /api/private/
 Sitemap: https://radaregypt.store/sitemap.xml
 Crawl-delay: 1
 `);
+});
+
+// Dedicated Service Worker endpoint with proper headers
+app.get(['/sw.js', '/service-worker.js'], (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+  const swPath = path.join(process.cwd(), 'public', 'sw.js');
+  res.sendFile(swPath);
 });
 
 // Candidate Gemini models prioritized according to @google/genai guidelines
@@ -3149,14 +3157,14 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
   // Decrypt Refresh Token if stored in encrypted envelope (`ENC_LWA_V1:...`)
   const decryptedStoreRefreshToken = decryptServerLwaRefreshToken(rawStoreRefreshToken);
 
-  // 3. Fallback to server-side DEFAULT_REFRESH_TOKEN & DEFAULT_SELLER_ID if store has no stored token
+  // 3. Fallback to store environment credentials if store has no stored token
   const defaultFallbackRefreshToken = (
     process.env.AMAZON_REFRESH_TOKEN ||
     AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN
   ).trim();
   const defaultFallbackSellerId = (
     process.env.AMAZON_SELLER_ID ||
-    AMAZON_SP_API_CONFIG.DEFAULT_SELLER_ID
+    ''
   ).trim();
 
   const finalRefreshToken = decryptedStoreRefreshToken || defaultFallbackRefreshToken;
@@ -4132,8 +4140,8 @@ const handleAmazonOAuthCallback = async (req: express.Request, res: express.Resp
   const state = String(query.state || body.state || '').trim();
   const sellingPartnerId = String(query.selling_partner_id || query.seller_id || body.selling_partner_id || body.seller_id || '').trim();
 
-  const merchantId = state || sellingPartnerId || 'merchant-direct-bind';
-  const effectiveSellerId = sellingPartnerId || state || 'A2EUQ1WTGCTBG2';
+  const merchantId = state || sellingPartnerId || '';
+  const effectiveSellerId = sellingPartnerId || state || '';
 
   const clientId = (process.env.AMAZON_CLIENT_ID || process.env.LWA_CLIENT_ID || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID).trim();
   const clientSecret = (process.env.AMAZON_CLIENT_SECRET || process.env.LWA_CLIENT_SECRET || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_SECRET).trim();
@@ -5571,16 +5579,20 @@ function decryptCredentials(cipherText: string): string {
 // In-Memory Persistent Store for Connected Traders, Products & Inventory Logs
 interface TraderRecord {
   id: string;
+  user_id?: string;
   name: string;
+  seller_name?: string;
   email: string;
-  platform: 'amazon_sp_api' | 'noon_seller' | 'jumia_seller' | 'shopify' | 'woocommerce' | 'amazon_eg' | 'noon_eg' | 'jumia_eg' | string;
+  platform: 'amazon' | 'noon' | 'jumia' | 'raneen' | 'kanz' | 'homesmart' | 'bayyaa' | string;
   seller_id: string;
   category: string;
   marketplace: string;
+  status?: 'active' | 'inactive';
   encrypted_credentials?: string;
   is_connected: boolean;
   sync_status: 'Connected' | 'Failed' | 'Syncing';
   last_sync_at: string;
+  created_at?: string;
   products_count: number;
   low_stock_count: number;
 }
@@ -5614,43 +5626,8 @@ interface InventoryLog {
   timestamp: string;
 }
 
-// Initial Sample Connected Traders
-const connectedTraders: Map<string, TraderRecord> = new Map([
-  [
-    'TRD-101',
-    {
-      id: 'TRD-101',
-      name: 'تاجر أحمد للتكنولوجيا - مصر',
-      email: 'ahmed.tech.eg@gmail.com',
-      platform: 'amazon_sp_api',
-      seller_id: 'A2EUQ1WTGCTBG2',
-      category: 'إلكترونيات وهواتف',
-      marketplace: 'EG',
-      is_connected: true,
-      sync_status: 'Connected',
-      last_sync_at: new Date().toISOString(),
-      products_count: 3,
-      low_stock_count: 2,
-    }
-  ],
-  [
-    'TRD-102',
-    {
-      id: 'TRD-102',
-      name: 'متجر القاهرة ستايل (نون مصر)',
-      email: 'cairo.style.noon@gmail.com',
-      platform: 'noon_seller',
-      seller_id: 'NOON-EG-9941',
-      category: 'أزياء وملابس',
-      marketplace: 'EG',
-      is_connected: true,
-      sync_status: 'Connected',
-      last_sync_at: new Date().toISOString(),
-      products_count: 1,
-      low_stock_count: 0,
-    }
-  ]
-]);
+// Initial Dynamic Multi-Tenant Connected Traders Store (Populated per marketer)
+const connectedTraders: Map<string, TraderRecord> = new Map();
 
 // Initial Products Data Store
 const traderProductsStore: Map<string, TraderProduct> = new Map([
@@ -5911,13 +5888,46 @@ app.post('/api/sync-inventory', async (req, res) => {
   }
 });
 
-// API Endpoint: List All Connected Traders
+// API Endpoint: List All Connected Traders (Multi-Tenant by user_id)
 app.get('/api/traders', (req, res) => {
-  const tradersList = Array.from(connectedTraders.values());
+  const userId = String(req.query.user_id || req.headers['x-user-id'] || '').trim();
+  let tradersList = Array.from(connectedTraders.values());
+  if (userId) {
+    tradersList = tradersList.filter(t => t.user_id === userId);
+  }
   res.json({ success: true, count: tradersList.length, traders: tradersList });
 });
 
-// Helper function to find trader by ID, seller_id, name or slug
+// API Endpoint: Create a New Trader for the Marketer (Multi-Tenant)
+app.post('/api/traders', (req, res) => {
+  const { user_id, seller_name, seller_id, email, platform, status } = req.body || {};
+  if (!user_id || !seller_name) {
+    return res.status(400).json({ success: false, error: 'user_id and seller_name are required' });
+  }
+  const id = `trd-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const newTrader: TraderRecord = {
+    id,
+    user_id,
+    seller_name,
+    name: seller_name,
+    email: email || '',
+    platform: platform || 'amazon',
+    seller_id: seller_id || '',
+    category: 'عام',
+    marketplace: 'EG',
+    status: status || 'active',
+    is_connected: true,
+    sync_status: 'Connected',
+    last_sync_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    products_count: 0,
+    low_stock_count: 0
+  };
+  connectedTraders.set(id, newTrader);
+  res.json({ success: true, trader: newTrader });
+});
+
+// Helper function to find trader by ID, seller_id, or name
 function findTraderRecord(traderId: string): TraderRecord | undefined {
   if (connectedTraders.has(traderId)) {
     return connectedTraders.get(traderId);
@@ -5926,28 +5936,10 @@ function findTraderRecord(traderId: string): TraderRecord | undefined {
   for (const t of connectedTraders.values()) {
     const tId = (t.id || '').toLowerCase().replace(/[^\w]/g, '');
     const tSeller = (t.seller_id || '').toLowerCase().replace(/[^\w]/g, '');
-    const tName = (t.name || '').toLowerCase().replace(/[^\w]/g, '');
-    if (tId === lowerId || tSeller === lowerId || tName.includes(lowerId) || lowerId.includes(tName)) {
+    const tName = ((t.seller_name || t.name) || '').toLowerCase().replace(/[^\w]/g, '');
+    if (tId === lowerId || tSeller === lowerId || (tName && (tName.includes(lowerId) || lowerId.includes(tName)))) {
       return t;
     }
-  }
-  // Default fallback for Mahmoud Saeed
-  if (traderId.includes('mahmeud') || traderId.includes('said') || traderId === 'merchant-mahmeud-said') {
-    return {
-      id: 'merchant-mahmeud-said',
-      name: 'متجر محمود سعيد (Mahmeud Said Store)',
-      email: 'mahmeud.said@merchantradar.eg',
-      platform: 'amazon_eg',
-      seller_id: 'AMAOHMEDSAID1',
-      category: 'أثاث ومفروشات',
-      marketplace: 'EG',
-      encrypted_credentials: 'AES256_ENCRYPTED_DEMO_KEY',
-      is_connected: true,
-      sync_status: 'Connected',
-      last_sync_at: new Date().toISOString(),
-      products_count: 4,
-      low_stock_count: 1,
-    };
   }
   return undefined;
 }
@@ -6082,11 +6074,12 @@ app.get(['/api/traders/:id/invoices', '/api/traders/:id/orders'], (req, res) => 
   res.json({ success: true, count: sampleInvoices.length, invoices: sampleInvoices, orders: sampleInvoices });
 });
 
-// API Endpoint: Sync Catalog for a Specific Trader
-app.post('/api/traders/:id/sync-catalog', (req, res) => {
+// API Endpoint: Sync Catalog for a Specific Trader (takes trader_id param)
+app.post(['/api/traders/:id/sync', '/api/traders/:id/sync-catalog'], (req, res) => {
   const traderId = req.params.id;
   const trader = findTraderRecord(traderId);
   const now = new Date().toISOString();
+  const traderName = trader?.seller_name || trader?.name || 'التاجر المعتمد';
 
   if (trader) {
     trader.last_sync_at = now;
@@ -6098,74 +6091,60 @@ app.post('/api/traders/:id/sync-catalog', (req, res) => {
     {
       id: `prod-amz-1-${traderId}`,
       trader_id: traderId,
-      sku: 'MS-DESK-W120',
+      sku: `SKU-${traderId.slice(0, 4).toUpperCase()}-DESK`,
       asin: 'B08XYZ1234',
       title: 'طاولة مكتب خشبية مع درج تخزين أبيض 120 سم (مودرن إيجيبت)',
       price: 3200,
       stock_qty: 15,
       buybox_price: 3200,
-      buybox_owner: 'متجر محمود سعيد 🏆',
+      buybox_owner: `${traderName} 🏆`,
       competitor_price: 3350,
       image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
-      platform: 'amazon_eg',
+      platform: trader?.platform || 'amazon',
       updated_at: now
     },
     {
       id: `prod-noon-1-${traderId}`,
       trader_id: traderId,
-      sku: 'MS-CHAIR-BLK',
+      sku: `SKU-${traderId.slice(0, 4).toUpperCase()}-CHAIR`,
       asin: 'N00N987654',
       title: 'كرسي مكتب هيدروليك مريح بظهر شبكي مفرغ - أسود',
       price: 1800,
       stock_qty: 5,
       buybox_price: 1800,
-      buybox_owner: 'متجر محمود سعيد 🏆 (فوز جديد بالـ Buy Box)',
+      buybox_owner: `${traderName} 🏆 (فوز بالـ Buy Box)`,
       competitor_price: 1820,
       image: 'https://images.unsplash.com/photo-1580481072645-022f9a6d1270?w=600&auto=format&fit=crop&q=80',
-      platform: 'noon_eg',
+      platform: trader?.platform || 'noon',
       updated_at: now
     },
     {
       id: `prod-noon-2-${traderId}`,
       trader_id: traderId,
-      sku: 'MS-LAMP-LED',
+      sku: `SKU-${traderId.slice(0, 4).toUpperCase()}-LAMP`,
       asin: 'N00N554433',
       title: 'أباجورة مكتب ذكية طاولات ثلاث سرعات إضاءة خافوتة مع منفذ شاحن',
       price: 450,
       stock_qty: 24,
       buybox_price: 450,
-      buybox_owner: 'متجر محمود سعيد 🏆',
+      buybox_owner: `${traderName} 🏆`,
       competitor_price: 480,
       image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=600&auto=format&fit=crop&q=80',
-      platform: 'noon_eg',
-      updated_at: now
-    },
-    {
-      id: `prod-noon-3-${traderId}`,
-      trader_id: traderId,
-      sku: 'MS-ORGANIZER-WOOD',
-      asin: 'N00N112233',
-      title: 'منظم مكتب خشبي للملفات والأقلام ثلاث طبقات - بني طبيعي',
-      price: 595,
-      stock_qty: 8,
-      buybox_price: 595,
-      buybox_owner: 'متجر محمود سعيد 🏆 (انتزاع الصندوق)',
-      competitor_price: 600,
-      image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80',
-      platform: 'noon_eg',
+      platform: trader?.platform || 'jumia',
       updated_at: now
     }
   ];
 
-  // Save to in-memory store
-  freshProducts.forEach(p => traderProductsStore.set(p.id, p));
+  // Store in cache for this trader
+  freshProducts.forEach(p => traderProductsStore.set(p.id, p as any));
 
   res.json({
     success: true,
-    message: `تم سحب وتحديث كتالوج التاجر (${trader?.name || traderId}) بنجاح (${freshProducts.length} منتج)!`,
-    products_count: freshProducts.length,
-    products: freshProducts,
-    last_sync_at: now
+    message: `تم مزامنة كتالوج التاجر بنجاح`,
+    trader_id: traderId,
+    trader: trader || { id: traderId, name: traderName },
+    last_sync_at: now,
+    count: freshProducts.length,
   });
 });
 

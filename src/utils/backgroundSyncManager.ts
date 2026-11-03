@@ -19,7 +19,7 @@ function ensureOnlineListener() {
   if (onlineListenerAttached || typeof window === 'undefined') return;
   onlineListenerAttached = true;
 
-  window.addEventListener('online', async () => {
+  const processQueue = async () => {
     console.log('[BackgroundSyncManager] Connection restored. Processing queued fallback actions...');
     const queueToProcess = [...pendingFallbackQueue];
     pendingFallbackQueue.length = 0; // Clear queue
@@ -32,7 +32,10 @@ function ensureOnlineListener() {
         console.warn(`[BackgroundSyncManager] Fallback action for tag "${item.tag}" failed:`, err);
       }
     }
-  });
+  };
+
+  window.addEventListener('online', processQueue);
+  window.addEventListener('retrigger_auto_sync', processQueue);
 }
 
 /**

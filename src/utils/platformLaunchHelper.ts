@@ -1377,7 +1377,7 @@ export function validateMerchantAmazonSpApiTokens(
     (merchant as any)?.SELLER_ID ||
     (merchant as any)?.amazonSellerId ||
     platCreds?.sellerId ||
-    AMAZON_SP_API_CONFIG.DEFAULT_SELLER_ID
+    ''
   ).trim();
 
   const effectiveRegion = (
@@ -1519,7 +1519,7 @@ export async function resolveDynamicStoreAmazonCredentials(
     localMerchant?.apiCredentials?.amazonSellerId ||
     firestoreSellerId ||
     localValidated.sellerId ||
-    AMAZON_SP_API_CONFIG.DEFAULT_SELLER_ID
+    ''
   ).trim();
 
   const region = (

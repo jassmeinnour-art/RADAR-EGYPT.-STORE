@@ -15,7 +15,6 @@ export const AMAZON_SP_API_CONFIG = {
   // 2. Non-sensitive Regional & Marketplace Identifiers (Egypt Marketplace)
   DEFAULT_REGION: import.meta.env.VITE_AMAZON_REGION || 'eu-west-1',
   DEFAULT_MARKETPLACE_ID: import.meta.env.VITE_AMAZON_MARKETPLACE_ID || 'ARBP9OOSHTCHU',
-  DEFAULT_SELLER_ID: import.meta.env.VITE_AMAZON_DEFAULT_SELLER_ID || 'A2EUQ1WTGCTBG2',
   DEFAULT_SP_API_ENDPOINT: import.meta.env.VITE_AMAZON_SP_API_ENDPOINT || 'https://sellingpartnerapi-eu.amazon.com',
 
   // 3. Environment & Production flags
