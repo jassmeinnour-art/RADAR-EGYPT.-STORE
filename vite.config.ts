@@ -23,7 +23,35 @@ export default defineConfig({
   build: {
     minify: 'esbuild',
     sourcemap: false,
-    chunkSizeWarningLimit: 3000,
+    chunkSizeWarningLimit: 1500,
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@google/genai') || id.includes('@google/generative-ai')) {
+              return 'ai';
+            }
+            if (id.includes('@imgly/background-removal') || id.includes('jimp')) {
+              return 'bgRemove';
+            }
+            if (id.includes('@supabase/supabase-js')) {
+              return 'supabase';
+            }
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'charts';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('xlsx')) {
+              return 'reports';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
   },
   test: {
     globals: true,

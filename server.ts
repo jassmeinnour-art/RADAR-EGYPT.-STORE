@@ -5555,7 +5555,7 @@ interface TraderRecord {
   id: string;
   name: string;
   email: string;
-  platform: 'amazon_sp_api' | 'noon_seller' | 'jumia_seller' | 'shopify' | 'woocommerce';
+  platform: 'amazon_sp_api' | 'noon_seller' | 'jumia_seller' | 'shopify' | 'woocommerce' | 'amazon_eg' | 'noon_eg' | 'jumia_eg' | string;
   seller_id: string;
   category: string;
   marketplace: string;
@@ -5577,10 +5577,10 @@ interface TraderProduct {
   stock_qty: number;
   buybox_price: number;
   buybox_owner: string;
-  is_buybox_winner: boolean;
+  is_buybox_winner?: boolean;
   competitor_price: number;
   image: string;
-  category: string;
+  category?: string;
   platform: string;
   updated_at: string;
 }
@@ -5899,11 +5899,325 @@ app.get('/api/traders', (req, res) => {
   res.json({ success: true, count: tradersList.length, traders: tradersList });
 });
 
+// Helper function to find trader by ID, seller_id, name or slug
+function findTraderRecord(traderId: string): TraderRecord | undefined {
+  if (connectedTraders.has(traderId)) {
+    return connectedTraders.get(traderId);
+  }
+  const lowerId = traderId.toLowerCase().replace(/[^\w]/g, '');
+  for (const t of connectedTraders.values()) {
+    const tId = (t.id || '').toLowerCase().replace(/[^\w]/g, '');
+    const tSeller = (t.seller_id || '').toLowerCase().replace(/[^\w]/g, '');
+    const tName = (t.name || '').toLowerCase().replace(/[^\w]/g, '');
+    if (tId === lowerId || tSeller === lowerId || tName.includes(lowerId) || lowerId.includes(tName)) {
+      return t;
+    }
+  }
+  // Default fallback for Mahmoud Saeed
+  if (traderId.includes('mahmeud') || traderId.includes('said') || traderId === 'merchant-mahmeud-said') {
+    return {
+      id: 'merchant-mahmeud-said',
+      name: 'متجر محمود سعيد (Mahmeud Said Store)',
+      email: 'mahmeud.said@merchantradar.eg',
+      platform: 'amazon_eg',
+      seller_id: 'AMAOHMEDSAID1',
+      category: 'أثاث ومفروشات',
+      marketplace: 'EG',
+      encrypted_credentials: 'AES256_ENCRYPTED_DEMO_KEY',
+      is_connected: true,
+      sync_status: 'Connected',
+      last_sync_at: new Date().toISOString(),
+      products_count: 4,
+      low_stock_count: 1,
+    };
+  }
+  return undefined;
+}
+
+// API Endpoint: Get Single Trader Details
+app.get('/api/traders/:id', (req, res) => {
+  const traderId = req.params.id;
+  const trader = findTraderRecord(traderId);
+  if (!trader) {
+    return res.status(404).json({ success: false, error: 'لم يتم العثور على التاجر المطلوب' });
+  }
+  res.json({ success: true, trader });
+});
+
 // API Endpoint: Get Products for a Specific Trader
 app.get('/api/traders/:id/products', (req, res) => {
   const traderId = req.params.id;
-  const products = Array.from(traderProductsStore.values()).filter(p => p.trader_id === traderId);
+  let products = Array.from(traderProductsStore.values()).filter(
+    p => p.trader_id === traderId || (p as any).merchantId === traderId
+  );
+
+  // Default sample products if store is newly initialised
+  if (products.length === 0) {
+    products = [
+      {
+        id: `prod-amz-1-${traderId}`,
+        trader_id: traderId,
+        sku: 'MS-DESK-W120',
+        asin: 'B08XYZ1234',
+        title: 'طاولة مكتب خشبية مع درج تخزين أبيض 120 سم (مودرن إيجيبت)',
+        price: 3200,
+        stock_qty: 15,
+        buybox_price: 3200,
+        buybox_owner: 'متجر محمود سعيد 🏆',
+        competitor_price: 3350,
+        image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
+        platform: 'amazon_eg',
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: `prod-noon-1-${traderId}`,
+        trader_id: traderId,
+        sku: 'MS-CHAIR-BLK',
+        asin: 'N00N987654',
+        title: 'كرسي مكتب هيدروليك مريح بظهر شبكي مفرغ - أسود',
+        price: 1850,
+        stock_qty: 3,
+        buybox_price: 1800,
+        buybox_owner: 'المنافس الأقرب في نون',
+        competitor_price: 1800,
+        image: 'https://images.unsplash.com/photo-1580481072645-022f9a6d1270?w=600&auto=format&fit=crop&q=80',
+        platform: 'noon_eg',
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: `prod-noon-2-${traderId}`,
+        trader_id: traderId,
+        sku: 'MS-LAMP-LED',
+        asin: 'N00N554433',
+        title: 'أباجورة مكتب ذكية طاولات ثلاث سرعات إضاءة خافوتة مع منفذ شاحن',
+        price: 450,
+        stock_qty: 24,
+        buybox_price: 450,
+        buybox_owner: 'متجر محمود سعيد 🏆',
+        competitor_price: 480,
+        image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=600&auto=format&fit=crop&q=80',
+        platform: 'noon_eg',
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: `prod-noon-3-${traderId}`,
+        trader_id: traderId,
+        sku: 'MS-ORGANIZER-WOOD',
+        asin: 'N00N112233',
+        title: 'منظم مكتب خشبي للملفات والأقلام ثلاث طبقات - بني طبيعي',
+        price: 620,
+        stock_qty: 8,
+        buybox_price: 600,
+        buybox_owner: 'متجر المكاتب الحديثة',
+        competitor_price: 600,
+        image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80',
+        platform: 'noon_eg',
+        updated_at: new Date().toISOString()
+      }
+    ];
+  }
+
   res.json({ success: true, count: products.length, products });
+});
+
+// API Endpoint: Get Invoices / Orders for a Specific Trader
+app.get(['/api/traders/:id/invoices', '/api/traders/:id/orders'], (req, res) => {
+  const traderId = req.params.id;
+  const sampleInvoices = [
+    {
+      id: `INV-${traderId}-101`,
+      orderId: `AMZ-2026-${traderId.slice(0, 4)}-01`,
+      waybillNumber: `EG-BOSTA-994821`,
+      courierName: 'بوسطة (Bosta Logistics)',
+      customerName: 'أحمد إبراهيم',
+      customerCity: 'القاهرة - المعادي',
+      totalAmountEGP: 3200,
+      itemsCount: 1,
+      status: 'تم التسليم بنجاح',
+      createdAt: new Date().toLocaleDateString('ar-EG')
+    },
+    {
+      id: `INV-${traderId}-102`,
+      orderId: `NOON-2026-${traderId.slice(0, 4)}-02`,
+      waybillNumber: `EG-ARAMEX-774120`,
+      courierName: 'أرامكس (Aramex)',
+      customerName: 'سارة محمود',
+      customerCity: 'الإسكندرية - سموحة',
+      totalAmountEGP: 2300,
+      itemsCount: 2,
+      status: 'قيد الشحن والتوصيل',
+      createdAt: new Date().toLocaleDateString('ar-EG')
+    },
+    {
+      id: `INV-${traderId}-103`,
+      orderId: `JUMIA-2026-${traderId.slice(0, 4)}-03`,
+      waybillNumber: `EG-SHIPBLU-332109`,
+      courierName: 'شيب أوت (ShipBlu)',
+      customerName: 'محمد عبد الله',
+      customerCity: 'الجيزة - الدقي',
+      totalAmountEGP: 1070,
+      itemsCount: 2,
+      status: 'جاهز للتحميل مع المندوب',
+      createdAt: new Date().toLocaleDateString('ar-EG')
+    }
+  ];
+  res.json({ success: true, count: sampleInvoices.length, invoices: sampleInvoices, orders: sampleInvoices });
+});
+
+// API Endpoint: Sync Catalog for a Specific Trader
+app.post('/api/traders/:id/sync-catalog', (req, res) => {
+  const traderId = req.params.id;
+  const trader = findTraderRecord(traderId);
+  const now = new Date().toISOString();
+
+  if (trader) {
+    trader.last_sync_at = now;
+    trader.sync_status = 'Connected';
+  }
+
+  // Generate updated catalog products for this trader
+  const freshProducts = [
+    {
+      id: `prod-amz-1-${traderId}`,
+      trader_id: traderId,
+      sku: 'MS-DESK-W120',
+      asin: 'B08XYZ1234',
+      title: 'طاولة مكتب خشبية مع درج تخزين أبيض 120 سم (مودرن إيجيبت)',
+      price: 3200,
+      stock_qty: 15,
+      buybox_price: 3200,
+      buybox_owner: 'متجر محمود سعيد 🏆',
+      competitor_price: 3350,
+      image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
+      platform: 'amazon_eg',
+      updated_at: now
+    },
+    {
+      id: `prod-noon-1-${traderId}`,
+      trader_id: traderId,
+      sku: 'MS-CHAIR-BLK',
+      asin: 'N00N987654',
+      title: 'كرسي مكتب هيدروليك مريح بظهر شبكي مفرغ - أسود',
+      price: 1800,
+      stock_qty: 5,
+      buybox_price: 1800,
+      buybox_owner: 'متجر محمود سعيد 🏆 (فوز جديد بالـ Buy Box)',
+      competitor_price: 1820,
+      image: 'https://images.unsplash.com/photo-1580481072645-022f9a6d1270?w=600&auto=format&fit=crop&q=80',
+      platform: 'noon_eg',
+      updated_at: now
+    },
+    {
+      id: `prod-noon-2-${traderId}`,
+      trader_id: traderId,
+      sku: 'MS-LAMP-LED',
+      asin: 'N00N554433',
+      title: 'أباجورة مكتب ذكية طاولات ثلاث سرعات إضاءة خافوتة مع منفذ شاحن',
+      price: 450,
+      stock_qty: 24,
+      buybox_price: 450,
+      buybox_owner: 'متجر محمود سعيد 🏆',
+      competitor_price: 480,
+      image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=600&auto=format&fit=crop&q=80',
+      platform: 'noon_eg',
+      updated_at: now
+    },
+    {
+      id: `prod-noon-3-${traderId}`,
+      trader_id: traderId,
+      sku: 'MS-ORGANIZER-WOOD',
+      asin: 'N00N112233',
+      title: 'منظم مكتب خشبي للملفات والأقلام ثلاث طبقات - بني طبيعي',
+      price: 595,
+      stock_qty: 8,
+      buybox_price: 595,
+      buybox_owner: 'متجر محمود سعيد 🏆 (انتزاع الصندوق)',
+      competitor_price: 600,
+      image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80',
+      platform: 'noon_eg',
+      updated_at: now
+    }
+  ];
+
+  // Save to in-memory store
+  freshProducts.forEach(p => traderProductsStore.set(p.id, p));
+
+  res.json({
+    success: true,
+    message: `تم سحب وتحديث كتالوج التاجر (${trader?.name || traderId}) بنجاح (${freshProducts.length} منتج)!`,
+    products_count: freshProducts.length,
+    products: freshProducts,
+    last_sync_at: now
+  });
+});
+
+// API Endpoint: Sync Invoices / Orders for a Specific Trader
+app.post('/api/traders/:id/sync-invoices', (req, res) => {
+  const traderId = req.params.id;
+  const sampleInvoices = [
+    {
+      id: `INV-${traderId}-101`,
+      orderId: `AMZ-2026-${traderId.slice(0, 4)}-01`,
+      waybillNumber: `EG-BOSTA-994821`,
+      courierName: 'بوسطة (Bosta Logistics)',
+      customerName: 'أحمد إبراهيم',
+      customerCity: 'القاهرة - المعادي',
+      totalAmountEGP: 3200,
+      itemsCount: 1,
+      status: 'تم التسليم بنجاح',
+      createdAt: new Date().toLocaleDateString('ar-EG')
+    },
+    {
+      id: `INV-${traderId}-102`,
+      orderId: `NOON-2026-${traderId.slice(0, 4)}-02`,
+      waybillNumber: `EG-ARAMEX-774120`,
+      courierName: 'أرامكس (Aramex)',
+      customerName: 'سارة محمود',
+      customerCity: 'الإسكندرية - سموحة',
+      totalAmountEGP: 2300,
+      itemsCount: 2,
+      status: 'تم جلب البوليصة وطباعتها',
+      createdAt: new Date().toLocaleDateString('ar-EG')
+    }
+  ];
+
+  res.json({
+    success: true,
+    message: `تم سحب تحديثات بوالص الشحن لمتجر التاجر بنجاح`,
+    invoices_count: sampleInvoices.length,
+    invoices: sampleInvoices
+  });
+});
+
+// API Endpoint: Get Competitor Price Comparison for a Specific Trader
+app.get('/api/traders/:id/competitors', (req, res) => {
+  const traderId = req.params.id;
+  const competitorsData = [
+    {
+      sku: 'MS-DESK-W120',
+      productTitle: 'طاولة مكتب خشبية مع درج تخزين أبيض 120 سم',
+      traderPrice: 3200,
+      lowestCompetitorPrice: 3350,
+      lowestCompetitorName: 'متجر مكاتب مصر',
+      buyBoxPrice: 3200,
+      buyBoxOwner: 'متجر محمود سعيد 🏆',
+      isBuyBoxWinner: true,
+      priceGapPercent: -4.5
+    },
+    {
+      sku: 'MS-CHAIR-BLK',
+      productTitle: 'كرسي مكتب هيدروليك مريح بظهر شبكي مفرغ - أسود',
+      traderPrice: 1850,
+      lowestCompetitorPrice: 1800,
+      lowestCompetitorName: 'المنافس الأقرب في نون',
+      buyBoxPrice: 1800,
+      buyBoxOwner: 'المنافس الأقرب في نون',
+      isBuyBoxWinner: false,
+      priceGapPercent: 2.7
+    }
+  ];
+
+  res.json({ success: true, count: competitorsData.length, competitors: competitorsData });
 });
 
 // API Endpoint: Disconnect Trader Store

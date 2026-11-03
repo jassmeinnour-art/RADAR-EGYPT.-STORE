@@ -798,7 +798,10 @@ export function calculateCatalogSummary(products: MerchantCatalogProduct[]): Mer
   const needsRepricing = products.filter(p => p.pricingStatus === 'needs_repricing').length;
   const totalQty = products.reduce((acc, p) => acc + (p.stockQuantity || 0), 0);
   const totalValue = products.reduce((acc, p) => acc + (p.merchantPrice * (p.stockQuantity || 1)), 0);
-  const avgGap = Number((products.reduce((acc, p) => acc + p.priceGapPercent, 0) / total).toFixed(1));
+  const totalGapSum = products.reduce((acc, p) => acc + (isNaN(p.priceGapPercent) ? 0 : p.priceGapPercent), 0);
+  const rawAvgGap = total > 0 ? totalGapSum / total : 0;
+  const avgGap = (isNaN(rawAvgGap) || !isFinite(rawAvgGap)) ? 0 : Number(rawAvgGap.toFixed(1));
+  const buyBoxRate = total > 0 ? Math.round((winningBuyBox / total) * 100) : 0;
   const autoRepricerEnabledCount = products.filter(p => p.repricingRule?.enabled).length;
   const floorPriceReachedCount = products.filter(p => p.repricingRule?.floorPriceReached).length;
   const lowStockCount = products.filter(p => {
@@ -811,12 +814,12 @@ export function calculateCatalogSummary(products: MerchantCatalogProduct[]): Mer
     amazonProductsCount: amazonCount,
     noonProductsCount: noonCount,
     winningBuyBoxCount: winningBuyBox,
-    buyBoxWinRatePercent: Math.round((winningBuyBox / total) * 100),
+    buyBoxWinRatePercent: isNaN(buyBoxRate) ? 0 : buyBoxRate,
     higherThanBuyBoxCount: higherThanBuyBox,
     needsRepricingCount: needsRepricing,
     totalInventoryQuantity: totalQty,
     totalCatalogValueEGP: totalValue,
-    averagePriceGapPercent: avgGap,
+    averagePriceGapPercent: isNaN(avgGap) ? 0 : avgGap,
     autoRepricerEnabledCount,
     floorPriceReachedCount,
     lowStockCount

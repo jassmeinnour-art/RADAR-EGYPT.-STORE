@@ -203,7 +203,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
   };
 
   return (
-    <div className="w-full space-y-6 text-slate-100 font-['Cairo',sans-serif]" dir="rtl">
+    <div className="w-full space-y-6 text-slate-100 font-['Cairo',sans-serif]" dir="rtl" id="product-designer">
       
       {/* Header Section */}
       <div className="p-8 bg-gradient-to-br from-[#0B132B] via-[#0F172A] to-[#1C2541] border border-amber-500/30 rounded-3xl shadow-2xl relative overflow-hidden">

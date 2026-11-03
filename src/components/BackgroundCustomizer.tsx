@@ -241,6 +241,8 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
             <img 
               src={selectedPreset.imageUrl} 
               alt={selectedPreset.titleAr} 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-all duration-300"
               style={{ filter: `blur(${bgBlur}px)` }}
             />
@@ -264,6 +266,8 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
               <img 
                 src={productImage} 
                 alt={productTitle} 
+                loading="lazy"
+                decoding="async"
                 className="relative z-10 object-contain transition-all duration-200 pointer-events-none"
                 style={{
                   maxHeight: `${scalePercent}%`,
@@ -367,6 +371,8 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                   <img 
                     src={preset.imageUrl} 
                     alt={preset.titleAr} 
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent p-2 flex flex-col justify-end">

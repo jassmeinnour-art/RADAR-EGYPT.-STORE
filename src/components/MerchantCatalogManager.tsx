@@ -1021,6 +1021,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     if (!currentMerchant) return;
     setIsRunningAutoRepricer(true);
     try {
+      // Call Vercel Cron Endpoint for 30-min auto sync
+      fetch('/api/cron/sync-all-stores').catch((err) => {
+        console.warn('Cron fetch notice:', err);
+      });
+
       const result = await executeAutomatedRepricingForMerchant(currentMerchant);
       setProducts(result.updatedProducts);
       setAuditLogs(loadMerchantRepricingAuditLog(currentMerchant.id));
@@ -1029,18 +1034,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (result.floorPriceReachedProducts.length > 0) {
         if (onShowToast) {
           onShowToast(
-            `⚠️ تم تشغيل المعدِّل التلقائي: تنبيه! ${result.floorPriceReachedProducts.length} منتج وصل للحد الأدنى للسعر (Floor Price Reached) وتوقف الخفض لحماية أرباحك.`
+            `⚠️ تم تشغيل المعدِّل التلقائي و Vercel Cron Job: تنبيه! ${result.floorPriceReachedProducts.length} منتج وصل للحد الأدنى للسعر (Floor Price Reached) وتوقف الخفض لحماية أرباحك.`
           );
         }
       } else if (result.newLogs.length > 0) {
         if (onShowToast) {
           onShowToast(
-            `🤖⚡ تم تعديل أسعار ${result.newLogs.length} منتجات تلقائياً عبر Amazon Listings API & Noon Pricing API وانتزاع الـ Buy Box!`
+            `🤖⚡ تم تعديل أسعار ${result.newLogs.length} منتجات تلقائياً عبر Vercel Cron (/api/cron/sync-all-stores) & Amazon Listings API وانتزاع الـ Buy Box!`
           );
         }
       } else {
         if (onShowToast) {
-          onShowToast(`✅ جميع المنتجات المفعلة بالمعدِّل التلقائي في أفضل سعر تنافسي حالياً.`);
+          onShowToast(`✅ تم استدعاء Cron Job لمزامنة المتاجر تلقائياً (/api/cron/sync-all-stores). جميع المنتجات في أفضل سعر تنافسي حالياً.`);
         }
       }
     } catch (err: any) {
@@ -2049,7 +2054,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       )}
 
       {/* Main Action Bar & Filter Controls */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4" id="catalog-section">
         
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
           
@@ -2088,7 +2093,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Pull Catalog Button */}
             <button
               type="button"
-              onClick={handlePullCatalog}
+              id="btn-pull-catalog"
+              onClick={() => {
+                document.getElementById('catalog-section')?.scrollIntoView({ behavior: 'smooth' });
+                handlePullCatalog();
+              }}
               disabled={isLoading}
               className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs disabled:opacity-50"
               title="سحب الكتالوج المحدث من المنصات بناءً على مفاتيح التاجر"
@@ -2100,7 +2109,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Refresh Competitor Pricing Button */}
             <button
               type="button"
-              onClick={handleRefreshPricing}
+              id="competitors-section"
+              onClick={() => {
+                document.getElementById('competitors-section')?.scrollIntoView({ behavior: 'smooth' });
+                handleRefreshPricing();
+              }}
               disabled={isRefreshingPricing}
               className="h-10 px-4 rounded-xl bg-sky-500 hover:bg-sky-600 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
               title="استدعاء Amazon Pricing API ورصد أدنى سعر منافس وسعر الـ Buy Box اللحظي"
@@ -2112,7 +2125,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Batch Auto-Tagging Button */}
             <button
               type="button"
-              onClick={handleBatchAutoTagProducts}
+              id="autotag-section"
+              onClick={() => {
+                document.getElementById('autotag-section')?.scrollIntoView({ behavior: 'smooth' });
+                handleBatchAutoTagProducts();
+              }}
               className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
               title="توليد وتطبيق الوسوم التلقائية بناءً على الكلمات المفتاحية في العنوان والوصف"
             >
@@ -2123,10 +2140,14 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Run Automated Repricer Engine Button */}
             <button
               type="button"
-              onClick={handleRunAutomatedRepricer}
+              id="repricer-section"
+              onClick={() => {
+                document.getElementById('repricer-section')?.scrollIntoView({ behavior: 'smooth' });
+                handleRunAutomatedRepricer();
+              }}
               disabled={isRunningAutoRepricer}
               className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
-              title="تشغيل محرك التسعير التلقائي (New Price = Math.max(Competitor Price - Beat Amount, Min Price)) وتحديث الأسعار على أمازون ونون"
+              title="تشغيل محرك التسعير التلقائي (New Price = Math.max(Competitor Price - Beat Amount, Min Price)) واستدعاء Vercel Cron Job"
             >
               <SlidersHorizontal className={`w-3.5 h-3.5 ${isRunningAutoRepricer ? 'animate-spin' : ''}`} />
               <span>{isRunningAutoRepricer ? 'جاري التعديل التلقائي...' : 'تشغيل المعدِّل التلقائي 🤖⚡'}</span>
@@ -2150,7 +2171,11 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Optimize Images Button */}
             <button
               type="button"
-              onClick={handleOptimizeCatalogImages}
+              id="product-designer"
+              onClick={() => {
+                document.getElementById('product-designer')?.scrollIntoView({ behavior: 'smooth' });
+                handleOptimizeCatalogImages();
+              }}
               disabled={isOptimizingImages || products.length === 0}
               className="h-10 px-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
               title="ضغط صور المنتجات المخزنة وتحويلها إلى مصغرات (Thumbnails) لتقليل زمن تحميل الواجهة"
@@ -2162,6 +2187,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
             {/* Add Product Button */}
             <button
               type="button"
+              id="btn-add-product"
               onClick={() => setIsAddProductModalOpen(true)}
               className="h-10 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
             >

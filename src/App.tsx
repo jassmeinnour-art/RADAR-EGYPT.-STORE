@@ -48,6 +48,7 @@ import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
 import { useLanguage } from './context/LanguageContext';
 import { useSubscription } from './hooks/useSubscription';
+import { supabase } from './lib/supabase';
 import { useVisualCustomizer } from './context/VisualCustomizerContext';
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -65,7 +66,7 @@ import { StatsMonitor } from './components/StatsMonitor';
 import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
-import { BayyaaAndMersadOverviewSection } from './components/BayyaaAndMersadOverviewSection';
+import { BayyaaBannerNew } from './components/BayyaaBannerNew';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { AnimatedLogosBackground } from './components/AnimatedLogosBackground';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
@@ -137,7 +138,7 @@ const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuide
 const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine'));
 const TraderStoreSyncManager = safeLazy(() => import('./components/TraderStoreSyncManager'));
-import { WatchlistNotificationModal } from './components/WatchlistNotificationModal';
+const WatchlistNotificationModal = safeLazy(() => import('./components/WatchlistNotificationModal'));
 import { getStoredWatchlist } from './services/watchlistNotificationService';
 
 const AIProductStudio = safeLazy(() => import('./components/AIProductStudio'));
@@ -148,6 +149,7 @@ const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar'
 const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports'));
 const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
+const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
 
 export type WorkspaceTab = 
   | 'merchants' 
@@ -191,6 +193,82 @@ export default function App() {
 
   // Navigation and view states
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('merchants');
+  const [selectedTraderProfileId, setSelectedTraderProfileId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/traders/') && path !== '/traders/new') {
+        return path.replace('/traders/', '');
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const handleOpenProfile = (e: any) => {
+      const id = e.detail?.traderId || 'merchant-mahmeud-said';
+      setSelectedTraderProfileId(id);
+      if (typeof window !== 'undefined') {
+        window.history.pushState({}, '', `/traders/${id}`);
+      }
+    };
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        if (path.startsWith('/traders/') && path !== '/traders/new') {
+          setSelectedTraderProfileId(path.replace('/traders/', ''));
+        } else {
+          setSelectedTraderProfileId(null);
+        }
+      }
+    };
+
+    window.addEventListener('open_trader_profile', handleOpenProfile);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('open_trader_profile', handleOpenProfile);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const [appLoading, setAppLoading] = useState<boolean>(true);
+  const [showSkipButton, setShowSkipButton] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Timeout guard (3.5s max) - guarantees the app never hangs on loading screen
+    const timeout = setTimeout(() => {
+      console.log('Loading timeout reached (3.5s) - showing app anyway');
+      setAppLoading(false);
+    }, 3500);
+
+    // Show Skip button after 1.5s
+    const skipTimer = setTimeout(() => {
+      setShowSkipButton(true);
+    }, 1500);
+
+    const loadSystemData = async () => {
+      try {
+        if (supabase) {
+          const { data, error } = await supabase.from('traders').select('*');
+          if (error) {
+            console.warn('Supabase initial fetch notice:', error);
+          }
+        }
+      } catch (err) {
+        console.error('Data fetch error:', err);
+      } finally {
+        clearTimeout(timeout);
+        clearTimeout(skipTimer);
+        setAppLoading(false);
+      }
+    };
+
+    loadSystemData();
+
+    return () => {
+      clearTimeout(timeout);
+      clearTimeout(skipTimer);
+    };
+  }, []);
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
@@ -404,11 +482,52 @@ export default function App() {
     }
   };
 
-  // If loading auth state
-  if (authLoading && !localUser) {
+  // If loading initial system data or auth state
+  if ((appLoading || authLoading) && !localUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif]">
-        جاري تحميل التطبيق...
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif] p-6 text-center space-y-6" dir="rtl">
+        <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-500 to-amber-700 p-1 shadow-2xl flex items-center justify-center animate-bounce border border-amber-400/30">
+          <RefreshCw className="w-8 h-8 text-slate-950 animate-spin" />
+        </div>
+
+        <div className="space-y-2 max-w-md">
+          <h2 className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">
+            جاري تحميل بيانات المنظومة والأسواق...
+          </h2>
+          <p className="text-xs sm:text-sm text-amber-300 font-bold">
+            رادار التاجر الذكي في مصر (RADAR EGYPT)
+          </p>
+          <p className="text-xs text-slate-400">
+            مزامنة سحابية فائقة السرعة للكتالوج، الأسعار، والمنافسين
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap justify-center pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.clear();
+              sessionStorage.clear();
+              window.location.reload();
+            }}
+            className="px-4 py-2.5 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-500/40 text-xs font-black transition flex items-center gap-2 shadow-lg cursor-pointer active:scale-95"
+            title="مسح ذاكرة الكاش بالكامل وإعادة تحميل الصفحة"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-red-400" />
+            <span>إعادة تحميل التطبيق (مسح الكاش) 🔄</span>
+          </button>
+
+          {showSkipButton && (
+            <button
+              type="button"
+              onClick={() => setAppLoading(false)}
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-2 shadow-xl cursor-pointer active:scale-95 animate-in fade-in duration-300"
+            >
+              <Zap className="w-4 h-4 text-slate-950" />
+              <span>تخطي والمتابعة كضيف ⚡</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -920,20 +1039,9 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Prominent Combined Section: Bayyaa Platform & Mersad Philosophy Side-by-Side */}
+                {/* Prominent New Clickable Sponsored Bayyaa Ad Banner */}
                 {!isFocusMode && (
-                  <BayyaaAndMersadOverviewSection
-                    onOpenMerchantsDirectory={() => {
-                      setMerchantsHubInitialTab('directory');
-                      setIsAllMerchantsHubOpen(true);
-                    }}
-                    onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
-                    onOpenRadar={() => {
-                      setActiveWorkspaceTab('radar');
-                      setShowOwnerDashboard(false);
-                    }}
-                    onShowToast={showToast}
-                  />
+                  <BayyaaBannerNew onShowToast={showToast} />
                 )}
 
                 {/* 2. Top KPI Overview Cards Grid (Verified by KPIDashboard tests) */}
@@ -987,9 +1095,20 @@ export default function App() {
 
                 {/* 4. Active Tab Content Workspace */}
                 <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
-                  {activeWorkspaceTab === 'merchants' && (
+                  {selectedTraderProfileId ? (
+                    <TraderProfilePage
+                      traderId={selectedTraderProfileId}
+                      onBack={() => {
+                        setSelectedTraderProfileId(null);
+                        if (typeof window !== 'undefined') {
+                          window.history.pushState({}, '', '/');
+                        }
+                      }}
+                      onShowToast={showToast}
+                    />
+                  ) : activeWorkspaceTab === 'merchants' ? (
                     <MerchantCatalogManager />
-                  )}
+                  ) : null}
 
                   {activeWorkspaceTab === 'radar' && (
                     <CompetitorRadar />
@@ -1142,14 +1261,18 @@ export default function App() {
       )}
 
       {/* Watchlist & Price Alerts Web Notifications Center Modal */}
-      <WatchlistNotificationModal
-        isOpen={isWatchlistNotifModalOpen}
-        onClose={() => setIsWatchlistNotifModalOpen(false)}
-        onNavigateToRadar={(prodId) => {
-          setActiveWorkspaceTab('radar');
-        }}
-        onShowToast={showToast}
-      />
+      {isWatchlistNotifModalOpen && (
+        <Suspense fallback={null}>
+          <WatchlistNotificationModal
+            isOpen={isWatchlistNotifModalOpen}
+            onClose={() => setIsWatchlistNotifModalOpen(false)}
+            onNavigateToRadar={(prodId) => {
+              setActiveWorkspaceTab('radar');
+            }}
+            onShowToast={showToast}
+          />
+        </Suspense>
+      )}
 
       {showOnboarding && (
         <Suspense fallback={null}>
