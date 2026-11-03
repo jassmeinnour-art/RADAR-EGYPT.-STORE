@@ -142,6 +142,7 @@ const WatchlistNotificationModal = safeLazy(() => import('./components/Watchlist
 import { getStoredWatchlist } from './services/watchlistNotificationService';
 
 const AIProductStudio = safeLazy(() => import('./components/AIProductStudio'));
+const AIModule = safeLazy(() => import('./components/AIMultiDesign'));
 const MerchantCatalogManager = safeLazy(() => import('./components/MerchantCatalogManager'));
 const CompetitorRadar = safeLazy(() => import('./components/CompetitorRadar'));
 const WatchlistManager = safeLazy(() => import('./components/WatchlistManager'));
@@ -1113,7 +1114,12 @@ export default function App() {
                   )}
 
                   {activeWorkspaceTab === 'ai_studio' && (
-                    <AIProductStudio onShowToast={showToast} />
+                    <div className="space-y-6">
+                      <AIProductStudio onShowToast={showToast} />
+                      <Suspense fallback={<div className="p-4 text-center text-amber-300 font-bold">جاري تحميل الأداة...</div>}>
+                        <AIModule onShowToast={showToast} />
+                      </Suspense>
+                    </div>
                   )}
 
                   {activeWorkspaceTab === 'shipping' && (
