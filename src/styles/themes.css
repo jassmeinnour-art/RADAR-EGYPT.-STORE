@@ -1,10 +1,7 @@
 /* ==========================================================================
    Merchant Radar Theme Variables (Light & Dark Mode)
    ========================================================================== */
-:root,
-html,
-html.light,
-html[data-color-mode="light"] {
+:root {
   --logo-brand-color: #000000;
   --logo-brand-hover: #1E293B;
   --logo-brand-active: #0F172A;
