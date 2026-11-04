@@ -12,7 +12,7 @@ export default defineConfig({
     host: true
   },
   build: {
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 2000,
     minify: 'esbuild',
     rollupOptions: {
       output: {
