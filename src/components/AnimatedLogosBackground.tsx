@@ -33,14 +33,14 @@ const LOGOS: AnimatedLogoItem[] = [
 export const AnimatedLogosBackground: React.FC = () => {
   return (
     <div 
-      className="fixed inset-0 z-0 overflow-hidden select-none pointer-events-none" 
+      className="fixed inset-0 z-[-1] overflow-hidden select-none pointer-events-none" 
       dir="rtl"
       aria-hidden="true"
     >
       {LOGOS.map((logo) => (
         <div
           key={logo.id}
-          className="absolute bottom-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 shadow-2xl backdrop-blur-md opacity-40 hover:opacity-100 hover:scale-125 transition-all duration-300 pointer-events-auto cursor-pointer"
+          className="absolute bottom-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 shadow-lg backdrop-blur-xs opacity-[0.12] pointer-events-none select-none"
           style={{
             left: logo.left,
             backgroundColor: `${logo.color}22`,
@@ -81,23 +81,23 @@ export const AnimatedLogosBackground: React.FC = () => {
         @keyframes bubbleFloatUp {
           0% {
             transform: translateY(110vh) rotate(0deg) scale(0.85);
-            opacity: 0.15;
+            opacity: 0.05;
           }
           25% {
             transform: translateY(80vh) rotate(6deg) scale(1);
-            opacity: 0.45;
+            opacity: 0.10;
           }
           50% {
             transform: translateY(50vh) rotate(-6deg) scale(1.05);
-            opacity: 0.55;
+            opacity: 0.12;
           }
           75% {
             transform: translateY(20vh) rotate(4deg) scale(1);
-            opacity: 0.45;
+            opacity: 0.10;
           }
           100% {
             transform: translateY(-20vh) rotate(-8deg) scale(0.9);
-            opacity: 0.1;
+            opacity: 0.04;
           }
         }
       `}</style>

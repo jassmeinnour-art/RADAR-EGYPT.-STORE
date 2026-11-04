@@ -62,6 +62,8 @@ export const multiTenantDb = {
   async getTradersByUser(userId: string): Promise<Trader[]> {
     if (!userId) return [];
 
+    let traders: Trader[] = [];
+
     if (supabaseClient) {
       try {
         const { data, error } = await supabaseClient
@@ -71,27 +73,49 @@ export const multiTenantDb = {
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
-          return data as Trader[];
+          traders = data as Trader[];
         }
       } catch (err) {
         console.warn('[MultiTenant Supabase Fetch Error]:', err);
       }
     }
 
-    // Isolated Local Storage Fallback partitioned strictly by user_id
-    try {
-      const raw = localStorage.getItem(getTradersStorageKey(userId));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return parsed.filter(t => t.user_id === userId);
+    if (traders.length === 0) {
+      // Isolated Local Storage Fallback partitioned strictly by user_id
+      try {
+        const raw = localStorage.getItem(getTradersStorageKey(userId));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            traders = parsed.filter(t => t.user_id === userId);
+          }
         }
+      } catch (e) {
+        console.warn('Failed to parse local traders:', e);
       }
-    } catch (e) {
-      console.warn('Failed to parse local traders:', e);
     }
 
-    return [];
+    // If still empty, return exclusively Mahmoud Saeed as the single real clean merchant profile
+    if (traders.length === 0) {
+      const mahmoudSaeedDefault: Trader = {
+        id: 'merchant-mahmeud-said',
+        user_id: userId,
+        seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+        seller_id: 'AMAOHMEDSAID1',
+        email: 'mahmeud.said@merchantradar.eg',
+        platform: 'amazon',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        products_count: 4,
+        last_sync_at: new Date().toISOString()
+      };
+      traders = [mahmoudSaeedDefault];
+      try {
+        localStorage.setItem(getTradersStorageKey(userId), JSON.stringify(traders));
+      } catch {}
+    }
+
+    return traders;
   },
 
   /**
