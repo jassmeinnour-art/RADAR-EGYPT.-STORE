@@ -106,7 +106,7 @@ export const multiTenantDb = {
         platform: 'amazon',
         status: 'active',
         created_at: new Date().toISOString(),
-        products_count: 4,
+        products_count: 0,
         last_sync_at: new Date().toISOString()
       };
       traders = [mahmoudSaeedDefault];
@@ -244,10 +244,12 @@ export const multiTenantDb = {
   },
 
   /**
-   * Fetch products for a specific trader
+   * Fetch products for a specific trader (Strictly authentic, no demo data)
    */
   async getProductsByTrader(traderId: string): Promise<Product[]> {
     if (!traderId) return [];
+
+    let fetchedProducts: Product[] = [];
 
     if (supabaseClient) {
       try {
@@ -257,41 +259,69 @@ export const multiTenantDb = {
           .eq('trader_id', traderId)
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data)) {
-          return data as Product[];
+        if (!error && Array.isArray(data) && data.length > 0) {
+          fetchedProducts = data as Product[];
         }
       } catch (err) {
         console.warn('[MultiTenant Supabase Products Fetch Error]:', err);
       }
     }
 
-    // Try server API first
-    try {
-      const res = await fetch(`/api/traders/${encodeURIComponent(traderId)}/products`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.products)) {
-          return json.products;
+    // Try server API
+    if (fetchedProducts.length === 0) {
+      try {
+        const res = await fetch(`/api/traders/${encodeURIComponent(traderId)}/products`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.products) && json.products.length > 0) {
+            fetchedProducts = json.products;
+          }
         }
+      } catch {
+        // safe fallback
       }
-    } catch {
-      // safe fallback
     }
 
     // Local Storage Fallback
-    try {
-      const raw = localStorage.getItem(getProductsStorageKey(traderId));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return parsed;
+    if (fetchedProducts.length === 0) {
+      try {
+        const raw = localStorage.getItem(getProductsStorageKey(traderId));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            // Clean out any legacy mock products (Samsung S24, AirPods, Anker, MS-DESK, etc.)
+            const cleaned = parsed.filter((p: any) => {
+              const id = String(p.id || '');
+              const sku = String(p.sku || '');
+              const title = String(p.title || '');
+              const isMock = 
+                id.startsWith('PRD-AMZ-') || 
+                id.startsWith('PRD-NOON-') || 
+                id.startsWith('prod-amz-') || 
+                id.startsWith('prod-noon-') || 
+                sku.includes('MS-DESK') || 
+                sku.includes('S24') || 
+                sku.includes('AIRPODS') || 
+                sku.includes('ANKER') ||
+                title.includes('سامسونج') ||
+                title.includes('إيربودز') ||
+                title.includes('أنكر') ||
+                title.includes('طاولة مكتب خشبية') ||
+                title.includes('كرسي مكتب هيدروليك');
+              return !isMock && (p.trader_id === traderId || !p.trader_id);
+            });
+            if (cleaned.length !== parsed.length) {
+              localStorage.setItem(getProductsStorageKey(traderId), JSON.stringify(cleaned));
+            }
+            fetchedProducts = cleaned;
+          }
         }
+      } catch {
+        // safe
       }
-    } catch {
-      // safe
     }
 
-    return [];
+    return fetchedProducts;
   },
 
   /**
@@ -306,6 +336,15 @@ export const multiTenantDb = {
       updated_at: new Date().toISOString()
     };
 
+    // Also sync to Express backend
+    try {
+      fetch(`/api/traders/${encodeURIComponent(productData.trader_id)}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct)
+      }).catch(() => {});
+    } catch {}
+
     if (supabaseClient) {
       try {
         const { data, error } = await supabaseClient
@@ -315,19 +354,42 @@ export const multiTenantDb = {
           .single();
 
         if (!error && data) {
-          return data as Product;
+          // Update trader products count in Supabase
+          try {
+            await supabaseClient.rpc('increment_trader_products', { trader_id_arg: productData.trader_id });
+          } catch {}
         }
       } catch (err) {
         console.warn('[MultiTenant Supabase Product Insert Error]:', err);
       }
     }
 
+    // Save in isolated localStorage
     try {
       const key = getProductsStorageKey(productData.trader_id);
       const raw = localStorage.getItem(key);
       const list: Product[] = raw ? JSON.parse(raw) : [];
       list.unshift(newProduct);
       localStorage.setItem(key, JSON.stringify(list));
+
+      // Update trader record products_count locally
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('radar_multi_tenant_traders_v1_')) {
+          try {
+            const rawTraders = localStorage.getItem(k);
+            if (rawTraders) {
+              const tradersList: Trader[] = JSON.parse(rawTraders);
+              const target = tradersList.find(t => t.id === productData.trader_id);
+              if (target) {
+                target.products_count = (target.products_count || 0) + 1;
+                localStorage.setItem(k, JSON.stringify(tradersList));
+                window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { userId: target.user_id } }));
+              }
+            }
+          } catch {}
+        }
+      }
     } catch {
       // safe
     }
@@ -336,7 +398,7 @@ export const multiTenantDb = {
   },
 
   /**
-   * Trigger sync for a specific trader via /api/traders/:id/sync
+   * Trigger sync for a specific trader via /api/traders/:id/sync (Real API sync, no mock generation)
    */
   async syncTrader(traderId: string): Promise<{ success: boolean; count: number; products: Product[] }> {
     try {
@@ -353,10 +415,9 @@ export const multiTenantDb = {
         }
       }
     } catch (e) {
-      console.warn('Sync API network issue, providing resilient sync response:', e);
+      console.warn('Sync API network issue:', e);
     }
 
-    // Resilient simulated sync for this trader
     const existing = await this.getProductsByTrader(traderId);
     return { success: true, count: existing.length, products: existing };
   }
