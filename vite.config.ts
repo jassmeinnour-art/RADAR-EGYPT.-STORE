@@ -11,41 +11,24 @@ export default defineConfig({
     port: 3000,
     host: true
   },
-  preview: {
-    port: 3000,
-    host: true
-  },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@supabase/supabase-js')) {
-              return 'vendor-supabase';
-            }
-            if (id.includes('@google/genai') || id.includes('@google/generative-ai')) {
-              return 'vendor-gemini';
-            }
-            if (id.includes('lucide-react') || id.includes('recharts')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('@imgly/background-removal')) {
-              return 'ai-heavy';
-            }
-            return 'vendor';
-          }
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'ui': ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
+          'motion': ['framer-motion', 'motion', 'canvas-confetti'],
+          'export-docs': ['jspdf', 'jspdf-autotable', 'html2canvas', 'xlsx'],
+          'analytics': ['@vercel/analytics', '@vercel/speed-insights'],
+          'genai': ['@google/genai']
         }
       }
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
     exclude: ['@imgly/background-removal']
   }
 })
-

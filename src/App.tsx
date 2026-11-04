@@ -142,6 +142,7 @@ const WatchlistNotificationModal = safeLazy(() => import('./components/Watchlist
 import { getStoredWatchlist } from './services/watchlistNotificationService';
 
 const AIProductStudio = safeLazy(() => import('./components/AIProductStudio'));
+const AIModule = safeLazy(() => import('./components/AIMultiDesign'));
 const MerchantCatalogManager = safeLazy(() => import('./components/MerchantCatalogManager'));
 const CompetitorRadar = safeLazy(() => import('./components/CompetitorRadar'));
 const WatchlistManager = safeLazy(() => import('./components/WatchlistManager'));
@@ -150,8 +151,10 @@ const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicP
 const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
 const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
+const MultiMerchantTradersPage = safeLazy(() => import('./components/MultiMerchantTradersPage'));
 
 export type WorkspaceTab = 
+  | 'traders'
   | 'merchants' 
   | 'radar' 
   | 'watchlist'
@@ -192,11 +195,17 @@ export default function App() {
     currentUser?.systemRole === 'SYSTEM_ADMIN_MARKETER';
 
   // Navigation and view states
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('merchants');
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/traders') return 'traders';
+    }
+    return 'merchants';
+  });
   const [selectedTraderProfileId, setSelectedTraderProfileId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
-      if (path.startsWith('/traders/') && path !== '/traders/new') {
+      if (path.startsWith('/traders/') && path !== '/traders/new' && path !== '/traders') {
         return path.replace('/traders/', '');
       }
     }
@@ -214,7 +223,10 @@ export default function App() {
     const handlePopState = () => {
       if (typeof window !== 'undefined') {
         const path = window.location.pathname;
-        if (path.startsWith('/traders/') && path !== '/traders/new') {
+        if (path === '/traders') {
+          setActiveWorkspaceTab('traders');
+          setSelectedTraderProfileId(null);
+        } else if (path.startsWith('/traders/') && path !== '/traders/new') {
           setSelectedTraderProfileId(path.replace('/traders/', ''));
         } else {
           setSelectedTraderProfileId(null);
@@ -230,39 +242,7 @@ export default function App() {
     };
   }, []);
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadingError, setLoadingError] = useState<boolean>(false);
 
-  useEffect(() => {
-    const LOADING_TIMEOUT = 8000; // 8 ثواني
-
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setLoadingError(true);
-    }, LOADING_TIMEOUT);
-
-    const loadData = async () => {
-      try {
-        if (supabase) {
-          const { data } = await supabase.from('traders').select('*');
-        }
-      } catch (e) {
-        console.warn('Supabase not configured, running in demo mode');
-        // لا تفعل throw - استمر في العمل
-      }
-    };
-
-    loadData().then(() => {
-      clearTimeout(timer);
-      setIsLoading(false);
-    }).catch(() => {
-      clearTimeout(timer);
-      setIsLoading(false);
-      // لا توقف التطبيق - اعرض الصفحة فاضية
-    });
-
-    return () => clearTimeout(timer);
-  }, []);
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
@@ -476,32 +456,7 @@ export default function App() {
     }
   };
 
-  // If loading initial system data
-  if (isLoading) {
-    return (
-      <div className="loading-screen min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-['Cairo',sans-serif] p-6 text-center space-y-6" dir="rtl">
-        <img 
-          src="/radar-logo.png" 
-          alt="رادار التاجر" 
-          className="w-24 h-24 object-contain animate-pulse drop-shadow-2xl" 
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = headerBrandLogo;
-          }} 
-        />
-        <p className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">جاري تحميل بيانات المنظومة...</p>
-        <div className="spinner w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin shadow-lg" />
-        <button 
-          type="button" 
-          onClick={() => setIsLoading(false)} 
-          className="skip-btn px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-xl transition cursor-pointer active:scale-95 flex items-center gap-2"
-        >
-          <Zap className="w-4 h-4 text-slate-950" />
-          <span>تخطي التحميل والدخول للتطبيق</span>
-        </button>
-        <p className="hint text-xs text-amber-300/80 font-bold">إذا استغرق وقتاً طويلاً، يرجى إعادة التحديث</p>
-      </div>
-    );
-  }
+
 
   // If not authenticated, render LoginPage with optional LandingPage toggle
   if (!isAuthenticated) {
@@ -534,25 +489,17 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 w-full max-w-full overflow-x-hidden relative" dir="rtl">
+    <div dir="rtl" className="w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
       
-      {/* Rotating Golden Globe / RADAR Watermark Logo in Background */}
-      <div 
-        className="fixed top-1/2 left-1/2 w-[600px] h-[600px] opacity-[0.07] z-0 pointer-events-none select-none overflow-hidden rounded-full"
-        style={{ animation: 'rotateGlobe 40s linear infinite' }}
-        aria-hidden="true"
-      >
-        <svg viewBox="0 0 200 200" className="w-full h-full text-amber-400 fill-none stroke-current stroke-[1.5]">
-          <circle cx="100" cy="100" r="90" strokeDasharray="4 4" />
-          <circle cx="100" cy="100" r="70" />
-          <circle cx="100" cy="100" r="50" strokeDasharray="2 2" />
-          <circle cx="100" cy="100" r="30" />
-          <line x1="10" y1="100" x2="190" y2="100" />
-          <line x1="100" y1="10" x2="100" y2="190" />
-          <ellipse cx="100" cy="100" rx="90" ry="35" />
-          <ellipse cx="100" cy="100" rx="35" ry="90" />
-          <polygon points="100,10 115,85 190,100 115,115 100,190 85,115 10,100 85,85" fill="currentColor" fillOpacity="0.15" />
-        </svg>
+      {/* Subtle Rotating Watermark Background */}
+      <div className="radar-watermark-bg">
+        <img 
+          src="/radar-watermark.png" 
+          alt="RADAR" 
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = headerBrandLogo;
+          }} 
+        />
       </div>
 
       {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
@@ -808,9 +755,33 @@ export default function App() {
               <span>القائمة الجانبية ☰</span>
             </button>
 
+            {/* Multi-Merchant Traders Navigation Button */}
             <button
-              onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              onClick={() => { 
+                setActiveWorkspaceTab('traders'); 
+                setShowOwnerDashboard(false);
+                setSelectedTraderProfileId(null);
+                if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeWorkspaceTab === 'traders' && !showOwnerDashboard
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-1 ring-amber-400'
+                  : 'bg-slate-900/90 text-amber-300 hover:text-white border border-amber-500/30'
+              }`}
+              title="إدارة جميع تجار المسوق المستقلين (Multi-Merchant)"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>التجار (Multi-Merchant)</span>
+              <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded-full border border-amber-400/30 font-mono">جديد</span>
+            </button>
+
+            <button
+              onClick={() => { 
+                setActiveWorkspaceTab('merchants'); 
+                setShowOwnerDashboard(false); 
+                if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 activeWorkspaceTab === 'merchants' && !showOwnerDashboard
                   ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
@@ -1096,6 +1067,13 @@ export default function App() {
                       }}
                       onShowToast={showToast}
                     />
+                  ) : activeWorkspaceTab === 'traders' ? (
+                    <MultiMerchantTradersPage 
+                      onShowToast={showToast} 
+                      onSelectActiveTrader={(trader) => {
+                        setActiveWorkspaceTab('radar');
+                      }}
+                    />
                   ) : activeWorkspaceTab === 'merchants' ? (
                     <MerchantCatalogManager />
                   ) : null}
@@ -1113,7 +1091,12 @@ export default function App() {
                   )}
 
                   {activeWorkspaceTab === 'ai_studio' && (
-                    <AIProductStudio onShowToast={showToast} />
+                    <div className="space-y-6">
+                      <AIProductStudio onShowToast={showToast} />
+                      <Suspense fallback={<div className="p-4 text-center text-amber-300 font-bold">جاري تحميل الأداة...</div>}>
+                        <AIModule onShowToast={showToast} />
+                      </Suspense>
+                    </div>
                   )}
 
                   {activeWorkspaceTab === 'shipping' && (

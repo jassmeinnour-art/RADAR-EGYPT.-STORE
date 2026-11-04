@@ -43,6 +43,16 @@ interface LoginPageProps {
   onBackToLanding?: () => void;
 }
 
+const FLOATING_PLATFORMS = [
+  { name: 'Amazon', logo: 'https://cdn.simpleicons.org/amazon/FF9900', left: '8%', duration: '18s', delay: '0s' },
+  { name: 'Noon', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg', left: '22%', duration: '22s', delay: '3s' },
+  { name: 'Jumia', logo: 'https://cdn.simpleicons.org/jumia/FF9900', left: '35%', duration: '19s', delay: '1s' },
+  { name: 'Raneen', logo: 'https://www.raneen.com.eg/favicon.ico', left: '48%', duration: '25s', delay: '4s' },
+  { name: 'Bayyaa', logo: 'https://bayyaa.com/favicon.ico', left: '62%', duration: '16s', delay: '2s' },
+  { name: 'Kanz', logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png', left: '76%', duration: '24s', delay: '5s' },
+  { name: 'HomeSmart', logo: 'https://www.homesmart.com.eg/favicon.ico', left: '88%', duration: '20s', delay: '1.5s' }
+];
+
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLanding }) => {
   const { 
     signInWithEmail, 
@@ -286,7 +296,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
   return (
     <div className="min-h-screen bg-[#08090D] text-slate-100 flex flex-col justify-between font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 relative overflow-x-hidden" dir="rtl">
       
-      {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
+      {/* Floating Platforms Background */}
+      <div className="platform-floating-bg">
+        {FLOATING_PLATFORMS.map((p, i) => (
+          <div 
+            key={i} 
+            className="floating-icon" 
+            style={{
+              left: p.left,
+              animationDuration: p.duration,
+              animationDelay: p.delay,
+              backgroundImage: `url(${p.logo})`
+            }} 
+          />
+        ))}
+      </div>
+
+      {/* Fullscreen Animated Logos Background */}
       <AnimatedLogosBackground />
 
       {/* Background ambient lighting */}

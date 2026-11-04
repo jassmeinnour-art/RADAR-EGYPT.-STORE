@@ -60,7 +60,8 @@ export function setupPWA(onNeedRefresh?: () => void) {
     try {
       const registerSW = () => {
         navigator.serviceWorker
-          .register('/service-worker.js', { scope: '/' })
+          .register('/sw.js', { scope: '/' })
+          .catch(() => navigator.serviceWorker.register('/service-worker.js', { scope: '/' }))
           .then((registration) => {
             swRegistration = registration;
             globalUpdateSW = async (reloadPage?: boolean) => {

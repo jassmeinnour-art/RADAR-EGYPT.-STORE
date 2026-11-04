@@ -29,6 +29,7 @@ import confetti from 'canvas-confetti';
 import { ProductData, MerchantOffer, PublishResult } from '../types';
 import { MultiAngleShotsStudio } from './MultiAngleShotsStudio';
 import { BackgroundCustomizer } from './BackgroundCustomizer';
+import { AIStudioSkeletonLoader } from './AIStudioSkeletonLoader';
 
 interface AIProductStudioProps {
   onShowToast?: (msg: string) => void;
@@ -336,9 +337,12 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
                   <div className="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-2xl aspect-square bg-slate-950">
                     <img src={uploadedImage} alt="Uploaded" className="w-full h-full object-contain" />
                     {isProcessingImage && (
-                      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-                        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-xs font-bold text-amber-400">جاري المعالجة بالذكاء الاصطناعي...</span>
+                      <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-3 z-20">
+                        <AIStudioSkeletonLoader 
+                          type="processing_image" 
+                          imagePreview={uploadedImage}
+                          message="جاري معالجة وتعديل جودة الصورة بالذكاء الاصطناعي..."
+                        />
                       </div>
                     )}
                   </div>
@@ -354,7 +358,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
                         <button 
                           onClick={handleAutoEnhance}
                           disabled={isProcessingImage}
-                          className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between text-xs font-bold transition-all disabled:opacity-50"
+                          className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-amber-400" />
@@ -366,7 +370,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
                         <button 
                           onClick={handleRemoveBackground}
                           disabled={isProcessingImage}
-                          className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 rounded-xl flex items-center justify-between text-xs font-bold transition-all disabled:opacity-50"
+                          className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 rounded-xl flex items-center justify-between text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <Layout className="w-4 h-4 text-sky-400" />
@@ -385,7 +389,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
                     <button 
                       onClick={handleAnalyzeProduct}
                       disabled={isAnalyzing || isProcessingImage}
-                      className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+                      className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                     >
                       {isAnalyzing ? (
                         <>
@@ -405,8 +409,18 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
             </div>
           )}
 
+          {/* Skeleton Loader during Product Analysis */}
+          {isAnalyzing && (
+            <div className="animate-in fade-in zoom-in-95 duration-200">
+              <AIStudioSkeletonLoader
+                type="analyzing_product"
+                imagePreview={uploadedImage}
+              />
+            </div>
+          )}
+
           {/* Step 2: Content & Specs */}
-          {activeStep === 2 && productData && (
+          {activeStep === 2 && productData && !isAnalyzing && (
             <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-3xl space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold flex items-center gap-2">

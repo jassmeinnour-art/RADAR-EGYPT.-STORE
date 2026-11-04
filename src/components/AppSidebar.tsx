@@ -141,6 +141,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       borderColor: 'border-amber-500/40',
       items: [
         {
+          id: 'traders_multi',
+          label: 'إدارة التجار (Multi-Merchant)',
+          icon: <Users className="w-4 h-4 text-amber-300" />,
+          isActive: activeTab === 'traders',
+          action: () => {
+            onSelectTab('traders');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
+          },
+          badge: 'Multi-Tenant 👥'
+        },
+        {
           id: 'merchants_hub',
           label: 'إدارة بيانات التجار وإضافة تاجر ➕',
           icon: <Users className="w-4 h-4 text-amber-200" />,

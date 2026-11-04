@@ -99,11 +99,34 @@ export function useOfflineStatus(): OfflineStatus {
       refreshOfflineCounts();
     };
 
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'ONLINE_STATUS_CHANGE') {
+        if (event.data.isOnline) {
+          setIsOffline(false);
+          try {
+            const record = recordSyncSuccess('sw_network_online');
+            setLastSyncedAt(record.formattedDateTime);
+          } catch {
+            // ignore
+          }
+          refreshOfflineCounts();
+          window.dispatchEvent(new CustomEvent('retrigger_auto_sync', { detail: event.data }));
+        } else {
+          setIsOffline(true);
+          refreshOfflineCounts();
+        }
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener(SYNC_SUCCESS_EVENT as any, handleSyncSuccess);
     window.addEventListener('SyncSuccess' as any, handleSyncSuccess);
     window.addEventListener('storage', handleSyncSuccess);
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    }
 
     // Periodic check every 30s
     const interval = setInterval(() => {
@@ -116,6 +139,9 @@ export function useOfflineStatus(): OfflineStatus {
       window.removeEventListener(SYNC_SUCCESS_EVENT as any, handleSyncSuccess);
       window.removeEventListener('SyncSuccess' as any, handleSyncSuccess);
       window.removeEventListener('storage', handleSyncSuccess);
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
       clearInterval(interval);
     };
   }, [checkConnection, refreshOfflineCounts]);
