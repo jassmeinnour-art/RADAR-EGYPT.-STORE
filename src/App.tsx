@@ -638,40 +638,23 @@ export default function App() {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            {/* Master Merchant Management & Fast Registration Button (Manual Form No CSV) */}
+            {/* Unified Merchant Directory Button */}
             <ToolbarTooltip
-              title="إدارة بيانات التجار (يدوياً)"
-              description="فتح نموذج الإدخال اليدوي الكامل لكتابة وتعديل بيانات المتجر، معرفات المنصات (Seller IDs)، والبريد وحفظها مباشرة بدون CSV."
-              badge="إدخال يدوي مباشر"
-            >
-              <button
-                onClick={() => {
-                  setMerchantsHubInitialTab('manual_form');
-                  setIsAllMerchantsHubOpen(true);
-                }}
-                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-400/30 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-indigo-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <Building2 className="w-4 h-4 text-white shrink-0" />
-                <span className="hidden sm:inline">🏢 إدارة بيانات التجار وإضافة تاجر جديد ➕</span>
-                <span className="sm:hidden">إضافة تاجر ➕</span>
-              </button>
-            </ToolbarTooltip>
-
-            {/* Merchant Directory Button */}
-            <ToolbarTooltip
-              title="دليل التجار الشامل"
+              title="دليل التجار الموحد"
               description="استعراض بطاقات جميع المتاجر، تفضيلاتهم، منتجاتهم، طلباتهم، وطباعة بوالص الشحن الخاصة بهم مباشرة."
-              badge="الدليل الشامل"
+              badge="دليل موحد"
             >
               <button
                 onClick={() => {
-                  setMerchantsHubInitialTab('directory');
-                  setIsAllMerchantsHubOpen(true);
+                  setActiveWorkspaceTab('traders');
+                  setShowOwnerDashboard(false);
+                  setSelectedTraderProfileId(null);
+                  if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
                 }}
-                className="px-3 sm:px-3.5 py-2 sm:py-2.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-white border border-emerald-500/30 rounded-xl text-xs sm:text-sm font-black transition flex items-center gap-1.5 sm:gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-slate-950 font-black border border-amber-400 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg cursor-pointer whitespace-nowrap"
               >
-                <Store className="w-4 h-4 text-emerald-300 shrink-0" />
-                <span>دليل التجار</span>
+                <Users className="w-4 h-4 text-slate-950 shrink-0" />
+                <span>دليل التجار الموحد 📚</span>
               </button>
             </ToolbarTooltip>
 
@@ -757,7 +740,7 @@ export default function App() {
               <span>القائمة الجانبية ☰</span>
             </button>
 
-            {/* Multi-Merchant Traders Navigation Button */}
+            {/* Unified Traders Directory Navigation Button */}
             <button
               onClick={() => { 
                 setActiveWorkspaceTab('traders'); 
@@ -770,11 +753,10 @@ export default function App() {
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-1 ring-amber-400'
                   : 'bg-slate-900/90 text-amber-300 hover:text-white border border-amber-500/30'
               }`}
-              title="إدارة جميع تجار المسوق المستقلين (Multi-Merchant)"
+              title="دليل التجار الموحد"
             >
               <Users className="w-3.5 h-3.5" />
-              <span>التجار (Multi-Merchant)</span>
-              <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded-full border border-amber-400/30 font-mono">جديد</span>
+              <span>دليل التجار الموحد 📚</span>
             </button>
 
             <button
