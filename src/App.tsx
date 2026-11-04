@@ -684,8 +684,7 @@ export default function App() {
               title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
             >
               <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">🎨 تنسيق الواجهة</span>
-              <span className="sm:hidden">🎨 تنسيق</span>
+              <span>🎨 تخصيص المظهر</span>
             </button>
 
             {/* Watchlist & Price Alerts Web Notifications Center Button */}

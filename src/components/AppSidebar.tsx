@@ -25,9 +25,11 @@ import {
   Clock,
   Bell,
   RefreshCw,
-  ArrowUpDown
+  ArrowUpDown,
+  Palette
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
+import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 
 interface AppSidebarProps {
   isOpen: boolean;
@@ -72,6 +74,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   isOwner,
   trialDaysRemaining = 3
 }) => {
+  const { settings, toggleCustomizer } = useVisualCustomizer();
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     dashboard: true,
     merchants: true,
@@ -381,6 +384,61 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
             );
           })}
+
+          {/* Relocated Buttons to Sidebar Section */}
+          {settings.buttonsList.some(b => b.visible && b.location === 'sidebar') && (
+            <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/40 p-3 space-y-2 shadow-md">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-300 border-b border-amber-500/20 pb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-amber-400" />
+                  <span>أزرار منقولة للوحة الجانبية:</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  ({settings.buttonsList.filter(b => b.visible && b.location === 'sidebar').length})
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {settings.buttonsList
+                  .filter(b => b.visible && b.location === 'sidebar')
+                  .sort((a, b) => a.order - b.order)
+                  .map(btn => (
+                    <button
+                      key={btn.id}
+                      type="button"
+                      onClick={() => {
+                        if (btn.id === 'btn_filter_panel' || btn.id === 'btn_select_merchant') {
+                          handleItemClick(() => onSelectTab('merchants'));
+                        } else if (btn.id.startsWith('btn_kpi_')) {
+                          handleItemClick(() => onSelectTab('merchants'));
+                        } else {
+                          handleItemClick(() => onSelectTab('merchants'));
+                        }
+                      }}
+                      style={{
+                        backgroundColor: btn.customColor || 'rgba(30, 41, 59, 0.9)',
+                        color: btn.customTextColor || '#ffffff',
+                      }}
+                      className="w-full py-2 px-3 rounded-xl border border-slate-700 hover:border-amber-500/50 text-xs font-bold transition flex items-center justify-between shadow-xs cursor-pointer text-right"
+                    >
+                      <span>{btn.label}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900/60 text-amber-300 font-mono">#{btn.order}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quick Customizer Launcher Button in Sidebar */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => handleItemClick(toggleCustomizer)}
+              className="w-full py-2.5 px-3.5 bg-slate-900 hover:bg-slate-800 text-amber-300 hover:text-white border border-amber-500/40 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
+            >
+              <Palette className="w-4 h-4 text-amber-400" />
+              <span>🎨 تخصيص المظهر وتنسيق الأزرار</span>
+            </button>
+          </div>
         </div>
 
         {/* Sidebar Footer */}

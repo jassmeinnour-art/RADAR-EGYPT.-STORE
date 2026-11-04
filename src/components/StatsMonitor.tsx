@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAsyncOperations, triggerGlobalAsyncStart, triggerGlobalAsyncEnd } from '../context/AsyncOperationsContext';
 import { useAuth } from '../context/AuthContext';
-import { Activity, CheckCircle2, AlertCircle, RefreshCw, Mail, Send, ShieldAlert, RotateCcw } from 'lucide-react';
+import { Activity, CheckCircle2, AlertCircle, RefreshCw, Mail, Send, ShieldAlert, RotateCcw, Palette } from 'lucide-react';
+import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 
 export interface EmailAlertLog {
   id: string;
@@ -13,6 +14,7 @@ export interface EmailAlertLog {
 }
 
 export const StatsMonitor: React.FC = () => {
+  const { toggleCustomizer } = useVisualCustomizer();
   const { activeOperations, recentCompleted } = useAsyncOperations();
   const { profile, user } = useAuth();
 
@@ -214,6 +216,18 @@ export const StatsMonitor: React.FC = () => {
           <div className="text-[9px] font-bold text-slate-400 bg-slate-800/60 px-2.5 py-1 rounded-md border border-slate-700/50">
             Status: {isKpiLoading ? 'SYNCING' : consecutiveFailures >= 3 ? 'ALERT_SENT' : (consecutiveFailures > 0 || (lastKpiOp && !lastKpiOp.success)) ? 'SYNC_FAILED' : 'READY'}
           </div>
+
+          {/* Visual Theme Customizer Pro Button requested in top right next to KPI Sync Monitor */}
+          <button
+            type="button"
+            id="btn-stats-monitor-visual-customizer"
+            onClick={toggleCustomizer}
+            className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded-xl border border-amber-400/50 text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 shrink-0"
+            title="تخصيص المظهر، ألوان الداشبورد، الخطوط، وإدارة الأزرار"
+          >
+            <Palette className="w-3.5 h-3.5 text-amber-200" />
+            <span>🎨 تخصيص المظهر</span>
+          </button>
         </div>
       </div>
 
