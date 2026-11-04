@@ -445,16 +445,16 @@ export const MultiMerchantTradersPage: React.FC<MultiMerchantTradersPageProps> =
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center p-2 shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
                           <img src={platInfo.logo} alt={platInfo.name} className="w-full h-full object-contain" />
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-bold text-white">{trader.seller_name}</h3>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${platInfo.color}`}>
+                            <h3 className="text-xs font-bold text-white truncate max-w-[140px]">{trader.seller_name}</h3>
+                            <span className={`px-1.5 py-0 rounded text-[9px] font-bold border ${platInfo.color}`}>
                               {platInfo.name.split(' ')[0]}
                             </span>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                            <span className={`px-1.5 py-0 rounded text-[9px] font-bold border ${
                               trader.status === 'active' 
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                                 : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -462,11 +462,8 @@ export const MultiMerchantTradersPage: React.FC<MultiMerchantTradersPageProps> =
                               {trader.status === 'active' ? 'نشط 🟢' : 'غير نشط ⚪'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
-                            <span className="font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
-                              ID: {trader.seller_id}
-                            </span>
-                            <span>{trader.email}</span>
+                          <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                            <span className="font-mono truncate max-w-[100px]">ID: {trader.seller_id}</span>
                           </div>
                         </div>
                       </div>
