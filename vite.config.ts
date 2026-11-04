@@ -12,13 +12,6 @@ export default defineConfig({
     host: true
   },
   build: {
-    chunkSizeWarningLimit: 1000
-  },
-  preview: {
-    port: 3000,
-    host: true
-  },
-  build: {
     chunkSizeWarningLimit: 1200,
     minify: 'esbuild',
     rollupOptions: {
