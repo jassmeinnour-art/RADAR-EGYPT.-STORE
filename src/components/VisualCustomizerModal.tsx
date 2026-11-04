@@ -2,14 +2,10 @@ import React, { useState, useRef } from 'react';
 import { 
   X, 
   RotateCcw, 
-  Maximize2, 
-  Sliders, 
+  Palette, 
   Type, 
-  MoveHorizontal, 
+  Square, 
   Sparkles,
-  Check,
-  Eye,
-  Minimize2,
   Save,
   CheckCircle2,
   HardDrive,
@@ -17,27 +13,39 @@ import {
   Download,
   Upload,
   FileCode,
-  Palette
+  Eye,
+  Sliders,
+  Check,
+  Layers,
+  Sun,
+  Moon,
+  AlertCircle
 } from 'lucide-react';
-import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import { 
+  useVisualCustomizer, 
+  THEME_PRESETS, 
+  ThemePresetKey,
+  SupportedFontFamily,
+  SupportedFontWeight,
+  SupportedShadow,
+  getShadowCssValue
+} from '../context/VisualCustomizerContext';
 
 export const VisualCustomizerModal: React.FC = () => {
   const { 
     settings, 
     updateSettings, 
     resetDefaults, 
-    applyPreset, 
+    applyThemePreset,
     isCustomizerOpen, 
     setIsCustomizerOpen,
     saveSettingsToStorage,
     clearStorageAndReset,
-    lastSavedAt,
-    hasStoredSettings,
     exportSettingsToJson,
     importSettingsFromJson,
   } = useVisualCustomizer();
 
-  const [activeTab, setActiveTab] = useState<'width' | 'spacing' | 'align' | 'typography' | 'colors'>('width');
+  const [activeTab, setActiveTab] = useState<'colors' | 'typography' | 'cards' | 'presets'>('colors');
   const [showSavedFeedback, setShowSavedFeedback] = useState<boolean>(false);
   const [jsonFeedback, setJsonFeedback] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,10 +58,10 @@ export const VisualCustomizerModal: React.FC = () => {
     }
   };
 
-  const handleDownloadRadarStylesJson = () => {
-    exportSettingsToJson('merchant-radar-styles.json');
-    setJsonFeedback("تم تحميل ملف 'merchant-radar-styles.json' بنجاح إلى جهازك! 📥");
-    setTimeout(() => setJsonFeedback(null), 4000);
+  const handleDownloadThemeJson = () => {
+    exportSettingsToJson('radar-visual-theme-pro.json');
+    setJsonFeedback("تم تصدير ثيم 'radar-visual-theme-pro.json' بنجاح إلى جهازك! 📥");
+    setTimeout(() => setJsonFeedback(null), 3500);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +74,7 @@ export const VisualCustomizerModal: React.FC = () => {
       if (content) {
         const success = importSettingsFromJson(content);
         if (success) {
-          setJsonFeedback('تم استيراد الإعدادات وتطبيقها وحفظها في المتصفح بنجاح! ✓');
+          setJsonFeedback('تم استيراد الثيم وتطبيقه وحفظه في المتصفح بنجاح! ✓');
         } else {
           setJsonFeedback('عذراً، تعذر قراءة ملف JSON أو يحتوي على بنية غير صالحة ⚠️');
         }
@@ -74,7 +82,6 @@ export const VisualCustomizerModal: React.FC = () => {
       }
     };
     reader.readAsText(file);
-    // Reset input so same file can be selected again
     e.target.value = '';
   };
 
@@ -82,521 +89,537 @@ export const VisualCustomizerModal: React.FC = () => {
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-fadeIn"
+      className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-end animate-fadeIn"
       dir="rtl"
     >
+      {/* Slide-over Drawer / Sidebar Modal */}
       <div 
-        className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-['Cairo',sans-serif] text-slate-100"
+        className="bg-slate-900 border-r border-amber-500/40 w-full max-w-xl h-full flex flex-col shadow-2xl overflow-hidden font-['Cairo',sans-serif] text-slate-100"
       >
-        {/* Modal Header */}
-        <div className="px-5 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-[#FF6B00] flex items-center justify-center text-slate-950 shadow-md">
-              <Sliders className="w-5 h-5 text-slate-950" />
+        {/* Header */}
+        <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-[#FF8C00] flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/20">
+              <Palette className="w-5 h-5 text-slate-950" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <span>لوحة التحكم في التنسيق والأبعاد</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-white">
+                  Visual Theme Customizer Pro
+                </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  LIVE VISUAL
+                  LIVE PREVIEW
                 </span>
-              </h2>
+              </div>
               <p className="text-xs text-slate-400">
-                تحكم مباشر وفوري في قياسات وهوامش وبطاقات وأزرار المنصة
+                لوحة تحكم كاملة في ألوان، خطوط، بطاقات وظلال التطبيق في الوقت الفعلي
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={resetDefaults}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 text-xs transition cursor-pointer border border-slate-700"
               title="إعادة التعيين للوضع الافتراضي"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">افتراضي</span>
+              <RotateCcw className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setIsCustomizerOpen(false)}
-              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
-              title="إغلاق"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer border border-slate-700"
+              title="إغلاق اللوحة"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Quick Presets Bar */}
-        <div className="px-5 py-3 bg-slate-950/60 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto text-xs">
-          <span className="text-slate-400 font-bold shrink-0 flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            أنماط جاهزة:
-          </span>
+        {/* Section Navigation Tabs */}
+        <div className="px-4 pt-3 border-b border-slate-800 bg-slate-950/80 flex items-center gap-1 overflow-x-auto shrink-0 scrollbar-none">
           <button
             type="button"
-            onClick={() => applyPreset('full_wide')}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold transition shrink-0 cursor-pointer"
-          >
-            🌟 عريض وممتد (100%)
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPreset('comfortable')}
-            className="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 font-bold transition shrink-0 cursor-pointer"
-          >
-            🛋️ مريح ومتناسق
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPreset('custom_offset')}
-            className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold transition shrink-0 cursor-pointer"
-          >
-            👉 إزاحة الزر لليمين
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPreset('compact')}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition shrink-0 cursor-pointer"
-          >
-            📱 متوافق مدمج
-          </button>
-        </div>
-
-        {/* LocalStorage Persistence Banner & Quick Sync */}
-        <div className="px-5 py-2.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
-              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span>الحفظ في LocalStorage: مفعّل</span>
-            </span>
-            <span className="text-[11px] text-slate-400 hidden sm:inline">
-              (تظل التعديلات محفوظة تلقائياً حتى بعد تحديث الصفحة F5)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* JSON Export Button for merchant-radar-styles.json */}
-            <button
-              type="button"
-              onClick={handleDownloadRadarStylesJson}
-              className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/40 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
-              title="تحميل إعدادات التنسيق الحالية (الحواف، الهوامش، الألوان، الأبعاد) في ملف merchant-radar-styles.json"
-            >
-              <Download className="w-3.5 h-3.5 text-sky-400" />
-              <span>تحميل merchant-radar-styles.json</span>
-            </button>
-
-            {/* JSON Import Button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
-              title="استيراد وتطبيق إعدادات من ملف JSON سابق"
-            >
-              <Upload className="w-3.5 h-3.5 text-indigo-400" />
-              <span>استيراد JSON</span>
-            </button>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json,application/json"
-              className="hidden"
-            />
-
-            {/* Quick Manual Save Button */}
-            <button
-              type="button"
-              onClick={handleManualSave}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
-                showSavedFeedback 
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md scale-105' 
-                  : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-              }`}
-              title="تثبيت الإعدادات يدوياً في ذاكرة المتصفح المحلية"
-            >
-              {showSavedFeedback ? (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
-                  <span>تم التثبيت ✓</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5 text-amber-400" />
-                  <span>تثبيت في المتصفح</span>
-                </>
-              )}
-            </button>
-
-            {hasStoredSettings && (
-              <button
-                type="button"
-                onClick={clearStorageAndReset}
-                className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                title="مسح إعدادات LocalStorage والعودة للوضع الافتراضي"
-              >
-                <Trash2 className="w-3 h-3 text-rose-400" />
-                <span className="hidden sm:inline">مسح</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Dynamic JSON / Storage Feedback Toast Alert */}
-        {jsonFeedback && (
-          <div className="px-5 py-2 bg-gradient-to-r from-sky-950 to-indigo-950 border-b border-sky-600/40 text-sky-200 text-xs font-bold flex items-center justify-between animate-fadeIn">
-            <span className="flex items-center gap-2">
-              <FileCode className="w-4 h-4 text-sky-400" />
-              <span>{jsonFeedback}</span>
-            </span>
-            <button 
-              type="button" 
-              onClick={() => setJsonFeedback(null)} 
-              className="text-sky-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Tabs Navigation */}
-        <div className="px-5 pt-3 border-b border-slate-800 flex items-center gap-2 bg-slate-900/90 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('width')}
-            className={`pb-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'width' 
-                ? 'border-amber-400 text-amber-300' 
+            onClick={() => setActiveTab('colors')}
+            className={`pb-3 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'colors' 
+                ? 'border-amber-400 text-amber-300 font-black' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Maximize2 className="w-4 h-4" />
-            <span>الأبعاد (Width)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('spacing')}
-            className={`pb-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'spacing' 
-                ? 'border-amber-400 text-amber-300' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sliders className="w-4 h-4" />
-            <span>الهوامش (Spacing)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('align')}
-            className={`pb-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'align' 
-                ? 'border-amber-400 text-amber-300' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MoveHorizontal className="w-4 h-4" />
-            <span>المحاذاة والإزاحة</span>
+            <Palette className="w-4 h-4 text-amber-400" />
+            <span>الألوان الرئيسية (Colors)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('typography')}
-            className={`pb-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            className={`pb-3 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'typography' 
-                ? 'border-amber-400 text-amber-300' 
+                ? 'border-amber-400 text-amber-300 font-black' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Type className="w-4 h-4" />
-            <span>الخطوط والنصوص</span>
+            <Type className="w-4 h-4 text-sky-400" />
+            <span>النصوص والخطوط (Typography)</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('colors')}
-            className={`pb-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'colors' 
-                ? 'border-amber-400 text-amber-300' 
+            onClick={() => setActiveTab('cards')}
+            className={`pb-3 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'cards' 
+                ? 'border-amber-400 text-amber-300 font-black' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Palette className="w-4 h-4" />
-            <span>الحواف والألوان (Borders & Colors)</span>
+            <Square className="w-4 h-4 text-emerald-400" />
+            <span>الإطارات والبطاقات (Cards)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('presets')}
+            className={`pb-3 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'presets' 
+                ? 'border-amber-400 text-amber-300 font-black' 
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>أنماط جاهزة وتصدير (Presets)</span>
           </button>
         </div>
 
-        {/* Tab Contents */}
-        <div className="p-5 flex-1 overflow-y-auto space-y-5">
-          {/* TAB 1: Width & Max-Width */}
-          {activeTab === 'width' && (
-            <div className="space-y-4">
-              {/* Card Width Mode */}
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
-                <label className="text-xs sm:text-sm font-bold text-amber-300 flex items-center justify-between">
-                  <span>عرض بطاقة الإعلان والمنصة:</span>
-                  <span className="font-mono text-xs text-slate-400">{settings.cardMaxWidth}px</span>
+        {/* Feedback message */}
+        {jsonFeedback && (
+          <div className="px-4 py-2 bg-gradient-to-r from-sky-950 to-indigo-950 border-b border-sky-600/40 text-sky-200 text-xs font-bold flex items-center justify-between animate-fadeIn shrink-0">
+            <span className="flex items-center gap-2">
+              <FileCode className="w-4 h-4 text-sky-400" />
+              <span>{jsonFeedback}</span>
+            </span>
+            <button type="button" onClick={() => setJsonFeedback(null)} className="text-sky-400 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">
+
+          {/* ========================================================
+              SECTION 1: الألوان الرئيسية (مع Color Picker)
+             ======================================================== */}
+          {activeTab === 'colors' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-bold text-slate-400">
+                  انقر على مربع اللون أو عدل الكود السداسي (Hex) لتغيير الواجهة فوراً:
+                </span>
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  تحديث حي ⚡
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Primary */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون أساسي (Primary)</span>
+                    <span className="text-[11px] text-slate-400">برتقالي رادار والأزرار الرئيسية</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-amber-300 uppercase">{settings.colorPrimary}</span>
+                    <input
+                      type="color"
+                      value={settings.colorPrimary}
+                      onChange={(e) => updateSettings({ colorPrimary: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Secondary */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون ثانوي (Secondary)</span>
+                    <span className="text-[11px] text-slate-400">كحلي غامق للشريط والقوائم</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-300 uppercase">{settings.colorSecondary}</span>
+                    <input
+                      type="color"
+                      value={settings.colorSecondary}
+                      onChange={(e) => updateSettings({ colorSecondary: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Background */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون الخلفية (Background)</span>
+                    <span className="text-[11px] text-slate-400">خلفية الشاشة العامة (#0a0f1f)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-300 uppercase">{settings.colorBackground}</span>
+                    <input
+                      type="color"
+                      value={settings.colorBackground}
+                      onChange={(e) => updateSettings({ colorBackground: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Text */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون النص (Text)</span>
+                    <span className="text-[11px] text-slate-400">النصوص والفقرات العامة</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-300 uppercase">{settings.colorText}</span>
+                    <input
+                      type="color"
+                      value={settings.colorText}
+                      onChange={(e) => updateSettings({ colorText: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 5. Card */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون البطاقات (Card)</span>
+                    <span className="text-[11px] text-slate-400">خلفية كروت المنتجات والقوائم</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-300 uppercase">{settings.colorCard}</span>
+                    <input
+                      type="color"
+                      value={settings.colorCard}
+                      onChange={(e) => updateSettings({ colorCard: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 6. Border */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-white block">لون الحدود (Border)</span>
+                    <span className="text-[11px] text-slate-400">الفواصل وإطارات البطاقات</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-300 uppercase">{settings.colorBorder}</span>
+                    <input
+                      type="color"
+                      value={settings.colorBorder}
+                      onChange={(e) => updateSettings({ colorBorder: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 7. Success */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-emerald-400 block">لون النجاح (Success)</span>
+                    <span className="text-[11px] text-slate-400">شارات الفوز بالباي بوكس والأرباح</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-emerald-400 uppercase">{settings.colorSuccess}</span>
+                    <input
+                      type="color"
+                      value={settings.colorSuccess}
+                      onChange={(e) => updateSettings({ colorSuccess: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* 8. Error */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-rose-400 block">لون الخطأ (Error)</span>
+                    <span className="text-[11px] text-slate-400">تنبيهات انخفاض السعر والمخزون</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-rose-400 uppercase">{settings.colorError}</span>
+                    <input
+                      type="color"
+                      value={settings.colorError}
+                      onChange={(e) => updateSettings({ colorError: e.target.value })}
+                      className="w-9 h-9 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              SECTION 2: النصوص والخطوط (Typography)
+             ======================================================== */}
+          {activeTab === 'typography' && (
+            <div className="space-y-5 animate-fadeIn">
+              {/* Font Family Selection */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <label className="text-xs font-black text-amber-300 block">
+                  نوع الخط العربي والإنجليزي (Font Family):
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { id: 'standard', label: 'قياسي (720px)', val: 720 },
-                    { id: 'full', label: 'عريض (920px)', val: 920 },
-                    { id: 'compact', label: 'مضغوط (560px)', val: 560 },
-                    { id: 'custom', label: 'كامل العرض (100%)', val: 1100 },
-                  ].map((mode) => (
+                    { id: 'Cairo', name: 'Cairo (افتراضي)', sample: 'رادار التاجر الذكي' },
+                    { id: 'Tajawal', name: 'Tajawal (تجوال)', sample: 'رادار التاجر الذكي' },
+                    { id: 'Inter', name: 'Inter (عصري)', sample: 'Radar Merchant' },
+                    { id: 'Amiri', name: 'Amiri (أصيل)', sample: 'رادار التاجر الذكي' }
+                  ].map((f) => (
                     <button
-                      key={mode.id}
+                      key={f.id}
                       type="button"
-                      onClick={() => updateSettings({ cardMaxWidth: mode.val, cardWidthMode: mode.id as any })}
-                      className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                        settings.cardMaxWidth === mode.val
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                      onClick={() => updateSettings({ fontFamily: f.id as SupportedFontFamily })}
+                      className={`p-3 rounded-xl border text-center transition cursor-pointer ${
+                        settings.fontFamily === f.id
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-md'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
                       }`}
+                      style={{ fontFamily: `'${f.id}', sans-serif` }}
                     >
-                      {mode.label}
+                      <span className="text-xs block font-bold">{f.name}</span>
+                      <span className="text-[11px] opacity-80 mt-1 block truncate">{f.sample}</span>
                     </button>
                   ))}
                 </div>
-                <div>
-                  <input
-                    type="range"
-                    min="480"
-                    max="1100"
-                    step="20"
-                    value={settings.cardMaxWidth}
-                    onChange={(e) => updateSettings({ cardMaxWidth: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                    <span>480px (ضيق)</span>
-                    <span>1100px (عريض جداً)</span>
-                  </div>
-                </div>
               </div>
 
-              {/* Button Width Mode */}
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
-                <label className="text-xs sm:text-sm font-bold text-amber-300 flex items-center justify-between">
-                  <span>عرض الأزرار الرئيسية (زر اشترك الآن):</span>
-                  <span className="font-mono text-xs text-slate-400">
-                    {settings.buttonWidthMode === 'full' ? '100% كامل العرض' : `${settings.buttonCustomWidth}px`}
-                  </span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => updateSettings({ buttonWidthMode: 'full' })}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      settings.buttonWidthMode === 'full'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    عرض كامل 100% (موصى به)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateSettings({ buttonWidthMode: 'auto' })}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      settings.buttonWidthMode === 'auto'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    تلقائي حسب المحتوى (Auto)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateSettings({ buttonWidthMode: 'custom' })}
-                    className={`p-2.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      settings.buttonWidthMode === 'custom'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    عرض محدد (Custom)
-                  </button>
-                </div>
-
-                {settings.buttonWidthMode === 'custom' && (
-                  <div className="pt-2">
-                    <input
-                      type="range"
-                      min="220"
-                      max="640"
-                      step="10"
-                      value={settings.buttonCustomWidth}
-                      onChange={(e) => updateSettings({ buttonCustomWidth: Number(e.target.value) })}
-                      className="w-full accent-amber-500 cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                      <span>220px</span>
-                      <span>{settings.buttonCustomWidth}px</span>
-                      <span>640px</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: Spacing & Margins */}
-          {activeTab === 'spacing' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                {/* Button Vertical Padding */}
+              {/* Font Sliders */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+                {/* 1. Base Font Size (12px to 20px) */}
                 <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>الارتفاع والفراغ الداخلي للزر (Padding Y):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonPaddingY}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="28"
-                    step="1"
-                    value={settings.buttonPaddingY}
-                    onChange={(e) => updateSettings({ buttonPaddingY: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Button Horizontal Padding */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>الفراغ الأفقي للزر (Padding X):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonPaddingX}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="14"
-                    max="48"
-                    step="2"
-                    value={settings.buttonPaddingX}
-                    onChange={(e) => updateSettings({ buttonPaddingX: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Button Top Margin */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>المسافة الفاصلة أعلى الزر (Margin Top):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonMarginTop}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="12"
-                    max="48"
-                    step="2"
-                    value={settings.buttonMarginTop}
-                    onChange={(e) => updateSettings({ buttonMarginTop: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Button Radius */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>انحناء حواف الزر (Border Radius):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonBorderRadius}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="6"
-                    max="32"
-                    step="2"
-                    value={settings.buttonBorderRadius}
-                    onChange={(e) => updateSettings({ buttonBorderRadius: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: Offsets & Alignment */}
-          {activeTab === 'align' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                {/* Horizontal Shift / Translate X */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>إزاحة الزر أفقياً (Translate X):</span>
-                    <span className="font-mono text-xs text-slate-200">
-                      {settings.buttonTranslateX > 0 
-                        ? `يمين +${settings.buttonTranslateX}px` 
-                        : settings.buttonTranslateX < 0 
-                        ? `يسار ${settings.buttonTranslateX}px` 
-                        : '0px (وسط)'}
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">حجم الخط العام (Base Font Size):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.fontSizeBase}px (افتراضي 14px)
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="-30"
-                    max="50"
-                    step="2"
-                    value={settings.buttonTranslateX}
-                    onChange={(e) => updateSettings({ buttonTranslateX: Number(e.target.value) })}
+                    min="12"
+                    max="20"
+                    step="1"
+                    value={settings.fontSizeBase}
+                    onChange={(e) => updateSettings({ fontSizeBase: Number(e.target.value) })}
                     className="w-full accent-amber-500 cursor-pointer"
                   />
-                  <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                    <span>-30px (يسار)</span>
-                    <button 
-                      type="button" 
-                      onClick={() => updateSettings({ buttonTranslateX: 0 })}
-                      className="text-amber-400 hover:underline"
-                    >
-                      تصفير (0px)
-                    </button>
-                    <span>+50px (يمين)</span>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>12px (صغير)</span>
+                    <span>14px (قياسي)</span>
+                    <span>20px (كبير)</span>
                   </div>
                 </div>
 
-                {/* Margin Left */}
+                {/* 2. Heading H1 Size (20px to 40px) */}
                 <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>الهامش الأيسر (Margin Left) لسحب الزر يميناً:</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonMarginLeft}px</span>
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">حجم العناوين الرئيسية (H1 Heading Size):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.fontSizeH1}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="40"
+                    step="1"
+                    value={settings.fontSizeH1}
+                    onChange={(e) => updateSettings({ fontSizeH1: Number(e.target.value) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>20px</span>
+                    <span>26px</span>
+                    <span>40px</span>
+                  </div>
+                </div>
+
+                {/* 3. Small Text Size (10px to 16px) */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">حجم النصوص الصغيرة والشارات (Small Text):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.fontSizeSmall}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="16"
+                    step="1"
+                    value={settings.fontSizeSmall}
+                    onChange={(e) => updateSettings({ fontSizeSmall: Number(e.target.value) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>10px</span>
+                    <span>12px</span>
+                    <span>16px</span>
+                  </div>
+                </div>
+
+                {/* 4. Line Height Slider (1.2 to 2.0) */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">تباعد الأسطر (Line Height):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.lineHeight}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1.2"
+                    max="2.0"
+                    step="0.05"
+                    value={settings.lineHeight}
+                    onChange={(e) => updateSettings({ lineHeight: Number(e.target.value) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>1.2 (مدمج)</span>
+                    <span>1.6 (مريح)</span>
+                    <span>2.0 (واسع)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Heading Color & Font Weight */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                  <span className="text-xs font-black text-amber-300 block">وزن الخط (Font Weight):</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: '300', label: 'خفيف (Light)' },
+                      { id: '400', label: 'عادي (Regular)' },
+                      { id: '700', label: 'عريض (Bold)' },
+                      { id: '800', label: 'ثقيل (ExtraBold)' }
+                    ].map((w) => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => updateSettings({ fontWeight: w.id as SupportedFontWeight })}
+                        className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                          settings.fontWeight === w.id
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                            : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-black text-amber-300 block">لون العناوين (Heading Color):</span>
+                    <span className="text-[11px] text-slate-400">Color Picker منفصل لعناوين الأقسام</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-amber-300 uppercase">{settings.colorHeading}</span>
+                    <input
+                      type="color"
+                      value={settings.colorHeading}
+                      onChange={(e) => updateSettings({ colorHeading: e.target.value })}
+                      className="w-10 h-10 rounded-xl border border-slate-700 bg-transparent cursor-pointer p-0.5"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              SECTION 3: الإطارات والبطاقات (Cards & Borders)
+             ======================================================== */}
+          {activeTab === 'cards' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+                {/* Border Radius Slider (0px to 30px) */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">انحناء الزوايا (Border Radius):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.borderRadius}px (افتراضي 12px)
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="0"
-                    max="40"
-                    step="2"
-                    value={settings.buttonMarginLeft}
-                    onChange={(e) => updateSettings({ buttonMarginLeft: Number(e.target.value) })}
+                    max="30"
+                    step="1"
+                    value={settings.borderRadius}
+                    onChange={(e) => updateSettings({ borderRadius: Number(e.target.value) })}
                     className="w-full accent-amber-500 cursor-pointer"
                   />
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>0px (حاد ومربع)</span>
+                    <span>12px (قياسي)</span>
+                    <span>30px (دائري وناعم)</span>
+                  </div>
                 </div>
 
-                {/* Alignment Mode */}
+                {/* Border Width Slider (0px to 4px) */}
                 <div>
-                  <label className="text-xs sm:text-sm font-bold text-amber-300 block mb-2">
-                    محاذاة الزر داخل البطاقة:
+                  <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span className="text-slate-200">سُمك الحدود (Border Width):</span>
+                    <span className="font-mono text-amber-300 text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {settings.borderWidth}px (افتراضي 1px)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="4"
+                    step="1"
+                    value={settings.borderWidth}
+                    onChange={(e) => updateSettings({ borderWidth: Number(e.target.value) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                    <span>0px (بدون إطار)</span>
+                    <span>1px (ناعم)</span>
+                    <span>4px (عريض)</span>
+                  </div>
+                </div>
+
+                {/* Card Shadow Selection */}
+                <div>
+                  <label className="text-xs font-black text-amber-300 block mb-2">
+                    ظل البطاقات (Card Shadow Effect):
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {[
-                      { id: 'center', label: 'في الوسط (Center)' },
-                      { id: 'right', label: 'محاذاة اليمين (Right)' },
-                      { id: 'left', label: 'محاذاة اليسار (Left)' },
-                    ].map((align) => (
+                      { id: 'none', label: 'بدون ظل (None)' },
+                      { id: 'small', label: 'خفيف (Small)' },
+                      { id: 'medium', label: 'متوسط (Medium)' },
+                      { id: 'large', label: 'عميق (Large)' },
+                      { id: 'glow', label: 'توهج (Glow)' }
+                    ].map((sh) => (
                       <button
-                        key={align.id}
+                        key={sh.id}
                         type="button"
-                        onClick={() => updateSettings({ buttonAlignment: align.id as any })}
+                        onClick={() => updateSettings({ cardShadow: sh.id as SupportedShadow })}
                         className={`p-2.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                          settings.buttonAlignment === align.id
+                          settings.cardShadow === sh.id
                             ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                            : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
                         }`}
                       >
-                        {align.label}
+                        {sh.label}
                       </button>
                     ))}
                   </div>
@@ -605,346 +628,209 @@ export const VisualCustomizerModal: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: Typography & Anti-Wrap */}
-          {activeTab === 'typography' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                {/* Text Wrap Control */}
-                <div>
-                  <label className="text-xs sm:text-sm font-bold text-amber-300 block mb-2">
-                    حماية النصوص من الالتفاف والكسر (White-Space Wrap Mode):
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateSettings({ textWrapMode: 'nowrap' })}
-                      className={`p-3 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-2 cursor-pointer ${
-                        settings.textWrapMode === 'nowrap'
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 border-emerald-400 font-black shadow-md'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>سطر واحد متصل (Nowrap) - بدون قطع</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateSettings({ textWrapMode: 'normal' })}
-                      className={`p-3 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                        settings.textWrapMode === 'normal'
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      <span>التفاف طبيعي (Normal Wrap)</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Button Font Size */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>حجم خط الزر (Button Font Size):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.buttonFontSize}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="13"
-                    max="22"
-                    step="1"
-                    value={settings.buttonFontSize}
-                    onChange={(e) => updateSettings({ buttonFontSize: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Title Font Size */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>حجم العنوان الرئيسي (Title Font Size):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.titleFontSize}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="18"
-                    max="28"
-                    step="1"
-                    value={settings.titleFontSize}
-                    onChange={(e) => updateSettings({ titleFontSize: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Font Weight */}
-                <div>
-                  <label className="text-xs sm:text-sm font-bold text-amber-300 block mb-2">
-                    وزن وسمك الخط (Font Weight):
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['600', '700', '800', '900'] as const).map((wt) => (
+          {/* ========================================================
+              SECTION 4: الأنماط السريعة والتصدير (Presets & Storage)
+             ======================================================== */}
+          {activeTab === 'presets' && (
+            <div className="space-y-4 animate-fadeIn">
+              {/* Presets Grid */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <span className="text-xs font-black text-amber-300 block">
+                  أنماط مظهر جاهزة بنقرة واحدة (One-Click Presets):
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(Object.keys(THEME_PRESETS) as ThemePresetKey[]).map((key) => {
+                    const preset = THEME_PRESETS[key];
+                    return (
                       <button
-                        key={wt}
+                        key={key}
                         type="button"
-                        onClick={() => updateSettings({ buttonFontWeight: wt })}
-                        className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                          settings.buttonFontWeight === wt
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                        }`}
+                        onClick={() => applyThemePreset(key)}
+                        className="p-3.5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 text-right transition flex flex-col gap-1 cursor-pointer group"
                       >
-                        {wt === '900' ? 'Black (900)' : wt === '800' ? 'ExtraBold (800)' : wt === '700' ? 'Bold (700)' : 'SemiBold (600)'}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-white group-hover:text-amber-300">
+                            {preset.label}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">
+                            تطبيق
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          {preset.desc}
+                        </p>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* TAB 5: Colors & Borders (الحواف والألوان) */}
-          {activeTab === 'colors' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                {/* Special Download Banner for merchant-radar-styles.json */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-950 via-indigo-950 to-slate-900 border-2 border-sky-500/50 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/40 shadow-inner">
-                      <FileCode className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-black text-white flex items-center gap-2">
-                        <span>ملف التنسيقات الشامل:</span>
-                        <span className="text-sky-300 font-mono text-xs px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-500/30">
-                          merchant-radar-styles.json
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-300 mt-0.5">
-                        تحميل إعدادات التنسيق الحالية (الحواف، الهوامش، الألوان، الأبعاد) في ملف JSON معتمد
-                      </div>
-                    </div>
-                  </div>
+              {/* JSON Export/Import & Persistence */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <span className="text-xs font-black text-amber-300 block">
+                  النسخ الاحتياطي والمزامنة (Backup & Sync):
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={handleDownloadRadarStylesJson}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 via-sky-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer shrink-0 transition hover:scale-105 active:scale-95"
+                    onClick={handleDownloadThemeJson}
+                    className="p-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-500/30 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>تحميل merchant-radar-styles.json</span>
+                    <Download className="w-4 h-4 text-sky-400" />
+                    <span>تصدير ملف الثيم (JSON)</span>
                   </button>
-                </div>
 
-                {/* Card Border Radius (الحواف والانحناءات) */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>انحناء حواف بطاقة الإعلان (Card Border Radius):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.cardBorderRadius}px</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-500/30 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition"
+                  >
+                    <Upload className="w-4 h-4 text-indigo-400" />
+                    <span>استيراد ثيم من ملف (JSON)</span>
+                  </button>
+
                   <input
-                    type="range"
-                    min="8"
-                    max="36"
-                    step="2"
-                    value={settings.cardBorderRadius}
-                    onChange={(e) => updateSettings({ cardBorderRadius: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".json,application/json"
+                    className="hidden"
                   />
-                  <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                    <span>8px (حاد)</span>
-                    <span>20px (قياسي)</span>
-                    <span>36px (دائري جداً)</span>
-                  </div>
-                </div>
-
-                {/* Card Border Width (سُمك الحواف) */}
-                <div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-amber-300 mb-1.5">
-                    <span>سُمك إطار وحواف البطاقة (Border Width):</span>
-                    <span className="font-mono text-xs text-slate-300">{settings.cardBorderWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="6"
-                    step="1"
-                    value={settings.cardBorderWidth}
-                    onChange={(e) => updateSettings({ cardBorderWidth: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                    <span>1px (ناعم)</span>
-                    <span>2px (افتراضي)</span>
-                    <span>6px (عريض)</span>
-                  </div>
-                </div>
-
-                {/* Button Color Gradients (ألوان الأزرار) */}
-                <div>
-                  <label className="text-xs sm:text-sm font-bold text-amber-300 block mb-2">
-                    تدرج لون زر الإجراء (Button Gradient Color):
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { id: 'orange', label: 'برتقالي بياع', start: '#ff6b00', end: '#e65c00' },
-                      { id: 'sky', label: 'أزرق رادار', start: '#0284c7', end: '#0369a1' },
-                      { id: 'emerald', label: 'أخضر أرباح', start: '#059669', end: '#047857' },
-                      { id: 'purple', label: 'بنفسجي متقدم', start: '#7c3aed', end: '#6d28d9' },
-                    ].map((theme) => (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={() => updateSettings({ buttonColorStart: theme.start, buttonColorEnd: theme.end })}
-                        className={`p-2.5 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 cursor-pointer ${
-                          settings.buttonColorStart === theme.start
-                            ? 'border-white text-white shadow-lg ring-2 ring-white/40 font-black scale-102'
-                            : 'border-slate-700 text-slate-200 hover:border-slate-500'
-                        }`}
-                        style={{ background: `linear-gradient(135deg, ${theme.start} 0%, ${theme.end} 100%)` }}
-                      >
-                        <span>{theme.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Color Pickers (ألوان مخصصة) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-                    <span className="text-slate-300 font-bold">لون إطار البطاقة:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-slate-400">{settings.cardBorderColor}</span>
-                      <input
-                        type="color"
-                        value={settings.cardBorderColor}
-                        onChange={(e) => updateSettings({ cardBorderColor: e.target.value })}
-                        className="w-8 h-8 rounded-lg cursor-pointer border border-slate-700 bg-transparent"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-                    <span className="text-slate-300 font-bold">لون خلفية البطاقة:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-slate-400">{settings.cardBackgroundColor}</span>
-                      <input
-                        type="color"
-                        value={settings.cardBackgroundColor}
-                        onChange={(e) => updateSettings({ cardBackgroundColor: e.target.value })}
-                        className="w-8 h-8 rounded-lg cursor-pointer border border-slate-700 bg-transparent"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Live Preview Box with Dynamic Colors and Borders */}
-          <div 
-            className="p-5 shadow-inner transition-all duration-300"
-            style={{
-              backgroundColor: settings.cardBackgroundColor,
-              border: `${settings.cardBorderWidth}px solid ${settings.cardBorderColor}`,
-              borderRadius: `${settings.cardBorderRadius}px`,
-              color: settings.textColorPrimary
-            }}
-          >
-            <div className="text-[11px] font-black uppercase tracking-wider mb-3 flex items-center justify-between opacity-75">
-              <span className="flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-amber-600" />
-                <span>معاينة حية للبطاقة والزر (حواف، هوامش، ألوان، أبعاد):</span>
+          {/* ========================================================
+              LIVE PREVIEW BOX (معاينة حية للمظهر الجديد)
+             ======================================================== */}
+          <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="font-bold flex items-center gap-1.5 text-amber-400">
+                <Eye className="w-4 h-4" />
+                معاينة حية تفاعلية للبطاقات والنصوص والأزرار:
               </span>
-              <span className="font-mono text-emerald-600 font-bold">مباشر ⚡</span>
+              <span className="font-mono text-emerald-400 font-bold">مباشر ⚡</span>
             </div>
-            
+
+            {/* Dynamic Card Preview */}
             <div 
-              className="w-full flex"
+              className="p-5 transition-all duration-200 space-y-3"
               style={{
-                justifyContent: settings.buttonAlignment === 'right' 
-                  ? 'flex-start' 
-                  : settings.buttonAlignment === 'left' 
-                  ? 'flex-end' 
-                  : 'center'
+                backgroundColor: settings.colorCard,
+                borderRadius: `${settings.borderRadius}px`,
+                borderWidth: `${settings.borderWidth}px`,
+                borderColor: settings.colorBorder,
+                borderStyle: settings.borderWidth > 0 ? 'solid' : 'none',
+                boxShadow: getShadowCssValue(settings.cardShadow),
+                fontFamily: `'${settings.fontFamily}', sans-serif`,
+                color: settings.colorText,
+                lineHeight: settings.lineHeight
               }}
             >
-              <button
-                type="button"
-                style={{
-                  width: settings.buttonWidthMode === 'full' ? '100%' : settings.buttonWidthMode === 'custom' ? `${settings.buttonCustomWidth}px` : 'auto',
-                  padding: `${settings.buttonPaddingY}px ${settings.buttonPaddingX}px`,
-                  marginTop: `${settings.buttonMarginTop}px`,
-                  marginLeft: `${settings.buttonMarginLeft}px`,
-                  marginRight: `${settings.buttonMarginRight}px`,
-                  transform: `translateX(${settings.buttonTranslateX}px)`,
-                  borderRadius: `${settings.buttonBorderRadius}px`,
-                  fontSize: `${settings.buttonFontSize}px`,
-                  fontWeight: settings.buttonFontWeight,
-                  whiteSpace: settings.textWrapMode,
-                  background: `linear-gradient(135deg, ${settings.buttonColorStart} 0%, ${settings.buttonColorEnd} 100%)`,
-                  color: settings.buttonTextColor,
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px',
-                  boxShadow: '0 4px 14px rgba(255, 107, 0, 0.4)',
-                  cursor: 'default'
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 
+                  style={{ 
+                    fontSize: `${settings.fontSizeH1}px`, 
+                    color: settings.colorHeading,
+                    fontWeight: settings.fontWeight
+                  }}
+                  className="font-black"
+                >
+                  لوحة تحكم رادار التاجر الذكي
+                </h3>
+                <span 
+                  className="px-2 py-0.5 rounded-full font-bold"
+                  style={{ 
+                    backgroundColor: `${settings.colorSuccess}25`, 
+                    color: settings.colorSuccess,
+                    fontSize: `${settings.fontSizeSmall}px`
+                  }}
+                >
+                  ✓ Buy Box Winner
+                </span>
+              </div>
+
+              <p 
+                style={{ 
+                  fontSize: `${settings.fontSizeBase}px`,
+                  color: settings.colorText 
                 }}
               >
-                <span>🛍️</span>
-                <span>اشترك الآن وأضف منتجاتك في منصة بياع</span>
-                <span>👈</span>
-              </button>
+                هذه المعاينة توضح التنسيق المباشر للألوان، وانحناء الحواف ({settings.borderRadius}px)، ونوع الخط ({settings.fontFamily}).
+              </p>
+
+              <div className="flex items-center gap-2 pt-2 flex-wrap">
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: settings.colorPrimary,
+                    color: '#ffffff',
+                    borderRadius: `${settings.borderRadius}px`,
+                    fontSize: `${settings.fontSizeBase}px`,
+                    fontWeight: settings.fontWeight,
+                    padding: '8px 16px',
+                    border: 'none',
+                    cursor: 'default'
+                  }}
+                  className="font-bold shadow-md flex items-center gap-2"
+                >
+                  <span>زر الإجراء الرئيسي</span>
+                  <span>←</span>
+                </button>
+
+                <span 
+                  style={{ 
+                    color: settings.colorError,
+                    fontSize: `${settings.fontSizeSmall}px`
+                  }}
+                  className="font-bold flex items-center gap-1"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>تنبيه هبوط السعر</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-400 text-center sm:text-right">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span>
-              يتم حفظ التنسيقات تلقائياً في ذاكرة المتصفح (LocalStorage) وتظل سارية بعد تحديث الصفحة
-            </span>
+        {/* Modal Footer Controls */}
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <HardDrive className="w-4 h-4 text-emerald-400" />
+            <span>يتم الحفظ تلقائياً في LocalStorage</span>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
-            <button
-              type="button"
-              onClick={handleDownloadRadarStylesJson}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 shadow-sm"
-              title="تحميل إعدادات التنسيق الحالية في ملف merchant-radar-styles.json"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>تحميل merchant-radar-styles.json</span>
-            </button>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleManualSave}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
-                showSavedFeedback 
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black' 
-                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                showSavedFeedback
+                  ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black'
               }`}
             >
               {showSavedFeedback ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>محفوظ في المتصفح ✓</span>
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  <span>تم التثبيت ✓</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>تثبيت في LocalStorage</span>
+                  <Save className="w-4 h-4" />
+                  <span>تثبيت التنسيق</span>
                 </>
               )}
             </button>
+
             <button
               type="button"
-              onClick={() => {
-                saveSettingsToStorage();
-                setIsCustomizerOpen(false);
-              }}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-[#FF6B00] hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black transition cursor-pointer shadow-md text-xs flex items-center gap-1"
+              onClick={clearStorageAndReset}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 text-xs transition cursor-pointer"
+              title="مسح من الذاكرة والعودة للافتراضي"
             >
-              <span>تم وتطبيق التنسيق ✓</span>
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -952,3 +838,5 @@ export const VisualCustomizerModal: React.FC = () => {
     </div>
   );
 };
+
+export default VisualCustomizerModal;

@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   Clock,
   Bell,
-  RefreshCw
+  RefreshCw,
+  ArrowUpDown
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
 
@@ -198,10 +199,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         },
         {
           id: 'price_comparison',
-          label: 'فحص أسعار المنافسين',
-          icon: <FileSpreadsheet className="w-4 h-4 text-pink-300" />,
+          label: 'مقارنة الأسعار والعروض الحية',
+          icon: <ArrowUpDown className="w-4 h-4 text-pink-300" />,
           isActive: activeTab === 'price_comparison',
-          action: () => onSelectTab('price_comparison')
+          action: () => onSelectTab('price_comparison'),
+          badge: 'عروض حية ⚡'
         },
         {
           id: 'gap_csv',

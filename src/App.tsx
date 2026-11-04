@@ -42,7 +42,8 @@ import {
   Printer,
   Compass,
   Palette,
-  Menu
+  Menu,
+  ArrowUpDown
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
@@ -62,6 +63,7 @@ import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { CloudSyncStatusWidget } from './components/CloudSyncStatusWidget';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { FloatingHotkeyButton } from './components/FloatingHotkeyButton';
+import { FloatingVisualCustomizerButton } from './components/FloatingVisualCustomizerButton';
 import { StatsMonitor } from './components/StatsMonitor';
 import { LoginPage } from './components/LoginPage';
 import LandingPage from './components/LandingPage';
@@ -137,6 +139,7 @@ const ShippingManagementDashboard = safeLazy(() => import('./components/Shipping
 const PlatformsGuideManager = safeLazy(() => import('./components/PlatformsGuideManager'));
 const AutoPricingEngine = safeLazy(() => import('./components/AutoPricingEngine'));
 const PriceComparisonEngine = safeLazy(() => import('./components/PriceComparisonEngine'));
+const RealTimePriceComparisonCenter = safeLazy(() => import('./components/RealTimePriceComparisonCenter'));
 const TraderStoreSyncManager = safeLazy(() => import('./components/TraderStoreSyncManager'));
 const WatchlistNotificationModal = safeLazy(() => import('./components/WatchlistNotificationModal'));
 import { getStoredWatchlist } from './services/watchlistNotificationService';
@@ -895,10 +898,10 @@ export default function App() {
                   ? 'bg-amber-700 text-white shadow-md font-bold'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
-              title="مقارنة الفجوات السعرية عبر ملفات CSV"
+              title="مقارنة الأسعار والعروض الحية وتنبيهات الخصومات الفورية"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-200" />
-              <span>مقارنة الفجوات (CSV)</span>
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-200" />
+              <span>مقارنة الأسعار والعروض</span>
             </button>
 
             <button
@@ -1157,7 +1160,11 @@ export default function App() {
                   )}
 
                   {activeWorkspaceTab === 'price_comparison' && (
-                    <PriceComparisonEngine currency="ج.م" />
+                    <RealTimePriceComparisonCenter 
+                      currency="ج.م" 
+                      onShowToast={showToast} 
+                      onSelectActiveTrader={() => setActiveWorkspaceTab('radar')} 
+                    />
                   )}
 
                   {activeWorkspaceTab === 'platforms_guide' && (
@@ -1296,9 +1303,12 @@ export default function App() {
         trialDaysRemaining={subscriptionState.trialRemainingTime?.days ?? 3}
       />
 
-      {/* Floating Hotkeys Button & Modal */}
+      {/* Floating Hotkeys and Visual Customizer Buttons */}
       {!isFocusMode && (
-        <FloatingHotkeyButton onClick={() => setIsHotkeysModalOpen(true)} />
+        <>
+          <FloatingHotkeyButton onClick={() => setIsHotkeysModalOpen(true)} />
+          <FloatingVisualCustomizerButton />
+        </>
       )}
 
       <KeyboardShortcutsModal
