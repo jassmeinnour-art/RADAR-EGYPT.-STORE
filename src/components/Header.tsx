@@ -706,31 +706,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </ToolbarTooltip>
 
-              {/* زر دليل ملفات جميع التجار (All Merchants Hub) */}
-              <ToolbarTooltip
-                title="دليل ملفات التجار"
-                description="استعرض قائمة التجار والمنصات المرتبطة ومعرفات الربط وبوالص الشحن."
-                badge="دليل التجار"
-                icon={Users}
-                theme="indigo"
-                side="bottom"
-              >
-                <button
-                  type="button"
-                  id="btn-header-all-merchants-hub"
-                  onClick={() => {
-                    if (onOpenAllMerchantsHub) {
-                      onOpenAllMerchantsHub();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-all-merchants-hub'));
-                    }
-                  }}
-                  className="h-10 px-3.5 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-indigo-400/30 select-none whitespace-nowrap"
-                >
-                  <Users className="w-4 h-4 shrink-0 text-white" />
-                  <span className="whitespace-nowrap">دليل ملفات جميع التجار 👥</span>
-                </button>
-              </ToolbarTooltip>
+
             </div>
 
             {/* زر تنسيق الأزرار والواجهة (Visual Style Control Panel) */}

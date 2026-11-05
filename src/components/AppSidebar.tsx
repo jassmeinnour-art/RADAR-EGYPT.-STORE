@@ -302,19 +302,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </button>
         </div>
 
-        {/* Quick Action Banner */}
-        <div className="p-3 bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border-b border-emerald-800/40 shrink-0">
-          <button
-            onClick={() => handleItemClick(onOpenAllMerchantsHub)}
-            className="w-full py-2.5 px-3 bg-emerald-700 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md transition-all flex items-center justify-between group text-xs sm:text-sm cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-white" />
-              <span>إدارة بيانات التجار وإضافة تاجر ➕</span>
-            </span>
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          </button>
-        </div>
+
 
         {/* Scrollable Navigation Categories with distinct section coloring */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3.5">

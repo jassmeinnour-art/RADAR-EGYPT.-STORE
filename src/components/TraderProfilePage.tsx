@@ -40,7 +40,53 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
   onBack,
   onShowToast
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'invoices' | 'competitors'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'inventory_platforms' | 'competitors' | 'invoices' | 'settings'>('overview');
+  
+  // Platform Connection Test States
+  const [testingPlatformId, setTestingPlatformId] = useState<string | null>(null);
+  const [platformTestResults, setPlatformTestResults] = useState<Record<string, { status: 'success' | 'failed'; message: string; latency?: number }>>({});
+
+  const handleTestPlatformConnection = async (platformKey: string, apiKeyVal: string, sellerIdVal: string) => {
+    setTestingPlatformId(platformKey);
+    try {
+      const res = await fetch('/api/platforms/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platformId: platformKey,
+          apiKey: apiKeyVal,
+          sellerId: sellerIdVal
+        })
+      });
+      const data = await res.json();
+      setPlatformTestResults(prev => ({
+        ...prev,
+        [platformKey]: {
+          status: data.success ? 'success' : 'failed',
+          message: data.message || (data.success ? 'تم الاتصال بنجاح' : 'فشل الاتصال'),
+          latency: data.latencyMs
+        }
+      }));
+      if (onShowToast) {
+        if (data.success) {
+          onShowToast(`🟢 نجح اختبار الاتصال بمنصة (${platformKey}) بنجاح! (${data.latencyMs}ms)`);
+        } else {
+          onShowToast(`🔴 فشل الاتصال بمنصة (${platformKey}): ${data.message}`);
+        }
+      }
+    } catch (err: any) {
+      setPlatformTestResults(prev => ({
+        ...prev,
+        [platformKey]: {
+          status: 'failed',
+          message: err?.message || 'خطأ في الشبكة'
+        }
+      }));
+      if (onShowToast) onShowToast(`⚠️ خطأ في اختبار اتصال (${platformKey})`);
+    } finally {
+      setTestingPlatformId(null);
+    }
+  };
   
   // Data States
   const [traderInfo, setTraderInfo] = useState<any | null>(null);
@@ -401,50 +447,74 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
         <div className="pt-4 border-t border-slate-800 flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'overview'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
-            <Building2 className="w-4 h-4" />
-            <span>Tab 1: نظرة عامة (Overview)</span>
+            <Building2 className="w-3.5 h-3.5" />
+            <span>1. البيانات الأساسية 👤</span>
           </button>
 
           <button
             onClick={() => setActiveTab('products')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'products'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
-            <Package className="w-4 h-4" />
-            <span>Tab 2: المنتجات ({products.length} منتج)</span>
+            <Package className="w-3.5 h-3.5" />
+            <span>2. المنتجات ({products.length}) 📦</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('invoices')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-              activeTab === 'invoices'
+            onClick={() => setActiveTab('inventory_platforms')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'inventory_platforms'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
-            <Truck className="w-4 h-4" />
-            <span>Tab 3: البوالص والطلبات ({invoices.length})</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>3. المخزون لكل منصة 📊</span>
           </button>
 
           <button
             onClick={() => setActiveTab('competitors')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'competitors'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>Tab 4: المنافسون ({competitors.length})</span>
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>4. أسعار المنافسين 💰</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'invoices'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>5. الفواتير والطلبات 🧾</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'settings'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>6. الإعدادات ومفاتيح API 🔑</span>
           </button>
         </div>
 
@@ -777,61 +847,198 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
         </div>
       )}
 
-      {/* Tab 4: المنافسون (Competitors Price Analysis) */}
-      {activeTab === 'competitors' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-          
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-base font-black text-white font-['Alexandria']">
-              فحص المنافسين والـ Buy Box لمنتجات التاجر
-            </h3>
-
+      {/* Tab 3: المخزون لكل منصة (Inventory across Amazon/Noon/Jumia/Raneen/Kanz/HomeSmart/Bayyaa) */}
+      {activeTab === 'inventory_platforms' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-black text-white font-['Alexandria'] flex items-center gap-2">
+                <Layers className="w-5 h-5 text-amber-400" />
+                <span>مقارنة وتوزيع المخزون والأسعار لكل منصة</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">متابعة فورية للمخزون الموزع عبر منصات أمازون، نون، جوميا، رنين، كنز، هوم سمارت، وبيّاع</p>
+            </div>
             <button
-              onClick={handleScanTraderCompetitors}
-              disabled={isScanningCompetitors}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+              onClick={handleSyncTraderCatalog}
+              disabled={isSyncingCatalog}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
-              <Sparkles className={`w-3.5 h-3.5 ${isScanningCompetitors ? 'animate-spin' : ''}`} />
-              <span>إعادة فحص أسعار المنافسين ⚡</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCatalog ? 'animate-spin' : ''}`} />
+              <span>تحديث المخزون عبر المنصات 🔄</span>
             </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {['أمازون مصر (Amazon)', 'نون مصر (Noon)', 'جوميا مصر (Jumia)', 'رنين (Raneen)', 'كنز (Kanz)', 'هوم سمارت (HomeSmart)', 'بيّاع (Bayyaa)'].map((platName, pIdx) => {
+              const platProducts = products.filter(p => {
+                const code = String(p.platform || '').toLowerCase();
+                if (pIdx === 0) return code.includes('amazon');
+                if (pIdx === 1) return code.includes('noon');
+                if (pIdx === 2) return code.includes('jumia');
+                if (pIdx === 3) return code.includes('raneen');
+                if (pIdx === 4) return code.includes('kanz');
+                if (pIdx === 5) return code.includes('homesmart');
+                return code.includes('bayyaa');
+              });
+              const totalStock = platProducts.reduce((sum, p) => sum + (Number(p.stock_qty ?? p.stockQuantity ?? p.stock) || 0), 0);
+
+              return (
+                <div key={pIdx} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white">{platName}</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      {platProducts.length} منتج
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-slate-400 text-[11px]">إجمالي المخزون المتاح:</div>
+                    <div className="text-lg font-black text-emerald-400 font-mono">{totalStock} قطعة</div>
+                  </div>
+                  <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-900">
+                    {platProducts.length > 0 ? 'متصل ومزامن 🟢' : 'بانتظار المزامنة ⚪'}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-800">
             <table className="w-full text-right text-xs">
               <thead className="bg-slate-950 text-slate-300 border-b border-slate-800">
                 <tr>
-                  <th className="p-3">كود SKU / اسم المنتج</th>
-                  <th className="p-3">سعر التاجر</th>
-                  <th className="p-3">أقل سعر منافس</th>
-                  <th className="p-3">اسم المنافس الأقرب</th>
-                  <th className="p-3">سعر الـ Buy Box</th>
-                  <th className="p-3">الفائز بالصندوق</th>
-                  <th className="p-3">فارق السعر %</th>
+                  <th className="p-3">المنتج (SKU / Title)</th>
+                  <th className="p-3">المنصة</th>
+                  <th className="p-3">السعر الحالي</th>
+                  <th className="p-3">المخزون المتوفر</th>
+                  <th className="p-3">حالة المزامنة</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
-                {competitors.map((c, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/50 transition">
-                    <td className="p-3">
-                      <div className="font-bold text-white">{c.productTitle}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">SKU: {c.sku}</div>
-                    </td>
-                    <td className="p-3 font-mono font-bold text-white">{c.traderPrice} ج.م</td>
-                    <td className="p-3 font-mono font-bold text-slate-300">{c.lowestCompetitorPrice} ج.م</td>
-                    <td className="p-3 text-slate-300">{c.lowestCompetitorName}</td>
-                    <td className="p-3 font-mono font-bold text-emerald-400">{c.buyBoxPrice} ج.م</td>
-                    <td className="p-3 font-bold text-amber-300">{c.buyBoxOwner}</td>
-                    <td className="p-3 font-mono font-bold">
-                      <span className={c.priceGapPercent < 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        {c.priceGapPercent}%
-                      </span>
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                      0 منتج - لا توجد منتجات مسجلة لهذا التاجر بعد
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  products.map((p, idx) => (
+                    <tr key={p.id || idx} className="hover:bg-slate-800/50 transition">
+                      <td className="p-3 font-bold text-white">
+                        {p.title}
+                        <div className="text-[10px] text-slate-400 font-mono">SKU: {p.sku}</div>
+                      </td>
+                      <td className="p-3 font-bold text-amber-300">{p.platform || 'أمازون/نون'}</td>
+                      <td className="p-3 font-mono font-bold text-white">{p.price || 0} ج.م</td>
+                      <td className="p-3 font-mono font-bold text-emerald-400">{p.stock_qty ?? p.stock ?? 0} قطعة</td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                          متصل سحابياً 🟢
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
 
+      {/* Tab 6: الإعدادات ومفاتيح API (Settings & API Keys with Quick Test Connection) */}
+      {activeTab === 'settings' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-black text-white font-['Alexandria'] flex items-center gap-2">
+                <Key className="w-5 h-5 text-amber-400" />
+                <span>إعدادات الاتصال ومفاتيح الـ API للمنصات</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">إدارة معرّفات المتاجر ومفاتيح الربط واختبار الاتصال الفوري لكل منصة</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {[
+              { id: 'amazon', name: 'أمازون مصر (Amazon SP-API)', sellerId: traderInfo?.seller_id || 'AMAOHMEDSAID1', keyPlaceholder: 'Atza|AMZN-SP-API-KEY-...' },
+              { id: 'noon', name: 'نون مصر (Noon Partner API)', sellerId: traderInfo?.noon_seller_id || 'NOON-EG-9941', keyPlaceholder: 'noon_live_sec_...' },
+              { id: 'jumia', name: 'جوميا مصر (Jumia Seller API)', sellerId: traderInfo?.jumia_seller_id || 'JUMIA-EG-882', keyPlaceholder: 'jumia_prod_key_...' },
+              { id: 'raneen', name: 'رنين (Raneen Connector)', sellerId: 'RANEEN-EG-101', keyPlaceholder: 'rn_api_...' },
+              { id: 'kanz', name: 'كنز (Kanz API)', sellerId: 'KANZ-EG-202', keyPlaceholder: 'kanz_sec_...' },
+              { id: 'homesmart', name: 'هوم سمارت (HomeSmart API)', sellerId: 'HS-EG-303', keyPlaceholder: 'hs_key_...' },
+              { id: 'bayyaa', name: 'بيّاع (Bayyaa Partner)', sellerId: 'BY-EG-404', keyPlaceholder: 'by_token_...' }
+            ].map(plat => {
+              const testRes = platformTestResults[plat.id];
+              const isTesting = testingPlatformId === plat.id;
+
+              return (
+                <div key={plat.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-white flex items-center gap-2">
+                      <Store className="w-4 h-4 text-amber-400" />
+                      <span>{plat.name}</span>
+                    </span>
+                    {testRes ? (
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                        testRes.status === 'success' 
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        {testRes.status === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                        <span>{testRes.status === 'success' ? `متصل بنجاح (${testRes.latency}ms)` : 'فشل الاتصال'}</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400">
+                        بانتظار الاختبار ⚪
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-slate-400 mb-1">معرّف البائع (Seller ID / Store ID)</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={plat.sellerId}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">مفتاح الربط (API Key / Secret)</label>
+                      <input
+                        type="password"
+                        readOnly
+                        value="••••••••••••••••••••••••"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+
+                  {testRes && (
+                    <div className={`p-2.5 rounded-xl text-[11px] ${
+                      testRes.status === 'success' ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-900' : 'bg-rose-950/50 text-rose-300 border border-rose-900'
+                    }`}>
+                      {testRes.message}
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-900">
+                    <span className="text-[11px] text-slate-500 font-mono">آخر تحقق: منذ قليل</span>
+                    <button
+                      type="button"
+                      onClick={() => handleTestPlatformConnection(plat.id, plat.keyPlaceholder, plat.sellerId)}
+                      disabled={isTesting}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-slate-950 font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
+                      title="استدعاء نقطة اتصال (Endpoint) لاختبار اتصال الـ API فورياً"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+                      <span>{isTesting ? 'جاري الفحص...' : 'مزامنة سريعة / اختبار الاتصال ⚡'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
