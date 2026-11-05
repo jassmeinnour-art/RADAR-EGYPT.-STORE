@@ -26,7 +26,8 @@ import {
   Bell,
   RefreshCw,
   ArrowUpDown,
-  Palette
+  Palette,
+  Package
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
@@ -100,46 +101,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   // Distinct section color accents and styling as requested
   const categories: NavCategory[] = [
     {
-      id: 'dashboard',
-      title: '📊 لوحة التحكم والمؤشرات الرئيسية',
-      icon: <BarChart3 className="w-5 h-5 text-emerald-300" />,
-      headerBg: 'bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950',
-      borderColor: 'border-emerald-500/40',
-      items: [
-        {
-          id: 'merchants_tab',
-          label: 'لوحة التاجر والكتالوج',
-          icon: <Store className="w-4 h-4 text-emerald-300" />,
-          isActive: activeTab === 'merchants',
-          action: () => onSelectTab('merchants')
-        },
-        {
-          id: 'radar_tab',
-          label: 'رادار الباي بوكس والأقسام',
-          icon: <Compass className="w-4 h-4 text-teal-300" />,
-          isActive: activeTab === 'radar',
-          action: () => onSelectTab('radar')
-        },
-        {
-          id: 'watchlist_tab',
-          label: 'قائمة المتابعة وتنبيهات الأسعار',
-          icon: <Bell className="w-4 h-4 text-emerald-200" />,
-          isActive: activeTab === 'watchlist',
-          action: () => onSelectTab('watchlist'),
-          badge: 'تنبيه حي 🔔'
-        },
-        {
-          id: 'reports_tab',
-          label: 'التقارير المالية والتريندات',
-          icon: <TrendingUp className="w-4 h-4 text-emerald-300" />,
-          isActive: activeTab === 'reports' || activeTab === 'trending',
-          action: () => onSelectTab('reports')
-        }
-      ]
-    },
-    {
       id: 'merchants',
-      title: '🛒 إدارة المتاجر والتسعير الذكي',
+      title: '🛒 منظومة التجار والمنتجات',
       icon: <Building2 className="w-5 h-5 text-amber-300" />,
       headerBg: 'bg-gradient-to-r from-amber-950 via-slate-900 to-orange-950',
       borderColor: 'border-amber-500/40',
@@ -156,57 +119,41 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           badge: 'Unified Directory 🏢'
         },
         {
-          id: 'traders_sync_tab',
-          label: 'ربط المتاجر ومزامنة الكتالوج ⚡',
-          icon: <Building2 className="w-4 h-4 text-sky-300" />,
-          isActive: activeTab === 'traders_sync',
-          action: () => onSelectTab('traders_sync'),
-          badge: 'Email & Seller ID 🔄'
+          id: 'merchants_tab',
+          label: 'إدارة المنتجات 📦',
+          icon: <Package className="w-4 h-4 text-sky-300" />,
+          isActive: activeTab === 'merchants',
+          action: () => onSelectTab('merchants')
         },
         {
-          id: 'auto_pricing',
-          label: 'محرك التسعير الآلي التنافسي',
-          icon: <Zap className="w-4 h-4 text-orange-300" />,
-          isActive: activeTab === 'auto_pricing',
-          action: () => onSelectTab('auto_pricing')
-        },
-        {
-          id: 'platforms_guide',
-          label: 'ربط المنصات و Live API',
-          icon: <Globe className="w-4 h-4 text-amber-300" />,
-          isActive: activeTab === 'platforms_guide',
-          action: () => onSelectTab('platforms_guide')
+          id: 'reports_tab',
+          label: 'التقارير المالية والتريندات 📊',
+          icon: <TrendingUp className="w-4 h-4 text-emerald-300" />,
+          isActive: activeTab === 'reports' || activeTab === 'trending',
+          action: () => onSelectTab('reports')
         }
       ]
     },
     {
       id: 'logistics',
-      title: '📦 العمليات واللوجستيات والشحن',
+      title: '📦 المخزون والعمليات',
       icon: <Truck className="w-5 h-5 text-purple-300" />,
       headerBg: 'bg-gradient-to-r from-purple-950 via-slate-900 to-pink-950',
       borderColor: 'border-purple-500/40',
       items: [
         {
           id: 'shipping_tab',
-          label: 'بوالص الشحن وفصل الطلبات',
+          label: 'الفواتير وبوالص الشحن 🧾',
           icon: <Truck className="w-4 h-4 text-purple-200" />,
           isActive: activeTab === 'shipping',
           action: () => onSelectTab('shipping')
         },
         {
-          id: 'price_comparison',
-          label: 'مقارنة الأسعار والعروض الحية',
-          icon: <ArrowUpDown className="w-4 h-4 text-pink-300" />,
-          isActive: activeTab === 'price_comparison',
-          action: () => onSelectTab('price_comparison'),
-          badge: 'عروض حية ⚡'
-        },
-        {
-          id: 'gap_csv',
-          label: 'مقارنة الفجوات CSV وتصدير البيانات',
-          icon: <Layers className="w-4 h-4 text-purple-300" />,
-          isActive: false,
-          action: () => onSelectTab('price_comparison')
+          id: 'radar_tab',
+          label: 'أسعار المنافسين والرادار 💰',
+          icon: <Compass className="w-4 h-4 text-teal-300" />,
+          isActive: activeTab === 'radar',
+          action: () => onSelectTab('radar')
         }
       ]
     },

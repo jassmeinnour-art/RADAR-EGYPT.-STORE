@@ -4,13 +4,17 @@ export interface Trader {
   id: string;
   user_id: string;
   seller_name: string;
-  seller_id: string;
   email: string;
+  phone: string;
+  address?: string;
   platform: 'amazon' | 'noon' | 'jumia' | 'raneen' | 'kanz' | 'homesmart' | 'bayyaa' | string;
   status: 'active' | 'inactive';
+  seller_ids?: Record<string, string>; // { amazon: '...', noon: '...' }
+  api_keys?: Record<string, any>;   // { amazon: { clientId: '...', ... }, noon: '...' }
   created_at?: string;
   // UI helpers
   products_count?: number;
+  total_stock?: number;
   last_sync_at?: string;
 }
 
@@ -21,6 +25,7 @@ export interface Product {
   sku: string;
   price: number;
   stock: number;
+  platform: string;
   image?: string;
   buybox_price?: number;
   competitor_price?: number;
@@ -100,14 +105,18 @@ export const multiTenantDb = {
       const mahmoudSaeedDefault: Trader = {
         id: 'merchant-mahmeud-said',
         user_id: userId,
-        seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
-        seller_id: 'AMAOHMEDSAID1',
+        seller_name: 'محمود سعيد (Mahmoud Saeed)',
         email: 'mahmeud.said@merchantradar.eg',
+        phone: '+20 10 1234 5678',
+        address: 'القاهرة، مصر',
         platform: 'amazon',
         status: 'active',
         created_at: new Date().toISOString(),
         products_count: 0,
-        last_sync_at: new Date().toISOString()
+        total_stock: 0,
+        last_sync_at: new Date().toISOString(),
+        seller_ids: { amazon: 'AMAOHMEDSAID1' },
+        api_keys: {}
       };
       traders = [mahmoudSaeedDefault];
       try {
@@ -307,8 +316,9 @@ export const multiTenantDb = {
                 title.includes('إيربودز') ||
                 title.includes('أنكر') ||
                 title.includes('طاولة مكتب خشبية') ||
-                title.includes('كرسي مكتب هيدروليك');
-              return !isMock && (p.trader_id === traderId || !p.trader_id);
+                title.includes('كرسي مكتب هيدروليك') ||
+                title.includes('محمود سعيد'); // Ensure no mock items for Mahmoud Saeed
+              return !isMock && p.trader_id === traderId;
             });
             if (cleaned.length !== parsed.length) {
               localStorage.setItem(getProductsStorageKey(traderId), JSON.stringify(cleaned));

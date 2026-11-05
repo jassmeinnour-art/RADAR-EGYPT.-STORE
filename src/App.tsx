@@ -730,17 +730,7 @@ export default function App() {
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 border-t border-slate-800/60 py-2.5">
           <div className="flex items-center gap-3 flex-wrap">
             
-            {/* Sidebar Toggle Button */}
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-600 hover:to-teal-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg flex items-center gap-2 border border-emerald-400/40 active:scale-95 transition-all cursor-pointer"
-              title="فتح القائمة الجانبية الشاملة لجميع أقسام وخواص التطبيق"
-            >
-              <Menu className="w-4 h-4 text-white shrink-0" />
-              <span>القائمة الجانبية ☰</span>
-            </button>
-
-            {/* Unified Traders Directory Navigation Button */}
+            {/* Unified Traders Directory */}
             <button
               onClick={() => { 
                 setActiveWorkspaceTab('traders'); 
@@ -748,167 +738,79 @@ export default function App() {
                 setSelectedTraderProfileId(null);
                 if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
               }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'traders' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-1 ring-amber-400'
-                  : 'bg-slate-900/90 text-amber-300 hover:text-white border border-amber-500/30'
+                  ? 'bg-amber-500 text-slate-950 shadow-lg ring-1 ring-amber-400'
+                  : 'bg-slate-900/90 text-amber-300 hover:text-white border border-amber-500/20'
               }`}
-              title="دليل التجار الموحد"
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-4 h-4" />
               <span>دليل التجار الموحد 📚</span>
             </button>
 
+            {/* Product Management */}
             <button
-              onClick={() => { 
-                setActiveWorkspaceTab('merchants'); 
-                setShowOwnerDashboard(false); 
-                if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'merchants' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
+                  ? 'bg-amber-600 text-white shadow-lg'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
-              title="إدارة المتاجر والمنصات وسحب المخزون (Ctrl+1)"
             >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>لوحة التاجر والكتالوج</span>
+              <Package className="w-4 h-4 text-sky-400" />
+              <span>إدارة المنتجات 📦</span>
             </button>
 
-            <button
-              onClick={() => { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'radar' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="رادار الباي بوكس والأسعار المباشرة (Ctrl+2)"
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>رادار الباي بوكس والأسعار</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('watchlist'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'watchlist' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="قائمة المتابعة وتنبيهات تغير الأسعار الفورية عبر Web Notifications API"
-            >
-              <Bell className="w-3.5 h-3.5 text-amber-300" />
-              <span>قائمة المتابعة والتنبيهات</span>
-              {watchlistCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full">
-                  {watchlistCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('ai_studio'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'ai_studio' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="استوديو الذكاء الاصطناعي لتصميم العناوين والصور (Ctrl+3)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>أستوديو الذكاء الاصطناعي</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('shipping'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'shipping' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="بوالص الشحن وفصل الطلبات المتعددة (Ctrl+4)"
-            >
-              <Truck className="w-3.5 h-3.5 text-sky-400" />
-              <span>بوالص الشحن وفصل الطلبات</span>
-            </button>
-
+            {/* Inventory Management */}
             <button
               onClick={() => { setActiveWorkspaceTab('trending'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'trending' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
+                  ? 'bg-amber-600 text-white shadow-lg'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
-              title="ترشيحات المنتجات التريند وحساب هامش الربح بالجنيه (Ctrl+5)"
             >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span>التريند وحساب الأرباح</span>
+              <Layers className="w-4 h-4 text-emerald-400" />
+              <span>إدارة المخزون 📊</span>
             </button>
 
+            {/* Competitor Prices */}
+            <button
+              onClick={() => { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeWorkspaceTab === 'radar' && !showOwnerDashboard
+                  ? 'bg-amber-600 text-white shadow-lg'
+                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-rose-400" />
+              <span>أسعار المنافسين 💰</span>
+            </button>
+
+            {/* Invoices */}
+            <button
+              onClick={() => { setActiveWorkspaceTab('shipping'); setShowOwnerDashboard(false); }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeWorkspaceTab === 'shipping' && !showOwnerDashboard
+                  ? 'bg-amber-600 text-white shadow-lg'
+                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
+              }`}
+            >
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>الفواتير 🧾</span>
+            </button>
+
+            {/* Reports */}
             <button
               onClick={() => { setActiveWorkspaceTab('reports'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'reports' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
+                  ? 'bg-amber-600 text-white shadow-lg'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
-              title="التقارير المالية الأسبوعية والشهرية والسنوية (Ctrl+6)"
             >
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>التقارير المالية</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('auto_pricing'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'auto_pricing' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="محرك التسعير الآلي المشروط (Ctrl+7)"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-300" />
-              <span>محرك التسعير الآلي</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('price_comparison'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'price_comparison' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="مقارنة الأسعار والعروض الحية وتنبيهات الخصومات الفورية"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5 text-amber-200" />
-              <span>مقارنة الأسعار والعروض</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('platforms_guide'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'platforms_guide' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="دليل ربط المنصات ومفاتيح API (Ctrl+8)"
-            >
-              <Key className="w-3.5 h-3.5 text-amber-300" />
-              <span>ربط المنصات و API</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveWorkspaceTab('help'); setShowOwnerDashboard(false); }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                activeWorkspaceTab === 'help' && !showOwnerDashboard
-                  ? 'bg-amber-700 text-white shadow-md font-bold'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-              title="دليل الاستخدام والدعم الفني (Ctrl+9)"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>الدعم والمساعدة</span>
+              <BarChart3 className="w-4 h-4 text-indigo-400" />
+              <span>التقارير 📊</span>
             </button>
           </div>
         </div>
