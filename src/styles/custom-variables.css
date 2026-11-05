@@ -1,0 +1,12 @@
+:root {
+  --primary-color: #ff6a00;
+  --secondary-color: #1a1a2e;
+  --sidebar-bg: #0f0f1e;
+  --sidebar-width: 280px;
+  --card-radius: 12px;
+  --card-border: 1px solid #333;
+  --text-size: 14px;
+  --text-color: #ffffff;
+  --button-radius: 8px;
+  --shadow: 0 4px 12px rgba(0,0,0,0.3);
+}

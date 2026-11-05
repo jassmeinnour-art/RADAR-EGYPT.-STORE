@@ -608,9 +608,9 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
       // Save to Supabase table user_themes (user_id, theme_json)
       try {
         const userId = 'radar_merchant_owner';
-        await supabase.from('user_themes').insert({
+        await supabase.from('app_settings').insert({
           user_id: userId,
-          theme_json: settings,
+          settings: settings,
           updated_at: new Date().toISOString()
         });
       } catch (sbErr) {

@@ -116,10 +116,27 @@ interface ColorPickerRowProps {
 }
 
 const ColorPickerRow: React.FC<ColorPickerRowProps> = ({ label, value, onChange }) => {
+  const adjustColor = (amount: number) => {
+    // Simple hex adjustment
+    const hex = value.replace('#', '');
+    const num = parseInt(hex, 16);
+    let r = (num >> 16) + amount;
+    let g = ((num >> 8) & 0x00FF) + amount;
+    let b = (num & 0x0000FF) + amount;
+    r = Math.min(255, Math.max(0, r));
+    g = Math.min(255, Math.max(0, g));
+    b = Math.min(255, Math.max(0, b));
+    onChange(`#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`);
+  };
+
   return (
     <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-right">
       <span className="text-xs font-bold text-slate-300">{label}</span>
       <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-0.5">
+          <button onClick={() => adjustColor(20)} className="text-[8px] bg-slate-800 hover:bg-slate-700 px-1 rounded">▲</button>
+          <button onClick={() => adjustColor(-20)} className="text-[8px] bg-slate-800 hover:bg-slate-700 px-1 rounded">▼</button>
+        </div>
         <input
           type="color"
           value={value.startsWith('#') && value.length === 7 ? value : '#FF8C00'}
