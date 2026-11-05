@@ -816,6 +816,28 @@ export default function App() {
         </div>
       </header>
 
+      {/* Sidebar Component */}
+      <AppSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        activeTab={activeWorkspaceTab}
+        onSelectTab={(tab) => {
+          setActiveWorkspaceTab(tab);
+          setIsSidebarOpen(false);
+          if (tab === 'traders') {
+            setSelectedTraderProfileId(null);
+            window.history.pushState({}, '', '/traders');
+          } else {
+            window.history.pushState({}, '', '/');
+          }
+        }}
+        onOpenAllMerchantsHub={() => setIsAllMerchantsHubOpen(true)}
+        onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
+        onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
+        onOpenOnboarding={() => setShowOnboarding(true)}
+        isOwner={isOwner}
+      />
+
       {/* Main Workspace Area */}
       <main className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6">
         <AnimatePresence mode="wait">
