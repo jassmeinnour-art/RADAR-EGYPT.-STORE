@@ -90,9 +90,18 @@ export async function parseSafeJsonResponse(
 }
 
 /**
- * Builds the verified authentic catalog for a merchant when the API endpoint returns a 404/HTML gateway response in offline/preview mode
+ * Builds the authentic catalog for a merchant (No fake/demo products)
  */
 export function buildVerifiedMerchantCatalogFallback(
+  _merchantId: string,
+  _merchantName: string,
+  _platformFilter: 'all' | 'amazon_eg' | 'noon_eg' = 'all'
+): MerchantCatalogProduct[] {
+  // Strictly authentic: no demo, mock or sample products are returned
+  return [];
+}
+
+function _legacyUnusedFallback(
   merchantId: string,
   merchantName: string,
   platformFilter: 'all' | 'amazon_eg' | 'noon_eg' = 'all'
@@ -444,17 +453,33 @@ export function loadMerchantCatalog(merchantId: string): MerchantCatalogProduct[
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Filter out legacy seeded mock IDs ('stp-prod-', 'str-prod-', 'gen-') and generic unverified B0H4RJP1ZS Folding Table items
+        // Filter out legacy seeded mock IDs and fake demo products
         const cleaned = parsed.filter(
-          (p: any) =>
-            p &&
-            p.id &&
-            !String(p.id).startsWith('stp-prod-') &&
-            !String(p.id).startsWith('str-prod-') &&
-            !String(p.id).startsWith('gen-') &&
-            String(p.asin || '').toUpperCase() !== 'B0H4RJP1ZS' &&
-            !String(p.title || '').toLowerCase().includes('folding table - modern') &&
-            p.dataMode !== 'demo'
+          (p: any) => {
+            if (!p || !p.id) return false;
+            const id = String(p.id);
+            const sku = String(p.sku || '');
+            const title = String(p.title || '');
+            const isMock = 
+              id.startsWith('stp-prod-') ||
+              id.startsWith('str-prod-') ||
+              id.startsWith('gen-') ||
+              id.startsWith('PRD-AMZ-') ||
+              id.startsWith('PRD-NOON-') ||
+              id.startsWith('prod-amz-') ||
+              id.startsWith('prod-noon-') ||
+              sku.includes('MS-DESK') ||
+              sku.includes('S24') ||
+              sku.includes('AIRPODS') ||
+              sku.includes('ANKER') ||
+              title.includes('سامسونج') ||
+              title.includes('إيربودز') ||
+              title.includes('أنكر') ||
+              String(p.asin || '').toUpperCase() === 'B0H4RJP1ZS' ||
+              title.toLowerCase().includes('folding table - modern') ||
+              p.dataMode === 'demo';
+            return !isMock;
+          }
         );
         if (cleaned.length !== parsed.length) {
           saveMerchantCatalog(merchantId, cleaned);

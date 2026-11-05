@@ -38,8 +38,10 @@ import {
   FileJson,
   Wifi,
   WifiOff,
-  Database
+  Database,
+  Palette
 } from 'lucide-react';
+import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 import { 
   MerchantCatalogProduct, 
   MerchantCatalogPricingStatus, 
@@ -132,6 +134,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
   onOpenManageApisModal,
   onShowToast
 }) => {
+  const { toggleCustomizer } = useVisualCustomizer();
   const [allMerchants, setAllMerchants] = useState<RemoteMerchantClient[]>(() => loadAllRegisteredMerchants());
   
   // Pinned / Favorite Merchants State (stored in localStorage)
@@ -1685,6 +1688,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
               <span className="whitespace-nowrap">
                 {pinnedMerchantIds.includes(activeMerchantId) ? 'المفضل مثبت ⭐' : 'تثبيت التاجر 📌'}
               </span>
+            </button>
+
+            {/* Visual Theme Customizer Pro Button */}
+            <button
+              type="button"
+              id="btn-catalog-visual-customizer"
+              onClick={toggleCustomizer}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded-xl border border-amber-400/50 text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 shrink-0"
+              title="تخصيص المظهر، ألوان الداشبورد، الخطوط، وإدارة الأزرار"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-200" />
+              <span>🎨 تخصيص المظهر</span>
             </button>
 
             {onOpenManageApisModal && (
