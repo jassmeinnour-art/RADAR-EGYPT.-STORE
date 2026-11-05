@@ -100,25 +100,9 @@ export const multiTenantDb = {
       }
     }
 
-    // If still empty, return exclusively Mahmoud Saeed as the single real clean merchant profile
+    // If still empty, return an empty array (no mock merchants)
     if (traders.length === 0) {
-      const mahmoudSaeedDefault: Trader = {
-        id: 'merchant-mahmeud-said',
-        user_id: userId,
-        seller_name: 'محمود سعيد (Mahmoud Saeed)',
-        email: 'mahmeud.said@merchantradar.eg',
-        phone: '+20 10 1234 5678',
-        address: 'القاهرة، مصر',
-        platform: 'amazon',
-        status: 'active',
-        created_at: new Date().toISOString(),
-        products_count: 0,
-        total_stock: 0,
-        last_sync_at: new Date().toISOString(),
-        seller_ids: { amazon: 'AMAOHMEDSAID1' },
-        api_keys: {}
-      };
-      traders = [mahmoudSaeedDefault];
+      traders = [];
       try {
         localStorage.setItem(getTradersStorageKey(userId), JSON.stringify(traders));
       } catch {}
