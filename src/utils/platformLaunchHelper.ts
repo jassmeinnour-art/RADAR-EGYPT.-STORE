@@ -485,42 +485,8 @@ export function unlinkPlatformsFromGmail(
 export const STORAGE_MERCHANTS_LIST_KEY = 'merchant_radar_remote_merchants_v1';
 export const STORAGE_ACTIVE_MANAGED_MERCHANT_KEY = 'merchant_radar_active_managed_merchant_id';
 
-// Exclusive Real Merchant (Mahmeud Said) - All dummy/mock merchants purged
-export const DEFAULT_REGISTERED_MERCHANTS: RemoteMerchantClient[] = [
-  {
-    id: 'merchant-mahmeud-said',
-    storeName: 'متجر محمود سعيد (Mahmeud Said Store)',
-    contactPerson: 'محمود سعيد',
-    primaryEmail: 'mahmeud.said@merchantradar.eg',
-    additionalEmails: [],
-    phone: '+20 10 1234 5678',
-    city: 'القاهرة - مصر',
-    platformsSubscribed: ['amazon_eg', 'noon_eg', 'jumia_eg'],
-    assignedProductIds: [],
-    weeklySalesTargetEGP: 200000,
-    currentWeeklySalesEGP: 45000,
-    currentWeeklyOrdersCount: 38,
-    averageProfitMarginPercent: 27.5,
-    buyBoxWinRatePercent: 92,
-    reportDayOfWeek: 'thursday',
-    autoSendWeeklyReport: true,
-    sendWhatsAppReport: true,
-    status: 'active',
-    dataMode: 'live',
-    apiCredentials: {
-      amazonClientId: '',
-      amazonClientSecret: '',
-      amazonRefreshToken: '',
-      amazonSellerId: 'AMAOHMEDSAID1',
-      amazonRegion: 'eu-west-1',
-      amazonMarketplaceId: 'ARBP9OOSHTCHU',
-      noonAuthKey: '',
-      noonAppId: '',
-      dataMode: 'live',
-      isConfigured: true
-    }
-  }
-];
+// Exclusive Real Merchant - All dummy/mock merchants purged
+export const DEFAULT_REGISTERED_MERCHANTS: RemoteMerchantClient[] = [];
 
 const STORAGE_VODAFONE_WALLET_KEY = 'merchant_radar_admin_vodafone_cash_wallet_v1';
 
@@ -915,26 +881,7 @@ export function normalizeStoreNameForDedup(name?: string): string {
     .trim();
 }
 
-/**
- * Identifies whether a merchant record belongs to Mahmoud Saeed / Mahmeud Said in Arabic or English.
- */
-export function isMahmoudSaeedMerchant(m?: Partial<RemoteMerchantClient> | null): boolean {
-  if (!m) return false;
-  const id = (m.id || '').toLowerCase();
-  const store = (m.storeName || '').toLowerCase();
-  const contact = (m.contactPerson || '').toLowerCase();
-  const email = (m.primaryEmail || '').toLowerCase();
 
-  if (id === 'merchant-mahmeud-said') return true;
-
-  const matchesArabic = store.includes('محمود') || contact.includes('محمود') || 
-                        store.includes('سعيد') || contact.includes('سعيد');
-  const matchesEnglish = store.includes('mahm') || store.includes('saeed') || store.includes('said') ||
-                         contact.includes('mahm') || contact.includes('saeed') || contact.includes('said') ||
-                         email.includes('mahm') || email.includes('saeed') || email.includes('said');
-
-  return matchesArabic || matchesEnglish;
-}
 
 /**
  * Deduplicates a list of merchants:
@@ -968,8 +915,6 @@ export function deduplicateMerchantsList(merchants: RemoteMerchantClient[]): {
     'رويال فورنتشر'
   ];
 
-  let canonicalMahmoudSaeed: RemoteMerchantClient | null = null;
-
   for (const raw of merchants) {
     if (!raw) continue;
     const item = ensureMerchantTrialFields(raw);
@@ -984,35 +929,7 @@ export function deduplicateMerchantsList(merchants: RemoteMerchantClient[]): {
       continue;
     }
 
-    // 2. Unify all Mahmoud Saeed duplicate records into exactly ONE canonical record
-    if (isMahmoudSaeedMerchant(item)) {
-      if (!canonicalMahmoudSaeed) {
-        canonicalMahmoudSaeed = {
-          ...item,
-          id: 'merchant-mahmeud-said',
-          storeName: 'متجر محمود سعيد (Mahmeud Said Store)',
-          contactPerson: 'محمود سعيد',
-          primaryEmail: item.primaryEmail || 'mahmeud.said@merchantradar.eg',
-          status: 'active',
-          dataMode: 'live',
-        };
-      } else {
-        // Collect duplicate ID to delete from Cloud Firestore and local storage
-        if (id && id !== 'merchant-mahmeud-said') {
-          purgedIds.push(id);
-        }
-        // Merge enriched fields if available
-        if (item.apiCredentials?.amazonSellerId && !canonicalMahmoudSaeed.apiCredentials?.amazonSellerId) {
-          canonicalMahmoudSaeed.apiCredentials = {
-            ...canonicalMahmoudSaeed.apiCredentials,
-            amazonSellerId: item.apiCredentials.amazonSellerId
-          };
-        }
-      }
-      continue;
-    }
-
-    // 3. Unique validation constraint for other merchants
+    // 2. Unique validation constraint
     const normEmail = (item.primaryEmail || '').trim().toLowerCase();
     const normStore = normalizeStoreNameForDedup(item.storeName);
 
@@ -1030,13 +947,6 @@ export function deduplicateMerchantsList(merchants: RemoteMerchantClient[]): {
     if (normEmail) seenEmails.add(normEmail);
     if (normStore) seenStoreNames.add(normStore);
     deduped.push(item);
-  }
-
-  // Prepend the single canonical record for Mahmoud Saeed
-  if (canonicalMahmoudSaeed) {
-    deduped.unshift(canonicalMahmoudSaeed);
-  } else if (DEFAULT_REGISTERED_MERCHANTS.length > 0) {
-    deduped.unshift(DEFAULT_REGISTERED_MERCHANTS[0]);
   }
 
   return { deduped, purgedIds };
@@ -1138,9 +1048,7 @@ export function addNewRegisteredMerchant(data: {
   const existingIdx = list.findIndex(m => {
     if (cleanEmail && m.primaryEmail?.trim().toLowerCase() === cleanEmail) return true;
     if (cleanStoreName && normalizeStoreNameForDedup(m.storeName) === normStore) return true;
-    if (isMahmoudSaeedMerchant(m) && isMahmoudSaeedMerchant({ storeName: cleanStoreName, contactPerson: data.contactPerson, primaryEmail: cleanEmail })) {
-      return true;
-    }
+
     return false;
   });
 

@@ -298,10 +298,7 @@ export const multiTenantDb = {
                 sku.includes('ANKER') ||
                 title.includes('سامسونج') ||
                 title.includes('إيربودز') ||
-                title.includes('أنكر') ||
-                title.includes('طاولة مكتب خشبية') ||
-                title.includes('كرسي مكتب هيدروليك') ||
-                title.includes('محمود سعيد'); // Ensure no mock items for Mahmoud Saeed
+                title.includes('كرسي مكتب هيدروليك');
               return !isMock && p.trader_id === traderId;
             });
             if (cleaned.length !== parsed.length) {
