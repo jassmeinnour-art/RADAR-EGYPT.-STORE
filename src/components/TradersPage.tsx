@@ -34,9 +34,15 @@ const PLATFORM_DETAILS: Record<string, { name: string; color: string; logo: stri
   homesmart: { name: 'هوم سمارت (HomeSmart)', color: 'border-rose-500/40 bg-rose-500/10 text-rose-300', logo: 'https://www.homesmart.com.eg/favicon.ico' }
 };
 
+import { dataCache } from '../utils/dataCache';
+
 export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectTrader }) => {
   const [traders, setTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [page, setPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -48,18 +54,49 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   const [formPlatform, setFormPlatform] = useState<string>('amazon');
   const [formSellerId, setFormSellerId] = useState<string>('');
 
-  const fetchTraders = async () => {
+  const fetchTraders = async (targetPage = 1, forceFresh = false) => {
     setIsLoading(true);
+    const cacheKey = `traders_page_${targetPage}`;
+
+    if (!forceFresh) {
+      const cached = dataCache.get<Trader[]>(cacheKey);
+      if (cached) {
+        setTraders(cached);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
+      const from = (targetPage - 1) * PAGE_SIZE;
+      const to = targetPage * PAGE_SIZE - 1;
+
+      // Requirement 1 & 2: Range 0..19 (20 per page) + Selective columns only
       const { data, error } = await supabase
         .from('traders')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, seller_name, email, phone, platform, status, seller_id, seller_link, storefront_link, created_at')
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) {
         console.error('Error fetching traders:', error);
       }
-      setTraders(Array.isArray(data) ? (data as Trader[]) : []);
+
+      const list = Array.isArray(data) ? (data as Trader[]) : [];
+      setHasMore(list.length === PAGE_SIZE);
+
+      if (targetPage === 1) {
+        setTraders(list);
+      } else {
+        setTraders((prev) => {
+          const combined = [...prev, ...list];
+          const unique = Array.from(new Map(combined.map((t) => [t.id, t])).values());
+          return unique;
+        });
+      }
+
+      dataCache.set(cacheKey, list);
+      setPage(targetPage);
     } catch (err) {
       console.error('Error fetching traders:', err);
       setTraders([]);
@@ -69,7 +106,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   };
 
   useEffect(() => {
-    fetchTraders();
+    fetchTraders(1);
   }, []);
 
   const handleOpenTrader = (traderId: string) => {
@@ -439,6 +476,20 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
           );
         })}
       </div>
+
+      {/* Load More Button for Pagination */}
+      {hasMore && (
+        <div className="text-center pt-4">
+          <button
+            onClick={() => fetchTraders(page + 1)}
+            disabled={isLoading}
+            className="px-8 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs border border-amber-500/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+          >
+            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <span>عرض التجار الإضافيين (20 تاجر التاليين) ➕</span>
+          </button>
+        </div>
+      )}
 
       {/* Add Trader Modal */}
       {isAddModalOpen && (

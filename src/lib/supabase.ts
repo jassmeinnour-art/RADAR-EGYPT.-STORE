@@ -791,7 +791,7 @@ class SupabaseQueryBuilder {
     this.tableName = tableName;
   }
 
-  select(fields: string = '*'): this {
+  select(fields: string = '*', options?: { count?: string }): this {
     this.selectFields = fields;
     return this;
   }
@@ -828,6 +828,11 @@ class SupabaseQueryBuilder {
 
   limit(count: number): this {
     this.limitCount = count;
+    return this;
+  }
+
+  range(from: number, to: number): this {
+    this.limitCount = Math.max(1, (to - from) + 1);
     return this;
   }
 

@@ -19,6 +19,8 @@ import {
 import { supabase, Product, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 
+import { dataCache } from '../utils/dataCache';
+
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
 }
@@ -32,6 +34,11 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   // Query parameter states
   const [urlTraderId, setUrlTraderId] = useState<string | null>(null);
   const [urlPlatform, setUrlPlatform] = useState<string | null>(null);
+
+  // Pagination states (Requirement 1: 20 per page + page numbers)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const PAGE_SIZE = 20;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -57,19 +64,32 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     return { trader_id, platform };
   }, []);
 
-  const fetchProductsAndTraders = useCallback(async (forcedTraderId?: string | null, forcedPlatform?: string | null) => {
+  const fetchProductsAndTraders = useCallback(async (forcedTraderId?: string | null, forcedPlatform?: string | null, page = 1, forceFresh = false) => {
     setIsLoading(true);
-    try {
-      // 1. Determine active query filters
-      const trader_id = forcedTraderId !== undefined ? forcedTraderId : urlTraderId;
-      const platform = forcedPlatform !== undefined ? forcedPlatform : urlPlatform;
+    const trader_id = forcedTraderId !== undefined ? forcedTraderId : urlTraderId;
+    const platform = forcedPlatform !== undefined ? forcedPlatform : urlPlatform;
+    const cacheKey = `products_${trader_id || 'all'}_${platform || 'all'}_p${page}`;
 
-      // Build product query strictly per requirements:
-      // إذا trader_id موجود:
-      //   supabase.from('products').select('*').eq('trader_id', trader_id)
-      // وإذا platform موجود أيضاً:
-      //   .eq('platform', platform)
-      let query: any = supabase.from('products').select('*, traders(seller_name)').order('created_at', { ascending: false });
+    if (!forceFresh) {
+      const cached = dataCache.get<{ products: Product[]; total: number }>(cacheKey);
+      if (cached) {
+        setProducts(cached.products);
+        setTotalCount(cached.total);
+        setCurrentPage(page);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const from = (page - 1) * PAGE_SIZE;
+      const to = page * PAGE_SIZE - 1;
+
+      // Requirement 1 & 2: Selective column selection + 20 items per page limit
+      let query: any = supabase
+        .from('products')
+        .select('id, title, sku, price, stock, platform, image, trader_id, created_at, traders(seller_name)', { count: 'exact' })
+        .order('created_at', { ascending: false });
 
       if (trader_id && trader_id !== 'all') {
         query = query.eq('trader_id', trader_id);
@@ -78,17 +98,26 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         query = query.eq('platform', platform);
       }
 
-      const { data: prodsData, error: prodsError } = await query;
+      query = query.range(from, to);
+
+      const { data: prodsData, error: prodsError, count } = await query;
 
       if (prodsError) {
         console.error('Error fetching products:', prodsError);
       }
-      setProducts(Array.isArray(prodsData) ? (prodsData as Product[]) : []);
+      const fetchedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
+      const total = count ?? fetchedProds.length;
 
-      // 2. Fetch traders ONLY for the dropdown options (not main list)
+      setProducts(fetchedProds);
+      setTotalCount(total);
+      setCurrentPage(page);
+
+      dataCache.set(cacheKey, { products: fetchedProds, total });
+
+      // 2. Fetch traders ONLY for the dropdown options (selective columns)
       const { data: tradersData } = await supabase
         .from('traders')
-        .select('*')
+        .select('id, seller_name, platform')
         .order('created_at', { ascending: false });
 
       if (Array.isArray(tradersData)) {
@@ -203,16 +232,24 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     });
   }, [products, searchQuery]);
 
+  // Available real platforms from products data (Requirement 3: Filter reads real product.platform)
+  const availablePlatforms = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.platform && p.platform.trim()) {
+        set.add(p.platform.trim().toLowerCase());
+      }
+    });
+    return Array.from(set);
+  }, [products]);
+
   // Active Trader and Platform labels for the Top Banner
   const activeTraderObj = useMemo(() => {
     if (!urlTraderId || urlTraderId === 'all') return null;
-    return traderOptions.find(t => t.id === urlTraderId) || {
-      id: urlTraderId,
-      seller_name: 'Mahmeud Said Store'
-    };
+    return traderOptions.find(t => t.id === urlTraderId) || null;
   }, [urlTraderId, traderOptions]);
 
-  const activeTraderName = activeTraderObj ? activeTraderObj.seller_name : null;
+  const activeTraderName = activeTraderObj ? activeTraderObj.seller_name : (urlTraderId ? 'Mahmeud Said Store' : null);
   const activePlatformName = urlPlatform && urlPlatform !== 'all' 
     ? (urlPlatform === 'amazon' ? 'Amazon' : urlPlatform === 'noon' ? 'Noon' : urlPlatform.toUpperCase()) 
     : null;
@@ -254,36 +291,36 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       </div>
 
-      {/* 3- Top Banner: "منتجات تاجر: Mahmeud Said Store - منصة: Noon (80 منتج)" + زر "عرض الكل" يمسح الفلتر */}
-      {isFiltered && (
-        <div className="bg-gradient-to-r from-amber-500/15 via-slate-900 to-sky-500/15 border border-amber-500/40 p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-500/30">
-              <Filter className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-sm font-black text-white flex items-center gap-2 flex-wrap">
-                <span>
-                  منتجات تاجر: <strong className="text-amber-400">{activeTraderName || 'الكل'}</strong>
-                </span>
-                {activePlatformName && (
-                  <>
-                    <span className="text-slate-500">-</span>
-                    <span>
-                      منصة: <strong className="text-sky-400">{activePlatformName}</strong>
-                    </span>
-                  </>
-                )}
-                <span className="bg-amber-500/20 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border border-amber-500/30">
-                  {filteredProducts.length} منتج
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                تتم تصفية القائمة بدقة وفق المنصة والتاجر المحددين
-              </p>
-            </div>
+      {/* 2- Top Header Banner above list: Display trader name once (e.g. Header: "منتجات تاجر: Mahmeud Said Store (80 منتج)") */}
+      <div className="bg-gradient-to-r from-amber-500/15 via-slate-900 to-sky-500/15 border border-amber-500/40 p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-500/30">
+            <Store className="w-5 h-5" />
           </div>
+          <div>
+            <div className="text-sm font-black text-white flex items-center gap-2 flex-wrap">
+              <span>
+                منتجات تاجر: <strong className="text-amber-400">{activeTraderName || 'جميع التجار'}</strong>
+              </span>
+              {activePlatformName && (
+                <>
+                  <span className="text-slate-500">-</span>
+                  <span>
+                    منصة: <strong className="text-sky-400">{activePlatformName}</strong>
+                  </span>
+                </>
+              )}
+              <span className="bg-amber-500/20 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border border-amber-500/30">
+                ({filteredProducts.length} منتج)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              عرض تفاصيل الكتالوج الخاص بالتاجر المحدد من قاعدة البيانات
+            </p>
+          </div>
+        </div>
 
+        {isFiltered && (
           <button
             onClick={handleClearAllFilters}
             className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm w-full sm:w-auto justify-center"
@@ -291,8 +328,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             <X className="w-4 h-4" />
             <span>عرض الكل (مسح الفلتر)</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Filters Bar: Search + Trader Dropdown + Platform Filter Dropdown */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -322,14 +359,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
               <option value="all">🏢 جميع التجار ({traderOptions.length})</option>
               {traderOptions.map((trader) => (
                 <option key={trader.id} value={trader.id}>
-                  {trader.seller_name} ({trader.platform})
+                  {trader.seller_name} ({trader.platform || 'عام'})
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Dropdown: Filter by Platform */}
+        {/* 3- Dropdown: Filter by Platform - reads real product.platform. If all null -> displays "كل المنتجات" only */}
         <div className="md:col-span-3">
           <label htmlFor="platform-filter-select" className="sr-only">فلتر حسب المنصة</label>
           <div className="relative">
@@ -340,11 +377,15 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
               onChange={(e) => handlePlatformChange(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-sky-500/50 appearance-none shadow-inner cursor-pointer"
             >
-              <option value="all">🌐 جميع المنصات</option>
-              <option value="amazon">أمازون (Amazon) 🛒</option>
-              <option value="noon">نون (Noon) 🟡</option>
-              <option value="jumia">جوميا (Jumia) 🟠</option>
-              <option value="raneen">رنين (Raneen) 🔵</option>
+              <option value="all">🌐 كل المنتجات ({products.length})</option>
+              {availablePlatforms.length > 0 && availablePlatforms.map((plat) => {
+                const label = plat === 'amazon' ? 'أمازون (Amazon) 🛒' : plat === 'noon' ? 'نون (Noon) 🟡' : plat === 'jumia' ? 'جوميا (Jumia) 🟠' : plat.toUpperCase();
+                return (
+                  <option key={plat} value={plat}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -387,15 +428,23 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((product) => {
-            const traderInfo = (product as any).traders;
-            const sellerName = traderInfo?.seller_name || activeTraderName || 'متجر محمود سعيد (Mahmeud Said Store)';
-            const isAmazon = product.platform?.toLowerCase() === 'amazon';
-            const isNoon = product.platform?.toLowerCase() === 'noon';
-            const platformBadge = isAmazon
+            // Requirement 1 & 2:
+            // 1. Only show real platform badge if product.platform actually exists in Supabase. Otherwise show "غير محدد"
+            // 2. Do NOT repeat trader name in every card. Show SKU + Price + Stock only!
+            const hasPlatform = Boolean(product.platform && product.platform.trim());
+            const platLower = (product.platform || '').toLowerCase();
+            const isAmazon = platLower === 'amazon';
+            const isNoon = platLower === 'noon';
+
+            const platformBadgeStyle = !hasPlatform
+              ? 'text-slate-400 bg-slate-800/60 border-slate-700'
+              : isAmazon
               ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
               : isNoon
               ? 'text-yellow-300 bg-yellow-500/15 border-yellow-500/30'
               : 'text-sky-300 bg-sky-500/15 border-sky-500/30';
+
+            const platformDisplayLabel = hasPlatform ? product.platform!.toUpperCase() : 'غير محدد';
 
             return (
               <div
@@ -403,22 +452,19 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 className="bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-3xl p-5 transition-all group flex flex-col justify-between shadow-lg"
               >
                 <div className="space-y-3">
-                  {/* Top Bar: Trader and Platform */}
+                  {/* Top Bar: Real Platform Badge & Status (NO seller name repetition) */}
                   <div className="flex items-center justify-between gap-2">
                     <span 
-                      onClick={() => handleTraderChange(product.trader_id)}
-                      className="text-[11px] font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/20 flex items-center gap-1.5 truncate max-w-[200px] cursor-pointer transition"
-                      title="تصفية حسب هذا التاجر"
+                      onClick={() => {
+                        if (hasPlatform) handlePlatformChange(product.platform!);
+                      }}
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl border ${platformBadgeStyle} ${hasPlatform ? 'cursor-pointer hover:opacity-80' : ''} transition`}
+                      title={hasPlatform ? `تصفية حسب منصة ${product.platform}` : 'منصة غير محدودة في Supabase'}
                     >
-                      <Store className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{sellerName}</span>
+                      {platformDisplayLabel}
                     </span>
-                    <span 
-                      onClick={() => handlePlatformChange(product.platform || 'all')}
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${platformBadge} cursor-pointer transition hover:opacity-80`}
-                      title="تصفية حسب هذه المنصة"
-                    >
-                      {product.platform || 'عام'}
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {product.created_at ? new Date(product.created_at).toLocaleDateString('ar-EG') : 'محدث'}
                     </span>
                   </div>
 
@@ -427,23 +473,23 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                     <h3 className="text-sm font-black text-white group-hover:text-sky-300 transition line-clamp-2 leading-snug">
                       {product.title}
                     </h3>
-                    <div className="flex items-center gap-1 mt-1 text-[11px] font-mono text-slate-500">
-                      <Tag className="w-3 h-3 text-slate-600" />
-                      <span>{product.sku}</span>
+                    <div className="flex items-center gap-1.5 mt-2 text-[11px] font-mono text-slate-400">
+                      <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="font-bold text-amber-300/90">SKU: {product.sku}</span>
                     </div>
                   </div>
 
-                  {/* Metrics */}
+                  {/* Metrics: Price + Stock Only */}
                   <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
                     <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
-                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">السعر الحالي</div>
+                      <div className="text-[10px] text-slate-400 font-bold mb-0.5">السعر الحالي</div>
                       <div className="text-sm font-black text-white font-mono">
                         {product.price.toLocaleString()} ج.م
                       </div>
                     </div>
 
                     <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
-                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">المخزون المتوفر</div>
+                      <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون المتوفر</div>
                       <div className="text-sm font-black text-emerald-400 font-mono">
                         {product.stock || 0} قطعة
                       </div>
@@ -451,18 +497,34 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                   </div>
                 </div>
 
-                {/* Footer Info */}
+                {/* Footer Status */}
                 <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-                  <span>
-                    {product.created_at
-                      ? new Date(product.created_at).toLocaleDateString('ar-EG')
-                      : 'محدث'}
-                  </span>
+                  <span className="font-mono text-slate-400">ID: {product.id.substring(0, 12)}</span>
                   <span className="text-sky-400 font-bold">نشط في الكتالوج ✓</span>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Page Numbers (Requirement 1: Pagination 20 items per page with numbers 1, 2, 3...) */}
+      {totalCount > PAGE_SIZE && (
+        <div className="flex items-center justify-center gap-2 pt-6 flex-wrap">
+          <span className="text-xs text-slate-400 font-bold ml-2">الصفحات:</span>
+          {Array.from({ length: Math.ceil(totalCount / PAGE_SIZE) }, (_, i) => i + 1).map((pageNum) => (
+            <button
+              key={pageNum}
+              onClick={() => fetchProductsAndTraders(urlTraderId, urlPlatform, pageNum)}
+              className={`w-9 h-9 rounded-xl font-mono text-xs font-black transition cursor-pointer border ${
+                currentPage === pageNum
+                  ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              {pageNum}
+            </button>
+          ))}
         </div>
       )}
 

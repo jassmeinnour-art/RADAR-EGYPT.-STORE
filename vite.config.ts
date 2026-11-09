@@ -12,6 +12,7 @@ export default defineConfig({
     host: true
   },
   build: {
+    outDir: 'dist',
     chunkSizeWarningLimit: 2000,
     minify: 'esbuild',
     rollupOptions: {

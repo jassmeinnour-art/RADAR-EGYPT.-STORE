@@ -14,7 +14,8 @@ import {
   TrendingUp, 
   Boxes,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
@@ -57,24 +58,44 @@ const PLATFORMS_CONFIG: Record<string, { label: string; color: string; logo: str
   }
 };
 
+import { dataCache } from '../utils/dataCache';
+
 export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [activeTraders, setActiveTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const PAGE_SIZE = 20;
+
   // Filters
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTraderId, setSelectedTraderId] = useState<string>('all');
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
   const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
 
-  const fetchInventoryData = async () => {
+  const fetchInventoryData = async (targetPage = 1, forceFresh = false) => {
+    setIsLoading(true);
+    const cacheKey = `inventory_p${targetPage}`;
+
+    if (!forceFresh) {
+      const cached = dataCache.get<{ inventory: InventoryItem[]; traders: Trader[]; hasMore: boolean }>(cacheKey);
+      if (cached) {
+        setInventory(cached.inventory);
+        setActiveTraders(cached.traders);
+        setHasMore(cached.hasMore);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+    }
+
     try {
-      // 1. Fetch current active traders to verify valid trader_id
+      // 1. Fetch current active traders with selective columns
       const { data: tradersData } = await supabase
         .from('traders')
-        .select('*')
+        .select('id, seller_name, platform')
         .order('created_at', { ascending: false });
 
       const validTraders: Trader[] = Array.isArray(tradersData) ? (tradersData as Trader[]) : [];
@@ -84,15 +105,22 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
 
       if (validTraderIds.length === 0) {
         setInventory([]);
+        setIsLoading(false);
+        setIsRefreshing(false);
         return;
       }
 
-      // 2. Fetch products / inventory strictly from Supabase
+      const from = (targetPage - 1) * PAGE_SIZE;
+      const to = targetPage * PAGE_SIZE - 1;
+
+      // 2. Fetch products / inventory strictly from Supabase using selective columns & 20 range limit
       const { data: prodsData } = await supabase
         .from('products')
-        .select('*, traders(seller_name)')
+        .select('id, trader_id, platform, sku, title, stock, price, updated_at, created_at, traders(seller_name)')
         .not('trader_id', 'is', null)
-        .in('trader_id', validTraderIds);
+        .in('trader_id', validTraderIds)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       let items: InventoryItem[] = [];
       if (Array.isArray(prodsData) && prodsData.length > 0) {
@@ -108,22 +136,23 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
           last_sync: p.updated_at || p.created_at,
           traders: p.traders
         }));
-      } else {
-        // Fallback query from inventory_sync if products table has 0 rows
-        const { data: invData } = await supabase
-          .from('inventory_sync')
-          .select('*, traders(seller_name)')
-          .not('traders', 'is', null)
-          .in('trader_id', validTraderIds);
-
-        if (Array.isArray(invData)) {
-          items = invData as InventoryItem[];
-        }
       }
 
-      // Filter out any orphaned items without an active trader
       const safeItems = items.filter(item => item.trader_id && validTraderIds.includes(item.trader_id));
-      setInventory(safeItems);
+      const moreAvailable = safeItems.length === PAGE_SIZE;
+      setHasMore(moreAvailable);
+
+      if (targetPage === 1) {
+        setInventory(safeItems);
+      } else {
+        setInventory(prev => {
+          const combined = [...prev, ...safeItems];
+          return Array.from(new Map(combined.map(i => [i.id, i])).values());
+        });
+      }
+
+      setPage(targetPage);
+      dataCache.set(cacheKey, { inventory: safeItems, traders: validTraders, hasMore: moreAvailable });
     } catch (err) {
       console.error('Failed to load inventory data:', err);
       setInventory([]);
@@ -134,7 +163,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
   };
 
   useEffect(() => {
-    fetchInventoryData();
+    fetchInventoryData(1);
   }, []);
 
   const handleManualRefresh = async () => {
@@ -535,6 +564,20 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Load More Button for Pagination */}
+      {hasMore && (
+        <div className="text-center pt-4">
+          <button
+            onClick={() => fetchInventoryData(page + 1)}
+            disabled={isLoading}
+            className="px-8 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs border border-amber-500/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+          >
+            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <span>عرض سجلات المخزون التالية (20 سجل إضافي) ➕</span>
+          </button>
         </div>
       )}
     </div>

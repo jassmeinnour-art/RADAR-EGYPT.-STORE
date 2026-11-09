@@ -256,6 +256,8 @@ export default function App() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const lastSwipeTimeRef = React.useRef<number>(0);
+  const SWIPE_DEBOUNCE_MS = 350;
 
   const changeTabWithTransition = (targetTab: WorkspaceTab, targetUrl?: string) => {
     const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
@@ -302,6 +304,12 @@ export default function App() {
     setTouchStartX(null);
     setTouchStartY(null);
 
+    // Debounce check: Prevent rapid overlapping swipes within 350ms
+    const now = Date.now();
+    if (now - lastSwipeTimeRef.current < SWIPE_DEBOUNCE_MS) {
+      return;
+    }
+
     // Require horizontal move > 60px and vertical move < 70px to prevent interrupting vertical scrolling
     if (Math.abs(deltaX) > 60 && Math.abs(deltaY) < 70) {
       const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
@@ -311,6 +319,7 @@ export default function App() {
         if (deltaX < 0) {
           // Swiped Left (Finger dragged right to left -> Next Tab)
           if (currentIndex < PRIMARY_SWIPE_TABS.length - 1) {
+            lastSwipeTimeRef.current = now;
             const nextTabObj = PRIMARY_SWIPE_TABS[currentIndex + 1];
             changeTabWithTransition(nextTabObj.tab, nextTabObj.url);
             showToast(`👈 سحب سريع: ${nextTabObj.name} ${nextTabObj.icon}`);
@@ -318,6 +327,7 @@ export default function App() {
         } else if (deltaX > 0) {
           // Swiped Right (Finger dragged left to right -> Previous Tab)
           if (currentIndex > 0) {
+            lastSwipeTimeRef.current = now;
             const prevTabObj = PRIMARY_SWIPE_TABS[currentIndex - 1];
             changeTabWithTransition(prevTabObj.tab, prevTabObj.url);
             showToast(`👉 سحب سريع: ${prevTabObj.name} ${prevTabObj.icon}`);
