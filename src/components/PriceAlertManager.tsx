@@ -37,7 +37,8 @@ import { ProductData, PriceAlert, AlertNotificationLog, ConnectedMerchantPlatfor
 import { WhatsAppTemplatesCustomizer } from './WhatsAppTemplatesCustomizer';
 import { DailyPriceEmailReportModal } from './DailyPriceEmailReportModal';
 import { ExecutivePdfReportModal } from './ExecutivePdfReportModal';
-import { INITIAL_CONNECTED_PLATFORMS } from '../data/sampleProducts';
+// Removed mock data import
+
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -87,7 +88,7 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
   onSelectProduct,
   onOpenRepriceModal,
   currency,
-  connectedPlatforms = INITIAL_CONNECTED_PLATFORMS,
+  connectedPlatforms = [],
   merchantStoreName = 'متجر التاجر المعتمد - مصر',
   managerEmail = 'jassmeinnour@gmail.com',
   onShowToast,

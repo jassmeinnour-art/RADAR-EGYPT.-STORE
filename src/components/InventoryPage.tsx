@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
+import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
 
 interface InventoryItem {
   id: string;
@@ -31,6 +32,7 @@ interface InventoryItem {
   price: number;
   last_sync?: string;
   created_at?: string;
+  image?: string;
   traders?: {
     seller_name: string;
   } | null;
@@ -116,7 +118,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
       // 2. Fetch products / inventory strictly from Supabase using selective columns & 20 range limit
       const { data: prodsData } = await supabase
         .from('products')
-        .select('id, trader_id, platform, sku, title, stock, price, updated_at, created_at, traders(seller_name)')
+        .select('id, trader_id, platform, sku, title, stock, price, updated_at, created_at, image, traders(seller_name)')
         .not('trader_id', 'is', null)
         .in('trader_id', validTraderIds)
         .order('created_at', { ascending: false })
@@ -134,6 +136,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
           stock_quantity: p.stock || p.stock_quantity || 0,
           price: p.price || 0,
           last_sync: p.updated_at || p.created_at,
+          image: p.image,
           traders: p.traders
         }));
       }
@@ -414,24 +417,13 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
 
       {/* Inventory Items List / Table */}
       {filteredInventory.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-16 text-center space-y-5">
-          <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto">
-            <Boxes className="w-8 h-8" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-lg font-black text-white">📦 لا يوجد مخزون - 0 منتج</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              لا توجد منتجات مسجلة في المخزون حالياً من قاعدة البيانات. يمكنك سحب المنتجات والمخزون مباشرة من رابط متجر التاجر.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <button
-              onClick={() => navigate('/traders')}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs transition shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
-            >
-              🔄 سحب المخزون من رابط المتجر
-            </button>
-
+        <EmptyStatePlaceholder
+          icon={Boxes}
+          title="📦 لا يوجد مخزون - 0 منتج"
+          description="لا توجد منتجات مسجلة في المخزون حالياً من قاعدة البيانات. يمكنك سحب المنتجات والمخزون مباشرة من رابط متجر التاجر."
+          actionLabel="🔄 سحب المخزون من رابط المتجر"
+          onActionClick={() => navigate('/traders')}
+        >
             {(searchQuery || selectedTraderId !== 'all' || selectedPlatform !== 'all' || stockStatusFilter !== 'all') && (
               <button
                 onClick={() => {
@@ -440,13 +432,12 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
                   setSelectedPlatform('all');
                   setStockStatusFilter('all');
                 }}
-                className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
               >
                 إلغاء جميع الفلاتر
               </button>
             )}
-          </div>
-        </div>
+        </EmptyStatePlaceholder>
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
@@ -477,19 +468,27 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
                     <tr key={item.id} className="hover:bg-slate-800/40 transition group">
                       {/* Product / SKU */}
                       <td className="px-5 py-4">
-                        <div className="space-y-1">
-                          <div className="font-bold text-white text-xs line-clamp-1">
-                            {item.title || `صنف كود ${item.sku}`}
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                            <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                              SKU: {item.sku}
-                            </span>
-                            {item.asin && (
-                              <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-500">
-                                ASIN: {item.asin}
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={item.image || "/placeholder-product.png"} 
+                            onError={(e: any) => e.target.src = "/placeholder-product.png"} 
+                            className="w-10 h-10 object-cover rounded-lg"
+                            alt={item.title || item.sku}
+                          />
+                          <div className="space-y-1">
+                            <div className="font-bold text-white text-xs line-clamp-1">
+                              {item.title || `صنف كود ${item.sku}`}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                              <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                                SKU: {item.sku}
                               </span>
-                            )}
+                              {item.asin && (
+                                <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-500">
+                                  ASIN: {item.asin}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>

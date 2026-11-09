@@ -335,53 +335,9 @@ const handleInvoiceSync = async (req: express.Request, res: express.Response) =>
       }
     }
 
-    // Structured invoice data matching the Supabase schema
-    const simulatedInvoices = [
-      {
-        id: `inv-${Date.now()}-1`,
-        trader_id: trader_id || 'TRD-DEFAULT',
-        platform: platform === 'noon' ? 'noon' : 'amazon',
-        invoice_number: `INV-${platform.toUpperCase()}-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-        order_id: platform === 'noon' 
-          ? `NA-${Math.floor(10000000 + Math.random() * 90000000)}` 
-          : `403-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        amazon_order_id: platform === 'noon' ? null : `403-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        marketplace_id: platform === 'noon' ? 'noon-egypt' : 'ARBP9OOSHTCHU',
-        invoice_date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-        total_amount: 2450.00,
-        status: 'shipped',
-        items: [
-          {
-            sku: 'SKU-EGY-7701',
-            asin: 'B0CHX3W9XX',
-            title: 'شاحن فائق السرعة 65W مع كابل مجدول - ضمان محلي عامين',
-            quantity: 2,
-            price: 1225.00
-          }
-        ]
-      },
-      {
-        id: `inv-${Date.now()}-2`,
-        trader_id: trader_id || 'TRD-DEFAULT',
-        platform: 'noon',
-        invoice_number: `INV-NOON-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-        order_id: `NA-${Math.floor(10000000 + Math.random() * 90000000)}`,
-        amazon_order_id: null,
-        marketplace_id: 'noon-egypt',
-        invoice_date: new Date(Date.now() - 96 * 3600 * 1000).toISOString(),
-        total_amount: 1890.00,
-        status: 'delivered',
-        items: [
-          {
-            sku: 'SKU-NOON-8820',
-            asin: 'N70012450A',
-            title: 'حامل هاتف ذكي مغناطيسي للسيارة مع شاحن لاسلكي Qi',
-            quantity: 1,
-            price: 1890.00
-          }
-        ]
-      }
-    ];
+    // Simulated invoices removed as per user request.
+    const simulatedInvoices: any[] = [];
+
 
     res.json({
       success: true,

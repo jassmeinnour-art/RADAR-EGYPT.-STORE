@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase, Product, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
+import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
 
 import { dataCache } from '../utils/dataCache';
 
@@ -398,33 +399,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           <p className="text-slate-400 text-sm font-bold">جاري تحميل قائمة المنتجات المحددة...</p>
         </div>
       ) : filteredProducts.length === 0 ? (
-        // Requirement: If products is empty: show "0 منتج"
-        <div className="py-20 text-center bg-slate-900/40 rounded-3xl border border-dashed border-slate-800 space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-slate-700/50 text-slate-400 flex items-center justify-center mx-auto">
-            <Package className="w-7 h-7" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-xl font-black text-amber-400">0 منتج</h4>
-            <p className="text-slate-400 text-xs">لا توجد منتجات مسجلة مطابقة للبحث أو للتاجر والمنصة المحددة</p>
-          </div>
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs inline-flex items-center gap-2 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة منتج جديد</span>
-            </button>
-            {isFiltered && (
-              <button
-                onClick={handleClearAllFilters}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs transition cursor-pointer"
-              >
-                مسح الفلتر وعرض الكل
-              </button>
-            )}
-          </div>
-        </div>
+        <EmptyStatePlaceholder
+          icon={Package}
+          title="📦 لا يوجد منتجات"
+          description="أضف تاجر أولاً ثم اسحب منتجاته"
+          actionLabel={isFiltered ? "مسح الفلتر وعرض الكل" : "إضافة منتج جديد"}
+          onActionClick={isFiltered ? handleClearAllFilters : () => setIsAddModalOpen(true)}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((product) => {
@@ -470,6 +451,12 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
                   {/* Title & SKU */}
                   <div>
+                    <img 
+                      src={product.image || "/placeholder-product.png"} 
+                      onError={(e: any) => e.target.src = "/placeholder-product.png"} 
+                      className="w-full h-32 object-cover rounded-2xl mb-2 border border-slate-800"
+                      alt={product.title}
+                    />
                     <h3 className="text-sm font-black text-white group-hover:text-sky-300 transition line-clamp-2 leading-snug">
                       {product.title}
                     </h3>

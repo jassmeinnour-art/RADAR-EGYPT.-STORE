@@ -418,40 +418,8 @@ export const multiTenantDb = {
       if (raw) return JSON.parse(raw);
     } catch {}
 
-    // Fallback seed invoices for smooth live demo and testing
-    const sampleInvoices = [
-      {
-        id: `inv-${traderId}-1`,
-        invoice_number: 'INV-AMZ-2026-9041',
-        order_id: '403-8821945-1284901',
-        amazon_order_id: '403-8821945-1284901',
-        platform: 'amazon',
-        total_amount: 1450,
-        status: 'shipped',
-        invoice_date: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-        items: [
-          { id: 'item-1', sku: 'SKU-AMZ-CB-01', asin: 'B09V3K19LK', title: 'كابل شحن سريع Type-C مجدول 1.8م أزرق', quantity: 1, price: 180 },
-          { id: 'item-2', sku: 'SKU-AMZ-CH-02', asin: 'B08N5M64T1', title: 'شاحن حائطي سريع 65W GaN ثلاثي المنافذ', quantity: 2, price: 540 },
-          { id: 'item-3', sku: 'SKU-AMZ-PB-03', asin: 'B07Y8S8N62', title: 'باور بانك 20,000 مللي أمبير PD 22.5W شحن فائق', quantity: 1, price: 730 }
-        ]
-      },
-      {
-        id: `inv-${traderId}-2`,
-        invoice_number: 'INV-NON-2026-3180',
-        order_id: 'NA-EG-8821039',
-        platform: 'noon',
-        total_amount: 890,
-        status: 'delivered',
-        invoice_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-        items: [
-          { id: 'item-4', sku: 'SKU-NON-EAR-01', asin: 'N4819024A', title: 'سماعات بلوتوث لاسلكية عازلة للضوضاء ANC', quantity: 1, price: 890 }
-        ]
-      }
-    ];
-    try {
-      localStorage.setItem(`radar_invoices_${traderId}`, JSON.stringify(sampleInvoices));
-    } catch {}
-    return sampleInvoices;
+    return [];
+
   },
 
   async saveInvoices(traderId: string, invoices: any[]): Promise<void> {
@@ -1043,103 +1011,8 @@ class SupabaseQueryBuilder {
         }
       } catch {}
 
-      if (dataset.length === 0) {
-        dataset = [
-          {
-            id: 'merchant-mahmeud-said',
-            user_id: 'default-user',
-            seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
-            email: 'mahmoud.said@gmail.com',
-            phone: '+20 100 123 4567',
-            platform: 'amazon',
-            status: 'active',
-            seller_id: 'A2X9Y5Z1EGYPT',
-            seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
-            storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            products_count: 125,
-            amazon_count: 45,
-            noon_count: 80
-          }
-        ];
-      }
-    } else if (this.tableName === 'products') {
-      try {
-        const seenIds = new Set<string>();
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('radar_multi_tenant_products_')) {
-            try {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  parsed.forEach(p => {
-                    if (p && p.id && !seenIds.has(p.id)) {
-                      seenIds.add(p.id);
-                      dataset.push(p);
-                    }
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {}
+        dataset = [];
 
-      if (dataset.length === 0) {
-        // Generate authentic catalog: 45 for Amazon and 80 for Noon
-        const amzItems = [
-          'سماعة رأس لاسلكية مريحة عازلة للضوضاء بتقنية بلوتوث',
-          'كابل شحن سريع مجدول تايب سي 100 واط معتمد',
-          'باور بانك 20000 مللي أمبير وشحن فائق السرعة',
-          'حامل هاتف مغناطيسي للسيارة دوران 360 درجة',
-          'سوار ساعة ذكية سيليكون طبي مقاوم للماء'
-        ];
-        for (let i = 1; i <= 45; i++) {
-          const base = amzItems[(i - 1) % amzItems.length];
-          const price = 250 + ((i * 35) % 1200);
-          dataset.push({
-            id: `prod-amz-${String(i).padStart(3, '0')}`,
-            trader_id: 'merchant-mahmeud-said',
-            title: `${base} - طراز AMZ #${i}`,
-            sku: `SKU-AMZ-${String(i).padStart(3, '0')}`,
-            price: price,
-            stock: 10 + ((i * 3) % 40),
-            platform: 'amazon',
-            buybox_price: price,
-            competitor_price: price + 30,
-            created_at: new Date(Date.now() - (46 - i) * 3600000).toISOString()
-          });
-        }
-
-        const noonItems = [
-          'شاحن جداري فائق السرعة بتقنية GaN قدرة 65 واط بثلاث منافذ',
-          'ماوس لاسلكي صامت ومريح مع بطارية قابلة لإعادة الشحن',
-          'لوحة مفاتيح ميكانيكية بإضاءة RGB مريحة للكتابة',
-          'حامل كمبيوتر محمول ألومنيوم قابل للطي وتعديل الارتفاع',
-          'موزع منافذ يو إس بي تايب سي 7 في 1 مع منفذ شاشة 4K',
-          'حامل مكتبي لسماعة الرأس مع منفذين شحن سريع',
-          'مصباح مكتب ذكي قابل لتعديل السطوع ودرجة اللون باللمس',
-          'قلم شاشة ذكي مغناطيسي عالي الدقة لأجهزة التابلت'
-        ];
-        for (let i = 1; i <= 80; i++) {
-          const base = noonItems[(i - 1) % noonItems.length];
-          const price = 190 + ((i * 20) % 850);
-          dataset.push({
-            id: `prod-noon-${String(i).padStart(3, '0')}`,
-            trader_id: 'merchant-mahmeud-said',
-            title: `${base} - إصدار Noon #${i}`,
-            sku: `SKU-NOON-${String(i).padStart(3, '0')}`,
-            price: price,
-            stock: 15 + ((i * 4) % 65),
-            platform: 'noon',
-            buybox_price: price,
-            competitor_price: price + 25,
-            created_at: new Date(Date.now() - (81 - i) * 1800000).toISOString()
-          });
-        }
-      }
 
       // Check if join with traders(seller_name) is requested
       if (this.selectFields.includes('traders')) {
@@ -1184,56 +1057,7 @@ class SupabaseQueryBuilder {
       } catch {}
 
       if (dataset.length === 0) {
-        // Authentic synchronized inventory for Mahmoud Said Store
-        const amzSkus = [
-          { sku: 'SKU-AMZ-001', asin: 'B09AMZ0001', title: 'سماعة رأس لاسلكية مريحة عازلة للضوضاء', price: 285, stock: 32 },
-          { sku: 'SKU-AMZ-002', asin: 'B09AMZ0002', title: 'كابل شحن سريع مجدول تايب سي 100 واط', price: 320, stock: 45 },
-          { sku: 'SKU-AMZ-003', asin: 'B09AMZ0003', title: 'باور بانك 20000 مللي أمبير فائق السرعة', price: 650, stock: 18 },
-          { sku: 'SKU-AMZ-004', asin: 'B09AMZ0004', title: 'حامل هاتف مغناطيسي للسيارة 360', price: 175, stock: 26 },
-          { sku: 'SKU-AMZ-005', asin: 'B09AMZ0005', title: 'سوار ساعة ذكية سيليكون طبي مقاوم للماء', price: 140, stock: 50 }
-        ];
-
-        const noonSkus = [
-          { sku: 'SKU-NOON-001', asin: 'N09NON0001', title: 'شاحن جداري فائق السرعة GaN قدرة 65 واط', price: 420, stock: 38 },
-          { sku: 'SKU-NOON-002', asin: 'N09NON0002', title: 'ماوس لاسلكي صامت ومريح مع بطارية قابلة للشحن', price: 210, stock: 42 },
-          { sku: 'SKU-NOON-003', asin: 'N09NON0003', title: 'لوحة مفاتيح ميكانيكية بإضاءة RGB', price: 590, stock: 15 },
-          { sku: 'SKU-NOON-004', asin: 'N09NON0004', title: 'حامل كمبيوتر محمول ألومنيوم قابل للطي', price: 360, stock: 29 },
-          { sku: 'SKU-NOON-005', asin: 'N09NON0005', title: 'موزع منافذ يو إس بي تايب سي 7 في 1', price: 480, stock: 22 }
-        ];
-
-        amzSkus.forEach((item, idx) => {
-          dataset.push({
-            id: `inv-amz-${idx + 1}`,
-            trader_id: 'merchant-mahmeud-said',
-            platform: 'amazon',
-            sku: item.sku,
-            asin: item.asin,
-            title: item.title,
-            stock_quantity: item.stock,
-            price: item.price,
-            last_sync: new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
-            created_at: new Date(Date.now() - (idx + 1) * 7200000).toISOString()
-          });
-        });
-
-        noonSkus.forEach((item, idx) => {
-          dataset.push({
-            id: `inv-noon-${idx + 1}`,
-            trader_id: 'merchant-mahmeud-said',
-            platform: 'noon',
-            sku: item.sku,
-            asin: item.asin,
-            title: item.title,
-            stock_quantity: item.stock,
-            price: item.price,
-            last_sync: new Date(Date.now() - (idx + 1) * 1800000).toISOString(),
-            created_at: new Date(Date.now() - (idx + 1) * 5400000).toISOString()
-          });
-        });
-
-        try {
-          localStorage.setItem('radar_inventory_sync', JSON.stringify(dataset));
-        } catch {}
+        // Mock data purged as per user request.
       }
 
       // Check if join with traders(seller_name) is requested

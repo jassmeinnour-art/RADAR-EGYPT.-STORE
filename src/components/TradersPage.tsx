@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
+import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -204,24 +205,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   // If traders is empty: show only "➕ إضافة تاجر جديد" button per exact user requirement
   if (traders.length === 0) {
     return (
-      <div className="w-full py-28 text-center space-y-6 font-['Cairo']" dir="rtl">
-        <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
-          <Users className="w-8 h-8" />
-        </div>
-        <div className="space-y-1 max-w-sm mx-auto">
-          <h3 className="text-lg font-black text-white">دليل التجار فارغ</h3>
-          <p className="text-xs text-slate-400">لا يوجد أي تجار مسجلين حالياً في المنظومة</p>
-        </div>
-        <div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm inline-flex items-center gap-2 shadow-xl shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-5 h-5" />
-            <span>➕ إضافة تاجر جديد</span>
-          </button>
-        </div>
-
+      <div className="w-full font-['Cairo']" dir="rtl">
+        <EmptyStatePlaceholder
+          icon={Users}
+          title="📦 لا يوجد تجار"
+          description="اضغط ➕ إضافة تاجر جديد للبدء"
+          actionLabel="➕ إضافة تاجر جديد"
+          onActionClick={() => setIsAddModalOpen(true)}
+        />
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-right shadow-2xl">

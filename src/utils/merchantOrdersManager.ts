@@ -1,7 +1,8 @@
 import { CustomerOrder, OrderItem, RemoteMerchantClient, ProductData, EgyptianGovernorate, MerchantCatalogProduct } from '../types';
 import { EGYPTIAN_COURIERS } from '../data/orderSchedulingData';
 import { loadStoredLiveProducts } from '../services/livePlatformProductSync';
-import { sampleProducts } from '../data/sampleProducts';
+// Removed mock data import
+
 import { loadMerchantCatalog, pullLiveCatalogForMerchant, parseSafeJsonResponse } from './merchantCatalogManager';
 import { getFallbackDemoOrders, getFallbackDemoProducts } from '../data/fallbackDemoData';
 import { 
