@@ -45,6 +45,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/vite": "^4.3.4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -54,6 +55,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "puppeteer-core": "^25.16.0",
     "tailwindcss": "^4.3.4",
     "terser": "^5.51.2",
     "tsx": "^4.19.0",

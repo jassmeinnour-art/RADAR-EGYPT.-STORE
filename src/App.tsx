@@ -156,11 +156,15 @@ const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/A
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
 const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
 const MultiMerchantTradersPage = safeLazy(() => import('./components/MultiMerchantTradersPage'));
+const TradersPage = safeLazy(() => import('./components/TradersPage'));
+const ProductsPage = safeLazy(() => import('./components/ProductsPage'));
+const TraderDetailPage = safeLazy(() => import('./components/TraderDetailPage'));
 const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage').then(m => ({ default: m.WaybillSplitterPage })));
 import { NotificationsDropdown } from './components/NotificationsDropdown';
 
 export type WorkspaceTab = 
   | 'traders'
+  | 'products'
   | 'merchants' 
   | 'radar' 
   | 'watchlist'
@@ -206,9 +210,10 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
       if (path === '/traders') return 'traders';
+      if (path === '/products') return 'products';
       if (path === '/invoices/split' || path === '/invoices') return 'split_invoices';
     }
-    return 'merchants';
+    return 'products';
   });
 
   const [urlSplitInvoiceId, setUrlSplitInvoiceId] = useState<string | undefined>(() => {
@@ -271,6 +276,9 @@ export default function App() {
 
         if (path === '/traders') {
           setActiveWorkspaceTab('traders');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/products') {
+          setActiveWorkspaceTab('products');
           setSelectedTraderProfileId(null);
         } else if (path === '/invoices/split' || path === '/invoices') {
           setActiveWorkspaceTab('split_invoices');
@@ -912,9 +920,12 @@ export default function App() {
           setIsSidebarOpen(false);
           if (tab === 'traders') {
             setSelectedTraderProfileId(null);
-            window.history.pushState({}, '', '/traders');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
+          } else if (tab === 'products' || tab === 'merchants') {
+            setSelectedTraderProfileId(null);
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/products');
           } else {
-            window.history.pushState({}, '', '/');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
           }
         }}
         onOpenAllMerchantsHub={() => setIsAllMerchantsHubOpen(true)}
@@ -1051,23 +1062,26 @@ export default function App() {
                 {/* 4. Active Tab Content Workspace */}
                 <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
                   {selectedTraderProfileId ? (
-                    <TraderProfilePage
+                    <TraderDetailPage
                       traderId={selectedTraderProfileId}
                       onBack={() => {
                         setSelectedTraderProfileId(null);
+                        setActiveWorkspaceTab('traders');
                         if (typeof window !== 'undefined') {
-                          window.history.pushState({}, '', '/');
+                          window.history.pushState({}, '', '/traders');
                         }
                       }}
                       onShowToast={showToast}
                     />
                   ) : activeWorkspaceTab === 'traders' ? (
-                    <MultiMerchantTradersPage 
+                    <TradersPage 
                       onShowToast={showToast} 
-                      onSelectActiveTrader={(trader) => {
-                        setActiveWorkspaceTab('radar');
+                      onSelectTrader={(trdId) => {
+                        setSelectedTraderProfileId(trdId);
                       }}
                     />
+                  ) : activeWorkspaceTab === 'products' || activeWorkspaceTab === 'merchants' ? (
+                    <ProductsPage onShowToast={showToast} />
                   ) : activeWorkspaceTab === 'split_invoices' ? (
                     <WaybillSplitterPage
                       initialInvoiceId={urlSplitInvoiceId}
@@ -1080,8 +1094,6 @@ export default function App() {
                       }}
                       onShowToast={showToast}
                     />
-                  ) : activeWorkspaceTab === 'merchants' ? (
-                    <MerchantCatalogManager />
                   ) : null}
 
                   {activeWorkspaceTab === 'radar' && (

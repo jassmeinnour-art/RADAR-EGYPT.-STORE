@@ -123,8 +123,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'merchants_tab',
           label: 'إدارة المنتجات 📦',
           icon: <Package className="w-4 h-4 text-sky-300" />,
-          isActive: activeTab === 'merchants',
-          action: () => onSelectTab('merchants')
+          isActive: activeTab === 'products' || activeTab === 'merchants',
+          action: () => {
+            onSelectTab('products');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/products');
+          }
         },
         {
           id: 'reports_tab',

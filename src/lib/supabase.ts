@@ -754,60 +754,337 @@ export const multiTenantDb = {
 };
 
 /**
- * Backward compatibility object for legacy calls
+ * Fluent Supabase Query Builder with Multi-Tenant Fallback
+ */
+class SupabaseQueryBuilder {
+  private tableName: string;
+  private selectFields: string = '*';
+  private filters: Array<{ col: string; val: any; type: 'eq' | 'neq' }> = [];
+  private orderConfig?: { col: string; ascending: boolean };
+  private isSingle: boolean = false;
+  private limitCount?: number;
+
+  constructor(tableName: string) {
+    this.tableName = tableName;
+  }
+
+  select(fields: string = '*'): this {
+    this.selectFields = fields;
+    return this;
+  }
+
+  order(column: string, { ascending = true }: { ascending?: boolean } = {}): this {
+    this.orderConfig = { col: column, ascending };
+    return this;
+  }
+
+  eq(column: string, value: any): this {
+    this.filters.push({ col: column, val: value, type: 'eq' });
+    return this;
+  }
+
+  neq(column: string, value: any): this {
+    this.filters.push({ col: column, val: value, type: 'neq' });
+    return this;
+  }
+
+  single(): this {
+    this.isSingle = true;
+    return this;
+  }
+
+  limit(count: number): this {
+    this.limitCount = count;
+    return this;
+  }
+
+  async insert(records: any): Promise<{ data: any; error: any }> {
+    const arr = Array.isArray(records) ? records : [records];
+    if (supabaseClient) {
+      try {
+        const res = await supabaseClient.from(this.tableName).insert(arr).select();
+        if (!res.error && res.data) {
+          return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+      } catch (err) {
+        console.warn(`[Supabase Insert Fallback on ${this.tableName}]:`, err);
+      }
+    }
+
+    // Local Storage insert fallback
+    try {
+      if (this.tableName === 'traders') {
+        const storedKey = 'radar_multi_tenant_traders_default';
+        const raw = localStorage.getItem(storedKey);
+        const existing: any[] = raw ? JSON.parse(raw) : [];
+        const toAdd = arr.map((item: any) => ({
+          ...item,
+          id: item.id || `trd-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          created_at: item.created_at || new Date().toISOString()
+        }));
+        const combined = [...toAdd, ...existing];
+        localStorage.setItem(storedKey, JSON.stringify(combined));
+        return { data: this.isSingle ? toAdd[0] : toAdd, error: null };
+      }
+      if (this.tableName === 'products') {
+        const first = arr[0] || {};
+        const key = getProductsStorageKey(first.trader_id || 'default');
+        const raw = localStorage.getItem(key);
+        const existing: any[] = raw ? JSON.parse(raw) : [];
+        const toAdd = arr.map((item: any) => ({
+          ...item,
+          id: item.id || `prd-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          created_at: item.created_at || new Date().toISOString()
+        }));
+        const combined = [...toAdd, ...existing];
+        localStorage.setItem(key, JSON.stringify(combined));
+        return { data: this.isSingle ? toAdd[0] : toAdd, error: null };
+      }
+    } catch (e) {
+      return { data: null, error: e };
+    }
+
+    return { data: this.isSingle ? arr[0] : arr, error: null };
+  }
+
+  async update(updates: any): Promise<{ data: any; error: any }> {
+    if (supabaseClient) {
+      try {
+        let builder: any = supabaseClient.from(this.tableName).update(updates);
+        for (const f of this.filters) {
+          if (f.type === 'eq') builder = builder.eq(f.col, f.val);
+          if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+        }
+        const res = await builder.select();
+        if (!res.error) return { data: res.data, error: null };
+      } catch {}
+    }
+    return { data: updates, error: null };
+  }
+
+  async delete(): Promise<{ data: any; error: any }> {
+    if (supabaseClient) {
+      try {
+        let builder: any = supabaseClient.from(this.tableName).delete();
+        for (const f of this.filters) {
+          if (f.type === 'eq') builder = builder.eq(f.col, f.val);
+          if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+        }
+        const res = await builder;
+        if (!res.error) return { data: res.data, error: null };
+      } catch {}
+    }
+    return { data: [], error: null };
+  }
+
+  private async execute(): Promise<{ data: any; error: any }> {
+    // 1. Try real Supabase if configured
+    if (supabaseClient) {
+      try {
+        let query: any = supabaseClient.from(this.tableName).select(this.selectFields);
+        for (const f of this.filters) {
+          if (f.type === 'eq') query = query.eq(f.col, f.val);
+          if (f.type === 'neq') query = query.neq(f.col, f.val);
+        }
+        if (this.orderConfig) {
+          query = query.order(this.orderConfig.col, { ascending: this.orderConfig.ascending });
+        }
+        if (this.limitCount) {
+          query = query.limit(this.limitCount);
+        }
+        if (this.isSingle) {
+          query = query.single();
+        }
+        const res = await query;
+        if (!res.error && res.data !== null && res.data !== undefined) {
+          return { data: res.data, error: null };
+        }
+      } catch (err) {
+        console.warn(`[Supabase Query error on ${this.tableName}, falling back to local storage]:`, err);
+      }
+    }
+
+    // 2. Fallback to local dataset
+    let dataset: any[] = [];
+    if (this.tableName === 'traders') {
+      try {
+        const seenIds = new Set<string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(t => {
+                    if (t && t.id && !seenIds.has(t.id)) {
+                      seenIds.add(t.id);
+                      dataset.push(t);
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+
+      if (dataset.length === 0) {
+        dataset = [
+          {
+            id: 'merchant-mahmeud-said',
+            user_id: 'default-user',
+            seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+            email: 'mahmoud.said@gmail.com',
+            phone: '+20 100 123 4567',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: 'A2X9Y5Z1EGYPT',
+            seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
+            storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            products_count: 0
+          }
+        ];
+      }
+    } else if (this.tableName === 'products') {
+      try {
+        const seenIds = new Set<string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('radar_multi_tenant_products_')) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(p => {
+                    if (p && p.id && !seenIds.has(p.id)) {
+                      seenIds.add(p.id);
+                      dataset.push(p);
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+
+      if (dataset.length === 0) {
+        dataset = [
+          {
+            id: 'prod-001',
+            trader_id: 'merchant-mahmeud-said',
+            title: 'سماعة رأس لاسلكية مريحة عازلة للضوضاء بتقنية بلوتوث 5.3',
+            sku: 'SKU-HEADSET-PRO-53',
+            price: 1250,
+            stock: 45,
+            platform: 'amazon',
+            buybox_price: 1250,
+            competitor_price: 1299,
+            created_at: new Date(Date.now() - 7200000).toISOString()
+          },
+          {
+            id: 'prod-002',
+            trader_id: 'merchant-mahmeud-said',
+            title: 'شاحن جداري فائق السرعة بتقنية GaN قدرة 65 واط بثلاث منافذ',
+            sku: 'SKU-CHARGER-GAN-65W',
+            price: 499,
+            stock: 80,
+            platform: 'noon',
+            buybox_price: 499,
+            competitor_price: 520,
+            created_at: new Date(Date.now() - 3600000).toISOString()
+          }
+        ];
+      }
+
+      // Check if join with traders(seller_name) is requested
+      if (this.selectFields.includes('traders')) {
+        let allTraders: any[] = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) allTraders.push(...parsed);
+              }
+            }
+          }
+        } catch {}
+        const traderMap = new Map<string, any>();
+        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
+        allTraders.forEach(t => {
+          if (t && t.id) traderMap.set(t.id, t);
+        });
+
+        dataset = dataset.map(p => {
+          const trd = traderMap.get(p.trader_id);
+          return {
+            ...p,
+            traders: {
+              seller_name: trd?.seller_name || 'تاجر غير محدد'
+            }
+          };
+        });
+      }
+    }
+
+    // Apply filters
+    for (const f of this.filters) {
+      if (f.type === 'eq') {
+        dataset = dataset.filter(item => String(item[f.col]) === String(f.val));
+      } else if (f.type === 'neq') {
+        dataset = dataset.filter(item => String(item[f.col]) !== String(f.val));
+      }
+    }
+
+    // Apply ordering
+    if (this.orderConfig) {
+      const { col, ascending } = this.orderConfig;
+      dataset.sort((a, b) => {
+        const valA = a[col] || '';
+        const valB = b[col] || '';
+        if (valA < valB) return ascending ? -1 : 1;
+        if (valA > valB) return ascending ? 1 : -1;
+        return 0;
+      });
+    }
+
+    // Apply limit
+    if (this.limitCount !== undefined) {
+      dataset = dataset.slice(0, this.limitCount);
+    }
+
+    // Single item handling
+    if (this.isSingle) {
+      return {
+        data: dataset[0] || null,
+        error: dataset.length > 0 ? null : { message: 'Row not found' }
+      };
+    }
+
+    return { data: dataset, error: null };
+  }
+
+  // Support await query
+  then<TResult1 = { data: any; error: any }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    return this.execute().then(onfulfilled, onrejected);
+  }
+}
+
+/**
+ * Global Supabase Client / Proxy with Fluent Query Builder
  */
 export const supabase = {
-  from: (tableName: string) => {
-    return {
-      select: async (query: string = '*'): Promise<{ data: any[]; error: any | null }> => {
-        if (!isSupabaseConfigured) {
-          return { data: [], error: null };
-        }
-        try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?select=${encodeURIComponent(query)}`, {
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-          });
-          if (!res.ok) {
-            return { data: [], error: null };
-          }
-          const data = await res.json();
-          return { data: Array.isArray(data) ? data : [], error: null };
-        } catch (err) {
-          return { data: [], error: null };
-        }
-      },
-      insert: async (records: any): Promise<{ data: any[]; error: any | null }> => {
-        if (!isSupabaseConfigured) {
-          return { data: Array.isArray(records) ? records : [records], error: null };
-        }
-        try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}`, {
-            method: 'POST',
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=representation',
-            },
-            body: JSON.stringify(records),
-          });
-          const data = await res.json();
-          return { data: Array.isArray(data) ? data : [data], error: null };
-        } catch {
-          return { data: Array.isArray(records) ? records : [records], error: null };
-        }
-      },
-      update: async (): Promise<{ data: any[]; error: any | null }> => {
-        return { data: [], error: null };
-      },
-      delete: async (): Promise<{ data: any[]; error: any | null }> => {
-        return { data: [], error: null };
-      },
-    };
-  },
+  from: (tableName: string) => new SupabaseQueryBuilder(tableName)
 };
 
 /**
