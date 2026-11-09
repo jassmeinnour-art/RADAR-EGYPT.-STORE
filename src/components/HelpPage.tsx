@@ -27,8 +27,10 @@ import {
   AlertCircle,
   Clock,
   Play,
-  Keyboard
+  Keyboard,
+  Database
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface HelpPageProps {
   onNavigateToPlatformsGuide?: () => void;
@@ -42,6 +44,32 @@ export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour, onOp
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [showVisualPreviews, setShowVisualPreviews] = useState<boolean>(true);
+
+  // Supabase dynamic help articles & guides state
+  const [dbHelpArticles, setDbHelpArticles] = useState<any[]>([]);
+  const [isLoadingSupabaseHelp, setIsLoadingSupabaseHelp] = useState<boolean>(true);
+  const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<string>('متصل بـ Supabase');
+
+  useEffect(() => {
+    async function fetchSupabaseHelp() {
+      try {
+        setIsLoadingSupabaseHelp(true);
+        const { data, error } = await supabase.from('help_articles').select('*');
+        if (!error && data && data.length > 0) {
+          setDbHelpArticles(data);
+          setSupabaseSyncStatus('تم جلب مقالات المساعدة المحدثة من Supabase بنجاح');
+        } else {
+          setSupabaseSyncStatus('عرض الدليل القياسي (قاعدة بيانات المساعدة فارغة أو غير منشأة بعد في Supabase)');
+        }
+      } catch (err) {
+        console.warn('[HelpPage] Failed to fetch help articles from Supabase:', err);
+        setSupabaseSyncStatus('وضع التشغيل المحلي (Fallback Mode)');
+      } finally {
+        setIsLoadingSupabaseHelp(false);
+      }
+    }
+    fetchSupabaseHelp();
+  }, []);
 
   // Checkable steps persistence
   const [completedSteps, setCompletedSteps] = useState<Record<string, boolean>>(() => {
@@ -404,6 +432,19 @@ export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour, onOp
             <Eye className="w-4 h-4 text-amber-400" />
             <span>{showVisualPreviews ? 'إخفاء الرسوم التوضيحية' : 'إظهار الرسوم التوضيحية'}</span>
           </button>
+        </div>
+
+        {/* Supabase Dynamic Articles Status Banner */}
+        <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-emerald-400" />
+            <span>حالة مزامنة الدليل مع Supabase: <strong className="text-amber-300">{supabaseSyncStatus}</strong></span>
+          </div>
+          {dbHelpArticles.length > 0 && (
+            <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full font-mono font-bold">
+              {dbHelpArticles.length} مقال نشط من قاعدة البيانات
+            </span>
+          )}
         </div>
       </div>
 

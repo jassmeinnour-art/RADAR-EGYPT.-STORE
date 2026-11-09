@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase, Product, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
-import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
+import { GlobalEmptyState } from './GlobalEmptyState';
 
 import { dataCache } from '../utils/dataCache';
 
@@ -399,7 +399,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           <p className="text-slate-400 text-sm font-bold">جاري تحميل قائمة المنتجات المحددة...</p>
         </div>
       ) : filteredProducts.length === 0 ? (
-        <EmptyStatePlaceholder
+        <GlobalEmptyState
           icon={Package}
           title="📦 لا يوجد منتجات"
           description="أضف تاجر أولاً ثم اسحب منتجاته"

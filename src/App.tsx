@@ -161,6 +161,7 @@ const ProductsPage = safeLazy(() => import('./components/ProductsPage'));
 const TraderDetailPage = safeLazy(() => import('./components/TraderDetailPage'));
 const InventoryPage = safeLazy(() => import('./components/InventoryPage'));
 const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage'));
+const AnalyticsPage = safeLazy(() => import('./components/AnalyticsPage'));
 import { NotificationsDropdown } from './components/NotificationsDropdown';
 
 export type WorkspaceTab = 
@@ -179,7 +180,8 @@ export type WorkspaceTab =
   | 'platforms_guide' 
   | 'traders_sync'
   | 'split_invoices'
-  | 'help';
+  | 'help'
+  | 'analytics';
 
 export default function App() {
   const { toggleColorMode } = useTheme();
@@ -403,7 +405,22 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('radar_sidebar_open');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('radar_sidebar_open', JSON.stringify(isSidebarOpen));
+    } catch (e) {
+      console.warn('Failed to persist sidebar state:', e);
+    }
+  }, [isSidebarOpen]);
 
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
@@ -1320,6 +1337,10 @@ export default function App() {
                       onStartTour={() => setShowOnboarding(true)}
                       onOpenHotkeysModal={() => setIsHotkeysModalOpen(true)}
                     />
+                  )}
+
+                  {activeWorkspaceTab === 'analytics' && (
+                    <AnalyticsPage />
                   )}
                 </Suspense>
               </div>

@@ -227,7 +227,22 @@ export const Header: React.FC<HeaderProps> = ({
   const { isPlatformSyncing, isCsvExporting, isDatabaseBusy } = useAsyncOperations();
   const { toggleCustomizer } = useVisualCustomizer();
   const { settings: audioSettings, setActiveGlobalSettingsTab } = useAudioNotifications();
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('radar_header_sidebar_open');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('radar_header_sidebar_open', JSON.stringify(isSidebarOpen));
+    } catch (e) {
+      console.warn('Failed to persist header sidebar state:', e);
+    }
+  }, [isSidebarOpen]);
   const [isExportOverdue, setIsExportOverdue] = useState<boolean>(false);
   const [hoursSinceExport, setHoursSinceExport] = useState<number | null>(null);
   const [showExportTooltip, setShowExportTooltip] = useState<boolean>(false);

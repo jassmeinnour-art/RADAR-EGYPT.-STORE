@@ -175,6 +175,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           icon: <Compass className="w-4 h-4 text-teal-300" />,
           isActive: activeTab === 'radar',
           action: () => onSelectTab('radar')
+        },
+        {
+          id: 'analytics_tab',
+          label: 'تحليل الأسعار والرسوم البيانية 📈',
+          icon: <BarChart3 className="w-4 h-4 text-teal-300" />,
+          isActive: activeTab === 'analytics',
+          action: () => {
+            onSelectTab('analytics');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/analytics');
+          },
+          badge: 'Recharts 📊'
         }
       ]
     },
