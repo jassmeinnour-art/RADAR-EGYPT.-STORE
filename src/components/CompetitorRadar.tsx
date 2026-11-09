@@ -33,7 +33,8 @@ import {
   X,
   Calendar,
   MessageCircle,
-  ArrowUpRight
+  ArrowUpRight,
+  History
 } from 'lucide-react';
 import {
   LineChart,
@@ -50,6 +51,8 @@ import { ProductData, MerchantOffer, ProductPricingPlan } from '../types';
 import { isFurnitureOrBedding } from '../utils/competitorCSVManager';
 import { ProfitMarginCalculator } from './ProfitMarginCalculator';
 import { CompetitorPriceHistoryChart } from './CompetitorPriceHistoryChart';
+import { ThirtyDayPriceFluctuationChart } from './ThirtyDayPriceFluctuationChart';
+import { ProductPriceHistoryAuditModal } from './ProductPriceHistoryAuditModal';
 import { SmartDynamicPricingPanel } from './SmartDynamicPricingPanel';
 import { PricingGuardrailsManager } from './PricingGuardrailsManager';
 import { WhatsAppAutoRepriceModal } from './WhatsAppAutoRepriceModal';
@@ -203,6 +206,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
   // WhatsApp Automated Alerts & Auto-Repricing Modal State
   const [isWhatsAppRepriceModalOpen, setIsWhatsAppRepriceModalOpen] = useState<boolean>(false);
   const [selectedWhatsAppCompetitor, setSelectedWhatsAppCompetitor] = useState<MerchantOffer | null>(null);
+
+  // Dedicated Product Price History & Changes Audit Modal
+  const [isPriceHistoryAuditModalOpen, setIsPriceHistoryAuditModalOpen] = useState<boolean>(false);
 
   // Competitor Product Image AI Analysis State
   const [isCompetitorImageModalOpen, setIsCompetitorImageModalOpen] = useState<boolean>(false);
@@ -721,6 +727,10 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
                     <span>السوق المصري • محدث لحظياً</span>
                   </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 flex items-center gap-1.5 animate-bounce">
+                    <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>📉 تنبيه: انخفاض سعر المنافس بنسبة 4.5% في آخر 24 ساعة</span>
+                  </span>
                 </div>
                 <h2 className="text-lg sm:text-2xl font-black font-['Cairo','Alexandria'] text-white">
                   {product.title}
@@ -929,6 +939,26 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 >
                   <Bookmark className={`w-4 h-4 ${activeIsWatchlisted ? 'text-amber-400 fill-amber-400' : 'text-slate-400'} shrink-0`} />
                   <span>{activeIsWatchlisted ? 'في قائمة المتابعة ✓' : 'حفظ بالمتابعة'}</span>
+                </button>
+              </ToolbarTooltip>
+
+              {/* Dedicated Product Price History & Changes Audit Button */}
+              <ToolbarTooltip
+                title="سجل تغيرات الأسعار (Historical Audit)"
+                description="عرض التاريخ الكامل لتغيرات سعر هذا المنتج وأسعار المنافسين مع تحليلات التذبذب ونقاط القرار"
+                badge="سجل الأسعار 📊"
+                icon={History}
+                theme="sky"
+                side="top"
+              >
+                <button
+                  type="button"
+                  id="btn-radar-product-price-history"
+                  onClick={() => setIsPriceHistoryAuditModalOpen(true)}
+                  className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-sky-600/30 to-indigo-600/30 hover:from-sky-600/50 hover:to-indigo-600/50 active:scale-95 text-sky-200 hover:text-white border border-sky-500/50 hover:border-sky-400 text-xs font-bold whitespace-nowrap flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm shadow-sky-950/40"
+                >
+                  <History className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span>سجل تغيرات الأسعار 📊</span>
                 </button>
               </ToolbarTooltip>
 
@@ -1415,6 +1445,15 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
         onShowToast={onShowToast}
       />
 
+      {/* 30-Day Historical Price Fluctuation Chart using Recharts */}
+      <ThirtyDayPriceFluctuationChart
+        availableProducts={allProducts && allProducts.length > 0 ? allProducts : [product]}
+        currentProduct={product}
+        currency={currency}
+        onSelectProduct={onSelectProduct}
+        onShowToast={onShowToast}
+      />
+
       {/* Competitor Platforms Comparison Table & Cards (جدول مقارنة المنافسين المباشر) */}
       <div className="w-full max-w-full px-4 py-4 sm:p-6 lg:p-7 bg-slate-900/90 border border-slate-800 rounded-3xl shadow-xl backdrop-blur-md space-y-5 text-slate-100 overflow-hidden" id="competitor-comparison-table-section">
         
@@ -1772,6 +1811,24 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                             >
                               <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                               <span>واتساب وتعديل</span>
+                            </button>
+                          </ToolbarTooltip>
+
+                          <ToolbarTooltip
+                            title="سجل تغيرات الأسعار"
+                            description={`عرض سجل تغيرات السعر التاريخية لمنتج (${product.title}) وأسعار (${offer.merchantName}) لاتخاذ القرار`}
+                            icon={History}
+                            theme="sky"
+                            side="top"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setIsPriceHistoryAuditModalOpen(true)}
+                              id={`btn-price-history-offer-${offer.id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 active:scale-95 text-indigo-300 text-xs font-bold transition-all border border-indigo-500/40 cursor-pointer shadow-2xs"
+                            >
+                              <History className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>سجل الأسعار 📊</span>
                             </button>
                           </ToolbarTooltip>
 
@@ -2455,6 +2512,24 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
           </div>
         </div>
+      )}
+
+      {/* Product Price History & Historical Pricing Decisions Audit Modal */}
+      {isPriceHistoryAuditModalOpen && product && (
+        <ProductPriceHistoryAuditModal
+          isOpen={isPriceHistoryAuditModalOpen}
+          onClose={() => setIsPriceHistoryAuditModalOpen(false)}
+          product={product}
+          currency={currency}
+          winningPrice={winningPrice}
+          onApplyWinningPrice={(newPrice, discount) => {
+            onApplyWinningPrice(newPrice, discount);
+            if (onShowToast) {
+              onShowToast(`⚡ تم استرجاع واعتماد سعر (${newPrice.toLocaleString()} ${currency}) لهذا المنتج بنجاح!`);
+            }
+          }}
+          onShowToast={onShowToast}
+        />
       )}
 
     </div>

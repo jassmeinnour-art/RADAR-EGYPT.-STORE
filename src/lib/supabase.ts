@@ -12,9 +12,15 @@ export interface Trader {
   seller_ids?: Record<string, string>; // { amazon: '...', noon: '...' }
   api_keys?: Record<string, any>;   // { amazon: { clientId: '...', ... }, noon: '...' }
   created_at?: string;
+  seller_id?: string;
+  seller_link?: string;
+  storefront_link?: string;
+  gmail?: string;
   // UI helpers
   products_count?: number;
   total_stock?: number;
+  invoices_count?: number;
+  is_connected?: boolean;
   last_sync_at?: string;
 }
 
@@ -31,6 +37,31 @@ export interface Product {
   competitor_price?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface SplitInvoice {
+  id: string;
+  original_invoice_id: string;
+  trader_id: string;
+  split_number: string;
+  product_title: string;
+  product_sku: string;
+  product_asin?: string;
+  quantity: number;
+  price: number;
+  barcode_url?: string;
+  pdf_url?: string;
+  created_at?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  trader_id?: string;
+  type: 'out_of_stock' | 'new_invoice' | 'low_stock' | 'info' | string;
+  message: string;
+  severity?: 'normal' | 'high' | 'urgent' | string;
+  is_read: boolean;
+  created_at: string;
 }
 
 const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || '';
@@ -100,9 +131,30 @@ export const multiTenantDb = {
       }
     }
 
-    // If still empty, return an empty array (no mock merchants)
+    // If empty, provide the default merchant for Mahmoud Said
     if (traders.length === 0) {
-      traders = [];
+      traders = [
+        {
+          id: 'merchant-mahmeud-said',
+          user_id: userId,
+          seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+          email: 'mahmoud.said@gmail.com',
+          gmail: 'mahmoud.said@gmail.com',
+          phone: '+20 100 123 4567',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: 'A2X9Y5Z1EGYPT',
+          seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
+          storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
+          products_count: 12,
+          total_stock: 184,
+          invoices_count: 3,
+          is_connected: true,
+          last_sync_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+          seller_ids: { amazon: 'A2X9Y5Z1EGYPT' },
+          api_keys: {}
+        }
+      ];
       try {
         localStorage.setItem(getTradersStorageKey(userId), JSON.stringify(traders));
       } catch {}
@@ -234,6 +286,293 @@ export const multiTenantDb = {
     } catch {
       return false;
     }
+  },
+
+  /**
+   * Update full trader fields (seller_id, seller_link, storefront_link, gmail, etc.)
+   */
+  async updateTrader(traderId: string, updates: Partial<Trader>): Promise<boolean> {
+    if (!traderId) return false;
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient
+          .from('traders')
+          .update(updates)
+          .eq('id', traderId);
+      } catch (err) {
+        console.warn('[MultiTenant Supabase Trader Update Error]:', err);
+      }
+    }
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const list: Trader[] = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const target = list.find(t => t.id === traderId);
+                if (target) {
+                  Object.assign(target, updates);
+                  localStorage.setItem(k, JSON.stringify(list));
+                  window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { traderId } }));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Save scraped storefront products to trader's catalog
+   */
+  async saveScrapedProducts(traderId: string, scraped: any[]): Promise<Product[]> {
+    if (!traderId || !Array.isArray(scraped) || scraped.length === 0) return [];
+
+    const newProducts: Product[] = scraped.map(s => ({
+      id: `prd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)}`,
+      trader_id: traderId,
+      title: s.title || 'منتج مسحوب من المتجر',
+      sku: s.sku || s.asin || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
+      price: s.price || 0,
+      stock: s.inStock ? 15 : 0,
+      platform: s.platform || 'amazon',
+      image: s.image || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    // Save to local storage
+    try {
+      const key = getProductsStorageKey(traderId);
+      const raw = localStorage.getItem(key);
+      const list: Product[] = raw ? JSON.parse(raw) : [];
+      // merge without duplicating same sku/title
+      for (const np of newProducts) {
+        const exists = list.some(item => item.sku === np.sku || item.title === np.title);
+        if (!exists) {
+          list.unshift(np);
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('multi_tenant_products_updated', { detail: { traderId } }));
+    } catch {}
+
+    // Save to Supabase if available
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('products').insert(newProducts);
+      } catch (err) {
+        console.warn('[MultiTenant Products Insert Warning]:', err);
+      }
+    }
+
+    return newProducts;
+  },
+
+  /**
+   * Invoices storage & retrieval
+   */
+  async getInvoicesByTrader(traderId: string): Promise<any[]> {
+    if (!traderId) return [];
+    if (supabaseClient) {
+      try {
+        const { data } = await supabaseClient
+          .from('invoices')
+          .select('*, invoice_items(*)')
+          .eq('trader_id', traderId)
+          .order('created_at', { ascending: false });
+        if (data && data.length > 0) return data;
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem(`radar_invoices_${traderId}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+
+    // Fallback seed invoices for smooth live demo and testing
+    const sampleInvoices = [
+      {
+        id: `inv-${traderId}-1`,
+        invoice_number: 'INV-AMZ-2026-9041',
+        order_id: '403-8821945-1284901',
+        amazon_order_id: '403-8821945-1284901',
+        platform: 'amazon',
+        total_amount: 1450,
+        status: 'shipped',
+        invoice_date: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+        items: [
+          { id: 'item-1', sku: 'SKU-AMZ-CB-01', asin: 'B09V3K19LK', title: 'كابل شحن سريع Type-C مجدول 1.8م أزرق', quantity: 1, price: 180 },
+          { id: 'item-2', sku: 'SKU-AMZ-CH-02', asin: 'B08N5M64T1', title: 'شاحن حائطي سريع 65W GaN ثلاثي المنافذ', quantity: 2, price: 540 },
+          { id: 'item-3', sku: 'SKU-AMZ-PB-03', asin: 'B07Y8S8N62', title: 'باور بانك 20,000 مللي أمبير PD 22.5W شحن فائق', quantity: 1, price: 730 }
+        ]
+      },
+      {
+        id: `inv-${traderId}-2`,
+        invoice_number: 'INV-NON-2026-3180',
+        order_id: 'NA-EG-8821039',
+        platform: 'noon',
+        total_amount: 890,
+        status: 'delivered',
+        invoice_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        items: [
+          { id: 'item-4', sku: 'SKU-NON-EAR-01', asin: 'N4819024A', title: 'سماعات بلوتوث لاسلكية عازلة للضوضاء ANC', quantity: 1, price: 890 }
+        ]
+      }
+    ];
+    try {
+      localStorage.setItem(`radar_invoices_${traderId}`, JSON.stringify(sampleInvoices));
+    } catch {}
+    return sampleInvoices;
+  },
+
+  async saveInvoices(traderId: string, invoices: any[]): Promise<void> {
+    if (!traderId || !Array.isArray(invoices)) return;
+    try {
+      const key = `radar_invoices_${traderId}`;
+      const raw = localStorage.getItem(key);
+      const current = raw ? JSON.parse(raw) : [];
+      const merged = [...invoices, ...current.filter((c: any) => !invoices.some((inv: any) => inv.id === c.id || inv.order_id === c.order_id))];
+      localStorage.setItem(key, JSON.stringify(merged));
+    } catch {}
+  },
+
+  /**
+   * Split Invoices Management
+   */
+  async getSplitInvoices(originalInvoiceId?: string, traderId?: string): Promise<SplitInvoice[]> {
+    if (supabaseClient) {
+      try {
+        let query = supabaseClient.from('split_invoices').select('*');
+        if (originalInvoiceId) query = query.eq('original_invoice_id', originalInvoiceId);
+        if (traderId) query = query.eq('trader_id', traderId);
+        const { data } = await query.order('created_at', { ascending: true });
+        if (data && data.length > 0) return data as SplitInvoice[];
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_split_invoices');
+      if (raw) {
+        let list: SplitInvoice[] = JSON.parse(raw);
+        if (originalInvoiceId) list = list.filter(s => s.original_invoice_id === originalInvoiceId);
+        if (traderId) list = list.filter(s => s.trader_id === traderId);
+        return list;
+      }
+    } catch {}
+    return [];
+  },
+
+  async createSplitInvoices(splits: Omit<SplitInvoice, 'id' | 'created_at'>[]): Promise<SplitInvoice[]> {
+    const newSplits: SplitInvoice[] = splits.map(s => ({
+      ...s,
+      id: `split-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString()
+    }));
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('split_invoices').insert(newSplits);
+      } catch {}
+    }
+
+    try {
+      const key = 'radar_split_invoices';
+      const raw = localStorage.getItem(key);
+      const list: SplitInvoice[] = raw ? JSON.parse(raw) : [];
+      list.unshift(...newSplits);
+      localStorage.setItem(key, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('radar_split_invoices_updated'));
+    } catch {}
+
+    return newSplits;
+  },
+
+  /**
+   * Notifications Management
+   */
+  async getNotifications(traderId?: string): Promise<AppNotification[]> {
+    if (supabaseClient) {
+      try {
+        let query = supabaseClient.from('notifications').select('*');
+        if (traderId) query = query.eq('trader_id', traderId);
+        const { data } = await query.order('created_at', { ascending: false });
+        if (data && data.length > 0) return data as AppNotification[];
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      if (raw) {
+        let list: AppNotification[] = JSON.parse(raw);
+        if (traderId) list = list.filter(n => !n.trader_id || n.trader_id === traderId);
+        return list;
+      }
+    } catch {}
+    return [];
+  },
+
+  async addNotification(notif: Omit<AppNotification, 'id' | 'created_at' | 'is_read'>): Promise<AppNotification> {
+    const newNotif: AppNotification = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').insert([newNotif]);
+      } catch {}
+    }
+
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      const list: AppNotification[] = raw ? JSON.parse(raw) : [];
+      list.unshift(newNotif);
+      localStorage.setItem('radar_notifications', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+    } catch {}
+
+    return newNotif;
+  },
+
+  async markNotificationRead(id: string): Promise<void> {
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      if (raw) {
+        const list: AppNotification[] = JSON.parse(raw);
+        const item = list.find(n => n.id === id);
+        if (item) {
+          item.is_read = true;
+          localStorage.setItem('radar_notifications', JSON.stringify(list));
+          window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+        }
+      }
+    } catch {}
+  },
+
+  async clearAllNotifications(): Promise<void> {
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').delete().neq('id', '');
+      } catch {}
+    }
+    try {
+      localStorage.removeItem('radar_notifications');
+      window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+    } catch {}
   },
 
   /**
@@ -588,6 +927,82 @@ USING (
         WHERE public.traders.id = public.products.trader_id
         AND public.traders.user_id::text = auth.uid()::text
     )
+);
+-- 5. الفواتير والطلبات
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart', 'bayyaa')),
+    invoice_number TEXT,
+    order_id TEXT,
+    amazon_order_id TEXT,
+    marketplace_id TEXT,
+    invoice_date TIMESTAMPTZ,
+    total_amount NUMERIC(12, 2),
+    status TEXT,
+    raw_data JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    invoice_id TEXT NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+    sku TEXT,
+    asin TEXT,
+    title TEXT,
+    quantity INTEGER,
+    price NUMERIC(12, 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_sync (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT,
+    sku TEXT,
+    asin TEXT,
+    stock_quantity INTEGER,
+    price NUMERIC(12, 2),
+    last_sync TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_connections (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT,
+    seller_id TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    credentials JSONB,
+    is_connected BOOLEAN DEFAULT false,
+    last_sync TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.split_invoices (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    original_invoice_id TEXT REFERENCES public.invoices(id) ON DELETE CASCADE,
+    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
+    split_number TEXT,
+    product_title TEXT,
+    product_sku TEXT,
+    product_asin TEXT,
+    quantity INTEGER,
+    price NUMERIC(12, 2),
+    barcode_url TEXT,
+    pdf_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    severity TEXT DEFAULT 'normal',
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 `;
 

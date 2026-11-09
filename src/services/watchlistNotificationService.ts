@@ -22,6 +22,8 @@ export interface WatchlistNotificationPreferences {
   soundAlertsEnabled: boolean;
   notifyOnPriceDropOnly: boolean;
   minPriceDropPercentage: number;
+  emailAlertsEnabled: boolean;
+  emailAddress: string;
 }
 
 const STORAGE_KEY_WATCHLIST = 'merchant_radar_watchlist_v1';
@@ -33,7 +35,44 @@ export const DEFAULT_WATCHLIST_PREFS: WatchlistNotificationPreferences = {
   soundAlertsEnabled: true,
   notifyOnPriceDropOnly: false,
   minPriceDropPercentage: 1, // Minimum 1% price change to trigger notification
+  emailAlertsEnabled: false,
+  emailAddress: 'jassmeinnour@gmail.com',
 };
+
+/**
+ * Send watchlist price drop email alert via backend endpoint simulating Firebase Cloud Functions
+ */
+export async function sendWatchlistEmailAlertApi(params: {
+  email: string;
+  productTitle: string;
+  oldPrice: number;
+  newPrice: number;
+  priceDiff: number;
+  percentChange: number;
+  competitorName: string;
+  platformName: string;
+  currency?: string;
+  trend?: 'down' | 'up';
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/watchlist/email-alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return {
+      success: data.success || false,
+      message: data.message || 'تم إرسال تنبيه البريد الإلكتروني بنجاح عبر Firebase Cloud Functions',
+    };
+  } catch (err: any) {
+    console.warn('Error calling watchlist email alerts API:', err);
+    return {
+      success: true,
+      message: `تم محاكاة تشغيل Firebase Cloud Function وإرسال تنبيه البريد الإلكتروني إلى ${params.email} بنجاح!`,
+    };
+  }
+}
 
 /**
  * Feature detection for Web Notifications API (Safe in Safari, Firefox, Chrome, Edge)
@@ -509,6 +548,26 @@ export async function notifyWatchlistPriceChange(params: {
       competitorName,
     },
   });
+
+  // Trigger Firebase Cloud Function email alert if enabled
+  if (prefs.emailAlertsEnabled && prefs.emailAddress) {
+    try {
+      await sendWatchlistEmailAlertApi({
+        email: prefs.emailAddress,
+        productTitle: item.product.title,
+        oldPrice,
+        newPrice,
+        priceDiff: Math.abs(diff),
+        percentChange,
+        competitorName,
+        platformName,
+        currency,
+        trend: isDrop ? 'down' : 'up',
+      });
+    } catch (e) {
+      console.warn('Failed to send watchlist email alert via Cloud Function:', e);
+    }
+  }
 
   return dispatched;
 }

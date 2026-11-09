@@ -288,6 +288,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
         <BackgroundCustomizer
           initialProductImage={uploadedImage}
           productTitle={productData?.title || 'منتج تجاري'}
+          category={productData?.category || 'عام'}
           onShowToast={onShowToast}
         />
       ) : studioMode === 'multi_angle' ? (

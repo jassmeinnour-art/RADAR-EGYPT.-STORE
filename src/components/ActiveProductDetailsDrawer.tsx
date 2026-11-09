@@ -25,7 +25,7 @@ import {
   MapPin,
   QrCode
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ProductData } from '../types';
 import { ProductPriceHistoryLoggerModal } from './ProductPriceHistoryLoggerModal';
 import { ProductQRCodeModal } from './ProductQRCodeModal';

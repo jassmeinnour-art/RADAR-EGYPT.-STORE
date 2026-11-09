@@ -11,7 +11,7 @@ import {
   Zap,
   Download
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAsyncOperations, AsyncOpCategory } from '../context/AsyncOperationsContext';
 
 export const AsyncOperationsStatusIndicator: React.FC = () => {

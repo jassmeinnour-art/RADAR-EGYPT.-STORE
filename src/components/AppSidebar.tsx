@@ -27,6 +27,7 @@ import {
   RefreshCw,
   ArrowUpDown,
   Palette,
+  Scissors,
   Package
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
@@ -147,6 +148,13 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           icon: <Truck className="w-4 h-4 text-purple-200" />,
           isActive: activeTab === 'shipping',
           action: () => onSelectTab('shipping')
+        },
+        {
+          id: 'split_invoices_tab',
+          label: 'مقسم البوالص الذكي ✂️',
+          icon: <Scissors className="w-4 h-4 text-amber-300" />,
+          isActive: activeTab === 'split_invoices',
+          action: () => onSelectTab('split_invoices')
         },
         {
           id: 'radar_tab',

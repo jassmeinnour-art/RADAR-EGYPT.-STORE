@@ -43,6 +43,7 @@ import {
   Compass,
   Palette,
   Menu,
+  Scissors,
   ArrowUpDown
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
@@ -155,6 +156,8 @@ const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/A
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
 const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
 const MultiMerchantTradersPage = safeLazy(() => import('./components/MultiMerchantTradersPage'));
+const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage').then(m => ({ default: m.WaybillSplitterPage })));
+import { NotificationsDropdown } from './components/NotificationsDropdown';
 
 export type WorkspaceTab = 
   | 'traders'
@@ -169,6 +172,7 @@ export type WorkspaceTab =
   | 'price_comparison' 
   | 'platforms_guide' 
   | 'traders_sync'
+  | 'split_invoices'
   | 'help';
 
 export default function App() {
@@ -202,9 +206,27 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
       if (path === '/traders') return 'traders';
+      if (path === '/invoices/split' || path === '/invoices') return 'split_invoices';
     }
     return 'merchants';
   });
+
+  const [urlSplitInvoiceId, setUrlSplitInvoiceId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('invoice_id') || undefined;
+    }
+    return undefined;
+  });
+
+  const [urlSplitTraderId, setUrlSplitTraderId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('trader_id') || undefined;
+    }
+    return undefined;
+  });
+
   const [selectedTraderProfileId, setSelectedTraderProfileId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
@@ -223,11 +245,35 @@ export default function App() {
         window.history.pushState({}, '', `/traders/${id}`);
       }
     };
+
+    const handleOpenSplit = (e: any) => {
+      const invId = e.detail?.invoiceId;
+      const trdId = e.detail?.traderId;
+      if (invId) setUrlSplitInvoiceId(invId);
+      if (trdId) setUrlSplitTraderId(trdId);
+      setSelectedTraderProfileId(null);
+      setActiveWorkspaceTab('split_invoices');
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.pathname = '/invoices/split';
+        if (invId) url.searchParams.set('invoice_id', invId);
+        if (trdId) url.searchParams.set('trader_id', trdId);
+        window.history.pushState({}, '', url.toString());
+      }
+    };
+
     const handlePopState = () => {
       if (typeof window !== 'undefined') {
         const path = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        setUrlSplitInvoiceId(params.get('invoice_id') || undefined);
+        setUrlSplitTraderId(params.get('trader_id') || undefined);
+
         if (path === '/traders') {
           setActiveWorkspaceTab('traders');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/invoices/split' || path === '/invoices') {
+          setActiveWorkspaceTab('split_invoices');
           setSelectedTraderProfileId(null);
         } else if (path.startsWith('/traders/') && path !== '/traders/new') {
           setSelectedTraderProfileId(path.replace('/traders/', ''));
@@ -238,9 +284,11 @@ export default function App() {
     };
 
     window.addEventListener('open_trader_profile', handleOpenProfile);
+    window.addEventListener('open_split_invoices', handleOpenSplit);
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('open_trader_profile', handleOpenProfile);
+      window.removeEventListener('open_split_invoices', handleOpenSplit);
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -688,6 +736,26 @@ export default function App() {
               )}
             </button>
 
+            {/* Smart System Notifications (Out-of-Stock, New Invoices, Cron Sync Alerts) */}
+            <NotificationsDropdown
+              onNavigateToSplit={(invId) => {
+                setActiveWorkspaceTab('split_invoices');
+                setSelectedTraderProfileId(null);
+                if (invId) setUrlSplitInvoiceId(invId);
+                if (typeof window !== 'undefined') {
+                  const url = invId ? `/invoices/split?invoice_id=${invId}` : '/invoices/split';
+                  window.history.pushState({}, '', url);
+                }
+              }}
+              onNavigateToTrader={(trdId) => {
+                setSelectedTraderProfileId(trdId);
+                if (typeof window !== 'undefined') {
+                  window.history.pushState({}, '', `/traders/${trdId}`);
+                }
+              }}
+              onShowToast={showToast}
+            />
+
             <button
               onClick={() => setIsFocusMode(!isFocusMode)}
               className={`p-1.5 sm:p-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
@@ -798,6 +866,24 @@ export default function App() {
             >
               <FileText className="w-4 h-4 text-amber-400" />
               <span>الفواتير 🧾</span>
+            </button>
+
+            {/* Waybill Splitter */}
+            <button
+              onClick={() => { 
+                setActiveWorkspaceTab('split_invoices'); 
+                setShowOwnerDashboard(false); 
+                setSelectedTraderProfileId(null);
+                if (typeof window !== 'undefined') window.history.pushState({}, '', '/invoices/split');
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeWorkspaceTab === 'split_invoices' && !showOwnerDashboard
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg ring-1 ring-amber-400'
+                  : 'bg-slate-900/80 text-amber-300 hover:text-white border border-amber-500/30'
+              }`}
+            >
+              <Scissors className="w-4 h-4 text-amber-400" />
+              <span>مقسم البوالص ✂️</span>
             </button>
 
             {/* Reports */}
@@ -981,6 +1067,18 @@ export default function App() {
                       onSelectActiveTrader={(trader) => {
                         setActiveWorkspaceTab('radar');
                       }}
+                    />
+                  ) : activeWorkspaceTab === 'split_invoices' ? (
+                    <WaybillSplitterPage
+                      initialInvoiceId={urlSplitInvoiceId}
+                      initialTraderId={urlSplitTraderId}
+                      onBack={() => {
+                        setActiveWorkspaceTab('traders');
+                        if (typeof window !== 'undefined') {
+                          window.history.pushState({}, '', '/traders');
+                        }
+                      }}
+                      onShowToast={showToast}
                     />
                   ) : activeWorkspaceTab === 'merchants' ? (
                     <MerchantCatalogManager />
