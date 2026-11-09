@@ -592,8 +592,8 @@ export async function pullLiveOrdersFromPlatforms(
 
   // 2. Dynamically resolve AMAZON_REFRESH_TOKEN and SELLER_ID from Firebase Firestore & Merchant State
   const resolved = await resolveDynamicStoreAmazonCredentials(merchant, overrideCredentials);
-  const merchantId = resolved.merchantId || merchant?.id || 'merchant-star-steel';
-  const merchantName = resolved.merchantName || merchant?.storeName || 'star steel';
+  const merchantId = resolved.merchantId || merchant?.id || '';
+  const merchantName = resolved.merchantName || merchant?.storeName || '';
   const refreshToken = resolved.refreshToken || directValidation.refreshToken;
   const sellerId = resolved.sellerId || directValidation.sellerId;
   const region = resolved.region || directValidation.region;
@@ -793,29 +793,18 @@ export async function pullLiveOrdersFromPlatforms(
 
   // If endpoint was unreachable in offline browser context, build order using the merchant's actual catalog product
   if (rawOrders.length === 0) {
-    const isStarSteel =
-      merchantName.toLowerCase().includes('star steel') ||
-      merchantName.toLowerCase().includes('ستار ستيل') ||
-      merchantId.toLowerCase().includes('star-steel');
-
     const primaryCatalogProd = merchantCatalog[0];
-    const fallbackAsin = primaryCatalogProd?.asin || (isStarSteel ? 'B09STSTEEL1' : 'B09FURNCHR1');
-    const fallbackSku = primaryCatalogProd?.sku || (isStarSteel ? 'SS-DESK-120-BLK' : 'SQ-CHR-MED-01');
+    const fallbackAsin = primaryCatalogProd?.asin || 'B09FURNCHR1';
+    const fallbackSku = primaryCatalogProd?.sku || 'SQ-CHR-MED-01';
     const fallbackTitle =
-      primaryCatalogProd?.title ||
-      (isStarSteel
-        ? 'مكتب عمل ومذاكرة معدن ستار ستيل بسطح خشب ام دي اف مقاوم للخدش والمياه 120×60 سم - أسود (star steel)'
-        : `كرسي مكتب طبي شبكي هيدروليك ظهر متحرك (${merchantName})`);
+      primaryCatalogProd?.title || `كرسي مكتب طبي شبكي هيدروليك ظهر متحرك (${merchantName})`;
     const fallbackImage =
-      primaryCatalogProd?.imageUrl ||
-      (isStarSteel
-        ? 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=800&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1580480055273-228ff5388ef8?w=800&auto=format&fit=crop&q=80');
-    const fallbackPrice = primaryCatalogProd?.merchantPrice || (isStarSteel ? 2650 : 3450);
+      primaryCatalogProd?.imageUrl || 'https://images.unsplash.com/photo-1580480055273-228ff5388ef8?w=800&auto=format&fit=crop&q=80';
+    const fallbackPrice = primaryCatalogProd?.merchantPrice || 3450;
 
     rawOrders = [
       {
-        AmazonOrderId: isStarSteel ? '171-7890111-8950762' : '171-4420918-3310841',
+        AmazonOrderId: '171-4420918-3310841',
         PurchaseDate: new Date().toISOString(),
         OrderStatus: 'Unshipped',
         FulfillmentChannel: 'MFN',
@@ -835,14 +824,14 @@ export async function pullLiveOrdersFromPlatforms(
         BuyerInfo: { BuyerName: `عميل أمازون مصر (${merchantName})` },
         OrderItems: [
           {
-            OrderItemId: isStarSteel ? 'item-171-7890111-8950762-01' : 'item-171-4420918-3310841-01',
+            OrderItemId: 'item-171-4420918-3310841-01',
             Title: fallbackTitle,
             ASIN: fallbackAsin,
             SellerSKU: fallbackSku,
             ProductImage: fallbackImage,
             QuantityOrdered: 1,
             ItemPrice: { Amount: fallbackPrice.toFixed(2), CurrencyCode: 'EGP' },
-            Category: primaryCatalogProd?.category || 'الأثاث المكتبي والمعدني',
+            Category: primaryCatalogProd?.category || 'الأثاث المكتبي والمنزلي',
             WeightKg: 14.5
           }
         ],

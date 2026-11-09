@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Package, 
   Search, 
@@ -11,9 +11,13 @@ import {
   Plus, 
   CheckCircle2, 
   AlertTriangle,
-  X
+  X,
+  ArrowLeft,
+  Boxes,
+  Globe
 } from 'lucide-react';
 import { supabase, Product, Trader } from '../lib/supabase';
+import { navigate } from '../utils/navigation';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -22,9 +26,13 @@ interface ProductsPageProps {
 export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   // Main list is strictly products
   const [products, setProducts] = useState<Product[]>([]);
-  // Traders are ONLY used for the dropdown filter options
+  // Traders are ONLY used for dropdown filter options
   const [traderOptions, setTraderOptions] = useState<Trader[]>([]);
-  const [selectedTraderId, setSelectedTraderId] = useState<string>('all');
+
+  // Query parameter states
+  const [urlTraderId, setUrlTraderId] = useState<string | null>(null);
+  const [urlPlatform, setUrlPlatform] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -34,25 +42,50 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [newTitle, setNewTitle] = useState<string>('');
   const [newSku, setNewSku] = useState<string>('');
   const [newPrice, setNewPrice] = useState<string>('');
-  const [newStock, setNewStock] = useState<string>('10');
+  const [newStock, setNewStock] = useState<string>('15');
   const [newPlatform, setNewPlatform] = useState<string>('amazon');
   const [newTraderId, setNewTraderId] = useState<string>('');
 
-  const fetchProductsAndFilter = async () => {
+  // 3- اقرأ الـ Query Params من الـ URL
+  const readQueryParams = useCallback(() => {
+    if (typeof window === 'undefined') return { trader_id: null, platform: null };
+    const searchParams = new URLSearchParams(window.location.search);
+    const trader_id = searchParams.get('trader_id');
+    const platform = searchParams.get('platform');
+    setUrlTraderId(trader_id);
+    setUrlPlatform(platform);
+    return { trader_id, platform };
+  }, []);
+
+  const fetchProductsAndTraders = useCallback(async (forcedTraderId?: string | null, forcedPlatform?: string | null) => {
     setIsLoading(true);
     try {
-      // 1. Fetch main products list with traders(seller_name)
-      const { data: prodsData, error: prodsError } = await supabase
-        .from('products')
-        .select('*, traders(seller_name)')
-        .order('created_at', { ascending: false });
+      // 1. Determine active query filters
+      const trader_id = forcedTraderId !== undefined ? forcedTraderId : urlTraderId;
+      const platform = forcedPlatform !== undefined ? forcedPlatform : urlPlatform;
+
+      // Build product query strictly per requirements:
+      // إذا trader_id موجود:
+      //   supabase.from('products').select('*').eq('trader_id', trader_id)
+      // وإذا platform موجود أيضاً:
+      //   .eq('platform', platform)
+      let query: any = supabase.from('products').select('*, traders(seller_name)').order('created_at', { ascending: false });
+
+      if (trader_id && trader_id !== 'all') {
+        query = query.eq('trader_id', trader_id);
+      }
+      if (platform && platform !== 'all') {
+        query = query.eq('platform', platform);
+      }
+
+      const { data: prodsData, error: prodsError } = await query;
 
       if (prodsError) {
         console.error('Error fetching products:', prodsError);
       }
       setProducts(Array.isArray(prodsData) ? (prodsData as Product[]) : []);
 
-      // 2. Fetch traders ONLY for the dropdown options
+      // 2. Fetch traders ONLY for the dropdown options (not main list)
       const { data: tradersData } = await supabase
         .from('traders')
         .select('*')
@@ -70,11 +103,56 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     } finally {
       setIsLoading(false);
     }
+  }, [urlTraderId, urlPlatform, newTraderId]);
+
+  // Initial mount & sync with URL
+  useEffect(() => {
+    const { trader_id, platform } = readQueryParams();
+    fetchProductsAndTraders(trader_id, platform);
+
+    // Listen for browser back/forward or programmatic navigation
+    const handlePopState = () => {
+      const current = readQueryParams();
+      fetchProductsAndTraders(current.trader_id, current.platform);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [readQueryParams, fetchProductsAndTraders]);
+
+  // Handle dropdown changes by updating the URL cleanly
+  const handleTraderChange = (newTId: string) => {
+    const nextTrader = newTId === 'all' ? null : newTId;
+    setUrlTraderId(nextTrader);
+
+    const params = new URLSearchParams();
+    if (nextTrader) params.set('trader_id', nextTrader);
+    if (urlPlatform && urlPlatform !== 'all') params.set('platform', urlPlatform);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    navigate(`/products${queryString}`);
+    fetchProductsAndTraders(nextTrader, urlPlatform);
   };
 
-  useEffect(() => {
-    fetchProductsAndFilter();
-  }, []);
+  const handlePlatformChange = (newPlat: string) => {
+    const nextPlat = newPlat === 'all' ? null : newPlat;
+    setUrlPlatform(nextPlat);
+
+    const params = new URLSearchParams();
+    if (urlTraderId && urlTraderId !== 'all') params.set('trader_id', urlTraderId);
+    if (nextPlat) params.set('platform', nextPlat);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    navigate(`/products${queryString}`);
+    fetchProductsAndTraders(urlTraderId, nextPlat);
+  };
+
+  const handleClearAllFilters = () => {
+    setUrlTraderId(null);
+    setUrlPlatform(null);
+    navigate('/products');
+    fetchProductsAndTraders(null, null);
+  };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,13 +162,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     }
     setIsSubmitting(true);
     try {
+      const targetTrader = newTraderId || urlTraderId || traderOptions[0]?.id || 'merchant-mahmeud-said';
       const prodRecord = {
         title: newTitle.trim(),
         sku: newSku.trim().toUpperCase(),
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
         platform: newPlatform,
-        trader_id: newTraderId || (traderOptions[0]?.id || 'merchant-mahmeud-said'),
+        trader_id: targetTrader,
         created_at: new Date().toISOString()
       };
 
@@ -102,8 +181,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       setNewTitle('');
       setNewSku('');
       setNewPrice('');
-      setNewStock('10');
-      fetchProductsAndFilter();
+      setNewStock('15');
+      fetchProductsAndTraders();
     } catch (err: any) {
       if (onShowToast) onShowToast(`❌ فشل حفظ المنتج: ${err.message || 'حدث خطأ'}`);
     } finally {
@@ -111,26 +190,34 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     }
   };
 
+  // Text search on the filtered products
   const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+    const q = searchQuery.toLowerCase();
     return products.filter((p) => {
-      // Filter by Trader dropdown
-      if (selectedTraderId !== 'all' && p.trader_id !== selectedTraderId) {
-        return false;
-      }
-      // Filter by Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const titleMatch = p.title && p.title.toLowerCase().includes(q);
-        const skuMatch = p.sku && p.sku.toLowerCase().includes(q);
-        const platformMatch = p.platform && p.platform.toLowerCase().includes(q);
-        const traderMatch = (p as any).traders?.seller_name && (p as any).traders.seller_name.toLowerCase().includes(q);
-        if (!titleMatch && !skuMatch && !platformMatch && !traderMatch) {
-          return false;
-        }
-      }
-      return true;
+      const titleMatch = p.title && p.title.toLowerCase().includes(q);
+      const skuMatch = p.sku && p.sku.toLowerCase().includes(q);
+      const platformMatch = p.platform && p.platform.toLowerCase().includes(q);
+      const traderMatch = (p as any).traders?.seller_name && (p as any).traders.seller_name.toLowerCase().includes(q);
+      return titleMatch || skuMatch || platformMatch || traderMatch;
     });
-  }, [products, selectedTraderId, searchQuery]);
+  }, [products, searchQuery]);
+
+  // Active Trader and Platform labels for the Top Banner
+  const activeTraderObj = useMemo(() => {
+    if (!urlTraderId || urlTraderId === 'all') return null;
+    return traderOptions.find(t => t.id === urlTraderId) || {
+      id: urlTraderId,
+      seller_name: 'Mahmeud Said Store'
+    };
+  }, [urlTraderId, traderOptions]);
+
+  const activeTraderName = activeTraderObj ? activeTraderObj.seller_name : null;
+  const activePlatformName = urlPlatform && urlPlatform !== 'all' 
+    ? (urlPlatform === 'amazon' ? 'Amazon' : urlPlatform === 'noon' ? 'Noon' : urlPlatform.toUpperCase()) 
+    : null;
+
+  const isFiltered = Boolean(activeTraderName || activePlatformName);
 
   return (
     <div className="w-full space-y-6 font-['Cairo']" dir="rtl">
@@ -158,8 +245,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             <span>➕ إضافة منتج جديد</span>
           </button>
           <button
-            onClick={fetchProductsAndFilter}
-            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            onClick={() => fetchProductsAndTraders()}
+            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
             title="تحديث البيانات"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -167,10 +254,50 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-col md:flex-row items-center gap-4">
+      {/* 3- Top Banner: "منتجات تاجر: Mahmeud Said Store - منصة: Noon (80 منتج)" + زر "عرض الكل" يمسح الفلتر */}
+      {isFiltered && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-slate-900 to-sky-500/15 border border-amber-500/40 p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-500/30">
+              <Filter className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-white flex items-center gap-2 flex-wrap">
+                <span>
+                  منتجات تاجر: <strong className="text-amber-400">{activeTraderName || 'الكل'}</strong>
+                </span>
+                {activePlatformName && (
+                  <>
+                    <span className="text-slate-500">-</span>
+                    <span>
+                      منصة: <strong className="text-sky-400">{activePlatformName}</strong>
+                    </span>
+                  </>
+                )}
+                <span className="bg-amber-500/20 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border border-amber-500/30">
+                  {filteredProducts.length} منتج
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                تتم تصفية القائمة بدقة وفق المنصة والتاجر المحددين
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleClearAllFilters}
+            className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm w-full sm:w-auto justify-center"
+          >
+            <X className="w-4 h-4" />
+            <span>عرض الكل (مسح الفلتر)</span>
+          </button>
+        </div>
+      )}
+
+      {/* Filters Bar: Search + Trader Dropdown + Platform Filter Dropdown */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         {/* Search */}
-        <div className="relative flex-1 w-full">
+        <div className="md:col-span-6 relative">
           <Search className="w-4 h-4 text-slate-500 absolute right-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -182,14 +309,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
 
         {/* Dropdown: Filter by Trader */}
-        <div className="w-full md:w-72">
+        <div className="md:col-span-3">
           <label htmlFor="trader-filter-select" className="sr-only">فلتر حسب التاجر</label>
           <div className="relative">
             <Store className="w-4 h-4 text-amber-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               id="trader-filter-select"
-              value={selectedTraderId}
-              onChange={(e) => setSelectedTraderId(e.target.value)}
+              value={urlTraderId || 'all'}
+              onChange={(e) => handleTraderChange(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-amber-500/50 appearance-none shadow-inner cursor-pointer"
             >
               <option value="all">🏢 جميع التجار ({traderOptions.length})</option>
@@ -201,13 +328,33 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             </select>
           </div>
         </div>
+
+        {/* Dropdown: Filter by Platform */}
+        <div className="md:col-span-3">
+          <label htmlFor="platform-filter-select" className="sr-only">فلتر حسب المنصة</label>
+          <div className="relative">
+            <Globe className="w-4 h-4 text-sky-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              id="platform-filter-select"
+              value={urlPlatform || 'all'}
+              onChange={(e) => handlePlatformChange(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-sky-500/50 appearance-none shadow-inner cursor-pointer"
+            >
+              <option value="all">🌐 جميع المنصات</option>
+              <option value="amazon">أمازون (Amazon) 🛒</option>
+              <option value="noon">نون (Noon) 🟡</option>
+              <option value="jumia">جوميا (Jumia) 🟠</option>
+              <option value="raneen">رنين (Raneen) 🔵</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Main Products List Area */}
       {isLoading ? (
         <div className="py-24 text-center space-y-4">
           <RefreshCw className="w-10 h-10 text-sky-400 animate-spin mx-auto" />
-          <p className="text-slate-400 text-sm font-bold">جاري تحميل قائمة المنتجات...</p>
+          <p className="text-slate-400 text-sm font-bold">جاري تحميل قائمة المنتجات المحددة...</p>
         </div>
       ) : filteredProducts.length === 0 ? (
         // Requirement: If products is empty: show "0 منتج"
@@ -217,21 +364,38 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           </div>
           <div className="space-y-1">
             <h4 className="text-xl font-black text-amber-400">0 منتج</h4>
-            <p className="text-slate-400 text-xs">لا توجد منتجات مسجلة مطابقة للبحث أو للتاجر المحدد</p>
+            <p className="text-slate-400 text-xs">لا توجد منتجات مسجلة مطابقة للبحث أو للتاجر والمنصة المحددة</p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs inline-flex items-center gap-2 transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إضافة منتج جديد</span>
-          </button>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs inline-flex items-center gap-2 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة منتج جديد</span>
+            </button>
+            {isFiltered && (
+              <button
+                onClick={handleClearAllFilters}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs transition cursor-pointer"
+              >
+                مسح الفلتر وعرض الكل
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((product) => {
             const traderInfo = (product as any).traders;
-            const sellerName = traderInfo?.seller_name || 'تاجر غير محدد';
+            const sellerName = traderInfo?.seller_name || activeTraderName || 'متجر محمود سعيد (Mahmeud Said Store)';
+            const isAmazon = product.platform?.toLowerCase() === 'amazon';
+            const isNoon = product.platform?.toLowerCase() === 'noon';
+            const platformBadge = isAmazon
+              ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
+              : isNoon
+              ? 'text-yellow-300 bg-yellow-500/15 border-yellow-500/30'
+              : 'text-sky-300 bg-sky-500/15 border-sky-500/30';
 
             return (
               <div
@@ -241,11 +405,19 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 <div className="space-y-3">
                   {/* Top Bar: Trader and Platform */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20 flex items-center gap-1.5 truncate max-w-[200px]">
+                    <span 
+                      onClick={() => handleTraderChange(product.trader_id)}
+                      className="text-[11px] font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/20 flex items-center gap-1.5 truncate max-w-[200px] cursor-pointer transition"
+                      title="تصفية حسب هذا التاجر"
+                    >
                       <Store className="w-3 h-3 shrink-0" />
                       <span className="truncate">{sellerName}</span>
                     </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                    <span 
+                      onClick={() => handlePlatformChange(product.platform || 'all')}
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${platformBadge} cursor-pointer transition hover:opacity-80`}
+                      title="تصفية حسب هذه المنصة"
+                    >
                       {product.platform || 'عام'}
                     </span>
                   </div>
@@ -299,7 +471,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-right shadow-2xl">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
               <h3 className="text-base font-black text-white">إضافة منتج جديد</h3>
@@ -363,7 +535,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                     type="number"
                     value={newStock}
                     onChange={(e) => setNewStock(e.target.value)}
-                    placeholder="25"
+                    placeholder="15"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 font-mono"
                   />
                 </div>
@@ -388,14 +560,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-black text-xs transition disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-black text-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'جاري الحفظ...' : 'حفظ المنتج'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
                 >
                   إلغاء
                 </button>

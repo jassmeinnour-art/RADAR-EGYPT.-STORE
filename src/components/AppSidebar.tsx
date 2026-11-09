@@ -146,6 +146,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       borderColor: 'border-purple-500/40',
       items: [
         {
+          id: 'inventory_tab',
+          label: 'إدارة وتزامن المخزون 📊',
+          icon: <Layers className="w-4 h-4 text-emerald-300" />,
+          isActive: activeTab === 'inventory',
+          action: () => {
+            onSelectTab('inventory');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/inventory');
+          }
+        },
+        {
           id: 'shipping_tab',
           label: 'الفواتير وبوالص الشحن 🧾',
           icon: <Truck className="w-4 h-4 text-purple-200" />,

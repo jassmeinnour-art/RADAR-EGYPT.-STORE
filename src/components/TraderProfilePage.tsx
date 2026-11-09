@@ -846,3 +846,5 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
     </div>
   );
 };
+
+export default TraderProfilePage;

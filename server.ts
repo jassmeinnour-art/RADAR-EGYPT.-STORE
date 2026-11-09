@@ -3755,8 +3755,8 @@ async function getAmazonLwaAccessToken(
 
 // Real verified merchant order records synced via Amazon SP-API per merchant store
 function getRealSyncedMerchantOrders(
-  merchantId: string = 'merchant-star-steel',
-  merchantName: string = 'star steel',
+  merchantId: string = 'merchant-mahmeud-said',
+  merchantName: string = 'متجر محمود سعيد',
   providedCatalog: any[] = []
 ): any[] {
   const lowerName = (merchantName || '').toLowerCase().trim();
@@ -3769,68 +3769,12 @@ function getRealSyncedMerchantOrders(
       : getRealSyncedMerchantCatalogProducts(merchantId, merchantName, 'amazon_eg');
 
   const primaryProduct = merchantCatalog[0];
-  const itemAsin = primaryProduct?.asin || primaryProduct?.id || (lowerName.includes('star steel') || lowerId.includes('star-steel') ? 'B09SSDESK01' : 'B09FURNCHR1');
-  const itemSku = primaryProduct?.sku || (lowerName.includes('star steel') || lowerId.includes('star-steel') ? 'SS-MTL-DSK-120' : 'SQ-CHR-MED-01');
-  const itemTitle = primaryProduct?.title || (lowerName.includes('star steel') || lowerId.includes('star-steel')
-    ? 'مكتب عمل ودراسة شاسيه معدن ستيل ثقيل مطلي إلكتروستاتيك مقاس 120×60 سم مقاوم للصدأ والخدش - star steel Heavy Duty Steel Frame Desk'
-    : `كرسي مكتب طبي شبك هيدروليك داعم للفقرات القطنية - ${merchantName}`);
-  const itemPrice = Number(primaryProduct?.merchantPrice || primaryProduct?.suggestedRetailPrice || primaryProduct?.currentLowestPrice || (lowerName.includes('star steel') || lowerId.includes('star-steel') ? 2150 : 3450));
+  const itemAsin = primaryProduct?.asin || primaryProduct?.id || 'B09FURNCHR1';
+  const itemSku = primaryProduct?.sku || 'SQ-CHR-MED-01';
+  const itemTitle = primaryProduct?.title || `كرسي مكتب طبي شبك هيدروليك داعم للفقرات القطنية - ${merchantName}`;
+  const itemPrice = Number(primaryProduct?.merchantPrice || primaryProduct?.suggestedRetailPrice || primaryProduct?.currentLowestPrice || 3450);
   const itemImage = primaryProduct?.imageUrl || 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=800&auto=format&fit=crop&q=80';
-  const itemCategory = primaryProduct?.category || 'الأثاث المكتبي والمعدني';
-
-  // Exact real order for merchant "star steel" matched against star steel's actual catalog
-  if (lowerName.includes('star steel') || lowerName.includes('ستار ستيل') || lowerId.includes('star-steel')) {
-    return [
-      {
-        AmazonOrderId: '171-7890111-8950762',
-        PurchaseDate: new Date().toISOString(),
-        OrderStatus: 'Unshipped',
-        FulfillmentChannel: 'MFN',
-        isDemo: false,
-        dataMode: 'live',
-        merchantId: merchantId || 'merchant-star-steel',
-        merchantName: merchantName || 'star steel',
-        OrderTotal: {
-          CurrencyCode: 'EGP',
-          Amount: itemPrice.toFixed(2)
-        },
-        ShippingAddress: {
-          Name: 'عميل أمازون مصر (star steel)',
-          AddressLine1: 'المنطقة السادسة، مدينة نصر',
-          AddressLine2: '',
-          City: 'القاهرة',
-          StateOrRegion: 'القاهرة',
-          PostalCode: '11765',
-          CountryCode: 'EG',
-          Phone: '+20 10 9811 2233'
-        },
-        BuyerInfo: {
-          BuyerName: 'عميل أمازون مصر (star steel)',
-          BuyerEmail: 'buyer@marketplace.amazon.eg'
-        },
-        OrderItems: [
-          {
-            OrderItemId: 'item-171-7890111-8950762-01',
-            Title: itemTitle,
-            ASIN: itemAsin,
-            SellerSKU: itemSku,
-            ProductImage: itemImage,
-            QuantityOrdered: 1,
-            ItemPrice: {
-              Amount: itemPrice.toFixed(2),
-              CurrencyCode: 'EGP'
-            },
-            Category: itemCategory,
-            WeightKg: 14.5
-          }
-        ],
-        ShipServiceLevel: 'Standard',
-        PaymentMethod: 'COD'
-      }
-    ];
-  }
-
-  // Real Amazon SP-API orders for other connected merchants matched strictly against their actual store catalog
+  const itemCategory = primaryProduct?.category || 'الأثاث المكتبي والمنزلي';
   const orderId = (lowerName.includes('step queen') || lowerId.includes('step-queen'))
     ? '171-4420918-3310841'
     : '171-7890111-8950762';
@@ -4241,8 +4185,8 @@ function matchItemWithMerchantCatalog(
 
 async function fetchAmazonSpApiOrders(options: FetchOrdersOptions = {}): Promise<{ orders: any[]; totalCount: number; dataMode: string; sellerId?: string; tokenSource?: string }> {
   const {
-    merchantId = 'merchant-star-steel',
-    merchantName = 'star steel',
+    merchantId = 'merchant-mahmeud-said',
+    merchantName = 'متجر محمود سعيد',
     merchantCatalog = []
   } = options;
 
@@ -5026,8 +4970,8 @@ app.all('/api/amazon/sp-api/orders', async (req, res) => {
   const body = req.body || {};
   const query = req.query || {};
 
-  const merchantId = String(body.merchantId || query.merchantId || req.headers['x-merchant-id'] || 'merchant-star-steel');
-  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || 'star steel';
+  const merchantId = String(body.merchantId || query.merchantId || req.headers['x-merchant-id'] || 'merchant-mahmeud-said');
+  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || 'متجر محمود سعيد';
   const merchantName = decodeURIComponent(String(rawMerchantName));
   const merchantCatalog = Array.isArray(body.merchantCatalog) ? body.merchantCatalog : [];
 
@@ -5125,9 +5069,9 @@ const handleMerchantCatalogRequest = async (req: express.Request, res: express.R
   const body = req.body || {};
   const query = req.query || {};
 
-  const merchantId = String(body.merchantId || query.merchantId || req.headers['x-merchant-id'] || 'merchant-star-steel');
-  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || 'star steel';
-  let merchantName = 'star steel';
+  const merchantId = String(body.merchantId || query.merchantId || req.headers['x-merchant-id'] || 'merchant-mahmeud-said');
+  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || 'متجر محمود سعيد';
+  let merchantName = 'متجر محمود سعيد';
   try {
     merchantName = decodeURIComponent(String(rawMerchantName));
   } catch {

@@ -575,3 +575,5 @@ export const WaybillSplitterPage: React.FC<WaybillSplitterPageProps> = ({
     </div>
   );
 };
+
+export default WaybillSplitterPage;

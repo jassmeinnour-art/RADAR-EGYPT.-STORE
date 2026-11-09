@@ -28,48 +28,48 @@ export interface SyncStoreOptions {
  */
 export const AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY: ProductData[] = [
   {
-    id: 'B09STSTEEL1',
-    sku: 'SS-DESK-120-BLK',
+    id: 'B09MDESK01',
+    sku: 'MD-DESK-120-BLK',
     barcode: '6223001948990',
-    title: 'مكتب عمل ومذاكرة معدن ستار ستيل بسطح خشب ام دي اف مقاوم للخدش والمياه 120×60 سم - أسود (star steel)',
-    titleEn: 'Star Steel Heavy Duty Metal Frame Office & Study Desk 120x60cm - Matte Black',
-    brand: 'star steel',
-    model: 'SS-DESK-120-BLK',
+    title: 'مكتب عمل ومذاكرة بهيكل معدني وسطح خشب MDF مقاوم للخدش والمياه 120×60 سم - أسود',
+    titleEn: 'Modern Heavy Duty Metal Frame Office & Study Desk 120x60cm - Matte Black',
+    brand: 'Modern Wood',
+    model: 'MD-DESK-120-BLK',
     category: 'الأثاث المكتبي والمعدني',
     imageUrl: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=800&auto=format&fit=crop&q=80',
     confidenceScore: 99.8,
-    description: 'مكتب عمل ومذاكرة بهيكل معدني فولاذي ثقيل من ستار ستيل مطلي إليكتروستاتيك ضد الصدأ وسطح خشب ام دي اف عالي الكثافة مقاوم للخدش والمياه مقاس 120×60 سم.',
+    description: 'مكتب عمل ومذاكرة بهيكل معدني فولاذي مطلي إليكتروستاتيك وسطح خشب ام دي اف عالي الكثافة مقاوم للخدش والمياه مقاس 120×60 سم.',
     estimatedWholesaleCost: 1950,
     suggestedRetailPrice: 2650,
     currentLowestPrice: 2650,
     highestPrice: 2890,
     averagePrice: 2740,
     currency: 'EGP',
-    tags: ['مكتب معدن', 'star steel', 'SS-DESK-120-BLK', 'B09STSTEEL1', 'أمازون مصر'],
+    tags: ['مكتب معدن', 'أثاث مكتبي', 'MD-DESK-120-BLK', 'B09MDESK01', 'أمازون مصر'],
     quickHighlights: [
-      'هيكل فولاذي متين من ستار ستيل مطلي إليكتروستاتيك مقاوم للصدأ',
+      'هيكل فولاذي متين مطلي إليكتروستاتيك مقاوم للصدأ',
       'سطح خشب MDF معالج مقاوم للمياه والخدش مقاس 120×60 سم',
-      'رقم المعرف القياسي على أمازون مصر ASIN: B09STSTEEL1 | SKU: SS-DESK-120-BLK'
+      'رقم المعرف القياسي على أمازون مصر ASIN: B09MDESK01 | SKU: MD-DESK-120-BLK'
     ],
     specs: [
       {
         category: 'بيانات منتج أمازون مصر (Amazon SP-API)',
         items: [
-          { label: 'رقم المعرف (ASIN)', value: 'B09STSTEEL1' },
-          { label: 'رمز التخزين (SKU)', value: 'SS-DESK-120-BLK' },
-          { label: 'العلامة التجارية / المتجر', value: 'star steel' },
+          { label: 'رقم المعرف (ASIN)', value: 'B09MDESK01' },
+          { label: 'رمز التخزين (SKU)', value: 'MD-DESK-120-BLK' },
+          { label: 'العلامة التجارية / المتجر', value: 'Modern Wood' },
           { label: 'الخامة الأساسية', value: 'معدن فولاذي مقوى + سطح خشب MDF معالج' }
         ]
       }
     ],
     merchantOffers: [
       {
-        id: 'off-b09ststeel1-amz',
-        merchantName: 'star steel (Amazon.eg Seller)',
+        id: 'off-b09mdesk01-amz',
+        merchantName: 'متجر محمود سعيد (Amazon.eg Seller)',
         storeType: 'online',
         platform: 'amazon_eg',
         platformName: 'أمازون مصر',
-        sellerName: 'star steel',
+        sellerName: 'متجر محمود سعيد',
         price: 2650,
         currency: 'EGP',
         rating: 4.8,
@@ -81,11 +81,11 @@ export const AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY: ProductData[] = [
         stockStatus: 'in_stock',
         inStock: true,
         fulfillmentType: 'merchant_fulfillment',
-        url: 'https://www.amazon.eg/dp/B09STSTEEL1',
-        warranty: 'ضمان سنتين من مصنع ستار ستيل ضد عيوب الصناعة'
+        url: 'https://www.amazon.eg/dp/B09MDESK01',
+        warranty: 'ضمان سنتين ضد عيوب الصناعة'
       },
       {
-        id: 'off-b09ststeel1-noon',
+        id: 'off-b09mdesk01-noon',
         merchantName: 'Cairo Metal Furniture (Noon.com)',
         storeType: 'online',
         platform: 'noon_eg',
@@ -109,41 +109,41 @@ export const AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY: ProductData[] = [
     wholesaleLocations: [],
     seoListing: {
       amazon: {
-        title: 'Star Steel Heavy Duty Metal Frame Office & Study Desk 120x60cm [B09STSTEEL1]',
+        title: 'Modern Heavy Duty Metal Frame Office & Study Desk 120x60cm [B09MDESK01]',
         bulletPoints: [
-          'Heavy-duty powder-coated steel frame engineered by star steel for maximum stability',
+          'Heavy-duty powder-coated steel frame for maximum stability',
           'Spacious 120x60cm workstation ideal for home office, study, and computer setups',
           'Scratch and water-resistant MDF tabletop surface easy to clean'
         ],
-        backendSearchTerms: 'star steel desk B09STSTEEL1 SS-DESK-120-BLK مكتب معدن ستار ستيل',
+        backendSearchTerms: 'office desk B09MDESK01 MD-DESK-120-BLK مكتب معدن ومذاكرة',
         categoryPath: 'Home & Kitchen > Furniture > Home Office Furniture > Home Office Desks',
         complianceScore: 99,
         characterCount: 98
       },
       noon: {
-        title: 'مكتب عمل ومذاكرة معدن ستار ستيل 120×60 سم - أسود',
-        keyHighlights: ['هيكل فولاذي متين', 'سطح مقاوم للخدش', 'ASIN: B09STSTEEL1'],
-        description: 'مكتب عمل ومذاكرة معدن عالي التحمل من ستار ستيل.',
-        arabicBrand: 'ستار ستيل (star steel)',
+        title: 'مكتب عمل ومذاكرة بهيكل معدني 120×60 سم - أسود',
+        keyHighlights: ['هيكل فولاذي متين', 'سطح مقاوم للخدش', 'ASIN: B09MDESK01'],
+        description: 'مكتب عمل ومذاكرة عالي التحمل بهيكل متين.',
+        arabicBrand: 'مودرن وود (Modern Wood)',
         complianceScore: 97
       },
       jumia: {
-        title: 'star steel Heavy Duty Office & Study Desk 120x60cm',
+        title: 'Modern Heavy Duty Office & Study Desk 120x60cm',
         shortDescription: 'مكتب عمل ومذاكرة بهيكل معدني متين.',
-        keyFeatures: ['هيكل معدني ستار ستيل', 'سطح مقاوم للمياه'],
-        searchTags: ['مكتب', 'star steel', 'SS-DESK-120-BLK'],
+        keyFeatures: ['هيكل معدني قوي', 'سطح مقاوم للمياه'],
+        searchTags: ['مكتب', 'Modern Wood', 'MD-DESK-120-BLK'],
         complianceScore: 96
       },
       socialStore: {
-        marketingPost: 'مكتب العمل والمذاكرة المعدني الأصلي من star steel 🪑✨ متانة فائقة وتصميم عصري!',
+        marketingPost: 'مكتب العمل والمذاكرة العصري 🪑✨ متانة فائقة وتصميم أنيق!',
         callToAction: 'اطلبه الآن من أمازون مصر 🚚',
-        adCopy: 'مكتب ستار ستيل المعدني 120×60 سم B09STSTEEL1',
-        hashtags: ['#star_steel', '#أثاث_مكتبي', '#أمازون_مصر']
+        adCopy: 'مكتب عمل ومذاكرة 120×60 سم B09MDESK01',
+        hashtags: ['#أثاث_مكتبي', '#أمازون_مصر', '#مكتب_دراسة']
       }
     },
     keywords: [
       {
-        keyword: 'مكتب معدن ستار ستيل star steel',
+        keyword: 'مكتب عمل ومذاكرة معدن',
         searchVolume: 'فائق (High)',
         competitionLevel: 'low',
         relevanceScore: 99,
@@ -152,10 +152,10 @@ export const AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY: ProductData[] = [
     ],
     priceHistory: [
       { date: 'منذ 7 أيام', price: 2720, merchant: 'Cairo Metal Furniture' },
-      { date: 'اليوم', price: 2650, merchant: 'star steel (Amazon.eg)' }
+      { date: 'اليوم', price: 2650, merchant: 'متجر محمود سعيد (Amazon.eg)' }
     ],
-    merchantId: 'merchant-star-steel',
-    merchantStoreName: 'star steel',
+    merchantId: 'merchant-mahmeud-said',
+    merchantStoreName: 'متجر محمود سعيد (Mahmeud Said Store)',
     merchantSynced: true,
     isUserImported: true,
     syncedAt: new Date().toISOString()

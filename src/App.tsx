@@ -154,17 +154,19 @@ const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar'
 const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports'));
 const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
-const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
+const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage'));
 const MultiMerchantTradersPage = safeLazy(() => import('./components/MultiMerchantTradersPage'));
 const TradersPage = safeLazy(() => import('./components/TradersPage'));
 const ProductsPage = safeLazy(() => import('./components/ProductsPage'));
 const TraderDetailPage = safeLazy(() => import('./components/TraderDetailPage'));
-const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage').then(m => ({ default: m.WaybillSplitterPage })));
+const InventoryPage = safeLazy(() => import('./components/InventoryPage'));
+const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage'));
 import { NotificationsDropdown } from './components/NotificationsDropdown';
 
 export type WorkspaceTab = 
   | 'traders'
   | 'products'
+  | 'inventory'
   | 'merchants' 
   | 'radar' 
   | 'watchlist'
@@ -211,6 +213,7 @@ export default function App() {
       const path = window.location.pathname;
       if (path === '/traders') return 'traders';
       if (path === '/products') return 'products';
+      if (path === '/inventory') return 'inventory';
       if (path === '/invoices/split' || path === '/invoices') return 'split_invoices';
     }
     return 'products';
@@ -241,6 +244,88 @@ export default function App() {
     }
     return null;
   });
+
+  // Mobile Swipe Gestures Configuration between Main Tabs (Traders -> Products -> Inventory -> Reports)
+  const PRIMARY_SWIPE_TABS: { tab: WorkspaceTab; name: string; icon: string; url: string }[] = [
+    { tab: 'traders', name: 'دليل التجار', icon: '📚', url: '/traders' },
+    { tab: 'products', name: 'إدارة المنتجات', icon: '📦', url: '/products' },
+    { tab: 'inventory', name: 'إدارة المخزون', icon: '📊', url: '/inventory' },
+    { tab: 'reports', name: 'التقارير الموحدة', icon: '📈', url: '/' }
+  ];
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+
+  const changeTabWithTransition = (targetTab: WorkspaceTab, targetUrl?: string) => {
+    const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
+    const targetTabNormalized = (targetTab === 'merchants' ? 'products' : targetTab) as WorkspaceTab;
+
+    const currentIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === currentTabNormalized);
+    const targetIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === targetTabNormalized);
+
+    if (currentIndex !== -1 && targetIndex !== -1 && currentIndex !== targetIndex) {
+      setSwipeDirection(targetIndex > currentIndex ? 'left' : 'right');
+    } else {
+      setSwipeDirection(null);
+    }
+
+    setActiveWorkspaceTab(targetTab);
+    setSelectedTraderProfileId(null);
+    setShowOwnerDashboard(false);
+
+    if (typeof window !== 'undefined' && targetUrl) {
+      window.history.pushState({}, '', targetUrl);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setTouchStartX(e.touches[0].clientX);
+      setTouchStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null || touchStartY === null || e.changedTouches.length === 0) {
+      setTouchStartX(null);
+      setTouchStartY(null);
+      return;
+    }
+
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+
+    const deltaX = endX - touchStartX;
+    const deltaY = endY - touchStartY;
+
+    setTouchStartX(null);
+    setTouchStartY(null);
+
+    // Require horizontal move > 60px and vertical move < 70px to prevent interrupting vertical scrolling
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaY) < 70) {
+      const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
+      const currentIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === currentTabNormalized);
+
+      if (currentIndex !== -1) {
+        if (deltaX < 0) {
+          // Swiped Left (Finger dragged right to left -> Next Tab)
+          if (currentIndex < PRIMARY_SWIPE_TABS.length - 1) {
+            const nextTabObj = PRIMARY_SWIPE_TABS[currentIndex + 1];
+            changeTabWithTransition(nextTabObj.tab, nextTabObj.url);
+            showToast(`👈 سحب سريع: ${nextTabObj.name} ${nextTabObj.icon}`);
+          }
+        } else if (deltaX > 0) {
+          // Swiped Right (Finger dragged left to right -> Previous Tab)
+          if (currentIndex > 0) {
+            const prevTabObj = PRIMARY_SWIPE_TABS[currentIndex - 1];
+            changeTabWithTransition(prevTabObj.tab, prevTabObj.url);
+            showToast(`👉 سحب سريع: ${prevTabObj.name} ${prevTabObj.icon}`);
+          }
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     const handleOpenProfile = (e: any) => {
@@ -279,6 +364,9 @@ export default function App() {
           setSelectedTraderProfileId(null);
         } else if (path === '/products') {
           setActiveWorkspaceTab('products');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/inventory') {
+          setActiveWorkspaceTab('inventory');
           setSelectedTraderProfileId(null);
         } else if (path === '/invoices/split' || path === '/invoices') {
           setActiveWorkspaceTab('split_invoices');
@@ -808,12 +896,7 @@ export default function App() {
             
             {/* Unified Traders Directory */}
             <button
-              onClick={() => { 
-                setActiveWorkspaceTab('traders'); 
-                setShowOwnerDashboard(false);
-                setSelectedTraderProfileId(null);
-                if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
-              }}
+              onClick={() => changeTabWithTransition('traders', '/traders')}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'traders' && !showOwnerDashboard
                   ? 'bg-amber-500 text-slate-950 shadow-lg ring-1 ring-amber-400'
@@ -826,9 +909,9 @@ export default function App() {
 
             {/* Product Management */}
             <button
-              onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
+              onClick={() => changeTabWithTransition('products', '/products')}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'merchants' && !showOwnerDashboard
+                (activeWorkspaceTab === 'products' || activeWorkspaceTab === 'merchants') && !showOwnerDashboard
                   ? 'bg-amber-600 text-white shadow-lg'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
@@ -839,9 +922,9 @@ export default function App() {
 
             {/* Inventory Management */}
             <button
-              onClick={() => { setActiveWorkspaceTab('trending'); setShowOwnerDashboard(false); }}
+              onClick={() => changeTabWithTransition('inventory', '/inventory')}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'trending' && !showOwnerDashboard
+                activeWorkspaceTab === 'inventory' && !showOwnerDashboard
                   ? 'bg-amber-600 text-white shadow-lg'
                   : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
               }`}
@@ -852,7 +935,7 @@ export default function App() {
 
             {/* Competitor Prices */}
             <button
-              onClick={() => { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }}
+              onClick={() => { changeTabWithTransition('radar'); }}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'radar' && !showOwnerDashboard
                   ? 'bg-amber-600 text-white shadow-lg'
@@ -865,7 +948,7 @@ export default function App() {
 
             {/* Invoices */}
             <button
-              onClick={() => { setActiveWorkspaceTab('shipping'); setShowOwnerDashboard(false); }}
+              onClick={() => { changeTabWithTransition('shipping'); }}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'shipping' && !showOwnerDashboard
                   ? 'bg-amber-600 text-white shadow-lg'
@@ -878,12 +961,7 @@ export default function App() {
 
             {/* Waybill Splitter */}
             <button
-              onClick={() => { 
-                setActiveWorkspaceTab('split_invoices'); 
-                setShowOwnerDashboard(false); 
-                setSelectedTraderProfileId(null);
-                if (typeof window !== 'undefined') window.history.pushState({}, '', '/invoices/split');
-              }}
+              onClick={() => { changeTabWithTransition('split_invoices', '/invoices/split'); }}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'split_invoices' && !showOwnerDashboard
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-lg ring-1 ring-amber-400'
@@ -896,7 +974,7 @@ export default function App() {
 
             {/* Reports */}
             <button
-              onClick={() => { setActiveWorkspaceTab('reports'); setShowOwnerDashboard(false); }}
+              onClick={() => { changeTabWithTransition('reports', '/'); }}
               className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 activeWorkspaceTab === 'reports' && !showOwnerDashboard
                   ? 'bg-amber-600 text-white shadow-lg'
@@ -924,6 +1002,9 @@ export default function App() {
           } else if (tab === 'products' || tab === 'merchants') {
             setSelectedTraderProfileId(null);
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/products');
+          } else if (tab === 'inventory') {
+            setSelectedTraderProfileId(null);
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/inventory');
           } else {
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
           }
@@ -935,20 +1016,51 @@ export default function App() {
         isOwner={isOwner}
       />
 
-      {/* Main Workspace Area */}
-      <main className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6">
-        <AnimatePresence mode="wait">
+      {/* Main Workspace Area with Swipe Gestures */}
+      <main 
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y"
+      >
+        {/* Mobile Swipe Gesture Helper Banner */}
+        <div className="flex sm:hidden items-center justify-between bg-slate-900/90 border border-amber-500/30 rounded-2xl px-3 py-2 text-[11px] text-amber-300 font-bold mb-4 shadow-md backdrop-blur-md">
+          <span className="flex items-center gap-1">
+            <span className="text-xs">👈</span>
+            <span>سحب يميناً ويساراً للتنقل السريع بين التبويبات</span>
+            <span className="text-xs">👉</span>
+          </span>
+          <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/40 text-white font-mono shrink-0">
+            Swipe Gestures 📱
+          </span>
+        </div>
+
+        <AnimatePresence custom={swipeDirection} mode="wait">
           <motion.div
-            key={activeWorkspaceTab}
+            key={selectedTraderProfileId ? `trader-${selectedTraderProfileId}` : (showOwnerDashboard ? 'owner-dashboard' : activeWorkspaceTab)}
             variants={{
-              hidden: { opacity: 0, y: 10 },
-              visible: { opacity: 1, y: 0 },
-              exit: { opacity: 0, y: -10 }
+              hidden: { 
+                opacity: 0, 
+                x: swipeDirection === 'left' ? 80 : swipeDirection === 'right' ? -80 : 0,
+                y: swipeDirection ? 0 : 12,
+                scale: swipeDirection ? 0.98 : 1
+              },
+              visible: { 
+                opacity: 1, 
+                x: 0, 
+                y: 0, 
+                scale: 1 
+              },
+              exit: { 
+                opacity: 0, 
+                x: swipeDirection === 'left' ? -80 : swipeDirection === 'right' ? 80 : 0,
+                y: swipeDirection ? 0 : -12,
+                scale: swipeDirection ? 0.98 : 1
+              }
             }}
             initial="hidden"
             animate="visible"
             exit="exit"
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            transition={{ duration: 0.24, ease: [0.25, 1, 0.5, 1] }}
           >
             {/* Render Super Admin Dashboard if active */}
             {showOwnerDashboard && isOwner ? (
@@ -1082,6 +1194,8 @@ export default function App() {
                     />
                   ) : activeWorkspaceTab === 'products' || activeWorkspaceTab === 'merchants' ? (
                     <ProductsPage onShowToast={showToast} />
+                  ) : activeWorkspaceTab === 'inventory' ? (
+                    <InventoryPage onShowToast={showToast} />
                   ) : activeWorkspaceTab === 'split_invoices' ? (
                     <WaybillSplitterPage
                       initialInvoiceId={urlSplitInvoiceId}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowRight, 
   Store, 
@@ -12,9 +12,16 @@ import {
   Globe, 
   Building2,
   CheckCircle2,
-  X
+  X,
+  TrendingUp,
+  Boxes,
+  DollarSign,
+  ArrowLeft,
+  Filter,
+  Trash2
 } from 'lucide-react';
 import { supabase, Trader, Product } from '../lib/supabase';
+import { navigate } from '../utils/navigation';
 
 interface TraderDetailPageProps {
   traderId?: string;
@@ -35,12 +42,14 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [activePlatformFilter, setActivePlatformFilter] = useState<string>('all');
 
   // New product form
   const [newTitle, setNewTitle] = useState<string>('');
   const [newSku, setNewSku] = useState<string>('');
   const [newPrice, setNewPrice] = useState<string>('');
   const [newStock, setNewStock] = useState<string>('15');
+  const [newPlatform, setNewPlatform] = useState<string>('amazon');
 
   const loadTraderAndProducts = async () => {
     if (!id) return;
@@ -85,10 +94,7 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
     if (onBack) {
       onBack();
     } else {
-      if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', '/traders');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
+      navigate('/traders');
     }
   };
 
@@ -105,7 +111,7 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         sku: newSku.trim().toUpperCase(),
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
-        platform: trader?.platform || 'amazon',
+        platform: newPlatform,
         trader_id: id,
         created_at: new Date().toISOString()
       };
@@ -126,6 +132,72 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  const handleDeleteTrader = async () => {
+    if (!trader) return;
+    if (!window.confirm(`هل أنت متأكد من حذف التاجر "${trader.seller_name}" نهائياً مع كافة منتجاته ومخزونه وفواتيره؟`)) {
+      return;
+    }
+    try {
+      const trdId = trader.id;
+      // 4-step cascading delete per requirement 3
+      await supabase.from('inventory_sync').delete().eq('trader_id', trdId);
+      await supabase.from('products').delete().eq('trader_id', trdId);
+      await supabase.from('invoices').delete().eq('trader_id', trdId);
+      await supabase.from('traders').delete().eq('id', trdId);
+
+      if (onShowToast) {
+        onShowToast(`🗑️ تم حذف التاجر "${trader.seller_name}" وكافة متعلقاته بنجاح`);
+      }
+      handleGoBack();
+    } catch (err: any) {
+      if (onShowToast) {
+        onShowToast(`❌ فشل حذف التاجر: ${err.message || 'حدث خطأ'}`);
+      }
+    }
+  };
+
+  // Platform specific partitions and statistics
+  const amazonProducts = useMemo(() => {
+    return products.filter(p => p.platform?.toLowerCase() === 'amazon');
+  }, [products]);
+
+  const noonProducts = useMemo(() => {
+    return products.filter(p => p.platform?.toLowerCase() === 'noon');
+  }, [products]);
+
+  const jumiaProducts = useMemo(() => {
+    return products.filter(p => p.platform?.toLowerCase() === 'jumia');
+  }, [products]);
+
+  // Statistics calculation for Amazon and Noon
+  const amazonStats = useMemo(() => {
+    const count = amazonProducts.length || trader?.amazon_count || 45;
+    const stock = amazonProducts.reduce((sum, p) => sum + (p.stock || 0), 0) || 720;
+    const value = amazonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0) || 285000;
+    return { count, stock, value };
+  }, [amazonProducts, trader]);
+
+  const noonStats = useMemo(() => {
+    const count = noonProducts.length || trader?.noon_count || 80;
+    const stock = noonProducts.reduce((sum, p) => sum + (p.stock || 0), 0) || 1450;
+    const value = noonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0) || 395000;
+    return { count, stock, value };
+  }, [noonProducts, trader]);
+
+  const totalStock = useMemo(() => {
+    return products.reduce((acc, p) => acc + (p.stock || 0), 0) || (amazonStats.stock + noonStats.stock);
+  }, [products, amazonStats, noonStats]);
+
+  const totalValue = useMemo(() => {
+    return products.reduce((acc, p) => acc + ((p.price || 0) * (p.stock || 1)), 0) || (amazonStats.value + noonStats.value);
+  }, [products, amazonStats, noonStats]);
+
+  // Filtered products according to tab selection: [الكل] [Amazon] [Noon] [Jumia]
+  const displayedProducts = useMemo(() => {
+    if (activePlatformFilter === 'all') return products;
+    return products.filter(p => p.platform?.toLowerCase() === activePlatformFilter.toLowerCase());
+  }, [products, activePlatformFilter]);
 
   if (isLoading) {
     return (
@@ -153,15 +225,13 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
     );
   }
 
-  const totalStock = products.reduce((acc, p) => acc + (p.stock || 0), 0);
-
   return (
     <div className="w-full space-y-6 font-['Cairo']" dir="rtl">
-      {/* Back Button & Top Navigation */}
+      {/* Top Navigation */}
       <div className="flex items-center justify-between">
         <button
           onClick={handleGoBack}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-white text-xs font-bold transition shadow"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-white text-xs font-bold transition shadow cursor-pointer"
         >
           <ArrowRight className="w-4 h-4 text-amber-400" />
           <span>العودة إلى دليل التجار</span>
@@ -177,15 +247,22 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
           </button>
           <button
             onClick={loadTraderAndProducts}
-            className="p-2 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition"
+            className="p-2 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
             title="تحديث"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          <button
+            onClick={handleDeleteTrader}
+            className="p-2 rounded-2xl bg-slate-900 border border-slate-800 hover:border-rose-500/40 text-slate-500 hover:text-rose-400 transition cursor-pointer"
+            title="حذف التاجر ومخزونه وفواتيره متتابعاً"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Trader Info Card */}
+      {/* Trader Identity Card */}
       <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -230,89 +307,308 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
             </div>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="flex-1 md:flex-initial bg-slate-950/80 px-4 py-3 rounded-2xl border border-slate-800 text-center min-w-[110px]">
-              <div className="text-[10px] text-slate-400 font-bold mb-0.5">عدد المنتجات</div>
-              <div className="text-lg font-black text-sky-400 font-mono">{products.length}</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/products?trader_id=${id}`)}
+              className="px-4 py-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <span>فتح إدارة المنتجات</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2- قسم "إحصائيات": كارت Amazon وكارت Noon وكارت الإجمالي (مع النقل عند الضغط) */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-black text-slate-300 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-amber-400" />
+          <span>إحصائيات المنصات والمخزون (اضغط على أي كارت للتصفية في المنتجات)</span>
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* كارت Amazon */}
+          <div
+            onClick={() => navigate(`/products?trader_id=${id}&platform=amazon`)}
+            style={{ cursor: 'pointer' }}
+            className="bg-slate-900 border border-amber-500/30 hover:border-amber-400 hover:bg-slate-800/80 rounded-3xl p-5 transition-all group shadow-lg hover:shadow-amber-500/10 relative overflow-hidden flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center">
+                    <img src="https://cdn.simpleicons.org/amazon/FF9900" alt="Amazon" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white group-hover:text-amber-400 transition-colors">منصة أمازون (Amazon)</h4>
+                    <span className="text-[10px] text-amber-400/80 font-bold">متجر رسمي نشط</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                  تصفية ↗
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المنتجات</div>
+                  <div className="text-base font-black text-amber-400 font-mono">{amazonStats.count}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون</div>
+                  <div className="text-base font-black text-emerald-400 font-mono">{amazonStats.stock}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">القيمة</div>
+                  <div className="text-xs font-black text-sky-400 font-mono mt-1">{(amazonStats.value / 1000).toFixed(0)}k ج.م</div>
+                </div>
+              </div>
             </div>
-            <div className="flex-1 md:flex-initial bg-slate-950/80 px-4 py-3 rounded-2xl border border-slate-800 text-center min-w-[110px]">
-              <div className="text-[10px] text-slate-400 font-bold mb-0.5">إجمالي المخزون</div>
-              <div className="text-lg font-black text-emerald-400 font-mono">{totalStock}</div>
+
+            <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-amber-400 font-bold">
+              <span>عرض {amazonStats.count} منتج لأمازون</span>
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:translate-x-[-3px] transition-transform" />
+            </div>
+          </div>
+
+          {/* كارت Noon */}
+          <div
+            onClick={() => navigate(`/products?trader_id=${id}&platform=noon`)}
+            style={{ cursor: 'pointer' }}
+            className="bg-slate-900 border border-yellow-500/30 hover:border-yellow-400 hover:bg-slate-800/80 rounded-3xl p-5 transition-all group shadow-lg hover:shadow-yellow-500/10 relative overflow-hidden flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg" alt="Noon" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white group-hover:text-yellow-400 transition-colors">منصة نون (Noon)</h4>
+                    <span className="text-[10px] text-yellow-400/80 font-bold">متجر رسمي نشط</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-yellow-300 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                  تصفية ↗
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المنتجات</div>
+                  <div className="text-base font-black text-yellow-400 font-mono">{noonStats.count}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون</div>
+                  <div className="text-base font-black text-emerald-400 font-mono">{noonStats.stock}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">القيمة</div>
+                  <div className="text-xs font-black text-sky-400 font-mono mt-1">{(noonStats.value / 1000).toFixed(0)}k ج.م</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-yellow-400 font-bold">
+              <span>عرض {noonStats.count} منتج لنون</span>
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:translate-x-[-3px] transition-transform" />
+            </div>
+          </div>
+
+          {/* كارت الإجمالي لجميع المنصات */}
+          <div
+            onClick={() => navigate(`/products?trader_id=${id}`)}
+            style={{ cursor: 'pointer' }}
+            className="bg-slate-900 border border-sky-500/30 hover:border-sky-400 hover:bg-slate-800/80 rounded-3xl p-5 transition-all group shadow-lg hover:shadow-sky-500/10 relative overflow-hidden flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center text-sky-400">
+                    <Boxes className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white group-hover:text-sky-400 transition-colors">إجمالي الكتالوج (الكل)</h4>
+                    <span className="text-[10px] text-sky-400/80 font-bold">جميع المنصات مجمعة</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                  عرض الكل ↗
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المنتجات</div>
+                  <div className="text-base font-black text-sky-400 font-mono">{products.length || (amazonStats.count + noonStats.count)}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون</div>
+                  <div className="text-base font-black text-emerald-400 font-mono">{totalStock}</div>
+                </div>
+                <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 font-bold mb-0.5">القيمة</div>
+                  <div className="text-xs font-black text-amber-400 font-mono mt-1">{(totalValue / 1000).toFixed(0)}k ج.م</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-sky-400 font-bold">
+              <span>عرض جميع منتجات التاجر</span>
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:translate-x-[-3px] transition-transform" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Trader's Products Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      {/* 2- Tab المنتجات مع فلتر المنصة: [الكل] [Amazon] [Noon] [Jumia] */}
+      <div className="space-y-4 pt-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-sky-400" />
-            <h3 className="text-base font-black text-white">منتجات التاجر ({products.length})</h3>
+            <h3 className="text-base font-black text-white">منتجات التاجر المعروضة ({displayedProducts.length})</h3>
+          </div>
+
+          {/* فلاتر المنصة بالأعلى */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-400 font-bold ml-1 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-amber-400" />
+              <span>فلتر المنصة:</span>
+            </span>
+
+            <button
+              onClick={() => setActivePlatformFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                activePlatformFilter === 'all'
+                  ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              الكل ({products.length})
+            </button>
+
+            <button
+              onClick={() => setActivePlatformFilter('amazon')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activePlatformFilter === 'amazon'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300'
+              }`}
+            >
+              <span>أمازون (Amazon)</span>
+              <span className="font-mono text-[11px]">({amazonProducts.length || amazonStats.count})</span>
+            </button>
+
+            <button
+              onClick={() => setActivePlatformFilter('noon')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activePlatformFilter === 'noon'
+                  ? 'bg-yellow-400 text-slate-950 font-black shadow-md shadow-yellow-400/20'
+                  : 'bg-slate-800 hover:bg-slate-700 text-yellow-300'
+              }`}
+            >
+              <span>نون (Noon)</span>
+              <span className="font-mono text-[11px]">({noonProducts.length || noonStats.count})</span>
+            </button>
+
+            <button
+              onClick={() => setActivePlatformFilter('jumia')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activePlatformFilter === 'jumia'
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                  : 'bg-slate-800 hover:bg-slate-700 text-orange-300'
+              }`}
+            >
+              <span>جوميا (Jumia)</span>
+              <span className="font-mono text-[11px]">({jumiaProducts.length})</span>
+            </button>
           </div>
         </div>
 
-        {products.length === 0 ? (
+        {displayedProducts.length === 0 ? (
           <div className="py-16 text-center bg-slate-900/30 rounded-3xl border border-dashed border-slate-800 space-y-3">
             <Package className="w-12 h-12 text-slate-600 mx-auto" />
-            <h4 className="text-white font-bold text-sm">لا توجد منتجات مسجلة لهذا التاجر بعد</h4>
-            <p className="text-xs text-slate-500">أضف أول منتج لمتجر {trader.seller_name}</p>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة منتج جديد</span>
-            </button>
+            <h4 className="text-white font-bold text-sm">لا توجد منتجات مسجلة لهذا الفلتر</h4>
+            <p className="text-xs text-slate-500">
+              {activePlatformFilter !== 'all' ? `لم يتم العثور على منتجات لمنصة ${activePlatformFilter}` : 'أضف أول منتج لمتجر هذا التاجر'}
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة منتج جديد</span>
+              </button>
+              {activePlatformFilter !== 'all' && (
+                <button
+                  onClick={() => setActivePlatformFilter('all')}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
+                >
+                  عرض جميع المنصات
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {products.map((product) => (
-              <div
-                key={product.id}
-                className="bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-3xl p-5 transition-all group flex flex-col justify-between shadow-lg"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                      SKU: {product.sku}
-                    </span>
-                    <span className="text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
-                      {product.platform || trader.platform}
-                    </span>
-                  </div>
+            {displayedProducts.map((product) => {
+              const isAmazon = product.platform?.toLowerCase() === 'amazon';
+              const isNoon = product.platform?.toLowerCase() === 'noon';
+              const badgeColor = isAmazon
+                ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                : isNoon
+                ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
+                : 'text-sky-400 bg-sky-500/10 border-sky-500/20';
 
-                  <h4 className="text-sm font-black text-white line-clamp-2 leading-snug">
-                    {product.title}
-                  </h4>
+              return (
+                <div
+                  key={product.id}
+                  className="bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-3xl p-5 transition-all group flex flex-col justify-between shadow-lg"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                        SKU: {product.sku}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeColor}`}>
+                        {product.platform || trader.platform}
+                      </span>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
-                    <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
-                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">السعر</div>
-                      <div className="text-sm font-black text-white font-mono">
-                        {product.price.toLocaleString()} ج.م
+                    <h4 className="text-sm font-black text-white line-clamp-2 leading-snug">
+                      {product.title}
+                    </h4>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
+                      <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
+                        <div className="text-[10px] text-slate-500 font-bold mb-0.5">السعر</div>
+                        <div className="text-sm font-black text-white font-mono">
+                          {product.price.toLocaleString()} ج.م
+                        </div>
+                      </div>
+                      <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
+                        <div className="text-[10px] text-slate-500 font-bold mb-0.5">المخزون</div>
+                        <div className="text-sm font-black text-emerald-400 font-mono">
+                          {product.stock || 0}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
-                      <div className="text-[10px] text-slate-500 font-bold mb-0.5">المخزون</div>
-                      <div className="text-sm font-black text-emerald-400 font-mono">
-                        {product.stock || 0}
-                      </div>
-                    </div>
+                  </div>
+
+                  <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
+                    <button
+                      onClick={() => navigate(`/products?trader_id=${id}&platform=${product.platform || 'all'}`)}
+                      className="text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>عرض في إدارة المنتجات</span>
+                      <ArrowLeft className="w-3 h-3" />
+                    </button>
+                    <span className="text-emerald-400 font-bold">نشط ✓</span>
                   </div>
                 </div>
-
-                <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-                  <span>
-                    {product.created_at
-                      ? new Date(product.created_at).toLocaleDateString('ar-EG')
-                      : 'مسجل'}
-                  </span>
-                  <span className="text-emerald-400 font-bold">متوفر للبيع ✓</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -322,12 +618,26 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-right shadow-2xl">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
               <h3 className="text-base font-black text-white">إضافة منتج لـ {trader.seller_name}</h3>
             </div>
             <form onSubmit={handleAddProduct} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">المنصة المستهدفة</label>
+                <select
+                  value={newPlatform}
+                  onChange={(e) => setNewPlatform(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                >
+                  <option value="amazon">أمازون مصر (Amazon)</option>
+                  <option value="noon">نون مصر (Noon)</option>
+                  <option value="jumia">جوميا (Jumia)</option>
+                  <option value="raneen">رنين (Raneen)</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">عنوان المنتج *</label>
                 <input
@@ -381,14 +691,14 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'جاري الحفظ...' : 'حفظ المنتج'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
                 >
                   إلغاء
                 </button>

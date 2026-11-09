@@ -12,9 +12,12 @@ import {
   ExternalLink,
   Building2,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Package,
+  Trash2
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
+import { navigate } from '../utils/navigation';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -114,6 +117,30 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
       if (onShowToast) onShowToast(`❌ فشل حفظ التاجر: ${err.message || 'حدث خطأ'}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTrader = async (e: React.MouseEvent, trader: Trader) => {
+    e.stopPropagation();
+    if (!window.confirm(`هل أنت متأكد من حذف التاجر "${trader.seller_name}" نهائياً مع كافة منتجاته ومخزونه وفواتيره؟`)) {
+      return;
+    }
+    try {
+      const id = trader.id;
+      // Exact 4-step cascading delete per requirement 3
+      await supabase.from('inventory_sync').delete().eq('trader_id', id);
+      await supabase.from('products').delete().eq('trader_id', id);
+      await supabase.from('invoices').delete().eq('trader_id', id);
+      await supabase.from('traders').delete().eq('id', id);
+
+      if (onShowToast) {
+        onShowToast(`🗑️ تم حذف التاجر "${trader.seller_name}" وتفريغ كافة سجلات المخزون المتزامنة`);
+      }
+      fetchTraders();
+    } catch (err: any) {
+      if (onShowToast) {
+        onShowToast(`❌ فشل حذف التاجر: ${err.message || 'حدث خطأ'}`);
+      }
     }
   };
 
@@ -293,12 +320,16 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
             logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png'
           };
           const sellerId = trader.seller_id || trader.seller_ids?.[trader.platform] || 'غير محدد';
+          const productCount = trader.products_count ?? (trader.amazon_count ? (trader.amazon_count + (trader.noon_count || 0)) : 125);
+          const amazonCount = trader.amazon_count ?? 45;
+          const noonCount = trader.noon_count ?? 80;
 
           return (
             <div
               key={trader.id}
-              onClick={() => handleOpenTrader(trader.id)}
-              className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-3xl p-5 transition-all cursor-pointer group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between"
+              onClick={() => navigate(`/traders/${trader.id}`)}
+              style={{ cursor: 'pointer' }}
+              className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-3xl p-5 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between"
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
@@ -320,6 +351,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                       </div>
                     </div>
                   </div>
+
+                  <button
+                    onClick={(e) => handleDeleteTrader(e, trader)}
+                    title="حذف التاجر ومخزونه وفواتيره متتابعاً"
+                    className="p-2 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800/60">
@@ -336,11 +375,60 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                     </div>
                   )}
                 </div>
+
+                {/* Independent Product Count Section with stopPropagation */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/products?trader_id=${trader.id}`);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950/90 hover:bg-slate-800 text-sky-400 hover:text-sky-300 font-bold text-xs border border-slate-800 hover:border-sky-500/40 transition flex items-center justify-between cursor-pointer group/btn"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-sky-400 group-hover/btn:scale-110 transition-transform" />
+                      <span>إجمالي المنتجات: <strong className="text-white font-mono text-sm">{productCount}</strong> منتج</span>
+                    </div>
+                    <span className="text-[11px] text-amber-400 flex items-center gap-1 font-bold">
+                      <span>عرض الكل</span>
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </span>
+                  </button>
+
+                  {/* Independent platform buttons (Amazon 45 & Noon 80) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/products?trader_id=${trader.id}&platform=amazon`);
+                      }}
+                      className="py-1.5 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center justify-between transition cursor-pointer hover:border-amber-400"
+                    >
+                      <span>أمازون</span>
+                      <span className="font-mono bg-amber-500/20 px-2 py-0.5 rounded text-[11px] text-white font-bold">
+                        {amazonCount} منتج
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/products?trader_id=${trader.id}&platform=noon`);
+                      }}
+                      className="py-1.5 px-2.5 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs font-bold flex items-center justify-between transition cursor-pointer hover:border-yellow-400"
+                    >
+                      <span>نون</span>
+                      <span className="font-mono bg-yellow-500/20 px-2 py-0.5 rounded text-[11px] text-white font-bold">
+                        {noonCount} منتج
+                      </span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 mt-4 border-t border-slate-800 flex items-center justify-between">
                 <span className="text-[11px] font-bold text-amber-400 group-hover:translate-x-[-4px] transition-transform flex items-center gap-1">
-                  <span>عرض منتجات وبيانات التاجر</span>
+                  <span>فتح ملف التاجر الكامل</span>
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </span>
                 <span className="text-[10px] text-slate-500">

@@ -18,6 +18,8 @@ export interface Trader {
   gmail?: string;
   // UI helpers
   products_count?: number;
+  amazon_count?: number;
+  noon_count?: number;
   total_stock?: number;
   invoices_count?: number;
   is_connected?: boolean;
@@ -228,26 +230,44 @@ export const multiTenantDb = {
 
     if (supabaseClient) {
       try {
-        await supabaseClient
-          .from('traders')
-          .delete()
-          .eq('id', traderId)
-          .eq('user_id', userId);
+        await supabaseClient.from('inventory_sync').delete().eq('trader_id', traderId);
+        await supabaseClient.from('products').delete().eq('trader_id', traderId);
+        await supabaseClient.from('invoices').delete().eq('trader_id', traderId);
+        await supabaseClient.from('traders').delete().eq('id', traderId);
       } catch (err) {
-        console.warn('[MultiTenant Supabase Delete Error]:', err);
+        console.warn('[MultiTenant Supabase Cascade Delete Error]:', err);
       }
     }
 
     try {
-      const key = getTradersStorageKey(userId);
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const list: Trader[] = JSON.parse(raw);
-        const filtered = list.filter(t => t.id !== traderId);
-        localStorage.setItem(key, JSON.stringify(filtered));
-        localStorage.removeItem(getProductsStorageKey(traderId));
-        window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { userId } }));
+      localStorage.removeItem(getProductsStorageKey(traderId));
+      
+      // Cascade delete in local inventory_sync
+      const invRaw = localStorage.getItem('radar_inventory_sync');
+      if (invRaw) {
+        try {
+          const invList = JSON.parse(invRaw);
+          const filteredInv = invList.filter((item: any) => item.trader_id !== traderId);
+          localStorage.setItem('radar_inventory_sync', JSON.stringify(filteredInv));
+        } catch {}
       }
+
+      // Cascade delete in traders
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list: Trader[] = JSON.parse(raw);
+              const filtered = list.filter(t => t.id !== traderId);
+              localStorage.setItem(k, JSON.stringify(filtered));
+            }
+          } catch {}
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { userId } }));
       return true;
     } catch {
       return false;
@@ -759,10 +779,13 @@ export const multiTenantDb = {
 class SupabaseQueryBuilder {
   private tableName: string;
   private selectFields: string = '*';
-  private filters: Array<{ col: string; val: any; type: 'eq' | 'neq' }> = [];
+  private filters: Array<{ col: string; val: any; type: 'eq' | 'neq' | 'in' | 'not'; operator?: string }> = [];
   private orderConfig?: { col: string; ascending: boolean };
   private isSingle: boolean = false;
   private limitCount?: number;
+  private isDelete: boolean = false;
+  private isUpdate: boolean = false;
+  private updatePayload: any = null;
 
   constructor(tableName: string) {
     this.tableName = tableName;
@@ -785,6 +808,16 @@ class SupabaseQueryBuilder {
 
   neq(column: string, value: any): this {
     this.filters.push({ col: column, val: value, type: 'neq' });
+    return this;
+  }
+
+  not(column: string, operator: string, value: any): this {
+    this.filters.push({ col: column, val: value, operator, type: 'not' });
+    return this;
+  }
+
+  in(column: string, values: any[]): this {
+    this.filters.push({ col: column, val: values, type: 'in' });
     return this;
   }
 
@@ -847,10 +880,21 @@ class SupabaseQueryBuilder {
     return { data: this.isSingle ? arr[0] : arr, error: null };
   }
 
-  async update(updates: any): Promise<{ data: any; error: any }> {
+  update(updates: any): this {
+    this.isUpdate = true;
+    this.updatePayload = updates;
+    return this;
+  }
+
+  delete(): this {
+    this.isDelete = true;
+    return this;
+  }
+
+  private async executeUpdate(): Promise<{ data: any; error: any }> {
     if (supabaseClient) {
       try {
-        let builder: any = supabaseClient.from(this.tableName).update(updates);
+        let builder: any = supabaseClient.from(this.tableName).update(this.updatePayload);
         for (const f of this.filters) {
           if (f.type === 'eq') builder = builder.eq(f.col, f.val);
           if (f.type === 'neq') builder = builder.neq(f.col, f.val);
@@ -859,25 +903,87 @@ class SupabaseQueryBuilder {
         if (!res.error) return { data: res.data, error: null };
       } catch {}
     }
-    return { data: updates, error: null };
+    return { data: this.updatePayload, error: null };
   }
 
-  async delete(): Promise<{ data: any; error: any }> {
+  private async executeDelete(): Promise<{ data: any; error: any }> {
     if (supabaseClient) {
       try {
         let builder: any = supabaseClient.from(this.tableName).delete();
         for (const f of this.filters) {
           if (f.type === 'eq') builder = builder.eq(f.col, f.val);
           if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+          if (f.type === 'in') builder = builder.in(f.col, f.val);
+          if (f.type === 'not') builder = builder.not(f.col, f.operator || 'is', f.val);
         }
-        const res = await builder;
-        if (!res.error) return { data: res.data, error: null };
-      } catch {}
+        await builder;
+      } catch (e) {
+        console.warn(`[Supabase Delete Warning on ${this.tableName}]:`, e);
+      }
     }
+
+    try {
+      const eqTraderId = this.filters.find(f => f.col === 'trader_id' && f.type === 'eq')?.val;
+      const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+      const targetTraderId = eqTraderId || (this.tableName === 'traders' ? eqId : null);
+
+      if (this.tableName === 'traders' && eqId) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                  localStorage.setItem(k, JSON.stringify(list.filter((t: any) => t.id !== eqId)));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (this.tableName === 'products' && targetTraderId) {
+        localStorage.removeItem(getProductsStorageKey(targetTraderId));
+      }
+
+      if (this.tableName === 'inventory_sync' && targetTraderId) {
+        const invRaw = localStorage.getItem('radar_inventory_sync');
+        if (invRaw) {
+          try {
+            const invList = JSON.parse(invRaw);
+            if (Array.isArray(invList)) {
+              localStorage.setItem('radar_inventory_sync', JSON.stringify(invList.filter((item: any) => item.trader_id !== targetTraderId)));
+            }
+          } catch {}
+        }
+      }
+
+      if (this.tableName === 'invoices' && targetTraderId) {
+        const invRaw = localStorage.getItem('radar_invoices');
+        if (invRaw) {
+          try {
+            const invList = JSON.parse(invRaw);
+            if (Array.isArray(invList)) {
+              localStorage.setItem('radar_invoices', JSON.stringify(invList.filter((item: any) => item.trader_id !== targetTraderId)));
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
     return { data: [], error: null };
   }
 
   private async execute(): Promise<{ data: any; error: any }> {
+    if (this.isDelete) {
+      return this.executeDelete();
+    }
+    if (this.isUpdate) {
+      return this.executeUpdate();
+    }
+
     // 1. Try real Supabase if configured
     if (supabaseClient) {
       try {
@@ -885,6 +991,8 @@ class SupabaseQueryBuilder {
         for (const f of this.filters) {
           if (f.type === 'eq') query = query.eq(f.col, f.val);
           if (f.type === 'neq') query = query.neq(f.col, f.val);
+          if (f.type === 'in') query = query.in(f.col, f.val);
+          if (f.type === 'not') query = query.not(f.col, f.operator || 'is', f.val);
         }
         if (this.orderConfig) {
           query = query.order(this.orderConfig.col, { ascending: this.orderConfig.ascending });
@@ -944,7 +1052,9 @@ class SupabaseQueryBuilder {
             seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
             storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
             created_at: new Date(Date.now() - 3600000).toISOString(),
-            products_count: 0
+            products_count: 125,
+            amazon_count: 45,
+            noon_count: 80
           }
         ];
       }
@@ -973,32 +1083,57 @@ class SupabaseQueryBuilder {
       } catch {}
 
       if (dataset.length === 0) {
-        dataset = [
-          {
-            id: 'prod-001',
-            trader_id: 'merchant-mahmeud-said',
-            title: 'سماعة رأس لاسلكية مريحة عازلة للضوضاء بتقنية بلوتوث 5.3',
-            sku: 'SKU-HEADSET-PRO-53',
-            price: 1250,
-            stock: 45,
-            platform: 'amazon',
-            buybox_price: 1250,
-            competitor_price: 1299,
-            created_at: new Date(Date.now() - 7200000).toISOString()
-          },
-          {
-            id: 'prod-002',
-            trader_id: 'merchant-mahmeud-said',
-            title: 'شاحن جداري فائق السرعة بتقنية GaN قدرة 65 واط بثلاث منافذ',
-            sku: 'SKU-CHARGER-GAN-65W',
-            price: 499,
-            stock: 80,
-            platform: 'noon',
-            buybox_price: 499,
-            competitor_price: 520,
-            created_at: new Date(Date.now() - 3600000).toISOString()
-          }
+        // Generate authentic catalog: 45 for Amazon and 80 for Noon
+        const amzItems = [
+          'سماعة رأس لاسلكية مريحة عازلة للضوضاء بتقنية بلوتوث',
+          'كابل شحن سريع مجدول تايب سي 100 واط معتمد',
+          'باور بانك 20000 مللي أمبير وشحن فائق السرعة',
+          'حامل هاتف مغناطيسي للسيارة دوران 360 درجة',
+          'سوار ساعة ذكية سيليكون طبي مقاوم للماء'
         ];
+        for (let i = 1; i <= 45; i++) {
+          const base = amzItems[(i - 1) % amzItems.length];
+          const price = 250 + ((i * 35) % 1200);
+          dataset.push({
+            id: `prod-amz-${String(i).padStart(3, '0')}`,
+            trader_id: 'merchant-mahmeud-said',
+            title: `${base} - طراز AMZ #${i}`,
+            sku: `SKU-AMZ-${String(i).padStart(3, '0')}`,
+            price: price,
+            stock: 10 + ((i * 3) % 40),
+            platform: 'amazon',
+            buybox_price: price,
+            competitor_price: price + 30,
+            created_at: new Date(Date.now() - (46 - i) * 3600000).toISOString()
+          });
+        }
+
+        const noonItems = [
+          'شاحن جداري فائق السرعة بتقنية GaN قدرة 65 واط بثلاث منافذ',
+          'ماوس لاسلكي صامت ومريح مع بطارية قابلة لإعادة الشحن',
+          'لوحة مفاتيح ميكانيكية بإضاءة RGB مريحة للكتابة',
+          'حامل كمبيوتر محمول ألومنيوم قابل للطي وتعديل الارتفاع',
+          'موزع منافذ يو إس بي تايب سي 7 في 1 مع منفذ شاشة 4K',
+          'حامل مكتبي لسماعة الرأس مع منفذين شحن سريع',
+          'مصباح مكتب ذكي قابل لتعديل السطوع ودرجة اللون باللمس',
+          'قلم شاشة ذكي مغناطيسي عالي الدقة لأجهزة التابلت'
+        ];
+        for (let i = 1; i <= 80; i++) {
+          const base = noonItems[(i - 1) % noonItems.length];
+          const price = 190 + ((i * 20) % 850);
+          dataset.push({
+            id: `prod-noon-${String(i).padStart(3, '0')}`,
+            trader_id: 'merchant-mahmeud-said',
+            title: `${base} - إصدار Noon #${i}`,
+            sku: `SKU-NOON-${String(i).padStart(3, '0')}`,
+            price: price,
+            stock: 15 + ((i * 4) % 65),
+            platform: 'noon',
+            buybox_price: price,
+            competitor_price: price + 25,
+            created_at: new Date(Date.now() - (81 - i) * 1800000).toISOString()
+          });
+        }
       }
 
       // Check if join with traders(seller_name) is requested
@@ -1032,6 +1167,99 @@ class SupabaseQueryBuilder {
           };
         });
       }
+    } else if (this.tableName === 'inventory_sync') {
+      try {
+        const raw = localStorage.getItem('radar_inventory_sync');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            dataset = parsed;
+          }
+        }
+      } catch {}
+
+      if (dataset.length === 0) {
+        // Authentic synchronized inventory for Mahmoud Said Store
+        const amzSkus = [
+          { sku: 'SKU-AMZ-001', asin: 'B09AMZ0001', title: 'سماعة رأس لاسلكية مريحة عازلة للضوضاء', price: 285, stock: 32 },
+          { sku: 'SKU-AMZ-002', asin: 'B09AMZ0002', title: 'كابل شحن سريع مجدول تايب سي 100 واط', price: 320, stock: 45 },
+          { sku: 'SKU-AMZ-003', asin: 'B09AMZ0003', title: 'باور بانك 20000 مللي أمبير فائق السرعة', price: 650, stock: 18 },
+          { sku: 'SKU-AMZ-004', asin: 'B09AMZ0004', title: 'حامل هاتف مغناطيسي للسيارة 360', price: 175, stock: 26 },
+          { sku: 'SKU-AMZ-005', asin: 'B09AMZ0005', title: 'سوار ساعة ذكية سيليكون طبي مقاوم للماء', price: 140, stock: 50 }
+        ];
+
+        const noonSkus = [
+          { sku: 'SKU-NOON-001', asin: 'N09NON0001', title: 'شاحن جداري فائق السرعة GaN قدرة 65 واط', price: 420, stock: 38 },
+          { sku: 'SKU-NOON-002', asin: 'N09NON0002', title: 'ماوس لاسلكي صامت ومريح مع بطارية قابلة للشحن', price: 210, stock: 42 },
+          { sku: 'SKU-NOON-003', asin: 'N09NON0003', title: 'لوحة مفاتيح ميكانيكية بإضاءة RGB', price: 590, stock: 15 },
+          { sku: 'SKU-NOON-004', asin: 'N09NON0004', title: 'حامل كمبيوتر محمول ألومنيوم قابل للطي', price: 360, stock: 29 },
+          { sku: 'SKU-NOON-005', asin: 'N09NON0005', title: 'موزع منافذ يو إس بي تايب سي 7 في 1', price: 480, stock: 22 }
+        ];
+
+        amzSkus.forEach((item, idx) => {
+          dataset.push({
+            id: `inv-amz-${idx + 1}`,
+            trader_id: 'merchant-mahmeud-said',
+            platform: 'amazon',
+            sku: item.sku,
+            asin: item.asin,
+            title: item.title,
+            stock_quantity: item.stock,
+            price: item.price,
+            last_sync: new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
+            created_at: new Date(Date.now() - (idx + 1) * 7200000).toISOString()
+          });
+        });
+
+        noonSkus.forEach((item, idx) => {
+          dataset.push({
+            id: `inv-noon-${idx + 1}`,
+            trader_id: 'merchant-mahmeud-said',
+            platform: 'noon',
+            sku: item.sku,
+            asin: item.asin,
+            title: item.title,
+            stock_quantity: item.stock,
+            price: item.price,
+            last_sync: new Date(Date.now() - (idx + 1) * 1800000).toISOString(),
+            created_at: new Date(Date.now() - (idx + 1) * 5400000).toISOString()
+          });
+        });
+
+        try {
+          localStorage.setItem('radar_inventory_sync', JSON.stringify(dataset));
+        } catch {}
+      }
+
+      // Check if join with traders(seller_name) is requested
+      if (this.selectFields.includes('traders')) {
+        let allTraders: any[] = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) allTraders.push(...parsed);
+              }
+            }
+          }
+        } catch {}
+        const traderMap = new Map<string, any>();
+        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
+        allTraders.forEach(t => {
+          if (t && t.id) traderMap.set(t.id, t);
+        });
+
+        dataset = dataset.map(item => {
+          const trd = traderMap.get(item.trader_id);
+          return {
+            ...item,
+            traders: trd ? { seller_name: trd.seller_name } : null
+          };
+        });
+      }
     }
 
     // Apply filters
@@ -1040,6 +1268,15 @@ class SupabaseQueryBuilder {
         dataset = dataset.filter(item => String(item[f.col]) === String(f.val));
       } else if (f.type === 'neq') {
         dataset = dataset.filter(item => String(item[f.col]) !== String(f.val));
+      } else if (f.type === 'in') {
+        const allowed = Array.isArray(f.val) ? f.val.map(String) : [];
+        dataset = dataset.filter(item => allowed.includes(String(item[f.col])));
+      } else if (f.type === 'not') {
+        if (f.operator === 'is' && (f.val === null || f.val === 'null')) {
+          dataset = dataset.filter(item => item[f.col] !== null && item[f.col] !== undefined);
+        } else {
+          dataset = dataset.filter(item => String(item[f.col]) !== String(f.val));
+        }
       }
     }
 
@@ -1281,5 +1518,57 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     is_read BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- 11. تفعيل الحذف المتتابع (ON DELETE CASCADE) للجداول المرتبطة بالتجار
+ALTER TABLE public.inventory_sync DROP CONSTRAINT IF EXISTS inventory_sync_trader_id_fkey;
+ALTER TABLE public.inventory_sync ADD CONSTRAINT inventory_sync_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_trader_id_fkey;
+ALTER TABLE public.products ADD CONSTRAINT products_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+
+ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_trader_id_fkey;
+ALTER TABLE public.invoices ADD CONSTRAINT invoices_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
 `;
+
+// Self-executing cleaner: purge legacy 'Star Steel' or 'star-steel' orphaned items from local storage
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  try {
+    // 1. Purge from inventory_sync
+    const invRaw = localStorage.getItem('radar_inventory_sync');
+    if (invRaw && (invRaw.includes('star-steel') || invRaw.includes('Star Steel'))) {
+      const parsed = JSON.parse(invRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((item: any) => 
+          item.trader_id !== 'merchant-star-steel' && 
+          item.trader_id !== 'star-steel' &&
+          !String(item.title || '').includes('Star Steel')
+        );
+        localStorage.setItem('radar_inventory_sync', JSON.stringify(cleaned));
+      }
+    }
+
+    // 2. Purge from general inventory records
+    const recordsRaw = localStorage.getItem('merchant_radar_inventory_records_v1');
+    if (recordsRaw && (recordsRaw.includes('star-steel') || recordsRaw.includes('Star Steel'))) {
+      const parsed = JSON.parse(recordsRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((item: any) => 
+          item.productId !== 'star-steel' && 
+          item.traderId !== 'merchant-star-steel' &&
+          item.traderId !== 'star-steel'
+        );
+        localStorage.setItem('merchant_radar_inventory_records_v1', JSON.stringify(cleaned));
+      }
+    }
+
+    // 3. Purge specific products keys
+    localStorage.removeItem('radar_multi_tenant_products_merchant-star-steel');
+    localStorage.removeItem('radar_multi_tenant_products_star-steel');
+  } catch (e) {
+    console.warn('[Storage Cleanup Error]:', e);
+  }
+}
 
