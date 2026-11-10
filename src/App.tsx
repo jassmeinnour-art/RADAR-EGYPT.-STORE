@@ -928,7 +928,7 @@ export default function App() {
       <main 
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y"
+        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y lg:pr-[280px]"
       >
         {/* Mobile Swipe Gesture Helper Banner */}
         <div className="flex sm:hidden items-center justify-between bg-slate-900/90 border border-amber-500/30 rounded-2xl px-3 py-2 text-[11px] text-amber-300 font-bold mb-4 shadow-md backdrop-blur-md">
