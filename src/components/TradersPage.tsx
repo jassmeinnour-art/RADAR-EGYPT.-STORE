@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
-import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
+import { GlobalEmptyState } from './GlobalEmptyState';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -206,7 +206,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   if (traders.length === 0) {
     return (
       <div className="w-full font-['Cairo']" dir="rtl">
-        <EmptyStatePlaceholder
+        <GlobalEmptyState
           icon={Users}
           title="📦 لا يوجد تجار"
           description="اضغط ➕ إضافة تاجر جديد للبدء"

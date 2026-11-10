@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { supabase, Trader, Product } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
+import { GlobalEmptyState } from './GlobalEmptyState';
+
 
 interface TraderDetailPageProps {
   traderId?: string;
@@ -526,30 +528,23 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         </div>
 
         {displayedProducts.length === 0 ? (
-          <div className="py-16 text-center bg-slate-900/30 rounded-3xl border border-dashed border-slate-800 space-y-3">
-            <Package className="w-12 h-12 text-slate-600 mx-auto" />
-            <h4 className="text-white font-bold text-sm">لا توجد منتجات مسجلة لهذا الفلتر</h4>
-            <p className="text-xs text-slate-500">
-              {activePlatformFilter !== 'all' ? `لم يتم العثور على منتجات لمنصة ${activePlatformFilter}` : 'أضف أول منتج لمتجر هذا التاجر'}
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-2">
+          <GlobalEmptyState
+            icon={Package}
+            title="لا توجد منتجات مسجلة لهذا الفلتر"
+            description={activePlatformFilter !== 'all' ? `لم يتم العثور على منتجات لمنصة ${activePlatformFilter}` : 'أضف أول منتج لمتجر هذا التاجر'}
+            actionLabel="إضافة منتج جديد"
+            onActionClick={() => setIsAddModalOpen(true)}
+          >
+            {activePlatformFilter !== 'all' && (
               <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 transition cursor-pointer"
+                onClick={() => setActivePlatformFilter('all')}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>إضافة منتج جديد</span>
+                عرض جميع المنصات
               </button>
-              {activePlatformFilter !== 'all' && (
-                <button
-                  onClick={() => setActivePlatformFilter('all')}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
-                >
-                  عرض جميع المنصات
-                </button>
-              )}
-            </div>
-          </div>
+            )}
+          </GlobalEmptyState>
+
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayedProducts.map((product) => {

@@ -19,7 +19,7 @@ export const GlobalEmptyState: React.FC<GlobalEmptyStateProps> = ({
   children
 }) => {
   return (
-    <div className="py-20 px-6 text-center bg-slate-900/50 backdrop-blur-md rounded-3xl border border-dashed border-slate-800 shadow-xl space-y-4 max-w-2xl mx-auto my-6" dir="rtl">
+    <div className="empty-state-placeholder py-20 px-6 text-center bg-slate-900/50 backdrop-blur-md rounded-3xl border border-dashed border-slate-800 shadow-xl space-y-4 max-w-2xl mx-auto my-6" dir="rtl">
       <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
         <Icon className="w-8 h-8" />
       </div>

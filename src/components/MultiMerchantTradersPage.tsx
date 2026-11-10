@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { multiTenantDb, Trader, Product } from '../lib/supabase';
+import { GlobalEmptyState } from './GlobalEmptyState';
+
 
 interface MultiMerchantTradersPageProps {
   onShowToast?: (message: string) => void;
@@ -176,13 +178,14 @@ export const MultiMerchantTradersPage: React.FC<MultiMerchantTradersPageProps> =
           <p className="text-slate-400 text-sm">جاري تحميل دليل التجار...</p>
         </div>
       ) : filteredTraders.length === 0 ? (
-        <div className="py-20 text-center bg-slate-900/30 rounded-3xl border border-dashed border-slate-800 space-y-4">
-          <Building2 className="w-16 h-16 text-slate-600 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-white font-bold">لا يوجد تجار حالياً</h4>
-            <p className="text-slate-500 text-xs">ابدأ بإضافة أول تاجر لإدارة منتجاته ومخزونه</p>
-          </div>
-        </div>
+        <GlobalEmptyState
+          icon={Building2}
+          title="لا يوجد تجار حالياً"
+          description="ابدأ بإضافة أول تاجر لإدارة منتجاته ومخزونه"
+          actionLabel="إضافة تاجر جديد"
+          onActionClick={() => setIsAddModalOpen(true)}
+        />
+
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTraders.map(trader => {

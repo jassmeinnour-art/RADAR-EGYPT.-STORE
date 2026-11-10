@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
-import { EmptyStatePlaceholder } from './EmptyStatePlaceholder';
+import { GlobalEmptyState } from './GlobalEmptyState';
 
 interface InventoryItem {
   id: string;
@@ -417,7 +417,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
 
       {/* Inventory Items List / Table */}
       {filteredInventory.length === 0 ? (
-        <EmptyStatePlaceholder
+        <GlobalEmptyState
           icon={Boxes}
           title="📦 لا يوجد مخزون - 0 منتج"
           description="لا توجد منتجات مسجلة في المخزون حالياً من قاعدة البيانات. يمكنك سحب المنتجات والمخزون مباشرة من رابط متجر التاجر."
@@ -437,7 +437,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
                 إلغاء جميع الفلاتر
               </button>
             )}
-        </EmptyStatePlaceholder>
+        </GlobalEmptyState>
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
