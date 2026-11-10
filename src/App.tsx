@@ -692,7 +692,7 @@ export default function App() {
     <div dir="rtl" className="w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
       
       {/* Subtle Rotating Watermark Background */}
-      <div className="radar-watermark-bg">
+      <div className="radar-watermark-bg" style={{ position: 'fixed', bottom: '20px', left: '20px', width: '120px', height: '120px', opacity: 0.07, pointerEvents: 'none', zIndex: 0 }}>
         <img 
           src="/radar-watermark.png" 
           alt="RADAR" 
@@ -703,8 +703,7 @@ export default function App() {
       </div>
 
       {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
-      <AnimatedLogosBackground />
-
+{showLandingPage && <AnimatedLogosBackground />}
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
 
@@ -929,7 +928,7 @@ export default function App() {
       <main 
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y"
+        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y lg:pr-[280px]"
       >
         {/* Mobile Swipe Gesture Helper Banner */}
         <div className="flex sm:hidden items-center justify-between bg-slate-900/90 border border-amber-500/30 rounded-2xl px-3 py-2 text-[11px] text-amber-300 font-bold mb-4 shadow-md backdrop-blur-md">
