@@ -121,42 +121,73 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
     }
   };
 
-  const handleAddTrader = async (e: React.FormEvent) => {
+  const handleSaveTrader = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) {
-      if (onShowToast) onShowToast('⚠️ يرجى إدخال اسم التاجر');
+    if (!formName.trim() || !formPlatform || !formSellerId.trim()) {
+      if (onShowToast) {
+        onShowToast('⚠️ املأ اسم التاجر والمنصة ومعرف البائع');
+      }
       return;
     }
     setIsSubmitting(true);
     try {
-      const newTrader = {
+      const newTraderPayload = {
         seller_name: formName.trim(),
         email: formEmail.trim() || `${formName.trim().replace(/\s+/g, '').toLowerCase()}@merchant.eg`,
         phone: formPhone.trim(),
         platform: formPlatform,
-        seller_id: formSellerId.trim() || `SELLER-${Date.now().toString(36).toUpperCase()}`,
+        seller_id: formSellerId.trim(),
         status: 'active',
         created_at: new Date().toISOString()
       };
 
-      const { error } = await supabase.from('traders').insert([newTrader]);
+      const { data, error } = await supabase
+        .from('traders')
+        .insert([newTraderPayload]);
+
       if (error) {
-        throw error;
+        console.error('Supabase trader insert error:', error);
+        if (onShowToast) {
+          onShowToast(`❌ فشل الحفظ: ${error.message}`);
+        }
+        return;
       }
-      if (onShowToast) onShowToast(`✅ تم إضافة التاجر "${formName}" بنجاح!`);
-      setIsAddModalOpen(false);
-      setFormName('');
-      setFormEmail('');
-      setFormPhone('');
-      setFormPlatform('amazon');
-      setFormSellerId('');
-      fetchTraders();
+
+      if (data && data.length > 0) {
+        const insertedTrader = data[0] as Trader;
+        setTraders((prev) => [insertedTrader, ...prev]);
+        if (onShowToast) {
+          onShowToast('✅ تم حفظ التاجر بنجاح');
+        }
+        setIsAddModalOpen(false);
+        setFormName('');
+        setFormEmail('');
+        setFormPhone('');
+        setFormPlatform('amazon');
+        setFormSellerId('');
+      } else {
+        if (onShowToast) {
+          onShowToast('✅ تم حفظ التاجر بنجاح');
+        }
+        setIsAddModalOpen(false);
+        setFormName('');
+        setFormEmail('');
+        setFormPhone('');
+        setFormPlatform('amazon');
+        setFormSellerId('');
+        fetchTraders(1, true);
+      }
     } catch (err: any) {
-      if (onShowToast) onShowToast(`❌ فشل حفظ التاجر: ${err.message || 'حدث خطأ'}`);
+      console.error('Exception during trader save:', err);
+      if (onShowToast) {
+        onShowToast(`❌ فشل الحفظ: ${err.message || 'حدث خطأ غير متوقع'}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleAddTrader = handleSaveTrader;
 
   const handleDeleteTrader = async (e: React.MouseEvent, trader: Trader) => {
     e.stopPropagation();
