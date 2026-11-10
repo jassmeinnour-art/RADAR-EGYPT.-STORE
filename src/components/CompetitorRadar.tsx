@@ -36,6 +36,7 @@ import {
   ArrowUpRight,
   History
 } from 'lucide-react';
+import { GlobalEmptyState } from './GlobalEmptyState';
 import {
   LineChart,
   Line,
@@ -372,28 +373,13 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
   if (!product) {
     return (
-      <div className="w-full max-w-full px-4 py-6 sm:p-8 lg:p-12 bg-white rounded-3xl text-center border border-slate-200 shadow-sm space-y-4 overflow-hidden">
-        <div className="w-16 h-16 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto border border-sky-200">
-          <Zap className="w-8 h-8" />
-        </div>
-        <h3 className="text-xl font-bold text-slate-900 font-['Alexandria']">لا توجد منتجات مسجلة حالياً، يرجى المزامنة</h3>
-        <p className="text-sm text-slate-500 max-w-md mx-auto">
-          لم يتم ربط أو مزامنة أي منتجات فعلية من متجرك على منصات التجارة الإلكترونية بعد. قم بالمزامنة الحية أو استعرض قائمة أفضل المنتجات مبيعاً على المنصات لإضافتها لقائمة المتابعة بضغطة زر.
-        </p>
-        {onOpenBestSellersModal && (
-          <div className="pt-2 flex justify-center">
-            <button
-              type="button"
-              id="btn-radar-empty-open-bestsellers"
-              onClick={onOpenBestSellersModal}
-              className="h-10 px-5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs sm:text-sm font-black font-['Alexandria'] flex items-center gap-2 shadow-lg shadow-sky-500/20 border border-sky-400 transition-all cursor-pointer active:scale-95"
-            >
-              <Flame className="w-4 h-4 fill-slate-950" />
-              <span>عرض أفضل المنتجات مبيعاً (Best Sellers) وإضافتها للمتابعة 🔥</span>
-            </button>
-          </div>
-        )}
-      </div>
+      <GlobalEmptyState
+        icon={<Zap className="w-10 h-10 text-amber-400" />}
+        message="لا توجد منتجات مسجلة حالياً، يرجى المزامنة"
+        description="لم يتم ربط أو مزامنة أي منتجات فعلية من متجرك على منصات التجارة الإلكترونية بعد. قم بالمزامنة الحية أو استعرض قائمة أفضل المنتجات مبيعاً على المنصات لإضافتها لقائمة المتابعة بضغطة زر."
+        actionLabel="عرض أفضل المنتجات مبيعاً (Best Sellers) 🔥"
+        onActionClick={onOpenBestSellersModal || (() => {})}
+      />
     );
   }
 

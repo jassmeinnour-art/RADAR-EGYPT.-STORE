@@ -179,8 +179,8 @@ export const MultiMerchantTradersPage: React.FC<MultiMerchantTradersPageProps> =
         </div>
       ) : filteredTraders.length === 0 ? (
         <GlobalEmptyState
-          icon={Building2}
-          title="لا يوجد تجار حالياً"
+          icon={<Building2 className="w-10 h-10 text-amber-400" />}
+          message="لا يوجد تجار حالياً"
           description="ابدأ بإضافة أول تاجر لإدارة منتجاته ومخزونه"
           actionLabel="إضافة تاجر جديد"
           onActionClick={() => setIsAddModalOpen(true)}

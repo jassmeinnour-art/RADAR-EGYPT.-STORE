@@ -400,9 +400,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       ) : filteredProducts.length === 0 ? (
         <GlobalEmptyState
-          icon={Package}
-          title="📦 لا يوجد منتجات"
-          description="أضف تاجر أولاً ثم اسحب منتجاته"
+          icon={<Package className="w-10 h-10 text-amber-400" />}
+          message="كتالوج المنتجات فارغ"
+          description="لم تقم بإضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها تلقائياً من رابط المتجر."
           actionLabel={isFiltered ? "مسح الفلتر وعرض الكل" : "إضافة منتج جديد"}
           onActionClick={isFiltered ? handleClearAllFilters : () => setIsAddModalOpen(true)}
         />

@@ -23,6 +23,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
 import { multiTenantDb, Trader, SplitInvoice } from '../lib/supabase';
+import { GlobalEmptyState } from './GlobalEmptyState';
 
 interface WaybillSplitterPageProps {
   onBack?: () => void;
@@ -387,10 +388,13 @@ export const WaybillSplitterPage: React.FC<WaybillSplitterPageProps> = ({
                 <span>جاري تحميل فواتير التاجر...</span>
               </div>
             ) : invoices.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 text-xs space-y-2">
-                <FileText className="w-8 h-8 text-slate-600 mx-auto" />
-                <div>لا توجد فواتير مسجلة لهذا التاجر بعد.</div>
-              </div>
+              <GlobalEmptyState
+                icon={<FileText className="w-10 h-10 text-amber-400" />}
+                message="لا توجد فواتير مسجلة"
+                description="لم يتم العثور على أي فواتير مجمعة لهذا التاجر حالياً. يمكنك استيراد الفواتير من المنصة مباشرة."
+                actionLabel="إضافة تاجر/مزامنة"
+                onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/traders' } }))}
+              />
             ) : (
               <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
                 {invoices.map(inv => {

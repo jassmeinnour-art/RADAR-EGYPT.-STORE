@@ -29,6 +29,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { GlobalEmptyState } from './GlobalEmptyState';
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--card-bg, #1E293B)',
@@ -121,6 +122,20 @@ export default function AnalyticsPage() {
             ➕ إضافة تاجر جديد
           </a>
         </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && priceData.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8" dir="rtl">
+        <GlobalEmptyState
+          icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
+          message="📊 لا توجد تحليلات متاحة"
+          description="يجب إضافة منتجات وتجار أولاً لتتمكن المنظومة من تتبع الأسعار وحركة المخزون وتوليد الرسوم البيانية."
+          actionLabel="➕ إضافة منتج جديد"
+          onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/products' } }))}
+        />
       </div>
     );
   }

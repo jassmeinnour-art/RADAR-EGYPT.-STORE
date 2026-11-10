@@ -39,8 +39,12 @@ import {
   ArrowDownRight,
   Activity,
   PieChart as PieIcon,
-  Bell
+  Bell,
+  Package,
+  Users
 } from 'lucide-react';
+import { GlobalEmptyState } from './GlobalEmptyState';
+
 import {
   AreaChart,
   Area,
@@ -82,8 +86,8 @@ interface PeriodicPerformanceReportsProps {
 }
 
 export const PeriodicPerformanceReports: React.FC<PeriodicPerformanceReportsProps> = ({
-  allProducts,
-  watchlist,
+  allProducts = [],
+  watchlist = [],
   currency = 'EGP',
   onSelectProductForRadar,
   onNavigateToWatchlist,
@@ -115,11 +119,17 @@ export const PeriodicPerformanceReports: React.FC<PeriodicPerformanceReportsProp
   // PDF Preview & Export Modal
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
-
-  // Printable ref
   const reportPrintRef = useRef<HTMLDivElement>(null);
 
+  // Error State for Error Boundary fallback
+  const [hasError, setHasError] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // 1. Initial Data check
+  const isDataEmpty = !allProducts || allProducts.length === 0;
+
   // Re-generate report when period changes
+
   const handlePeriodChange = (newPeriod: PeriodicReportPeriodType) => {
     setSelectedPeriod(newPeriod);
     setIsGeneratingNewReport(true);
@@ -330,8 +340,62 @@ ${report.aiExecutiveSummary}
     if (onShowToast) onShowToast('تم تنزيل بيانات التقرير بصيغة CSV بنجاح 📥');
   };
 
+  // Error Boundary Fallback UI
+  if (hasError) {
+    return (
+      <GlobalEmptyState
+        icon={<AlertTriangle className="w-10 h-10 text-rose-500" />}
+        message="⚠️ حدث خطأ في تحميل التقارير"
+        description={`نعتذر، واجه النظام مشكلة أثناء معالجة البيانات: ${errorMsg}`}
+        actionLabel="حاول مرة أخرى"
+        onActionClick={() => {
+          setHasError(false);
+          handleInstantRegenerate();
+        }}
+      />
+    );
+  }
+
+  // Loading State
+  if (isGeneratingNewReport && isDataEmpty) {
+    return (
+      <div className="w-full py-32 text-center space-y-4" dir="rtl">
+        <RefreshCw className="w-12 h-12 text-indigo-500 animate-spin mx-auto" />
+        <p className="text-slate-400 font-bold">⏳ جاري تحميل وتوليد التقارير...</p>
+      </div>
+    );
+  }
+
+  // Empty State UI
+  if (isDataEmpty) {
+    return (
+      <div className="space-y-6" dir="rtl">
+         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl">
+            <h2 className="text-2xl font-black font-['Alexandria']">التقارير التحليلية الموحدة 📈</h2>
+            <p className="text-sm text-slate-300 mt-2">عرض ملخص أداء المبيعات وحصة السوق والـ Buy Box.</p>
+         </div>
+         
+         <GlobalEmptyState
+            icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
+            message="لا توجد تقارير متاحة بعد"
+            description="يجب إضافة تجار ومنتجات وفواتير أولاً ليتمكن النظام من تحليل البيانات وتوليد التقارير الدورية."
+            actionLabel="➕ إضافة تاجر جديد"
+            onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/traders' } }))}
+          >
+             <button 
+               onClick={() => window.location.reload()}
+               className="px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition"
+             >
+               تحديث البيانات 🔄
+             </button>
+          </GlobalEmptyState>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6" id="periodic-performance-reports-container">
+    <div className="space-y-6" id="periodic-performance-reports-container" dir="rtl">
+
       
       {/* ========================================================================= */}
       {/* 1. TOP HERO HEADER & PERIOD TIMEFRAME CONTROLS */}
@@ -544,65 +608,71 @@ ${report.aiExecutiveSummary}
 
           {/* Recharts Area Chart Container */}
           <div className="h-72 w-full min-w-0 pt-2" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250} debounce={50}>
-              {salesChartView === 'sales_volume' ? (
-                <AreaChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorAmazon" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FF9900" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#FF9900" stopOpacity={0.05}/>
-                    </linearGradient>
-                    <linearGradient id="colorNoon" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FEBE10" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#FEBE10" stopOpacity={0.05}/>
-                    </linearGradient>
-                    <linearGradient id="colorJumia" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F68B1E" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#F68B1E" stopOpacity={0.05}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                      `${Number(value || 0).toLocaleString()} ${currency}`, 
-                      name === 'amazonSales' ? 'أمازون مصر' : name === 'noonSales' ? 'نون مصر' : name === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'
-                    ]}
-                    contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Legend 
-                    formatter={(val) => val === 'amazonSales' ? 'أمازون مصر' : val === 'noonSales' ? 'نون مصر' : val === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'}
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                  />
-                  <Area type="monotone" dataKey="amazonSales" stroke="#FF9900" fillOpacity={1} fill="url(#colorAmazon)" name="amazonSales" />
-                  <Area type="monotone" dataKey="noonSales" stroke="#FEBE10" fillOpacity={1} fill="url(#colorNoon)" name="noonSales" />
-                  <Area type="monotone" dataKey="jumiaSales" stroke="#F68B1E" fillOpacity={1} fill="url(#colorJumia)" name="jumiaSales" />
-                </AreaChart>
-              ) : salesChartView === 'net_profit' ? (
-                <BarChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined) => [`${Number(value || 0).toLocaleString()} ${currency}`, 'صافي الربح']}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Bar dataKey="netProfit" fill="#10B981" radius={[8, 8, 0, 0]} name="صافي الربح" />
-                </BarChart>
-              ) : (
-                <LineChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined) => [`${value} طلب`, 'عدد الطلبات']}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Line type="monotone" dataKey="orders" stroke="#6366F1" strokeWidth={3} dot={{ r: 4, fill: '#6366F1' }} name="عدد الطلبات" />
-                </LineChart>
-              )}
-            </ResponsiveContainer>
+            {!report.salesTrendData || report.salesTrendData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                لا توجد بيانات مبيعات كافية للرسم البياني حالياً 📊
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250} debounce={50}>
+                {salesChartView === 'sales_volume' ? (
+                  <AreaChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorAmazon" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FF9900" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#FF9900" stopOpacity={0.05}/>
+                      </linearGradient>
+                      <linearGradient id="colorNoon" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FEBE10" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#FEBE10" stopOpacity={0.05}/>
+                      </linearGradient>
+                      <linearGradient id="colorJumia" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F68B1E" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#F68B1E" stopOpacity={0.05}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${((v || 0)/1000).toFixed(0)}k`} />
+                    <Tooltip 
+                      formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
+                        `${Number(value || 0).toLocaleString()} ${currency}`, 
+                        name === 'amazonSales' ? 'أمازون مصر' : name === 'noonSales' ? 'نون مصر' : name === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'
+                      ]}
+                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
+                    />
+                    <Legend 
+                      formatter={(val) => val === 'amazonSales' ? 'أمازون مصر' : val === 'noonSales' ? 'نون مصر' : val === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'}
+                      wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                    />
+                    <Area type="monotone" dataKey="amazonSales" stroke="#FF9900" fillOpacity={1} fill="url(#colorAmazon)" name="amazonSales" />
+                    <Area type="monotone" dataKey="noonSales" stroke="#FEBE10" fillOpacity={1} fill="url(#colorNoon)" name="noonSales" />
+                    <Area type="monotone" dataKey="jumiaSales" stroke="#F68B1E" fillOpacity={1} fill="url(#colorJumia)" name="jumiaSales" />
+                  </AreaChart>
+                ) : salesChartView === 'net_profit' ? (
+                  <BarChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${((v || 0)/1000).toFixed(0)}k`} />
+                    <Tooltip 
+                      formatter={(value: number | string | Array<number | string> | undefined) => [`${Number(value || 0).toLocaleString()} ${currency}`, 'صافي الربح']}
+                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
+                    />
+                    <Bar dataKey="netProfit" fill="#10B981" radius={[8, 8, 0, 0]} name="صافي الربح" />
+                  </BarChart>
+                ) : (
+                  <LineChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <Tooltip 
+                      formatter={(value: number | string | Array<number | string> | undefined) => [`${value || 0} طلب`, 'عدد الطلبات']}
+                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
+                    />
+                    <Line type="monotone" dataKey="orders" stroke="#6366F1" strokeWidth={3} dot={{ r: 4, fill: '#6366F1' }} name="عدد الطلبات" />
+                  </LineChart>
+                )}
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
@@ -805,28 +875,34 @@ ${report.aiExecutiveSummary}
 
             {/* Historical Line Chart */}
             <div className="h-60 w-full min-w-0 pt-2" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220} debounce={50}>
-                <LineChart data={activeChartWatchlistItem.competitorPriceHistory} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${v.toLocaleString()}`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                      `${Number(value || 0).toLocaleString()} ${currency}`, 
-                      name === 'merchantPrice' ? 'سعرك الحالي' : name === 'amazonLowest' ? 'أمازون مصر' : name === 'noonLowest' ? 'نون مصر' : 'جوميا'
-                    ]}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Legend 
-                    formatter={(val) => val === 'merchantPrice' ? 'سعرك المعتمد' : val === 'amazonLowest' ? 'أمازون مصر' : val === 'noonLowest' ? 'نون مصر' : 'جوميا'}
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                  />
-                  <Line type="monotone" dataKey="merchantPrice" stroke="#4F46E5" strokeWidth={3} dot={{ r: 4, fill: '#4F46E5' }} name="merchantPrice" />
-                  <Line type="monotone" dataKey="amazonLowest" stroke="#FF9900" strokeWidth={2} strokeDasharray="4 4" name="amazonLowest" />
-                  <Line type="monotone" dataKey="noonLowest" stroke="#FEBE10" strokeWidth={2} strokeDasharray="4 4" name="noonLowest" />
-                  <Line type="monotone" dataKey="jumiaLowest" stroke="#F68B1E" strokeWidth={2} strokeDasharray="4 4" name="jumiaLowest" />
-                </LineChart>
-              </ResponsiveContainer>
+              {!activeChartWatchlistItem || !activeChartWatchlistItem.competitorPriceHistory || activeChartWatchlistItem.competitorPriceHistory.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-slate-400 text-xs bg-white/50 rounded-xl border border-dashed border-slate-200">
+                  لا توجد سجلات أسعار تاريخية متاحة لهذا المنتج حالياً 📈
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220} debounce={50}>
+                  <LineChart data={activeChartWatchlistItem.competitorPriceHistory} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v || 0).toLocaleString()}`} />
+                    <Tooltip 
+                      formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
+                        `${Number(value || 0).toLocaleString()} ${currency}`, 
+                        name === 'merchantPrice' ? 'سعرك الحالي' : name === 'amazonLowest' ? 'أمازون مصر' : name === 'noonLowest' ? 'نون مصر' : 'جوميا'
+                      ]}
+                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
+                    />
+                    <Legend 
+                      formatter={(val) => val === 'merchantPrice' ? 'سعرك المعتمد' : val === 'amazonLowest' ? 'أمازون مصر' : val === 'noonLowest' ? 'نون مصر' : 'جوميا'}
+                      wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                    />
+                    <Line type="monotone" dataKey="merchantPrice" stroke="#4F46E5" strokeWidth={3} dot={{ r: 4, fill: '#4F46E5' }} name="merchantPrice" />
+                    <Line type="monotone" dataKey="amazonLowest" stroke="#FF9900" strokeWidth={2} strokeDasharray="4 4" name="amazonLowest" />
+                    <Line type="monotone" dataKey="noonLowest" stroke="#FEBE10" strokeWidth={2} strokeDasharray="4 4" name="noonLowest" />
+                    <Line type="monotone" dataKey="jumiaLowest" stroke="#F68B1E" strokeWidth={2} strokeDasharray="4 4" name="jumiaLowest" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         )}

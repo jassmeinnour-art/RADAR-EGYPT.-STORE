@@ -78,6 +78,7 @@ import { usePWAInstall } from './hooks/usePWAInstall';
 import { useAppUpdate } from './hooks/useAppUpdate';
 import { CURRENT_APP_VERSION, APP_VERSION_STORAGE_KEY } from './pwaRegister';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 
 function extractComponent(module: any): React.ComponentType<any> {
@@ -1190,7 +1191,28 @@ export default function App() {
                   )}
 
                   {activeWorkspaceTab === 'reports' && (
-                    <PeriodicPerformanceReports />
+                    <ErrorBoundary 
+                      sectionName="periodic-reports"
+                      fallback={
+                        <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                          <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+                          <h3 className="text-lg font-black text-white">⚠️ حدث خطأ في تحميل التقارير</h3>
+                          <p className="text-slate-400 text-sm">نعتذر، واجه النظام مشكلة أثناء معالجة بيانات التقارير. حاول تحديث الصفحة.</p>
+                          <button 
+                            onClick={() => window.location.reload()}
+                            className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
+                          >
+                            إعادة تحميل الصفحة 🔄
+                          </button>
+                        </div>
+                      }
+                    >
+                      <PeriodicPerformanceReports 
+                        allProducts={[]} 
+                        watchlist={[]} 
+                        onShowToast={showToast}
+                      />
+                    </ErrorBoundary>
                   )}
 
                   {activeWorkspaceTab === 'auto_pricing' && (
