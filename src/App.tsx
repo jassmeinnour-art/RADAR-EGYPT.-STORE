@@ -703,8 +703,7 @@ export default function App() {
       </div>
 
       {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
-      <AnimatedLogosBackground />
-
+{showLandingPage && <AnimatedLogosBackground />}
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
 
