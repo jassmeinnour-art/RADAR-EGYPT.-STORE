@@ -62,8 +62,15 @@ export const ExecutivePdfReportModal: React.FC<ExecutivePdfReportModalProps> = (
   const primaryWholesaleHub = product.wholesaleLocations?.[0]?.marketName || 'شارع عبد العزيز - القاهرة';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fadeIn font-['Alexandria',sans-serif]">
-      <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm overflow-y-auto animate-fadeIn font-['Alexandria',sans-serif]">
+      <div 
+        className="rounded-3xl max-w-4xl w-full shadow-2xl border overflow-hidden flex flex-col my-auto max-h-[92vh]"
+        style={{
+          backgroundColor: 'var(--card-bg)',
+          borderColor: 'var(--card-border)',
+          color: 'var(--card-text)'
+        }}
+      >
         
         {/* Top Action Bar (hidden when printing) */}
         <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0 no-print">

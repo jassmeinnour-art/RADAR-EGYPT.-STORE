@@ -1,15 +1,5 @@
-:root {
-  --font-family: 'Cairo', sans-serif;
-  --card-bg: #1E293B;
-  --card-border: #334155;
-  --card-text: #FFFFFF;
-  --card-text-secondary: #94A3B8;
-  --input-bg: #0F172A;
-  --input-text: #FFFFFF;
-  --app-bg: #0F172A;
-  --primary-color: #F97316;
-  --card-radius: 12px;
-}
+@import "tailwindcss";
+@import "./variables.css";
 
 body, * {
   font-family: var(--font-family) !important;
@@ -20,8 +10,32 @@ body {
   color: var(--card-text) !important;
 }
 
-/* منع أي مستطيل أبيض فارغ */
-.bg-white, .bg-gray-100, .bg-gray-50 {
-  background: var(--card-bg) !important;
+/* تطبيق متغيرات الثيم الداكن للأسطح والبطاقات والحاويات العامة */
+.theme-card,
+.card,
+.panel,
+.bg-card,
+.modal-card {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
   color: var(--card-text) !important;
+  border-radius: var(--card-radius, 12px);
+}
+
+/* توجيه النصوص العامة لمتغيرات الثيم */
+.text-card-primary {
+  color: var(--card-text) !important;
+}
+
+.text-card-secondary {
+  color: var(--card-text-secondary) !important;
+}
+
+/* حماية صور الشعارات في القائمة الجانبية والرأس والخلفية */
+aside img, 
+header .brand-logo-img,
+header img {
+  max-width: 36px !important;
+  max-height: 36px !important;
+  object-fit: contain !important;
 }

@@ -470,6 +470,9 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
     root.style.setProperty('--secondary', s.colorSecondary);
     root.style.setProperty('--background', s.colorBackground);
     root.style.setProperty('--card-bg', s.colorCard);
+    root.style.setProperty('--card-border', s.colorBorder);
+    root.style.setProperty('--card-radius', `${s.borderRadius}px`);
+    root.style.setProperty('--card-text', s.colorText);
     root.style.setProperty('--text', s.colorText);
     root.style.setProperty('--text-secondary', s.colorTextSecondary);
     root.style.setProperty('--border', s.colorBorder);
@@ -529,6 +532,10 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
         --color-secondary: ${s.colorSecondary};
         --color-card: ${s.colorCard};
         --color-border: ${s.colorBorder};
+        --card-bg: ${s.colorCard};
+        --card-border: ${s.colorBorder};
+        --card-radius: ${s.borderRadius}px;
+        --card-text: ${s.colorText};
         --app-font-family: '${s.fontFamily}', sans-serif;
       }
       body {

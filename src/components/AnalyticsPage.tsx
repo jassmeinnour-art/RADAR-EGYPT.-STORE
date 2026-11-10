@@ -111,30 +111,17 @@ export default function AnalyticsPage() {
 
   if (isEmpty) {
     return (
-      <div style={{ padding: 24 }}>
-        <h2 style={{ color: 'var(--card-text, #fff)' }}>📊 تحليل الأسعار ومعدل حركة المخزون</h2>
-        <p style={smallText}>تتبع تحليلي لأسعار البيع في مصر (【entity-أمازون¦canonical_name=أمازون】، 【entity-نون¦canonical_name=نون】، جوميا) مع قياس دوران المخزون والتأثير بالطلب.</p>
-        <div style={{ ...cardStyle, textAlign: 'center', marginTop: 20 }}>
-          <div style={{ fontSize: 40 }}>📊</div>
-          <h3 style={{ color: 'var(--card-text, #fff)' }}>لا توجد بيانات للتحليل بعد</h3>
-          <p style={smallText}>أضف تجار ومنتجات وفواتير أولاً لعرض التحليلات هنا</p>
-          <a href="/traders" style={{ color: 'var(--primary-color, #F97316)', fontWeight: 'bold' }}>
-            ➕ إضافة تاجر جديد
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isLoading && priceData.length === 0) {
-    return (
       <div className="max-w-7xl mx-auto px-4 py-8" dir="rtl">
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ color: 'var(--card-text, #fff)', fontSize: '20px', fontWeight: 900 }}>📊 تحليل الأسعار ومعدل حركة المخزون</h2>
+          <p style={smallText}>تتبع تحليلي لأسعار البيع في مصر (أمازون، نون، جوميا) مع قياس دوران المخزون والتأثير بالطلب.</p>
+        </div>
         <GlobalEmptyState
           icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
           message="📊 لا توجد تحليلات متاحة"
-          description="يجب إضافة منتجات وتجار أولاً لتتمكن المنظومة من تتبع الأسعار وحركة المخزون وتوليد الرسوم البيانية."
-          actionLabel="➕ إضافة منتج جديد"
-          onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/products' } }))}
+          description="دليل التجار والمنتجات فارغ حالياً. أضف تجاراً ومنتجات وفواتير أولاً لتتمكن المنظومة من تتبع الأسعار وتوليد الرسوم البيانية."
+          actionLabel="➕ إضافة تاجر جديد"
+          onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/traders' } }))}
         />
       </div>
     );
