@@ -34,41 +34,10 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
   const loadNotifications = async () => {
     try {
       const list = await multiTenantDb.getNotifications();
-      // If empty on first load, seed with standard smart alerts
-      if (list.length === 0) {
-        const seeded: AppNotification[] = [
-          {
-            id: 'notif-seed-1',
-            type: 'out_of_stock',
-            message: 'منتج (كابل شحن سريع Type-C مجدول 1.8م) نفذ مخزونه في متجر أمازون مصر لتاجر محمود سعيد',
-            severity: 'high',
-            is_read: false,
-            created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'notif-seed-2',
-            type: 'new_invoice',
-            message: 'وصلت فاتورة جديدة #INV-AMZ-2026-9041 من Amazon لتاجر محمود سعيد (5 منتجات)',
-            severity: 'normal',
-            is_read: false,
-            created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'notif-seed-3',
-            type: 'low_stock',
-            message: 'تنبيه الكرون: مخزون (شاحن Anker 65W GaN) منخفض جداً (متبقي 2 قطع فقط في نون)',
-            severity: 'high',
-            is_read: true,
-            created_at: new Date(Date.now() - 120 * 60 * 1000).toISOString()
-          }
-        ];
-        localStorage.setItem('radar_notifications', JSON.stringify(seeded));
-        setNotifications(seeded);
-      } else {
-        setNotifications(list);
-      }
+      setNotifications(list || []);
     } catch (err) {
       console.warn('Error loading notifications:', err);
+      setNotifications([]);
     }
   };
 

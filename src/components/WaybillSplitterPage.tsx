@@ -246,7 +246,7 @@ export const WaybillSplitterPage: React.FC<WaybillSplitterPageProps> = ({
     // Footer
     doc.setFontSize(7);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Trader: ${currentTrader?.email || currentTrader?.gmail || 'merchant@gmail.com'}`, 50, 142, { align: 'center' });
+    doc.text(`Trader: ${currentTrader?.email || 'merchant@gmail.com'}`, 50, 142, { align: 'center' });
     doc.text('Printed automatically via Merchant Radar Core System', 50, 146, { align: 'center' });
 
     return doc;
@@ -351,7 +351,7 @@ export const WaybillSplitterPage: React.FC<WaybillSplitterPageProps> = ({
                 >
                   {traders.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.seller_name} ({t.gmail || t.email}) - {t.seller_id || t.platform}
+                      {t.seller_name} ({t.email}) - {t.seller_id || t.platform}
                     </option>
                   ))}
                 </select>
@@ -363,8 +363,8 @@ export const WaybillSplitterPage: React.FC<WaybillSplitterPageProps> = ({
                       <span className="font-mono text-amber-400 font-bold">{currentTrader.seller_id || currentTrader.id}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">الجيميل:</span>
-                      <span className="text-slate-200">{currentTrader.gmail || currentTrader.email}</span>
+                      <span className="text-slate-500">البريد الإلكتروني:</span>
+                      <span className="text-slate-200">{currentTrader.email}</span>
                     </div>
                   </div>
                 )}

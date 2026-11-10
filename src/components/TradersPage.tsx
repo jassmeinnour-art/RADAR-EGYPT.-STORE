@@ -133,7 +133,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
     try {
       const newTraderPayload = {
         seller_name: formName.trim(),
-        email: formEmail.trim() || `${formName.trim().replace(/\s+/g, '').toLowerCase()}@merchant.eg`,
+        email: formEmail.trim() || 'mahmeudsaid4@gmail.com',
         phone: formPhone.trim(),
         platform: formPlatform,
         seller_id: formSellerId.trim(),
@@ -153,30 +153,22 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
         return;
       }
 
-      if (data && data.length > 0) {
-        const insertedTrader = data[0] as Trader;
-        setTraders((prev) => [insertedTrader, ...prev]);
-        if (onShowToast) {
-          onShowToast('✅ تم حفظ التاجر بنجاح');
-        }
-        setIsAddModalOpen(false);
-        setFormName('');
-        setFormEmail('');
-        setFormPhone('');
-        setFormPlatform('amazon');
-        setFormSellerId('');
-      } else {
-        if (onShowToast) {
-          onShowToast('✅ تم حفظ التاجر بنجاح');
-        }
-        setIsAddModalOpen(false);
-        setFormName('');
-        setFormEmail('');
-        setFormPhone('');
-        setFormPlatform('amazon');
-        setFormSellerId('');
-        fetchTraders(1, true);
+      dataCache.invalidate('traders');
+      const insertedList = Array.isArray(data) ? data : (data ? [data] : []);
+      if (insertedList.length > 0) {
+        const insertedTrader = insertedList[0] as Trader;
+        setTraders((prev) => [insertedTrader, ...prev.filter(t => t.id !== insertedTrader.id)]);
       }
+      if (onShowToast) {
+        onShowToast('✅ تم حفظ التاجر بنجاح');
+      }
+      setIsAddModalOpen(false);
+      setFormName('');
+      setFormEmail('');
+      setFormPhone('');
+      setFormPlatform('amazon');
+      setFormSellerId('');
+      fetchTraders(1, true);
     } catch (err: any) {
       console.error('Exception during trader save:', err);
       if (onShowToast) {
@@ -431,13 +423,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
             <div
               key={trader.id}
               onClick={() => navigate(`/traders/${trader.id}`)}
-              style={{
-                cursor: 'pointer',
-                backgroundColor: 'var(--card-bg)',
-                borderColor: 'var(--card-border)',
-                color: 'var(--card-text)'
-              }}
-              className="border hover:border-amber-500/50 rounded-3xl p-5 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between"
+              className="card border hover:border-amber-500/50 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between p-5"
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
