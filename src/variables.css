@@ -1,0 +1,12 @@
+:root {
+  --font-family: 'Cairo', sans-serif;
+  --card-bg: #1E293B;
+  --card-border: #334155;
+  --card-text: #FFFFFF;
+  --card-text-secondary: #94A3B8;
+  --input-bg: #0F172A;
+  --input-text: #FFFFFF;
+  --app-bg: #0F172A;
+  --primary-color: #F97316;
+  --card-radius: 12px;
+}

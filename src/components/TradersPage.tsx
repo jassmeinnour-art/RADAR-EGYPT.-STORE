@@ -215,8 +215,15 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
         />
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-right shadow-2xl">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+            <div 
+              className="rounded-3xl max-w-md w-full p-6 text-right shadow-2xl border"
+              style={{
+                backgroundColor: 'var(--card-bg)',
+                borderColor: 'var(--card-border)',
+                color: 'var(--card-text)'
+              }}
+            >
+              <div className="flex items-center justify-between mb-4 pb-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
                 <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
@@ -231,7 +238,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="مثال: متجر محمود سعيد"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 border"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                   />
                 </div>
                 <div>
@@ -239,7 +251,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                   <select
                     value={formPlatform}
                     onChange={(e) => setFormPlatform(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                    className="w-full rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 border"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                   >
                     <option value="amazon">أمازون مصر (Amazon)</option>
                     <option value="noon">نون مصر (Noon)</option>
@@ -257,7 +274,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder="merchant@domain.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 border"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                   />
                 </div>
                 <div>
@@ -267,7 +289,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     placeholder="+20 100 123 4567"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 border"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                   />
                 </div>
                 <div>
@@ -277,7 +304,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
                     value={formSellerId}
                     onChange={(e) => setFormSellerId(e.target.value)}
                     placeholder="مثال: A2X9Y5Z1EGYPT"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 border"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                   />
                 </div>
                 <div className="pt-2 flex gap-2">
@@ -307,7 +339,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   return (
     <div className="w-full space-y-6 font-['Cairo']" dir="rtl">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-3xl border border-slate-800 shadow-xl">
+      <div 
+        className="flex flex-col md:flex-row items-center justify-between gap-4 p-6 rounded-3xl border shadow-xl"
+        style={{
+          backgroundColor: 'var(--card-bg)',
+          borderColor: 'var(--card-border)',
+          color: 'var(--card-text)'
+        }}
+      >
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/30 shadow-inner">
             <Users className="w-6 h-6" />
@@ -335,7 +374,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="بحث في التجار بالاسم أو المنصة أو البريد..."
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-11 pl-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50 shadow-inner"
+          className="w-full border rounded-2xl pr-11 pl-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-amber-500/50 shadow-inner"
+          style={{
+            backgroundColor: 'var(--input-bg)',
+            borderColor: 'var(--card-border)',
+            color: 'var(--input-text)'
+          }}
         />
       </div>
 
@@ -356,8 +400,13 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
             <div
               key={trader.id}
               onClick={() => navigate(`/traders/${trader.id}`)}
-              style={{ cursor: 'pointer' }}
-              className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-3xl p-5 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between"
+              style={{
+                cursor: 'pointer',
+                backgroundColor: 'var(--card-bg)',
+                borderColor: 'var(--card-border)',
+                color: 'var(--card-text)'
+              }}
+              className="border hover:border-amber-500/50 rounded-3xl p-5 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between"
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">

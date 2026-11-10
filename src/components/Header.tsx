@@ -615,11 +615,15 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('products')}
               title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
             >
-              <div className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white">
+              <div 
+                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px' }}
+                className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white"
+              >
                 <img
                   src={headerBrandLogo}
                   alt="منصة بياع الرسمية"
-                  className="w-full h-full object-contain select-none"
+                  style={{ width: '36px', height: '36px', objectFit: 'contain' }}
+                  className="brand-logo-img w-full h-full object-contain select-none"
                   loading="eager"
                   onError={(e) => {
                     const target = e.currentTarget;
@@ -830,7 +834,13 @@ export const Header: React.FC<HeaderProps> = ({
                 onChange={(e) => {
                   window.dispatchEvent(new CustomEvent('merchant_global_search', { detail: { query: e.target.value } }));
                 }}
-                className="w-full h-full pr-9 pl-4 rounded-xl bg-[#F8FAFC] border-2 border-[#000000] text-xs font-bold text-[#000000] placeholder:text-slate-500 focus:outline-none focus:bg-white transition-all shadow-xs"
+                className="w-full h-full pr-9 pl-4 rounded-xl text-xs font-bold placeholder:text-slate-500 focus:outline-none transition-all shadow-xs"
+                style={{
+                  backgroundColor: 'var(--input-bg)',
+                  borderColor: 'var(--card-border)',
+                  color: 'var(--input-text)',
+                  borderWidth: '1px'
+                }}
               />
             </div>
 
@@ -902,8 +912,16 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* User Profile & Store Settings Dropdown */}
                 {showUserMenu && (
-                  <div className="absolute top-full mt-2 left-0 w-72 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 animate-fadeIn text-right">
-                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                  <div 
+                    className="absolute top-full mt-2 left-0 w-72 rounded-2xl shadow-2xl p-4 z-50 animate-fadeIn text-right"
+                    style={{
+                      backgroundColor: 'var(--card-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--card-text)',
+                      borderWidth: '1px'
+                    }}
+                  >
+                    <div className="flex items-center gap-3 pb-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
                       {user.photoURL ? (
                         <img 
                           src={user.photoURL} 

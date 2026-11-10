@@ -171,7 +171,7 @@ export const VisualCustomizerModal: React.FC = () => {
     importSettingsFromJson,
   } = useVisualCustomizer();
 
-  const [activeTab, setActiveTab] = useState<'colors' | 'typography' | 'borders' | 'buttons' | 'button_manager'>('colors');
+  const [activeTab, setActiveTab] = useState<'cards' | 'colors' | 'typography' | 'buttons' | 'button_manager'>('cards');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
   const [previewThemeMode, setPreviewThemeMode] = useState<'dark' | 'light'>('dark');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -374,6 +374,36 @@ export const VisualCustomizerModal: React.FC = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Active CSS Variables Live Bar */}
+              <div 
+                className="flex flex-wrap items-center justify-between p-2.5 rounded-xl border text-xs shadow-md transition-all duration-200"
+                style={{
+                  backgroundColor: previewThemeMode === 'dark' ? settings.colorCard : '#ffffff',
+                  borderColor: previewThemeMode === 'dark' ? settings.colorBorder : '#e2e8f0',
+                  borderRadius: `${settings.borderRadius}px`,
+                  color: previewThemeMode === 'dark' ? settings.colorText : '#0f172a'
+                }}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-amber-400 flex items-center gap-1">
+                    <span>🎴</span>
+                    <span>المتغيرات النشطة للكروت (Live CSS Variables):</span>
+                  </span>
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-amber-300">
+                    --card-bg: {settings.colorCard}
+                  </span>
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-sky-300">
+                    --card-border: {settings.colorBorder}
+                  </span>
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-emerald-300">
+                    --card-radius: {settings.borderRadius}px
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                  تحديث فوري وتلقائي ⚡
+                </span>
               </div>
 
               {/* 1. TOP KPI 4 CARDS (999 يوم، مستقر، 24، 148) */}
@@ -654,6 +684,19 @@ export const VisualCustomizerModal: React.FC = () => {
             <div className="flex border-b border-slate-800/80 bg-slate-900/70 p-1.5 gap-1 shrink-0 overflow-x-auto text-xs font-bold">
               <button
                 type="button"
+                onClick={() => setActiveTab('cards')}
+                className={`px-3 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 ${
+                  activeTab === 'cards' 
+                    ? 'bg-amber-600 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <span>🎴</span>
+                <span>الكروت والإطارات</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveTab('colors')}
                 className={`px-3 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'colors' 
@@ -662,7 +705,7 @@ export const VisualCustomizerModal: React.FC = () => {
                 }`}
               >
                 <Palette className="w-3.5 h-3.5" />
-                <span>1- الألوان</span>
+                <span>الألوان</span>
               </button>
 
               <button
@@ -675,20 +718,7 @@ export const VisualCustomizerModal: React.FC = () => {
                 }`}
               >
                 <Type className="w-3.5 h-3.5" />
-                <span>2- النصوص</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('borders')}
-                className={`px-3 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 ${
-                  activeTab === 'borders' 
-                    ? 'bg-amber-600 text-white shadow-md' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                <Square className="w-3.5 h-3.5" />
-                <span>3- الإطارات</span>
+                <span>النصوص</span>
               </button>
 
               <button
@@ -701,7 +731,7 @@ export const VisualCustomizerModal: React.FC = () => {
                 }`}
               >
                 <MousePointerClick className="w-3.5 h-3.5" />
-                <span>4- الأزرار</span>
+                <span>الأزرار</span>
               </button>
 
               <button
@@ -714,12 +744,281 @@ export const VisualCustomizerModal: React.FC = () => {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>5- إدارة الأزرار ⚡</span>
+                <span>إدارة الأزرار ⚡</span>
               </button>
             </div>
 
             {/* Tab Controls Content */}
             <div className="flex-1 p-4 overflow-y-auto space-y-3 font-['Cairo']">
+              
+              {/* TAB: 🎴 CARDS & BORDERS (تحكم كامل في متغيرات الكروت والإطارات) */}
+              {activeTab === 'cards' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                    <div className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                      <span>🎴</span>
+                      <span>التحكم الشامل في الكروت والإطارات:</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/20 text-amber-300">
+                      CSS Live
+                    </span>
+                  </div>
+
+                  {/* 1. Mini Live Preview Card inside the tab */}
+                  <div 
+                    className="p-3.5 shadow-lg text-right transition-all duration-200 border relative overflow-hidden"
+                    style={{
+                      backgroundColor: previewThemeMode === 'dark' ? settings.colorCard : '#ffffff',
+                      borderColor: previewThemeMode === 'dark' ? settings.colorBorder : '#e2e8f0',
+                      borderRadius: `${settings.borderRadius}px`,
+                      borderWidth: `${settings.borderWidth}px`,
+                      color: previewThemeMode === 'dark' ? settings.colorText : '#1a1a1a',
+                      boxShadow: getShadowCssValue(settings.cardShadow),
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5 font-black text-xs">
+                        <span>🎴</span>
+                        <span>معاينة فورية لكارت النظام</span>
+                      </div>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        مباشر Live
+                      </span>
+                    </div>
+                    <p className="text-[11px] opacity-80 leading-relaxed mb-2">
+                      أي تعديل على الخلفية أو الإطار أو الاستدارة ينعكس فوراً على الكروت في الداشبورد.
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono opacity-90 pt-1.5 border-t border-white/10">
+                      <span>--card-bg: {settings.colorCard}</span>
+                      <span>•</span>
+                      <span>--card-border: {settings.colorBorder}</span>
+                      <span>•</span>
+                      <span>--card-radius: {settings.borderRadius}px</span>
+                    </div>
+                  </div>
+
+                  {/* 2. Control for --card-bg */}
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                        <span>خلفية الكروت (--card-bg):</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-300 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                        {settings.colorCard}
+                      </span>
+                    </div>
+
+                    <ColorPickerRow
+                      label="اختيار اللون المخصص"
+                      value={settings.colorCard}
+                      onChange={(c) => updateSettings({ colorCard: c })}
+                    />
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1">تدرجات داكنة سريعة جاهزة:</span>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[
+                          { label: 'الافتراضي', color: '#1E293B' },
+                          { label: 'كحلي عميق', color: '#0F172A' },
+                          { label: 'أسود فحمي', color: '#18181B' },
+                          { label: 'فلكي ليلي', color: '#0B1120' },
+                          { label: 'رادار كحلي', color: '#1A2332' },
+                          { label: 'زمردي داكن', color: '#064E3B' },
+                          { label: 'بنفسجي ملكي', color: '#1E1B4B' },
+                          { label: 'رمادي صخري', color: '#27272A' },
+                        ].map(preset => (
+                          <button
+                            key={preset.color}
+                            type="button"
+                            onClick={() => updateSettings({ colorCard: preset.color })}
+                            className={`px-1.5 py-1 text-[10px] rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+                              settings.colorCard.toLowerCase() === preset.color.toLowerCase()
+                                ? 'border-amber-500 bg-amber-500/20 text-white'
+                                : 'border-slate-800 bg-slate-950 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
+                            <span className="truncate">{preset.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Control for --card-border */}
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                        <span>إطار وحدود الكروت (--card-border):</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-sky-300 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                        {settings.colorBorder}
+                      </span>
+                    </div>
+
+                    <ColorPickerRow
+                      label="لون الإطار المخصص"
+                      value={settings.colorBorder}
+                      onChange={(c) => updateSettings({ colorBorder: c })}
+                    />
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1">ألوان إطارات شائعة:</span>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[
+                          { label: 'رمادي كلاسيك', color: '#334155' },
+                          { label: 'برتقالي بياع', color: '#F97316' },
+                          { label: 'سماوي رادار', color: '#38BDF8' },
+                          { label: 'أخضر أرباح', color: '#10B981' },
+                          { label: 'ذهبي ملكي', color: '#EAB308' },
+                          { label: 'بنفسجي نيون', color: '#A855F7' },
+                          { label: 'رمادي هادئ', color: '#475569' },
+                          { label: 'إطار شفاف', color: '#33415566' },
+                        ].map(preset => (
+                          <button
+                            key={preset.color}
+                            type="button"
+                            onClick={() => updateSettings({ colorBorder: preset.color })}
+                            className={`px-1.5 py-1 text-[10px] rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+                              settings.colorBorder.toLowerCase() === preset.color.toLowerCase()
+                                ? 'border-amber-500 bg-amber-500/20 text-white'
+                                : 'border-slate-800 bg-slate-950 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
+                            <span className="truncate">{preset.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <ArrowControl
+                      label="سُمك الإطار Border Width (0-8px)"
+                      value={settings.borderWidth}
+                      min={0}
+                      max={8}
+                      onChange={(val) => updateSettings({ borderWidth: val })}
+                    />
+                  </div>
+
+                  {/* 4. Control for --card-radius */}
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                        <span>استدارة الحواف (--card-radius):</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-300 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                        {settings.borderRadius}px
+                      </span>
+                    </div>
+
+                    <ArrowControl
+                      label="قيمة الاستدارة (0 إلى 36 بكسل)"
+                      value={settings.borderRadius}
+                      min={0}
+                      max={36}
+                      onChange={(val) => updateSettings({ borderRadius: val })}
+                    />
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1">أشكال استدارة سريعة:</span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { label: '0px حادة', val: 0 },
+                          { label: '8px عصرية', val: 8 },
+                          { label: '12px متوازنة', val: 12 },
+                          { label: '16px دائرية', val: 16 },
+                          { label: '24px انسيابية', val: 24 },
+                          { label: '32px ناعمة جداً', val: 32 },
+                        ].map(item => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => updateSettings({ borderRadius: item.val })}
+                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition cursor-pointer text-center ${
+                              settings.borderRadius === item.val
+                                ? 'bg-amber-600 border-amber-500 text-white shadow-xs'
+                                : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. Padding, Gap, & Shadow */}
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                    <span className="text-xs font-bold text-white block">
+                      📐 الحشو الداخلي والمسافات والظل:
+                    </span>
+
+                    <ArrowControl
+                      label="الحشو الداخلي للكارت Padding (4-40px)"
+                      value={settings.cardPadding}
+                      min={4}
+                      max={40}
+                      step={2}
+                      onChange={(val) => updateSettings({ cardPadding: val })}
+                    />
+
+                    <ArrowControl
+                      label="المسافة بين الكروت Gap (4-32px)"
+                      value={settings.gapBetweenCards}
+                      min={4}
+                      max={32}
+                      onChange={(val) => updateSettings({ gapBetweenCards: val })}
+                    />
+
+                    <div className="pt-1">
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1">ظل الكروت (Box Shadow):</span>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[
+                          { label: 'بدون', val: 'none' },
+                          { label: 'خفيف', val: 'small' },
+                          { label: 'متوسط', val: 'medium' },
+                          { label: 'قوي', val: 'large' }
+                        ].map(sh => (
+                          <button
+                            key={sh.val}
+                            type="button"
+                            onClick={() => updateSettings({ cardShadow: sh.val as SupportedShadow })}
+                            className={`py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                              settings.cardShadow === sh.val
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                            }`}
+                          >
+                            {sh.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Copy CSS Variables Snippet */}
+                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                    <div className="text-[10px] font-mono text-slate-400 truncate">
+                      --card-bg: {settings.colorCard}; --card-border: {settings.colorBorder}; --card-radius: {settings.borderRadius}px;
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(`--card-bg: ${settings.colorCard};\n--card-border: ${settings.colorBorder};\n--card-radius: ${settings.borderRadius}px;`);
+                        setSaveSuccessNotice('تم نسخ كود متغيرات CSS للكروت للحافظة! 📋');
+                        setTimeout(() => setSaveSuccessNotice(null), 2500);
+                      }}
+                      className="px-2.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-slate-700 cursor-pointer shrink-0 mr-2"
+                    >
+                      نسخ CSS 📋
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* TAB 1: COLORS (Color Picker + Hex Input) */}
               {activeTab === 'colors' && (
@@ -891,83 +1190,7 @@ export const VisualCustomizerModal: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: BORDERS & SPACING (Arrows only) */}
-              {activeTab === 'borders' && (
-                <div className="space-y-2.5">
-                  <div className="text-xs font-bold text-amber-400 mb-2">
-                    📐 الإطارات والمسافات (تحكم بالأسهم فقط ▲▼):
-                  </div>
 
-                  <ArrowControl
-                    label="استدارة الحواف Border Radius (0-30)"
-                    value={settings.borderRadius}
-                    min={0}
-                    max={30}
-                    onChange={(val) => updateSettings({ borderRadius: val })}
-                  />
-
-                  <ArrowControl
-                    label="سُمك الحدود Border Width (0-5)"
-                    value={settings.borderWidth}
-                    min={0}
-                    max={5}
-                    onChange={(val) => updateSettings({ borderWidth: val })}
-                  />
-
-                  <ArrowControl
-                    label="الحشو الداخلي للبطاقات Padding (4-40)"
-                    value={settings.cardPadding}
-                    min={4}
-                    max={40}
-                    step={2}
-                    onChange={(val) => updateSettings({ cardPadding: val })}
-                  />
-
-                  <ArrowControl
-                    label="الهوامش الخارجية للبطاقات Margin (0-32)"
-                    value={settings.cardMargin}
-                    min={0}
-                    max={32}
-                    onChange={(val) => updateSettings({ cardMargin: val })}
-                  />
-
-                  <ArrowControl
-                    label="المسافة البينية بين الكروت Gap (4-32)"
-                    value={settings.gapBetweenCards}
-                    min={4}
-                    max={32}
-                    onChange={(val) => updateSettings({ gapBetweenCards: val })}
-                  />
-
-                  {/* Shadow Selection */}
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-300 block">
-                      ظل البطاقات (Shadow):
-                    </label>
-                    <div className="grid grid-cols-4 gap-1">
-                      {[
-                        { label: 'بدون (None)', val: 'none' },
-                        { label: 'خفيف', val: 'small' },
-                        { label: 'متوسط', val: 'medium' },
-                        { label: 'قوي', val: 'large' }
-                      ].map(sh => (
-                        <button
-                          key={sh.val}
-                          type="button"
-                          onClick={() => updateSettings({ cardShadow: sh.val as SupportedShadow })}
-                          className={`py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                            settings.cardShadow === sh.val
-                              ? 'bg-amber-600 text-white shadow-xs'
-                              : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                          }`}
-                        >
-                          {sh.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* TAB 4: BUTTONS STYLING */}
               {activeTab === 'buttons' && (

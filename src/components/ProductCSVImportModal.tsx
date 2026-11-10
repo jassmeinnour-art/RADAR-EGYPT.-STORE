@@ -159,23 +159,33 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs font-['Cairo'] animate-fadeIn" dir="rtl">
-      <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden text-right">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm font-['Cairo'] animate-fadeIn" dir="rtl">
+      <div 
+        className="w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border flex flex-col overflow-hidden text-right"
+        style={{
+          backgroundColor: 'var(--card-bg)',
+          borderColor: 'var(--card-border)',
+          color: 'var(--card-text)'
+        }}
+      >
         
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+        <div 
+          className="px-5 py-4 border-b flex items-center justify-between"
+          style={{ borderColor: 'var(--card-border)' }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-2xs">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--card-text)' }}>
                 استيراد قائمة المنتجات عبر ملف CSV / Excel
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold border border-indigo-200">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
                   متوافق مع إكسل العربي
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 ارفع ملف المخزون أو حمل القالب النموذجي لتحديث الأسعار وتكاليف الجملة مجمعة
               </p>
             </div>
@@ -184,7 +194,7 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
           <button
             id="btn-close-import-modal"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -330,7 +340,12 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                     value={csvRawContent}
                     onChange={(e) => handlePasteChange(e.target.value)}
                     placeholder="الصق نص الـ CSV هنا (مثلاً: اسم المنتج,العلامة التجارية,التصنيف,تكلفة الجملة,سعر البيع)..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white resize-none"
+                    className="w-full p-3 border rounded-xl text-xs font-mono placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--input-text)'
+                    }}
                     dir="auto"
                   />
                   <p className="text-[11px] text-slate-400 text-right">
@@ -397,13 +412,17 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
               </div>
 
               {/* Import Mode Selection */}
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                <label className="text-xs font-bold text-slate-800 block">
+              {/* Import Mode Selection */}
+              <div 
+                className="p-3.5 rounded-2xl border space-y-2"
+                style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--card-border)' }}
+              >
+                <label className="text-xs font-bold block" style={{ color: 'var(--card-text)' }}>
                   طريقة دمج المنتجات المستوردة مع المخزون الحالي:
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <label className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                    importMode === 'merge' ? 'bg-indigo-50/70 border-indigo-400 ring-1 ring-indigo-400' : 'bg-white border-slate-200 hover:border-slate-300'
+                    importMode === 'merge' ? 'bg-indigo-500/20 border-indigo-400 ring-1 ring-indigo-400' : 'border-slate-700/60 hover:border-slate-500'
                   }`}>
                     <input
                       type="radio"
@@ -413,13 +432,13 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                       className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
-                      <span className="text-xs font-bold text-slate-800 block">دمج وتحديث (موصى به)</span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">تحديث أسعار الأصناف المتطابقة بالـ SKU وإضافة المنتجات الجديدة.</p>
+                      <span className="text-xs font-bold block" style={{ color: 'var(--card-text)' }}>دمج وتحديث (موصى به)</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">تحديث أسعار الأصناف المتطابقة بالـ SKU وإضافة المنتجات الجديدة.</p>
                     </div>
                   </label>
 
                   <label className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                    importMode === 'append' ? 'bg-indigo-50/70 border-indigo-400 ring-1 ring-indigo-400' : 'bg-white border-slate-200 hover:border-slate-300'
+                    importMode === 'append' ? 'bg-indigo-500/20 border-indigo-400 ring-1 ring-indigo-400' : 'border-slate-700/60 hover:border-slate-500'
                   }`}>
                     <input
                       type="radio"
@@ -429,13 +448,13 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                       className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div>
-                      <span className="text-xs font-bold text-slate-800 block">إضافة كأصناف جديدة</span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">إضافة كافة الصفوف كأصناف جديدة بأكواد مميزة دون مساس بالموجود.</p>
+                      <span className="text-xs font-bold block" style={{ color: 'var(--card-text)' }}>إضافة كأصناف جديدة</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">إضافة كافة الصفوف كأصناف جديدة بأكواد مميزة دون مساس بالموجود.</p>
                     </div>
                   </label>
 
                   <label className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                    importMode === 'replace' ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-300' : 'bg-white border-slate-200 hover:border-slate-300'
+                    importMode === 'replace' ? 'bg-rose-500/20 border-rose-400 ring-1 ring-rose-400' : 'border-slate-700/60 hover:border-slate-500'
                   }`}>
                     <input
                       type="radio"
@@ -445,8 +464,8 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                       className="mt-0.5 text-rose-600 focus:ring-rose-500"
                     />
                     <div>
-                      <span className="text-xs font-bold text-slate-800 block">استبدال كامل الكتالوج</span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">مسح القائمة الحالية واعتماد محتويات هذا الملف فقط ككتالوج رئيسي.</p>
+                      <span className="text-xs font-bold block" style={{ color: 'var(--card-text)' }}>استبدال كامل الكتالوج</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">مسح القائمة الحالية واعتماد محتويات هذا الملف فقط ككتالوج رئيسي.</p>
                     </div>
                   </label>
                 </div>
@@ -456,16 +475,16 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Eye className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs font-bold text-slate-800">معاينة الصفوف المستوردة:</span>
+                    <Eye className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs font-bold" style={{ color: 'var(--card-text)' }}>معاينة الصفوف المستوردة:</span>
                   </div>
 
-                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                  <div className="flex items-center gap-1 bg-slate-900/60 p-0.5 rounded-lg border border-slate-700 text-[11px] font-bold">
                     <button
                       type="button"
                       onClick={() => setPreviewFilter('all')}
                       className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                        previewFilter === 'all' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600'
+                        previewFilter === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       الكل ({parseResult.totalRows})
@@ -474,7 +493,7 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                       type="button"
                       onClick={() => setPreviewFilter('valid')}
                       className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                        previewFilter === 'valid' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600'
+                        previewFilter === 'valid' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       الصالحة ({parseResult.validRows.length})
@@ -484,7 +503,7 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                         type="button"
                         onClick={() => setPreviewFilter('invalid')}
                         className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                          previewFilter === 'invalid' ? 'bg-white text-sky-700 shadow-2xs' : 'text-slate-600'
+                          previewFilter === 'invalid' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         بها ملاحظات ({parseResult.invalidRows.length})
@@ -494,9 +513,9 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                 </div>
 
                 {/* Table Container */}
-                <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-56 overflow-y-auto custom-scrollbar">
+                <div className="border border-slate-700/60 rounded-xl overflow-x-auto max-h-56 overflow-y-auto custom-scrollbar">
                   <table className="w-full min-w-[650px] text-right text-xs">
-                    <thead className="bg-slate-100 text-slate-600 sticky top-0 border-b border-slate-200 font-bold">
+                    <thead className="bg-slate-900/80 text-slate-300 sticky top-0 border-b border-slate-700 font-bold">
                       <tr>
                         <th className="p-2.5">#</th>
                         <th className="p-2.5">اسم المنتج</th>
@@ -508,28 +527,28 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
                         <th className="p-2.5">الحالة</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-800">
                       {rowsToDisplay.map((row) => {
                         const p = row.product;
                         return (
-                          <tr key={row.rowNumber} className={row.isValid ? 'hover:bg-slate-50' : 'bg-rose-50/50 hover:bg-rose-50'}>
+                          <tr key={row.rowNumber} className={row.isValid ? 'hover:bg-slate-800/40' : 'bg-rose-950/20 hover:bg-rose-950/30'}>
                             <td className="p-2.5 text-slate-400 font-mono text-[11px]"><bdi>{row.rowNumber}</bdi></td>
-                            <td className="p-2.5 font-bold text-slate-800 max-w-[220px] truncate" title={p?.title}>
-                              <bdi>{p?.title || <span className="text-rose-500 italic">مفقود</span>}</bdi>
+                            <td className="p-2.5 font-bold max-w-[220px] truncate" style={{ color: 'var(--card-text)' }} title={p?.title}>
+                              <bdi>{p?.title || <span className="text-rose-400 italic">مفقود</span>}</bdi>
                             </td>
-                            <td className="p-2.5 text-slate-600"><bdi>{p?.brand || '-'}</bdi></td>
-                            <td className="p-2.5 text-slate-600"><bdi>{p?.category || '-'}</bdi></td>
-                            <td className="p-2.5 font-mono text-[11px] text-slate-500"><bdi>{p?.sku || '-'}</bdi></td>
-                            <td className="p-2.5 font-bold text-slate-700 font-mono"><bdi>{p?.estimatedWholesaleCost ? `${p.estimatedWholesaleCost.toLocaleString()} ${currency}` : '-'}</bdi></td>
-                            <td className="p-2.5 font-bold text-emerald-600 font-mono"><bdi>{p?.suggestedRetailPrice ? `${p.suggestedRetailPrice.toLocaleString()} ${currency}` : '-'}</bdi></td>
+                            <td className="p-2.5 text-slate-300"><bdi>{p?.brand || '-'}</bdi></td>
+                            <td className="p-2.5 text-slate-300"><bdi>{p?.category || '-'}</bdi></td>
+                            <td className="p-2.5 font-mono text-[11px] text-slate-400"><bdi>{p?.sku || '-'}</bdi></td>
+                            <td className="p-2.5 font-bold text-slate-300 font-mono"><bdi>{p?.estimatedWholesaleCost ? `${p.estimatedWholesaleCost.toLocaleString()} ${currency}` : '-'}</bdi></td>
+                            <td className="p-2.5 font-bold text-emerald-400 font-mono"><bdi>{p?.suggestedRetailPrice ? `${p.suggestedRetailPrice.toLocaleString()} ${currency}` : '-'}</bdi></td>
                             <td className="p-2.5">
                               {row.isValid ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 inline-flex items-center gap-1">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1">
                                   <CheckCircle2 className="w-3 h-3" />
                                   جاهز
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 inline-flex items-center gap-1" title={row.errors.join(' • ')}>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-flex items-center gap-1" title={row.errors.join(' • ')}>
                                   <AlertTriangle className="w-3 h-3" />
                                   {row.errors[0] || 'غير مكتمل'}
                                 </span>
@@ -547,11 +566,14 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-slate-500">
+        <div 
+          className="px-5 py-3.5 border-t flex flex-col sm:flex-row items-center justify-between gap-3"
+          style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--input-bg)' }}
+        >
+          <div className="text-xs text-slate-400">
             {parseResult ? (
               <span>
-                سيتم استيراد <strong className="text-emerald-600 font-bold">{parseResult.validRows.length}</strong> من أصل {parseResult.totalRows} منتج
+                سيتم استيراد <strong className="text-emerald-400 font-bold">{parseResult.validRows.length}</strong> من أصل {parseResult.totalRows} منتج
               </span>
             ) : (
               <span>يدعم ملفات حتى 5,000 منتج دفعة واحدة</span>
@@ -563,7 +585,7 @@ export const ProductCSVImportModal: React.FC<ProductCSVImportModalProps> = ({
               id="btn-cancel-import"
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition-colors cursor-pointer"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-xl border border-slate-700 transition-colors cursor-pointer"
             >
               إلغاء
             </button>

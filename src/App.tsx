@@ -688,22 +688,27 @@ export default function App() {
     );
   }
 
+  const isHomePage = typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '');
+
   return (
     <div dir="rtl" className="w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
       
-      {/* Subtle Rotating Watermark Background */}
-      <div className="radar-watermark-bg" style={{ position: 'fixed', bottom: '20px', left: '20px', width: '120px', height: '120px', opacity: 0.07, pointerEvents: 'none', zIndex: 0 }}>
-        <img 
-          src="/radar-watermark.png" 
-          alt="RADAR" 
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = headerBrandLogo;
-          }} 
-        />
-      </div>
+      {/* Subtle Rotating Watermark Background (Only on Home Page) */}
+      {isHomePage && (
+        <div className="radar-watermark-bg" style={{ position: 'fixed', bottom: '20px', left: '20px', width: '120px', height: '120px', opacity: 0.07, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+          <img 
+            src="/radar-watermark.png" 
+            alt="RADAR" 
+            style={{ width: '120px', height: '120px', objectFit: 'contain' }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }} 
+          />
+        </div>
+      )}
 
       {/* Fullscreen Animated Logos Background (خلفية متحركة باللوجوهات الرسمية كعناصر بصرية وليست أزراراً) */}
-{showLandingPage && <AnimatedLogosBackground />}
+      {isHomePage && <AnimatedLogosBackground />}
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
 
@@ -809,11 +814,15 @@ export default function App() {
               className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition shrink-0"
               title="رادار التاجر الذكي - منصة بياع"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 p-0.5 shadow-lg flex items-center justify-center overflow-hidden border border-white/20 shrink-0">
+              <div 
+                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', background: 'transparent' }}
+                className="rounded-xl p-0.5 shadow-md flex items-center justify-center overflow-hidden border border-amber-500/40 shrink-0"
+              >
                 <img 
                   src={headerBrandLogo} 
                   alt="رادار التاجر - بياع" 
-                  className="w-full h-full object-cover rounded-lg"
+                  style={{ width: '36px', height: '36px', maxWidth: '36px', maxHeight: '36px', objectFit: 'contain', background: 'transparent' }}
+                  className="brand-logo-img rounded-lg"
                   onError={(e) => {
                     const target = e.currentTarget;
                     if (!target.dataset.triedFallback) {
@@ -928,7 +937,8 @@ export default function App() {
       <main 
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y lg:pr-[280px]"
+        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y lg:pr-[280px] flex-1"
+        style={{ minWidth: 0 }}
       >
         {/* Mobile Swipe Gesture Helper Banner */}
         <div className="flex sm:hidden items-center justify-between bg-slate-900/90 border border-amber-500/30 rounded-2xl px-3 py-2 text-[11px] text-amber-300 font-bold mb-4 shadow-md backdrop-blur-md">
@@ -1025,8 +1035,8 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Render Home Overview Banner & KPI Cards ONLY on home/reports route */}
-                {(!selectedTraderProfileId && (activeWorkspaceTab === 'reports' || (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')))) && (
+                {/* Render Home Overview Banner & KPI Cards ONLY on home route */}
+                {(!selectedTraderProfileId && isHomePage) && (
                   <>
                     {/* Prominent Clickable Sponsored Bayyaa Ad Banner */}
                     {!isFocusMode && (
@@ -1035,7 +1045,10 @@ export default function App() {
 
                     {/* Top KPI Overview Cards Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                      <div 
+                        className="rounded-2xl p-4 shadow-lg backdrop-blur-md border"
+                        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+                      >
                         <div className="flex items-center justify-between text-slate-400 mb-2">
                           <span className="text-xs font-bold font-['Cairo']">المنتجات النشطة</span>
                           <Package className="w-4 h-4 text-amber-400" />
@@ -1044,7 +1057,10 @@ export default function App() {
                         <span className="text-[10px] text-emerald-400 font-bold font-['Cairo']">محدثة في الكتالوج</span>
                       </div>
 
-                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                      <div 
+                        className="rounded-2xl p-4 shadow-lg backdrop-blur-md border"
+                        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+                      >
                         <div className="flex items-center justify-between text-slate-400 mb-2">
                           <span className="text-xs font-bold font-['Cairo']">المنافسون المراقبون</span>
                           <Users className="w-4 h-4 text-sky-400" />
@@ -1053,7 +1069,10 @@ export default function App() {
                         <span className="text-[10px] text-sky-400 font-bold font-['Cairo']">متاجر بالسوق المصري</span>
                       </div>
 
-                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                      <div 
+                        className="rounded-2xl p-4 shadow-lg backdrop-blur-md border"
+                        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+                      >
                         <div className="flex items-center justify-between text-slate-400 mb-2">
                           <span className="text-xs font-bold font-['Cairo']">حالة التزامن الأخيرة</span>
                           <Activity className="w-4 h-4 text-emerald-400" />
@@ -1062,7 +1081,10 @@ export default function App() {
                         <span className="text-[10px] text-slate-400 font-bold font-['Cairo']">مزامنة سحابية نشطة</span>
                       </div>
 
-                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                      <div 
+                        className="rounded-2xl p-4 shadow-lg backdrop-blur-md border"
+                        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+                      >
                         <div className="flex items-center justify-between text-slate-400 mb-2">
                           <span className="text-xs font-bold font-['Cairo']">مهلة التجربة/الاشتراك</span>
                           <Clock className="w-4 h-4 text-amber-400" />

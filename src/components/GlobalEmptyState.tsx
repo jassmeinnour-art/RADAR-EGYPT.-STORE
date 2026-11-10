@@ -31,7 +31,12 @@ export const GlobalEmptyState: React.FC<GlobalEmptyStateProps> = ({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="empty-state-placeholder py-16 px-6 sm:py-24 sm:px-8 text-center bg-slate-900/40 backdrop-blur-md rounded-[2.5rem] border border-dashed border-slate-800 shadow-2xl space-y-6 max-w-2xl mx-auto my-8 relative overflow-hidden" 
+      className="empty-state-placeholder py-16 px-6 sm:py-24 sm:px-8 text-center backdrop-blur-md rounded-[2.5rem] border border-dashed shadow-2xl space-y-6 max-w-2xl mx-auto my-8 relative overflow-hidden" 
+      style={{
+        backgroundColor: 'var(--card-bg)',
+        borderColor: 'var(--card-border)',
+        color: 'var(--card-text)'
+      }}
       dir="rtl"
     >
       {/* Decorative background glow */}

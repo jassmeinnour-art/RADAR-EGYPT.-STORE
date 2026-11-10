@@ -442,33 +442,41 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                           step={0.5}
                           value={customCommissionPercent}
                           onChange={(e) => setCustomCommissionPercent(Number(e.target.value))}
-                          className="w-full h-8 px-2 pr-7 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono"
+                          className="w-full h-8 px-2 pr-7 rounded-lg text-xs font-bold font-mono border"
+                          style={{
+                            backgroundColor: 'var(--input-bg)',
+                            borderColor: 'var(--card-border)',
+                            color: 'var(--input-text)'
+                          }}
                         />
                         <Percent className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                       </div>
                     </div>
                   )}
 
-                  <p className="text-[11px] text-slate-500 leading-snug">
+                  <p className="text-[11px] text-slate-400 leading-snug">
                     خصم العمولة يتم احتسابه كنسبة مئوية من سعر البيع النهائي للزبون.
                   </p>
                 </div>
 
                 {/* 3. Operational, Shipping & Packaging Fees */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">
+                <div 
+                  className="rounded-2xl p-4 space-y-2.5 border"
+                  style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--card-border)' }}
+                >
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                      <Truck className="w-4 h-4 text-emerald-600" />
+                    <label className="text-xs font-black flex items-center gap-1.5" style={{ color: 'var(--card-text)' }}>
+                      <Truck className="w-4 h-4 text-emerald-500" />
                       <span>3. مصاريف الشحن والتغليف</span>
                     </label>
-                    <span className="text-[10px] font-mono font-bold text-emerald-700">
+                    <span className="text-[10px] font-mono font-bold text-emerald-400">
                       إجمالي: {shippingFee + packagingFee} {currency}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <span className="text-[10px] text-slate-500 font-semibold block mb-1">الشحن والمعالجة:</span>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">الشحن والمعالجة:</span>
                       <div className="relative">
                         <input
                           type="number"
@@ -478,14 +486,19 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                             setSelectedPlatform('custom');
                             setShippingFee(Math.max(0, Number(e.target.value)));
                           }}
-                          className="w-full h-8 px-2 pr-3 pl-8 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono"
+                          className="w-full h-8 px-2 pr-3 pl-8 rounded-lg text-xs font-bold font-mono border"
+                          style={{
+                            backgroundColor: 'var(--input-bg)',
+                            borderColor: 'var(--card-border)',
+                            color: 'var(--input-text)'
+                          }}
                         />
                         <span className="text-[9px] absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 font-sans">ج.م</span>
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-slate-500 font-semibold block mb-1">الكرتون والتغليف:</span>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">الكرتون والتغليف:</span>
                       <div className="relative">
                         <input
                           type="number"
@@ -495,7 +508,12 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                             setSelectedPlatform('custom');
                             setPackagingFee(Math.max(0, Number(e.target.value)));
                           }}
-                          className="w-full h-8 px-2 pr-3 pl-8 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 font-mono"
+                          className="w-full h-8 px-2 pr-3 pl-8 rounded-lg text-xs font-bold font-mono border"
+                          style={{
+                            backgroundColor: 'var(--input-bg)',
+                            borderColor: 'var(--card-border)',
+                            color: 'var(--input-text)'
+                          }}
                         />
                         <span className="text-[9px] absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 font-sans">ج.م</span>
                       </div>
@@ -827,11 +845,14 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
 
                 <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                   {/* Period Switcher */}
-                  <div className="bg-white p-1 rounded-xl border border-slate-200 flex items-center gap-1 text-xs font-bold shadow-xs">
+                  <div 
+                    className="p-1 rounded-xl border flex items-center gap-1 text-xs font-bold shadow-xs"
+                    style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--card-border)' }}
+                  >
                     <button
                       onClick={() => setReportPeriod('weekly')}
                       className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                        reportPeriod === 'weekly' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        reportPeriod === 'weekly' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       أسبوعي 📅
@@ -839,7 +860,7 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                     <button
                       onClick={() => setReportPeriod('monthly')}
                       className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                        reportPeriod === 'monthly' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        reportPeriod === 'monthly' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       شهري 🗓️
@@ -847,7 +868,7 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                     <button
                       onClick={() => setReportPeriod('quarterly')}
                       className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                        reportPeriod === 'quarterly' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        reportPeriod === 'quarterly' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       ربع سنوي 📈
@@ -868,10 +889,15 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
                   {/* Quick Print Button */}
                   <button
                     onClick={handleExportPDF}
-                    className="h-9 px-3 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    className="h-9 px-3 rounded-xl hover:bg-slate-800 border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    style={{
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--card-border)',
+                      color: 'var(--card-text)'
+                    }}
                     title="طباعة التقرير الفوري"
                   >
-                    <Printer className="w-3.5 h-3.5 text-slate-600" />
+                    <Printer className="w-3.5 h-3.5 text-slate-400" />
                     <span className="hidden sm:inline">طباعة فورية</span>
                   </button>
                 </div>
@@ -978,7 +1004,14 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
       {/* ========================================================================= */}
       {showPdfModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[92vh]">
+          <div 
+            className="rounded-3xl max-w-4xl w-full shadow-2xl border overflow-hidden my-auto flex flex-col max-h-[92vh]"
+            style={{
+              backgroundColor: 'var(--card-bg)',
+              borderColor: 'var(--card-border)',
+              color: 'var(--card-text)'
+            }}
+          >
             
             {/* Modal Top Bar */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
@@ -1005,20 +1038,31 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
             </div>
 
             {/* Modal Toolbar with Direct Actions */}
-            <div className="p-3 sm:px-6 bg-slate-100 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+            <div 
+              className="p-3 sm:px-6 border-b flex items-center justify-between flex-wrap gap-2"
+              style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--card-border)' }}
+            >
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
                 <span>مرجع الوثيقة:</span>
-                <span className="font-mono px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-800">
+                <span 
+                  className="font-mono px-2 py-0.5 rounded-md border text-slate-300"
+                  style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+                >
                   {periodicReportData.reportRefCode}
                 </span>
-                <span className="text-slate-400">•</span>
+                <span className="text-slate-500">•</span>
                 <span>{periodicReportData.generatedDate}</span>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopyTeamSummary}
-                  className="h-8 px-3 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="h-8 px-3 rounded-lg border text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer hover:bg-slate-800"
+                  style={{
+                    backgroundColor: 'var(--card-bg)',
+                    borderColor: 'var(--card-border)',
+                    color: 'var(--card-text)'
+                  }}
                 >
                   {copiedSummary ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedSummary ? 'تم النسخ!' : 'نسخ النص'}</span>
@@ -1221,15 +1265,23 @@ export const ProfitMarginCalculator: React.FC<ProfitMarginCalculatorProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
+            <div 
+              className="p-4 border-t flex items-center justify-between"
+              style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--card-border)' }}
+            >
+              <span className="text-xs text-slate-400">
                 يمكن حفظ التقرير كـ PDF مباشرة من خيارات الطباعة (Print to PDF).
               </span>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowPdfModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--card-bg)',
+                    borderColor: 'var(--card-border)',
+                    color: 'var(--card-text)'
+                  }}
                 >
                   إغلاق المعاينة
                 </button>

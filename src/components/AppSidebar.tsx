@@ -343,31 +343,55 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <aside
         className={`fixed top-0 bottom-0 right-0 z-50 bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
-        } ${isCollapsed ? 'lg:w-[70px]' : 'lg:w-[280px]'} w-[280px]`}
+        } ${isCollapsed ? 'lg:w-[70px]' : 'lg:w-[280px]'} w-[280px] max-w-[280px] overflow-hidden`}
+        style={{ width: isCollapsed ? '70px' : '280px', minWidth: isCollapsed ? '70px' : '280px', maxWidth: isCollapsed ? '70px' : '280px' }}
         dir="rtl"
       >
         {/* Sidebar Header */}
-        <div className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg font-black text-base shrink-0">
-              🎯
+        <div 
+          className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0" 
+          style={{ width: '100%', maxWidth: '280px', overflow: 'hidden' }}
+        >
+          <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+            <div 
+              style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px' }} 
+              className="relative shrink-0 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden"
+            >
+              <img
+                src="/bayyaa-logo.png"
+                alt="رادار التاجر الذكي"
+                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', objectFit: 'contain' }}
+                className="shrink-0 rounded-xl"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                  const fb = target.nextElementSibling as HTMLElement;
+                  if (fb) fb.style.display = 'flex';
+                }}
+              />
+              <div 
+                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', display: 'none' }} 
+                className="rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 items-center justify-center text-white shadow-lg shrink-0"
+              >
+                <span style={{ fontSize: '20px', lineHeight: 1 }}>🎯</span>
+              </div>
             </div>
             {!isCollapsed && (
-              <div className="truncate">
-                <h2 className="font-black text-sm text-white tracking-wide truncate">رادار التاجر الذكي</h2>
+              <div className="truncate min-w-0">
+                <h2 style={{ fontSize: '18px', fontWeight: 900 }} className="text-white tracking-wide truncate">رادار التاجر الذكي</h2>
                 <p className="text-[10px] text-amber-300 font-bold truncate">RADAR EGYPT v54</p>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {/* Collapse / Expand Toggle Button for Desktop */}
             <button
               onClick={handleToggleCollapse}
               className="hidden lg:flex p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
               title={isCollapsed ? 'توسيع القائمة' : 'طي القائمة'}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 shrink-0" style={{ width: '20px', height: '20px' }} />
             </button>
 
             {/* Close Button for Mobile Drawer */}
@@ -376,20 +400,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               className="lg:hidden p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
               title="إغلاق القائمة"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 shrink-0" style={{ width: '20px', height: '20px' }} />
             </button>
           </div>
         </div>
 
         {/* Scrollable Navigation Categories */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-2.5">
+        <div className="flex-1 overflow-y-auto p-2 space-y-2.5 max-w-[280px]" style={{ maxWidth: '280px', width: '100%' }}>
           {categories.map((category) => {
             const isCategoryOpen = openCategories[category.id] ?? true;
 
             return (
               <div
                 key={category.id}
-                className={`rounded-xl border ${category.borderColor} overflow-hidden shadow-md`}
+                className={`rounded-xl border ${category.borderColor} overflow-hidden shadow-md max-w-[280px]`}
+                style={{ maxWidth: '100%' }}
               >
                 {/* Category Header */}
                 <button
@@ -450,7 +475,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
         {/* Sidebar Footer */}
         {!isCollapsed && (
-          <div className="p-2.5 bg-slate-950 border-t border-slate-800 text-xs text-white shrink-0 space-y-1">
+          <div 
+            className="p-2.5 bg-slate-950 border-t border-slate-800 text-xs text-white shrink-0 space-y-1 max-w-[280px]" 
+            style={{ maxWidth: '280px', width: '100%' }}
+          >
             <div className="flex items-center justify-between text-white font-bold">
               <span className="flex items-center gap-1 text-[11px] text-slate-300">
                 <Clock className="w-3.5 h-3.5 text-emerald-400" />
