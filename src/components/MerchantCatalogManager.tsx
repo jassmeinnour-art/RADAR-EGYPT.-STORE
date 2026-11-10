@@ -39,8 +39,11 @@ import {
   Wifi,
   WifiOff,
   Database,
-  Palette
+  Palette,
+  Camera,
+  Upload
 } from 'lucide-react';
+import { extractImageFingerprint, calculateImageSimilarity, ImageFingerprint } from '../utils/imageMatcher';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 import { 
   MerchantCatalogProduct, 
@@ -660,6 +663,13 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     localStorage.setItem('merchant_catalog_search_history', JSON.stringify(newHistory));
   };
   
+  // Visual Product Image Matching State
+  const [visualSearchImage, setVisualSearchImage] = useState<string | null>(null);
+  const [visualSearchFileName, setVisualSearchFileName] = useState<string>('');
+  const [isVisualSearching, setIsVisualSearching] = useState<boolean>(false);
+  const [visualSimilarityScores, setVisualSimilarityScores] = useState<Record<string, number>>({});
+  const [visualThreshold, setVisualThreshold] = useState<number>(45); // minimum similarity threshold %
+  const [visualFingerprintsCache, setVisualFingerprintsCache] = useState<Record<string, ImageFingerprint>>({});
   const [platformFilter, setPlatformFilter] = useState<'all' | 'amazon_eg' | 'noon_eg'>('all');
   const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'live' | 'demo' | 'auto_repricer_on' | 'auto_repricer_off'>('all');
   const [priceTierFilter, setPriceTierFilter] = useState<'all' | 'under_1000' | '1000_to_3000' | '3000_to_7000' | 'over_7000'>('all');
@@ -1106,6 +1116,87 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
     }
   };
 
+  // Visual Product Image Matching Handler (رفع صورة والبحث عن المنتجات المطابقة في الكتالوج)
+  const handleVisualImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      if (onShowToast) onShowToast('⚠️ يرجى اختيار ملف صورة صالح (JPEG, PNG, WEBP)');
+      return;
+    }
+
+    setIsVisualSearching(true);
+    setVisualSearchFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Data = reader.result as string;
+      setVisualSearchImage(base64Data);
+
+      try {
+        // 1. Extract fingerprint of uploaded image
+        const queryFp = await extractImageFingerprint(base64Data);
+        if (!queryFp) {
+          throw new Error('تعذر معالجة بصمة الصورة');
+        }
+
+        // 2. Score similarity against all catalog products using fingerprint caching
+        const scores: Record<string, number> = {};
+        const cacheCopy = { ...visualFingerprintsCache };
+
+        for (const p of products) {
+          if (!p.imageUrl) {
+            scores[p.id] = 0;
+            continue;
+          }
+
+          let prodFp = cacheCopy[p.imageUrl];
+          if (!prodFp) {
+            prodFp = await extractImageFingerprint(p.imageUrl);
+            if (prodFp) {
+              cacheCopy[p.imageUrl] = prodFp;
+            }
+          }
+
+          if (prodFp) {
+            const similarity = calculateImageSimilarity(queryFp, prodFp);
+            scores[p.id] = similarity;
+          } else {
+            // Heuristic fallback matching based on image name/brand/title keywords if canvas failed
+            const fileKeywords = file.name.toLowerCase().replace(/[^a-zA-Z0-9\u0621-\u064A]/g, ' ').split(' ');
+            const matchedKeyword = fileKeywords.some(kw => kw.length > 2 && (p.title.toLowerCase().includes(kw) || p.brand.toLowerCase().includes(kw)));
+            scores[p.id] = matchedKeyword ? 65 : 15;
+          }
+        }
+
+        setVisualFingerprintsCache(cacheCopy);
+        setVisualSimilarityScores(scores);
+
+        const matchedCount = Object.values(scores).filter(s => s >= visualThreshold).length;
+        if (onShowToast) {
+          onShowToast(`🔍 عُثر على ${matchedCount} منتج مطابق بصرياً للصورة المرفوعة! تم ترتيب الكتالوج حسب نسبة التشابه.`);
+        }
+      } catch (err: any) {
+        console.error('Visual matching error:', err);
+        if (onShowToast) onShowToast('تعذر إجراء مطابقة الصور، يرجى المحاولة بصورة أخرى');
+      } finally {
+        setIsVisualSearching(false);
+      }
+    };
+
+    reader.readAsDataURL(file);
+    // Reset file input target so same file can be re-uploaded
+    event.target.value = '';
+  };
+
+  const handleClearVisualSearch = () => {
+    setVisualSearchImage(null);
+    setVisualSearchFileName('');
+    setVisualSimilarityScores({});
+    if (onShowToast) onShowToast('تم إلغاء البحث بالصورة والعودة للكتالوج الكامل');
+  };
+
   // Extract unique available tags across catalog for filter dropdown
   const availableCatalogTags = useMemo(() => {
     const set = new Set<string>();
@@ -1311,6 +1402,15 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
         if (!inTitle && !inSku && !inAsin && !inBrand && !inCompetitor && !inPlatform && !inPlatformName) return false;
       }
 
+      // Visual image search filter
+      if (visualSearchImage) {
+        const score = visualSimilarityScores[p.id];
+        // If similarity score was calculated, only include products meeting threshold
+        if (score !== undefined && score < visualThreshold) {
+          return false;
+        }
+      }
+
       // Pinned only toggle filter
       if (showPinnedOnly && !pinnedProductIds.includes(p.id)) return false;
 
@@ -1322,7 +1422,16 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
 
-      // 2. Regular user-selected sorting criteria
+      // 2. If visual search is active, prioritize highest visual match percentage
+      if (visualSearchImage) {
+        const scoreA = visualSimilarityScores[a.id] ?? 0;
+        const scoreB = visualSimilarityScores[b.id] ?? 0;
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+      }
+
+      // 3. Regular user-selected sorting criteria
       if (sortBy === 'gap_desc') return b.priceGapPercent - a.priceGapPercent;
       if (sortBy === 'gap_asc') return a.priceGapPercent - b.priceGapPercent;
       if (sortBy === 'price_desc') return b.merchantPrice - a.merchantPrice;
@@ -1330,7 +1439,7 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
       if (sortBy === 'stock') return b.stockQuantity - a.stockQuantity;
       return 0;
     });
-  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, categoryFilter, searchQuery, sortBy, pinnedProductIds, showPinnedOnly, currentMerchant?.dataMode]);
+  }, [products, platformFilter, syncStatusFilter, priceTierFilter, minPriceFilter, maxPriceFilter, statusFilter, categoryFilter, searchQuery, sortBy, pinnedProductIds, showPinnedOnly, currentMerchant?.dataMode, visualSearchImage, visualSimilarityScores, visualThreshold]);
 
   // Catalog Summary KPIs
   const summary = useMemo(() => calculateCatalogSummary(products), [products]);
@@ -2088,18 +2197,96 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                 ))}
               </div>
             )}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') saveSearchToHistory(searchQuery); }}
-                placeholder="ابحث بالاسم، كود SKU، رقم ASIN، اسم المنافس، أو المنصة..."
-                aria-label="بحث سريع في المنتجات"
-                className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
-              />
+            <div className="relative flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveSearchToHistory(searchQuery); }}
+                  placeholder="ابحث بالاسم، كود SKU، رقم ASIN، اسم المنافس، أو المنصة..."
+                  aria-label="بحث سريع في المنتجات"
+                  className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              {/* Upload Image Search Button */}
+              <div className="relative shrink-0">
+                <input
+                  type="file"
+                  id="catalog-visual-search-upload"
+                  accept="image/*"
+                  onChange={handleVisualImageUpload}
+                  className="hidden"
+                  disabled={isVisualSearching}
+                />
+                <label
+                  htmlFor="catalog-visual-search-upload"
+                  className={`h-10 px-3.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition cursor-pointer select-none border shadow-2xs active:scale-95 ${
+                    visualSearchImage
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 ring-2 ring-purple-300'
+                      : 'bg-slate-50 hover:bg-purple-50 hover:border-purple-300 text-purple-700 border-slate-200'
+                  }`}
+                  title="رفع صورة منتج للبحث البصري عن المنتجات المطابقة في الكتالوج"
+                >
+                  <Camera className={`w-4 h-4 ${isVisualSearching ? 'animate-bounce text-amber-400' : 'text-purple-600'}`} />
+                  <span className="hidden sm:inline">
+                    {isVisualSearching ? 'جاري المطابقة...' : visualSearchImage ? 'صورة مفعلة ✓' : 'بحث بالصورة 📸'}
+                  </span>
+                </label>
+              </div>
             </div>
+
+            {/* Active Visual Search Indicator Banner */}
+            {visualSearchImage && (
+              <div className="p-3 bg-gradient-to-r from-purple-50 via-indigo-50 to-sky-50 border border-purple-200 rounded-2xl flex items-center justify-between gap-3 text-xs flex-wrap animate-fadeIn">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-purple-300 bg-white shadow-2xs shrink-0">
+                    <img src={visualSearchImage} alt="صورة البحث" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-purple-950 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                        مطابقة الصور نشطة:
+                      </span>
+                      <span className="text-[11px] font-mono text-purple-700 truncate max-w-[180px]">
+                        {visualSearchFileName || 'صورة مرفوعة'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      يتم ترتيب الكتالوج وتصفيته بحسب درجة التطابق البصري مع الصورة.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-purple-200 text-[11px] text-slate-700">
+                    <span className="font-bold text-purple-800">الحد الأدنى للتطابق:</span>
+                    <select
+                      value={visualThreshold}
+                      onChange={(e) => setVisualThreshold(Number(e.target.value))}
+                      className="bg-transparent font-bold text-purple-900 border-none outline-none cursor-pointer"
+                    >
+                      <option value={30}>30% (تطابق واسع)</option>
+                      <option value={45}>45% (متوازن)</option>
+                      <option value={60}>60% (دقيق)</option>
+                      <option value={75}>75% (متطابق جداً)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleClearVisualSearch}
+                    className="p-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                    title="إلغاء البحث بالصورة"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -2778,6 +2965,18 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black shrink-0">
                                   <Pin className="w-2.5 h-2.5 fill-current rotate-45" />
                                   <span>مثبت بالأعلى 📌</span>
+                                </span>
+                              )}
+                              {visualSearchImage && visualSimilarityScores[prod.id] !== undefined && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black font-mono shrink-0 shadow-2xs border ${
+                                  visualSimilarityScores[prod.id] >= 70
+                                    ? 'bg-purple-100 text-purple-900 border-purple-300 ring-1 ring-purple-400'
+                                    : visualSimilarityScores[prod.id] >= 50
+                                    ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+                                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                                }`}>
+                                  <span>📸</span>
+                                  <span>تطابق: {visualSimilarityScores[prod.id]}%</span>
                                 </span>
                               )}
                               <h4 className="font-bold text-slate-900 line-clamp-1 text-xs" title={prod.title}>

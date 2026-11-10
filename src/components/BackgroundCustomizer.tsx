@@ -13,7 +13,8 @@ import {
   Upload, 
   Maximize2,
   FolderPlus,
-  Wand2
+  Wand2,
+  Zap
 } from 'lucide-react';
 
 export interface BackgroundPreset {
@@ -105,24 +106,53 @@ export const PRESET_BACKDROPS: BackgroundPreset[] = [
     categoryAr: 'تراث وأرابيسك مصري 🇪🇬',
     imageUrl: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=1200&auto=format&fit=crop&q=80',
     suggestedProducts: 'المنتجات التراثية، المشغولات اليدوية، السجاد والمنسوجات'
+  },
+  {
+    id: 'preset-amazon-white',
+    category: 'ecommerce_compliance' as any,
+    titleAr: 'أبيض نقي 100% معتمد (أمازون ونون)',
+    categoryAr: 'معتمد للمنصات 🇪🇬',
+    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
+    suggestedProducts: 'مطابق لإرشادات أمازون مصر ونون إكسبرس وجوميا للشارة الذهبية'
+  },
+  {
+    id: 'preset-noon-yellow-accent',
+    category: 'ecommerce_compliance' as any,
+    titleAr: 'استوديو محايد مع إضاءة نهارية متوازنة',
+    categoryAr: 'معتمد للمنصات 🇪🇬',
+    imageUrl: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=1200&auto=format&fit=crop&q=80',
+    suggestedProducts: 'مناسب لكتالوج نون وأمازون وجوميا مصر'
+  },
+  {
+    id: 'preset-egypt-cairo-modern',
+    category: 'egyptian_arabesque',
+    titleAr: 'طراز قاهري عصري دافئ مع لمسات نحاسية',
+    categoryAr: 'تراث وأرابيسك مصري 🇪🇬',
+    imageUrl: 'https://images.unsplash.com/photo-1616489953149-805c86259098?w=1200&auto=format&fit=crop&q=80',
+    suggestedProducts: 'أدوات منزلية، أثاث راقي، عطور، هدايا'
   }
 ];
 
 interface BackgroundCustomizerProps {
   initialProductImage?: string | null;
   productTitle?: string;
+  category?: string;
   onShowToast?: (msg: string) => void;
 }
 
 export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   initialProductImage,
   productTitle = 'منتج تجاري',
+  category = 'عام',
   onShowToast
 }) => {
   const [productImage, setProductImage] = useState<string | null>(initialProductImage || null);
   const [selectedPreset, setSelectedPreset] = useState<BackgroundPreset>(PRESET_BACKDROPS[0]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isApplying, setIsApplying] = useState<boolean>(false);
+  const [isUpscaling, setIsUpscaling] = useState<boolean>(false);
+  const [upscaleStats, setUpscaleStats] = useState<any | null>(null);
+  const [platformComplianceNotice, setPlatformComplianceNotice] = useState<string | null>(null);
 
   // Masking & Inpainting Adjustment Controls State
   const [bgBlur, setBgBlur] = useState<number>(2); // 0px to 15px
@@ -131,6 +161,7 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   const [dropShadowIntensity, setDropShadowIntensity] = useState<number>(45); // 0% to 100%
   const [scalePercent, setScalePercent] = useState<number>(85); // 50% to 120%
   const [offsetY, setOffsetY] = useState<number>(0); // -50px to 50px
+  const [activePlatformStandard, setActivePlatformStandard] = useState<'amazon_noon_eg' | 'jumia_eg' | 'social_4k'>('amazon_noon_eg');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,7 +172,7 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
       const reader = new FileReader();
       reader.onloadend = () => {
         setProductImage(reader.result as string);
-        if (onShowToast) onShowToast('📷 تم تحميل صورة المنتج بنجاح جاهزة للتركيب!');
+        if (onShowToast) onShowToast('📷 تم تحميل صورة المنتج بنجاح جاهزة للتركيب والترقية!');
       };
       reader.readAsDataURL(file);
     }
@@ -152,7 +183,83 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
     selectedCategory === 'all' || p.category === selectedCategory
   );
 
-  // Simulate or Call Composition Endpoint
+  // AI Upscaling handler (Super Resolution 2x / 4x)
+  const handleUpscaleImage = async (scale: number = 2) => {
+    if (!productImage) {
+      if (onShowToast) onShowToast('⚠️ يرجى رفع صورة منتج أولاً للبدء بترقية الدقة');
+      return;
+    }
+
+    setIsUpscaling(true);
+    try {
+      const response = await fetch('/api/ai-upscale-enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: productImage,
+          productTitle,
+          scaleFactor: scale,
+          targetStandard: activePlatformStandard
+        })
+      });
+
+      const res = await response.json();
+      if (res.success && res.data) {
+        setProductImage(res.data.upscaledImage);
+        setUpscaleStats(res.data);
+        if (onShowToast) {
+          onShowToast(`🚀 تم ترقية دقة الصورة بنجاح إلى (${res.data.upscaledDimensions}) بجودة فائقة لمعايير المنصات المصرية! ✨`);
+        }
+      } else {
+        throw new Error(res.error || 'تعذر استكمال الترقية');
+      }
+    } catch (err: any) {
+      console.warn('AI Upscaling error:', err);
+      if (onShowToast) onShowToast('⚠️ حدث خطأ أثناء الترقية: ' + err.message);
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
+
+  // AI Auto Background Replacement for Egyptian Platforms
+  const handleAutoReplaceBackground = async (theme: string = 'amazon_pure_white') => {
+    if (!productImage) {
+      if (onShowToast) onShowToast('⚠️ يرجى رفع صورة منتج أولاً لاستبدال الخلفية تلقائياً');
+      return;
+    }
+
+    setIsApplying(true);
+    try {
+      const response = await fetch('/api/ai-auto-replace-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: productImage,
+          productTitle,
+          category,
+          presetTheme: theme
+        })
+      });
+
+      const res = await response.json();
+      if (res.success && res.data) {
+        setProductImage(res.data.processedImage);
+        setPlatformComplianceNotice(res.data.themeBadge);
+        if (onShowToast) {
+          onShowToast(`✨ تم استبدال الخلفية تلقائياً بنجاح: [${res.data.themeBadge}]!`);
+        }
+      } else {
+        throw new Error(res.error || 'فشل في استبدال الخلفية');
+      }
+    } catch (err: any) {
+      console.error('Auto replace bg error:', err);
+      if (onShowToast) onShowToast('⚠️ حدث خطأ: ' + err.message);
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  // Call Composition Endpoint
   const handleApplyCustomBackground = async () => {
     if (!productImage) {
       if (onShowToast) onShowToast('⚠️ يرجى رفع صورة منتج أولاً للبدء بتركيب الخلفية');
@@ -161,11 +268,11 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
 
     setIsApplying(true);
     try {
-      // Simulate server-side AI Inpainting composite API
-      await new Promise(resolve => setTimeout(resolve, 800));
-      if (onShowToast) {
-        onShowToast(`✨ تم دمج وصنع صورة المنتج مع خلفية "${selectedPreset.titleAr}" بنجاح!`);
-      }
+      await handleAutoReplaceBackground(
+        selectedPreset.id.includes('white') ? 'amazon_pure_white' :
+        selectedPreset.id.includes('marble') ? 'marble_podium' :
+        selectedPreset.id.includes('egypt') ? 'egypt_warm_wood' : 'studio_neutral'
+      );
     } catch (err: any) {
       console.error('Custom background error:', err);
     } finally {
@@ -175,8 +282,15 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
 
   // Download Composite Asset
   const handleDownloadComposite = () => {
+    if (!productImage) return;
+    const a = document.createElement('a');
+    a.href = productImage;
+    a.download = `radar-egypt-product-hd-${Date.now()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     if (onShowToast) {
-      onShowToast(`📥 جاري تحميل الصورة المجمعة بخلفية "${selectedPreset.titleAr}" بدقة HD...`);
+      onShowToast(`📥 تم بدء تحميل الصورة المحسنة بدقة HD بنجاح!`);
     }
   };
 
@@ -294,6 +408,106 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
             <div className="absolute top-4 right-4 px-3 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-slate-800 text-[11px] font-bold text-sky-300 flex items-center gap-1.5 z-20">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>الخلفية: {selectedPreset.titleAr}</span>
+            </div>
+          </div>
+
+          {/* Platform Compliance Status Notice if applied */}
+          {platformComplianceNotice && (
+            <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs text-emerald-200">
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{platformComplianceNotice}</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
+                100% Verified
+              </span>
+            </div>
+          )}
+
+          {/* AI Upscaling & Resolution Super-Res Toolbar */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/70 via-slate-900 to-sky-950/70 border border-sky-500/30 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
+                  <Maximize2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-white">ترقية دقة وتفاصيل المنتج (AI Upscaling)</h4>
+                  <p className="text-[10px] text-slate-400">مضاعفة البيكسل وتحسين حدة التفاصيل لتجاوز متطلبات التكبير في أمازون مصر ونون</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleUpscaleImage(2)}
+                  disabled={isUpscaling || !productImage}
+                  className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-[11px] transition shadow flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                  <span>{isUpscaling ? 'جاري الترقية...' : 'ترقية 2x Super-Res'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpscaleImage(4)}
+                  disabled={isUpscaling || !productImage}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-[11px] transition shadow flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <span>ترقية 4x Ultra-HD</span>
+                </button>
+              </div>
+            </div>
+
+            {upscaleStats && (
+              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-300">
+                <span>الأبعاد الأصلية: <strong className="text-white font-mono">{upscaleStats.originalDimensions}</strong></span>
+                <span>الأبعاد بعد الترقية: <strong className="text-emerald-400 font-mono">{upscaleStats.upscaledDimensions}</strong></span>
+                <span className="text-sky-300 font-bold">✓ جاهز لخاصية Zoom التفاعلية</span>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Auto-Replace for Egyptian E-commerce Standards */}
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>استبدال الخلفية تلقائياً وفق معايير المنصات المصرية 🇪🇬</span>
+              </span>
+              <span className="text-[10px] text-slate-400">بنقرة واحدة</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleAutoReplaceBackground('amazon_pure_white')}
+                disabled={isApplying || !productImage}
+                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/90 border border-slate-700/70 text-right transition cursor-pointer disabled:opacity-50 group"
+              >
+                <div className="text-[11px] font-black text-white group-hover:text-amber-300">⚪ أبيض نقي 100%</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">معتمد أمازون مصر ونون إكسبرس</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAutoReplaceBackground('marble_podium')}
+                disabled={isApplying || !productImage}
+                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/90 border border-slate-700/70 text-right transition cursor-pointer disabled:opacity-50 group"
+              >
+                <div className="text-[11px] font-black text-white group-hover:text-amber-300">🏛️ منصة رخام فاخرة</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">للعطور، الساعات والأجهزة الراقية</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAutoReplaceBackground('egypt_warm_wood')}
+                disabled={isApplying || !productImage}
+                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/90 border border-slate-700/70 text-right transition cursor-pointer disabled:opacity-50 group"
+              >
+                <div className="text-[11px] font-black text-white group-hover:text-amber-300">🪵 خشب دافئ مصري</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">للمستلزمات المنزلية واليدوية</div>
+              </button>
             </div>
           </div>
 

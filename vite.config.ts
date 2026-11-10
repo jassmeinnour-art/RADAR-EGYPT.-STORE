@@ -12,6 +12,7 @@ export default defineConfig({
     host: true
   },
   build: {
+    outDir: 'dist',
     chunkSizeWarningLimit: 2000,
     minify: 'esbuild',
     rollupOptions: {
@@ -20,7 +21,7 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom'],
           'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           'ui': ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
-          'motion': ['framer-motion', 'motion', 'canvas-confetti'],
+          'animations': ['framer-motion', 'canvas-confetti'],
           'export-docs': ['jspdf', 'jspdf-autotable', 'html2canvas', 'xlsx'],
           'analytics': ['@vercel/analytics', '@vercel/speed-insights'],
           'genai': ['@google/genai']

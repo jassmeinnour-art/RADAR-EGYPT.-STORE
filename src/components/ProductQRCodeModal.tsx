@@ -16,7 +16,7 @@ import {
   Tag,
   Barcode
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { ProductData } from '../types';
 

@@ -12,9 +12,17 @@ export interface Trader {
   seller_ids?: Record<string, string>; // { amazon: '...', noon: '...' }
   api_keys?: Record<string, any>;   // { amazon: { clientId: '...', ... }, noon: '...' }
   created_at?: string;
+  seller_id?: string;
+  seller_link?: string;
+  storefront_link?: string;
+  gmail?: string;
   // UI helpers
   products_count?: number;
+  amazon_count?: number;
+  noon_count?: number;
   total_stock?: number;
+  invoices_count?: number;
+  is_connected?: boolean;
   last_sync_at?: string;
 }
 
@@ -31,6 +39,31 @@ export interface Product {
   competitor_price?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface SplitInvoice {
+  id: string;
+  original_invoice_id: string;
+  trader_id: string;
+  split_number: string;
+  product_title: string;
+  product_sku: string;
+  product_asin?: string;
+  quantity: number;
+  price: number;
+  barcode_url?: string;
+  pdf_url?: string;
+  created_at?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  trader_id?: string;
+  type: 'out_of_stock' | 'new_invoice' | 'low_stock' | 'info' | string;
+  message: string;
+  severity?: 'normal' | 'high' | 'urgent' | string;
+  is_read: boolean;
+  created_at: string;
 }
 
 const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || '';
@@ -100,9 +133,30 @@ export const multiTenantDb = {
       }
     }
 
-    // If still empty, return an empty array (no mock merchants)
+    // If empty, provide the default merchant for Mahmoud Said
     if (traders.length === 0) {
-      traders = [];
+      traders = [
+        {
+          id: 'merchant-mahmeud-said',
+          user_id: userId,
+          seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+          email: 'mahmoud.said@gmail.com',
+          gmail: 'mahmoud.said@gmail.com',
+          phone: '+20 100 123 4567',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: 'A2X9Y5Z1EGYPT',
+          seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
+          storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
+          products_count: 12,
+          total_stock: 184,
+          invoices_count: 3,
+          is_connected: true,
+          last_sync_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+          seller_ids: { amazon: 'A2X9Y5Z1EGYPT' },
+          api_keys: {}
+        }
+      ];
       try {
         localStorage.setItem(getTradersStorageKey(userId), JSON.stringify(traders));
       } catch {}
@@ -176,26 +230,44 @@ export const multiTenantDb = {
 
     if (supabaseClient) {
       try {
-        await supabaseClient
-          .from('traders')
-          .delete()
-          .eq('id', traderId)
-          .eq('user_id', userId);
+        await supabaseClient.from('inventory_sync').delete().eq('trader_id', traderId);
+        await supabaseClient.from('products').delete().eq('trader_id', traderId);
+        await supabaseClient.from('invoices').delete().eq('trader_id', traderId);
+        await supabaseClient.from('traders').delete().eq('id', traderId);
       } catch (err) {
-        console.warn('[MultiTenant Supabase Delete Error]:', err);
+        console.warn('[MultiTenant Supabase Cascade Delete Error]:', err);
       }
     }
 
     try {
-      const key = getTradersStorageKey(userId);
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const list: Trader[] = JSON.parse(raw);
-        const filtered = list.filter(t => t.id !== traderId);
-        localStorage.setItem(key, JSON.stringify(filtered));
-        localStorage.removeItem(getProductsStorageKey(traderId));
-        window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { userId } }));
+      localStorage.removeItem(getProductsStorageKey(traderId));
+      
+      // Cascade delete in local inventory_sync
+      const invRaw = localStorage.getItem('radar_inventory_sync');
+      if (invRaw) {
+        try {
+          const invList = JSON.parse(invRaw);
+          const filteredInv = invList.filter((item: any) => item.trader_id !== traderId);
+          localStorage.setItem('radar_inventory_sync', JSON.stringify(filteredInv));
+        } catch {}
       }
+
+      // Cascade delete in traders
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list: Trader[] = JSON.parse(raw);
+              const filtered = list.filter(t => t.id !== traderId);
+              localStorage.setItem(k, JSON.stringify(filtered));
+            }
+          } catch {}
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { userId } }));
       return true;
     } catch {
       return false;
@@ -234,6 +306,261 @@ export const multiTenantDb = {
     } catch {
       return false;
     }
+  },
+
+  /**
+   * Update full trader fields (seller_id, seller_link, storefront_link, gmail, etc.)
+   */
+  async updateTrader(traderId: string, updates: Partial<Trader>): Promise<boolean> {
+    if (!traderId) return false;
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient
+          .from('traders')
+          .update(updates)
+          .eq('id', traderId);
+      } catch (err) {
+        console.warn('[MultiTenant Supabase Trader Update Error]:', err);
+      }
+    }
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const list: Trader[] = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const target = list.find(t => t.id === traderId);
+                if (target) {
+                  Object.assign(target, updates);
+                  localStorage.setItem(k, JSON.stringify(list));
+                  window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { traderId } }));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Save scraped storefront products to trader's catalog
+   */
+  async saveScrapedProducts(traderId: string, scraped: any[]): Promise<Product[]> {
+    if (!traderId || !Array.isArray(scraped) || scraped.length === 0) return [];
+
+    const newProducts: Product[] = scraped.map(s => ({
+      id: `prd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)}`,
+      trader_id: traderId,
+      title: s.title || 'منتج مسحوب من المتجر',
+      sku: s.sku || s.asin || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
+      price: s.price || 0,
+      stock: s.inStock ? 15 : 0,
+      platform: s.platform || 'amazon',
+      image: s.image || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    // Save to local storage
+    try {
+      const key = getProductsStorageKey(traderId);
+      const raw = localStorage.getItem(key);
+      const list: Product[] = raw ? JSON.parse(raw) : [];
+      // merge without duplicating same sku/title
+      for (const np of newProducts) {
+        const exists = list.some(item => item.sku === np.sku || item.title === np.title);
+        if (!exists) {
+          list.unshift(np);
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('multi_tenant_products_updated', { detail: { traderId } }));
+    } catch {}
+
+    // Save to Supabase if available
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('products').insert(newProducts);
+      } catch (err) {
+        console.warn('[MultiTenant Products Insert Warning]:', err);
+      }
+    }
+
+    return newProducts;
+  },
+
+  /**
+   * Invoices storage & retrieval
+   */
+  async getInvoicesByTrader(traderId: string): Promise<any[]> {
+    if (!traderId) return [];
+    if (supabaseClient) {
+      try {
+        const { data } = await supabaseClient
+          .from('invoices')
+          .select('*, invoice_items(*)')
+          .eq('trader_id', traderId)
+          .order('created_at', { ascending: false });
+        if (data && data.length > 0) return data;
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem(`radar_invoices_${traderId}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+
+    return [];
+
+  },
+
+  async saveInvoices(traderId: string, invoices: any[]): Promise<void> {
+    if (!traderId || !Array.isArray(invoices)) return;
+    try {
+      const key = `radar_invoices_${traderId}`;
+      const raw = localStorage.getItem(key);
+      const current = raw ? JSON.parse(raw) : [];
+      const merged = [...invoices, ...current.filter((c: any) => !invoices.some((inv: any) => inv.id === c.id || inv.order_id === c.order_id))];
+      localStorage.setItem(key, JSON.stringify(merged));
+    } catch {}
+  },
+
+  /**
+   * Split Invoices Management
+   */
+  async getSplitInvoices(originalInvoiceId?: string, traderId?: string): Promise<SplitInvoice[]> {
+    if (supabaseClient) {
+      try {
+        let query = supabaseClient.from('split_invoices').select('*');
+        if (originalInvoiceId) query = query.eq('original_invoice_id', originalInvoiceId);
+        if (traderId) query = query.eq('trader_id', traderId);
+        const { data } = await query.order('created_at', { ascending: true });
+        if (data && data.length > 0) return data as SplitInvoice[];
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_split_invoices');
+      if (raw) {
+        let list: SplitInvoice[] = JSON.parse(raw);
+        if (originalInvoiceId) list = list.filter(s => s.original_invoice_id === originalInvoiceId);
+        if (traderId) list = list.filter(s => s.trader_id === traderId);
+        return list;
+      }
+    } catch {}
+    return [];
+  },
+
+  async createSplitInvoices(splits: Omit<SplitInvoice, 'id' | 'created_at'>[]): Promise<SplitInvoice[]> {
+    const newSplits: SplitInvoice[] = splits.map(s => ({
+      ...s,
+      id: `split-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString()
+    }));
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('split_invoices').insert(newSplits);
+      } catch {}
+    }
+
+    try {
+      const key = 'radar_split_invoices';
+      const raw = localStorage.getItem(key);
+      const list: SplitInvoice[] = raw ? JSON.parse(raw) : [];
+      list.unshift(...newSplits);
+      localStorage.setItem(key, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('radar_split_invoices_updated'));
+    } catch {}
+
+    return newSplits;
+  },
+
+  /**
+   * Notifications Management
+   */
+  async getNotifications(traderId?: string): Promise<AppNotification[]> {
+    if (supabaseClient) {
+      try {
+        let query = supabaseClient.from('notifications').select('*');
+        if (traderId) query = query.eq('trader_id', traderId);
+        const { data } = await query.order('created_at', { ascending: false });
+        if (data && data.length > 0) return data as AppNotification[];
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      if (raw) {
+        let list: AppNotification[] = JSON.parse(raw);
+        if (traderId) list = list.filter(n => !n.trader_id || n.trader_id === traderId);
+        return list;
+      }
+    } catch {}
+    return [];
+  },
+
+  async addNotification(notif: Omit<AppNotification, 'id' | 'created_at' | 'is_read'>): Promise<AppNotification> {
+    const newNotif: AppNotification = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').insert([newNotif]);
+      } catch {}
+    }
+
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      const list: AppNotification[] = raw ? JSON.parse(raw) : [];
+      list.unshift(newNotif);
+      localStorage.setItem('radar_notifications', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+    } catch {}
+
+    return newNotif;
+  },
+
+  async markNotificationRead(id: string): Promise<void> {
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem('radar_notifications');
+      if (raw) {
+        const list: AppNotification[] = JSON.parse(raw);
+        const item = list.find(n => n.id === id);
+        if (item) {
+          item.is_read = true;
+          localStorage.setItem('radar_notifications', JSON.stringify(list));
+          window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+        }
+      }
+    } catch {}
+  },
+
+  async clearAllNotifications(): Promise<void> {
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('notifications').delete().neq('id', '');
+      } catch {}
+    }
+    try {
+      localStorage.removeItem('radar_notifications');
+      window.dispatchEvent(new CustomEvent('radar_notifications_updated'));
+    } catch {}
   },
 
   /**
@@ -415,60 +742,415 @@ export const multiTenantDb = {
 };
 
 /**
- * Backward compatibility object for legacy calls
+ * Fluent Supabase Query Builder with Multi-Tenant Fallback
+ */
+class SupabaseQueryBuilder {
+  private tableName: string;
+  private selectFields: string = '*';
+  private filters: Array<{ col: string; val: any; type: 'eq' | 'neq' | 'in' | 'not'; operator?: string }> = [];
+  private orderConfig?: { col: string; ascending: boolean };
+  private isSingle: boolean = false;
+  private limitCount?: number;
+  private isDelete: boolean = false;
+  private isUpdate: boolean = false;
+  private updatePayload: any = null;
+
+  constructor(tableName: string) {
+    this.tableName = tableName;
+  }
+
+  select(fields: string = '*', options?: { count?: string }): this {
+    this.selectFields = fields;
+    return this;
+  }
+
+  order(column: string, { ascending = true }: { ascending?: boolean } = {}): this {
+    this.orderConfig = { col: column, ascending };
+    return this;
+  }
+
+  eq(column: string, value: any): this {
+    this.filters.push({ col: column, val: value, type: 'eq' });
+    return this;
+  }
+
+  neq(column: string, value: any): this {
+    this.filters.push({ col: column, val: value, type: 'neq' });
+    return this;
+  }
+
+  not(column: string, operator: string, value: any): this {
+    this.filters.push({ col: column, val: value, operator, type: 'not' });
+    return this;
+  }
+
+  in(column: string, values: any[]): this {
+    this.filters.push({ col: column, val: values, type: 'in' });
+    return this;
+  }
+
+  single(): this {
+    this.isSingle = true;
+    return this;
+  }
+
+  limit(count: number): this {
+    this.limitCount = count;
+    return this;
+  }
+
+  range(from: number, to: number): this {
+    this.limitCount = Math.max(1, (to - from) + 1);
+    return this;
+  }
+
+  async insert(records: any): Promise<{ data: any; error: any }> {
+    const arr = Array.isArray(records) ? records : [records];
+    if (supabaseClient) {
+      try {
+        const res = await supabaseClient.from(this.tableName).insert(arr).select();
+        if (!res.error && res.data) {
+          return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+      } catch (err) {
+        console.warn(`[Supabase Insert Fallback on ${this.tableName}]:`, err);
+      }
+    }
+
+    // Local Storage insert fallback
+    try {
+      if (this.tableName === 'traders') {
+        const storedKey = 'radar_multi_tenant_traders_default';
+        const raw = localStorage.getItem(storedKey);
+        const existing: any[] = raw ? JSON.parse(raw) : [];
+        const toAdd = arr.map((item: any) => ({
+          ...item,
+          id: item.id || `trd-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          created_at: item.created_at || new Date().toISOString()
+        }));
+        const combined = [...toAdd, ...existing];
+        localStorage.setItem(storedKey, JSON.stringify(combined));
+        return { data: this.isSingle ? toAdd[0] : toAdd, error: null };
+      }
+      if (this.tableName === 'products') {
+        const first = arr[0] || {};
+        const key = getProductsStorageKey(first.trader_id || 'default');
+        const raw = localStorage.getItem(key);
+        const existing: any[] = raw ? JSON.parse(raw) : [];
+        const toAdd = arr.map((item: any) => ({
+          ...item,
+          id: item.id || `prd-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          created_at: item.created_at || new Date().toISOString()
+        }));
+        const combined = [...toAdd, ...existing];
+        localStorage.setItem(key, JSON.stringify(combined));
+        return { data: this.isSingle ? toAdd[0] : toAdd, error: null };
+      }
+    } catch (e) {
+      return { data: null, error: e };
+    }
+
+    return { data: this.isSingle ? arr[0] : arr, error: null };
+  }
+
+  update(updates: any): this {
+    this.isUpdate = true;
+    this.updatePayload = updates;
+    return this;
+  }
+
+  delete(): this {
+    this.isDelete = true;
+    return this;
+  }
+
+  private async executeUpdate(): Promise<{ data: any; error: any }> {
+    if (supabaseClient) {
+      try {
+        let builder: any = supabaseClient.from(this.tableName).update(this.updatePayload);
+        for (const f of this.filters) {
+          if (f.type === 'eq') builder = builder.eq(f.col, f.val);
+          if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+        }
+        const res = await builder.select();
+        if (!res.error) return { data: res.data, error: null };
+      } catch {}
+    }
+    return { data: this.updatePayload, error: null };
+  }
+
+  private async executeDelete(): Promise<{ data: any; error: any }> {
+    if (supabaseClient) {
+      try {
+        let builder: any = supabaseClient.from(this.tableName).delete();
+        for (const f of this.filters) {
+          if (f.type === 'eq') builder = builder.eq(f.col, f.val);
+          if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+          if (f.type === 'in') builder = builder.in(f.col, f.val);
+          if (f.type === 'not') builder = builder.not(f.col, f.operator || 'is', f.val);
+        }
+        await builder;
+      } catch (e) {
+        console.warn(`[Supabase Delete Warning on ${this.tableName}]:`, e);
+      }
+    }
+
+    try {
+      const eqTraderId = this.filters.find(f => f.col === 'trader_id' && f.type === 'eq')?.val;
+      const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+      const targetTraderId = eqTraderId || (this.tableName === 'traders' ? eqId : null);
+
+      if (this.tableName === 'traders' && eqId) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                  localStorage.setItem(k, JSON.stringify(list.filter((t: any) => t.id !== eqId)));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (this.tableName === 'products' && targetTraderId) {
+        localStorage.removeItem(getProductsStorageKey(targetTraderId));
+      }
+
+      if (this.tableName === 'inventory_sync' && targetTraderId) {
+        const invRaw = localStorage.getItem('radar_inventory_sync');
+        if (invRaw) {
+          try {
+            const invList = JSON.parse(invRaw);
+            if (Array.isArray(invList)) {
+              localStorage.setItem('radar_inventory_sync', JSON.stringify(invList.filter((item: any) => item.trader_id !== targetTraderId)));
+            }
+          } catch {}
+        }
+      }
+
+      if (this.tableName === 'invoices' && targetTraderId) {
+        const invRaw = localStorage.getItem('radar_invoices');
+        if (invRaw) {
+          try {
+            const invList = JSON.parse(invRaw);
+            if (Array.isArray(invList)) {
+              localStorage.setItem('radar_invoices', JSON.stringify(invList.filter((item: any) => item.trader_id !== targetTraderId)));
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    return { data: [], error: null };
+  }
+
+  private async execute(): Promise<{ data: any; error: any }> {
+    if (this.isDelete) {
+      return this.executeDelete();
+    }
+    if (this.isUpdate) {
+      return this.executeUpdate();
+    }
+
+    // 1. Try real Supabase if configured
+    if (supabaseClient) {
+      try {
+        let query: any = supabaseClient.from(this.tableName).select(this.selectFields);
+        for (const f of this.filters) {
+          if (f.type === 'eq') query = query.eq(f.col, f.val);
+          if (f.type === 'neq') query = query.neq(f.col, f.val);
+          if (f.type === 'in') query = query.in(f.col, f.val);
+          if (f.type === 'not') query = query.not(f.col, f.operator || 'is', f.val);
+        }
+        if (this.orderConfig) {
+          query = query.order(this.orderConfig.col, { ascending: this.orderConfig.ascending });
+        }
+        if (this.limitCount) {
+          query = query.limit(this.limitCount);
+        }
+        if (this.isSingle) {
+          query = query.single();
+        }
+        const res = await query;
+        if (!res.error && res.data !== null && res.data !== undefined) {
+          return { data: res.data, error: null };
+        }
+      } catch (err) {
+        console.warn(`[Supabase Query error on ${this.tableName}, falling back to local storage]:`, err);
+      }
+    }
+
+    // 2. Fallback to local dataset
+    let dataset: any[] = [];
+    if (this.tableName === 'traders') {
+      try {
+        const seenIds = new Set<string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(t => {
+                    if (t && t.id && !seenIds.has(t.id)) {
+                      seenIds.add(t.id);
+                      dataset.push(t);
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+
+        dataset = [];
+
+
+      // Check if join with traders(seller_name) is requested
+      if (this.selectFields.includes('traders')) {
+        let allTraders: any[] = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) allTraders.push(...parsed);
+              }
+            }
+          }
+        } catch {}
+        const traderMap = new Map<string, any>();
+        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
+        allTraders.forEach(t => {
+          if (t && t.id) traderMap.set(t.id, t);
+        });
+
+        dataset = dataset.map(p => {
+          const trd = traderMap.get(p.trader_id);
+          return {
+            ...p,
+            traders: {
+              seller_name: trd?.seller_name || 'تاجر غير محدد'
+            }
+          };
+        });
+      }
+    } else if (this.tableName === 'inventory_sync') {
+      try {
+        const raw = localStorage.getItem('radar_inventory_sync');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            dataset = parsed;
+          }
+        }
+      } catch {}
+
+      if (dataset.length === 0) {
+        // Mock data purged as per user request.
+      }
+
+      // Check if join with traders(seller_name) is requested
+      if (this.selectFields.includes('traders')) {
+        let allTraders: any[] = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) allTraders.push(...parsed);
+              }
+            }
+          }
+        } catch {}
+        const traderMap = new Map<string, any>();
+        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
+        allTraders.forEach(t => {
+          if (t && t.id) traderMap.set(t.id, t);
+        });
+
+        dataset = dataset.map(item => {
+          const trd = traderMap.get(item.trader_id);
+          return {
+            ...item,
+            traders: trd ? { seller_name: trd.seller_name } : null
+          };
+        });
+      }
+    }
+
+    // Apply filters
+    for (const f of this.filters) {
+      if (f.type === 'eq') {
+        dataset = dataset.filter(item => String(item[f.col]) === String(f.val));
+      } else if (f.type === 'neq') {
+        dataset = dataset.filter(item => String(item[f.col]) !== String(f.val));
+      } else if (f.type === 'in') {
+        const allowed = Array.isArray(f.val) ? f.val.map(String) : [];
+        dataset = dataset.filter(item => allowed.includes(String(item[f.col])));
+      } else if (f.type === 'not') {
+        if (f.operator === 'is' && (f.val === null || f.val === 'null')) {
+          dataset = dataset.filter(item => item[f.col] !== null && item[f.col] !== undefined);
+        } else {
+          dataset = dataset.filter(item => String(item[f.col]) !== String(f.val));
+        }
+      }
+    }
+
+    // Apply ordering
+    if (this.orderConfig) {
+      const { col, ascending } = this.orderConfig;
+      dataset.sort((a, b) => {
+        const valA = a[col] || '';
+        const valB = b[col] || '';
+        if (valA < valB) return ascending ? -1 : 1;
+        if (valA > valB) return ascending ? 1 : -1;
+        return 0;
+      });
+    }
+
+    // Apply limit
+    if (this.limitCount !== undefined) {
+      dataset = dataset.slice(0, this.limitCount);
+    }
+
+    // Single item handling
+    if (this.isSingle) {
+      return {
+        data: dataset[0] || null,
+        error: dataset.length > 0 ? null : { message: 'Row not found' }
+      };
+    }
+
+    return { data: dataset, error: null };
+  }
+
+  // Support await query
+  then<TResult1 = { data: any; error: any }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    return this.execute().then(onfulfilled, onrejected);
+  }
+}
+
+/**
+ * Global Supabase Client / Proxy with Fluent Query Builder
  */
 export const supabase = {
-  from: (tableName: string) => {
-    return {
-      select: async (query: string = '*'): Promise<{ data: any[]; error: any | null }> => {
-        if (!isSupabaseConfigured) {
-          return { data: [], error: null };
-        }
-        try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?select=${encodeURIComponent(query)}`, {
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-          });
-          if (!res.ok) {
-            return { data: [], error: null };
-          }
-          const data = await res.json();
-          return { data: Array.isArray(data) ? data : [], error: null };
-        } catch (err) {
-          return { data: [], error: null };
-        }
-      },
-      insert: async (records: any): Promise<{ data: any[]; error: any | null }> => {
-        if (!isSupabaseConfigured) {
-          return { data: Array.isArray(records) ? records : [records], error: null };
-        }
-        try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}`, {
-            method: 'POST',
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=representation',
-            },
-            body: JSON.stringify(records),
-          });
-          const data = await res.json();
-          return { data: Array.isArray(data) ? data : [data], error: null };
-        } catch {
-          return { data: Array.isArray(records) ? records : [records], error: null };
-        }
-      },
-      update: async (): Promise<{ data: any[]; error: any | null }> => {
-        return { data: [], error: null };
-      },
-      delete: async (): Promise<{ data: any[]; error: any | null }> => {
-        return { data: [], error: null };
-      },
-    };
-  },
+  from: (tableName: string) => new SupabaseQueryBuilder(tableName)
 };
 
 /**
@@ -589,5 +1271,133 @@ USING (
         AND public.traders.user_id::text = auth.uid()::text
     )
 );
+-- 5. الفواتير والطلبات
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart', 'bayyaa')),
+    invoice_number TEXT,
+    order_id TEXT,
+    amazon_order_id TEXT,
+    marketplace_id TEXT,
+    invoice_date TIMESTAMPTZ,
+    total_amount NUMERIC(12, 2),
+    status TEXT,
+    raw_data JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    invoice_id TEXT NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+    sku TEXT,
+    asin TEXT,
+    title TEXT,
+    quantity INTEGER,
+    price NUMERIC(12, 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_sync (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT,
+    sku TEXT,
+    asin TEXT,
+    stock_quantity INTEGER,
+    price NUMERIC(12, 2),
+    last_sync TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_connections (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
+    platform TEXT,
+    seller_id TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    credentials JSONB,
+    is_connected BOOLEAN DEFAULT false,
+    last_sync TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.split_invoices (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    original_invoice_id TEXT REFERENCES public.invoices(id) ON DELETE CASCADE,
+    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
+    split_number TEXT,
+    product_title TEXT,
+    product_sku TEXT,
+    product_asin TEXT,
+    quantity INTEGER,
+    price NUMERIC(12, 2),
+    barcode_url TEXT,
+    pdf_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    severity TEXT DEFAULT 'normal',
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 11. تفعيل الحذف المتتابع (ON DELETE CASCADE) للجداول المرتبطة بالتجار
+ALTER TABLE public.inventory_sync DROP CONSTRAINT IF EXISTS inventory_sync_trader_id_fkey;
+ALTER TABLE public.inventory_sync ADD CONSTRAINT inventory_sync_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_trader_id_fkey;
+ALTER TABLE public.products ADD CONSTRAINT products_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+
+ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_trader_id_fkey;
+ALTER TABLE public.invoices ADD CONSTRAINT invoices_trader_id_fkey 
+  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
 `;
+
+// Self-executing cleaner: purge legacy 'Star Steel' or 'star-steel' orphaned items from local storage
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  try {
+    // 1. Purge from inventory_sync
+    const invRaw = localStorage.getItem('radar_inventory_sync');
+    if (invRaw && (invRaw.includes('star-steel') || invRaw.includes('Star Steel'))) {
+      const parsed = JSON.parse(invRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((item: any) => 
+          item.trader_id !== 'merchant-star-steel' && 
+          item.trader_id !== 'star-steel' &&
+          !String(item.title || '').includes('Star Steel')
+        );
+        localStorage.setItem('radar_inventory_sync', JSON.stringify(cleaned));
+      }
+    }
+
+    // 2. Purge from general inventory records
+    const recordsRaw = localStorage.getItem('merchant_radar_inventory_records_v1');
+    if (recordsRaw && (recordsRaw.includes('star-steel') || recordsRaw.includes('Star Steel'))) {
+      const parsed = JSON.parse(recordsRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((item: any) => 
+          item.productId !== 'star-steel' && 
+          item.traderId !== 'merchant-star-steel' &&
+          item.traderId !== 'star-steel'
+        );
+        localStorage.setItem('merchant_radar_inventory_records_v1', JSON.stringify(cleaned));
+      }
+    }
+
+    // 3. Purge specific products keys
+    localStorage.removeItem('radar_multi_tenant_products_merchant-star-steel');
+    localStorage.removeItem('radar_multi_tenant_products_star-steel');
+  } catch (e) {
+    console.warn('[Storage Cleanup Error]:', e);
+  }
+}
 

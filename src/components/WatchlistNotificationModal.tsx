@@ -31,6 +31,7 @@ import {
   clearWatchlistNotificationLogs,
   markWatchlistNotificationAsRead,
   removeFromWatchlist,
+  sendWatchlistEmailAlertApi,
   WatchlistPriceNotificationLog,
   WatchlistNotificationPreferences
 } from '../services/watchlistNotificationService';
@@ -539,6 +540,80 @@ export const WatchlistNotificationModal: React.FC<WatchlistNotificationModalProp
                     />
                     <span className="text-[10px] text-slate-500 block">
                       لن يتم إرسال إشعار بالتغيرات الطفيفة جداً الأقل من {prefs.minPriceDropPercentage}% لتفادي الإزعاج
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Alerts via Firebase Cloud Functions */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <h4 className="text-sm font-black text-white flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-emerald-500/20 text-emerald-400">✉️</span>
+                  <span>تنبيهات البريد الإلكتروني (Firebase Cloud Functions)</span>
+                </h4>
+
+                <div className="space-y-3 pt-2 text-xs">
+                  <label className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-900 border border-slate-800/80 cursor-pointer">
+                    <div>
+                      <span className="text-white font-bold block">تفعيل إرسال البريد الإلكتروني عند هبوط الأسعار</span>
+                      <span className="text-slate-400 text-[11px]">تشغيل Firebase Cloud Function لإرسال رسالة فورية عند تغير سعر أي منتج في قائمة المراقبة</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={prefs.emailAlertsEnabled}
+                      onChange={(e) => {
+                        const updated = saveWatchlistNotificationPreferences({
+                          emailAlertsEnabled: e.target.checked,
+                        });
+                        setPrefs(updated);
+                      }}
+                      className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                    />
+                  </label>
+
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2">
+                    <span className="text-white font-bold block">البريد الإلكتروني المستلم للتنبيهات</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={prefs.emailAddress}
+                        onChange={(e) => {
+                          const updated = saveWatchlistNotificationPreferences({
+                            emailAddress: e.target.value,
+                          });
+                          setPrefs(updated);
+                        }}
+                        placeholder="example@merchant.eg"
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!prefs.emailAddress) {
+                            if (onShowToast) onShowToast('يرجى إدخال عنوان البريد الإلكتروني أولاً.');
+                            return;
+                          }
+                          const res = await sendWatchlistEmailAlertApi({
+                            email: prefs.emailAddress,
+                            productTitle: watchlist[0]?.product?.title || 'سماعة أنكر ساوند كور Life Q30',
+                            oldPrice: 3250,
+                            newPrice: 3050,
+                            priceDiff: 200,
+                            percentChange: 6,
+                            competitorName: 'أمازون مصر (Amazon.eg)',
+                            platformName: 'أمازون',
+                            currency: 'ج.م',
+                            trend: 'down',
+                          });
+                          if (onShowToast) onShowToast(res.message);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shrink-0 cursor-pointer"
+                      >
+                        تجربة الإرسال ✉️
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-500 block">
+                      يعمل عبر Firebase Cloud Functions (`onWatchlistPriceChangeTrigger`) مع دعم Nodemailer و SendGrid API.
                     </span>
                   </div>
                 </div>

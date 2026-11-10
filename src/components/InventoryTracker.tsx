@@ -38,8 +38,10 @@ import {
   Folder,
   Check,
   User,
-  Bell
+  Bell,
+  Camera
 } from 'lucide-react';
+import { ProductScanner } from './ProductScanner';
 import {
   ProductData,
   ProductInventoryRecord,
@@ -147,6 +149,7 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
   // WhatsApp Supplier Automation modal state
   const [isWhatsAppAutomationModalOpen, setIsWhatsAppAutomationModalOpen] = useState<boolean>(false);
   const [selectedProductForWhatsApp, setSelectedProductForWhatsApp] = useState<string | undefined>(undefined);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState<boolean>(false);
 
   // Supplier Directory & Comparison modal state
   const [suppliers, setSuppliers] = useState<SupplierProfile[]>(getStoredSuppliers);
@@ -617,6 +620,18 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
             >
               <FolderPlus className="w-4 h-4 text-amber-700" />
               <span>مجلدات المخازن ({warehouseFolders.length})</span>
+            </button>
+
+            {/* Barcode Scanner Camera Button */}
+            <button
+              id="btn-open-barcode-scanner"
+              type="button"
+              onClick={() => setIsBarcodeScannerOpen(true)}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm border border-emerald-400/40"
+              title="مسح باركود المنتج بالكاميرا لجلب بياناته الفورية من القاعدة"
+            >
+              <Camera className="w-4 h-4 text-emerald-200 animate-pulse" />
+              <span>مسح باركود 📷</span>
             </button>
 
             {/* Warehouse Stock Transfer Slip Button */}
@@ -2230,6 +2245,29 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
           }}
           currency={currency}
           onShowToast={onShowToast}
+        />
+      )}
+
+      {/* Product Barcode & Camera Scanner Modal */}
+      {isBarcodeScannerOpen && (
+        <ProductScanner
+          isOpen={isBarcodeScannerOpen}
+          onClose={() => setIsBarcodeScannerOpen(false)}
+          onProductDetected={(detected) => {
+            setIsBarcodeScannerOpen(false);
+            if (detected.barcode) {
+              setSearchQuery(detected.barcode);
+            } else if (detected.title) {
+              setSearchQuery(detected.title);
+            }
+            if (onShowToast) {
+              onShowToast(`📷 تم مسح الباركود بنجاح: ${detected.title} (الباركود: ${detected.barcode || 'N/A'}) - تم جلب البيانات وتحديث المخزون!`);
+            }
+            if (onSelectProduct) {
+              onSelectProduct(detected);
+            }
+          }}
+          currency={currency}
         />
       )}
     </div>

@@ -43,6 +43,7 @@ import {
   Compass,
   Palette,
   Menu,
+  Scissors,
   ArrowUpDown
 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
@@ -153,11 +154,20 @@ const MarketTrendsRadar = safeLazy(() => import('./components/MarketTrendsRadar'
 const PeriodicPerformanceReports = safeLazy(() => import('./components/PeriodicPerformanceReports'));
 const AmazonMultiItemWaybillCropperModal = safeLazy(() => import('./components/AmazonMultiItemWaybillCropperModal'));
 const BulkMarketplaceWaybillModal = safeLazy(() => import('./components/BulkMarketplaceWaybillModal'));
-const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage').then(m => m.TraderProfilePage));
+const TraderProfilePage = safeLazy(() => import('./components/TraderProfilePage'));
 const MultiMerchantTradersPage = safeLazy(() => import('./components/MultiMerchantTradersPage'));
+const TradersPage = safeLazy(() => import('./components/TradersPage'));
+const ProductsPage = safeLazy(() => import('./components/ProductsPage'));
+const TraderDetailPage = safeLazy(() => import('./components/TraderDetailPage'));
+const InventoryPage = safeLazy(() => import('./components/InventoryPage'));
+const WaybillSplitterPage = safeLazy(() => import('./components/WaybillSplitterPage'));
+const AnalyticsPage = safeLazy(() => import('./components/AnalyticsPage'));
+import { NotificationsDropdown } from './components/NotificationsDropdown';
 
 export type WorkspaceTab = 
   | 'traders'
+  | 'products'
+  | 'inventory'
   | 'merchants' 
   | 'radar' 
   | 'watchlist'
@@ -169,7 +179,9 @@ export type WorkspaceTab =
   | 'price_comparison' 
   | 'platforms_guide' 
   | 'traders_sync'
-  | 'help';
+  | 'split_invoices'
+  | 'help'
+  | 'analytics';
 
 export default function App() {
   const { toggleColorMode } = useTheme();
@@ -201,10 +213,36 @@ export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
-      if (path === '/traders') return 'traders';
+      if (path === '/traders' || path.startsWith('/traders/')) return 'traders';
+      if (path === '/products') return 'products';
+      if (path === '/inventory') return 'inventory';
+      if (path === '/invoices/split' || path === '/invoices') return 'split_invoices';
+      if (path === '/help') return 'help';
+      if (path === '/analytics') return 'analytics';
+      if (path === '/competitors') return 'radar';
+      if (path === '/connections') return 'platforms_guide';
+      if (path === '/gmail-sync') return 'traders_sync';
+      if (path === '/reports') return 'reports';
     }
-    return 'merchants';
+    return 'products';
   });
+
+  const [urlSplitInvoiceId, setUrlSplitInvoiceId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('invoice_id') || undefined;
+    }
+    return undefined;
+  });
+
+  const [urlSplitTraderId, setUrlSplitTraderId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('trader_id') || undefined;
+    }
+    return undefined;
+  });
+
   const [selectedTraderProfileId, setSelectedTraderProfileId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
@@ -215,6 +253,98 @@ export default function App() {
     return null;
   });
 
+  // Mobile Swipe Gestures Configuration between Main Tabs (Traders -> Products -> Inventory -> Reports)
+  const PRIMARY_SWIPE_TABS: { tab: WorkspaceTab; name: string; icon: string; url: string }[] = [
+    { tab: 'traders', name: 'دليل التجار', icon: '📚', url: '/traders' },
+    { tab: 'products', name: 'إدارة المنتجات', icon: '📦', url: '/products' },
+    { tab: 'inventory', name: 'إدارة المخزون', icon: '📊', url: '/inventory' },
+    { tab: 'reports', name: 'التقارير الموحدة', icon: '📈', url: '/' }
+  ];
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const lastSwipeTimeRef = React.useRef<number>(0);
+  const SWIPE_DEBOUNCE_MS = 350;
+
+  const changeTabWithTransition = (targetTab: WorkspaceTab, targetUrl?: string) => {
+    const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
+    const targetTabNormalized = (targetTab === 'merchants' ? 'products' : targetTab) as WorkspaceTab;
+
+    const currentIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === currentTabNormalized);
+    const targetIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === targetTabNormalized);
+
+    if (currentIndex !== -1 && targetIndex !== -1 && currentIndex !== targetIndex) {
+      setSwipeDirection(targetIndex > currentIndex ? 'left' : 'right');
+    } else {
+      setSwipeDirection(null);
+    }
+
+    setActiveWorkspaceTab(targetTab);
+    setSelectedTraderProfileId(null);
+    setShowOwnerDashboard(false);
+
+    if (typeof window !== 'undefined' && targetUrl) {
+      window.history.pushState({}, '', targetUrl);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setTouchStartX(e.touches[0].clientX);
+      setTouchStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null || touchStartY === null || e.changedTouches.length === 0) {
+      setTouchStartX(null);
+      setTouchStartY(null);
+      return;
+    }
+
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+
+    const deltaX = endX - touchStartX;
+    const deltaY = endY - touchStartY;
+
+    setTouchStartX(null);
+    setTouchStartY(null);
+
+    // Debounce check: Prevent rapid overlapping swipes within 350ms
+    const now = Date.now();
+    if (now - lastSwipeTimeRef.current < SWIPE_DEBOUNCE_MS) {
+      return;
+    }
+
+    // Require horizontal move > 60px and vertical move < 70px to prevent interrupting vertical scrolling
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaY) < 70) {
+      const currentTabNormalized = (activeWorkspaceTab === 'merchants' ? 'products' : activeWorkspaceTab) as WorkspaceTab;
+      const currentIndex = PRIMARY_SWIPE_TABS.findIndex(t => t.tab === currentTabNormalized);
+
+      if (currentIndex !== -1) {
+        if (deltaX < 0) {
+          // Swiped Left (Finger dragged right to left -> Next Tab)
+          if (currentIndex < PRIMARY_SWIPE_TABS.length - 1) {
+            lastSwipeTimeRef.current = now;
+            const nextTabObj = PRIMARY_SWIPE_TABS[currentIndex + 1];
+            changeTabWithTransition(nextTabObj.tab, nextTabObj.url);
+            showToast(`👈 سحب سريع: ${nextTabObj.name} ${nextTabObj.icon}`);
+          }
+        } else if (deltaX > 0) {
+          // Swiped Right (Finger dragged left to right -> Previous Tab)
+          if (currentIndex > 0) {
+            lastSwipeTimeRef.current = now;
+            const prevTabObj = PRIMARY_SWIPE_TABS[currentIndex - 1];
+            changeTabWithTransition(prevTabObj.tab, prevTabObj.url);
+            showToast(`👉 سحب سريع: ${prevTabObj.name} ${prevTabObj.icon}`);
+          }
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     const handleOpenProfile = (e: any) => {
       const id = e.detail?.traderId || 'merchant-mahmeud-said';
@@ -223,11 +353,59 @@ export default function App() {
         window.history.pushState({}, '', `/traders/${id}`);
       }
     };
+
+    const handleOpenSplit = (e: any) => {
+      const invId = e.detail?.invoiceId;
+      const trdId = e.detail?.traderId;
+      if (invId) setUrlSplitInvoiceId(invId);
+      if (trdId) setUrlSplitTraderId(trdId);
+      setSelectedTraderProfileId(null);
+      setActiveWorkspaceTab('split_invoices');
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.pathname = '/invoices/split';
+        if (invId) url.searchParams.set('invoice_id', invId);
+        if (trdId) url.searchParams.set('trader_id', trdId);
+        window.history.pushState({}, '', url.toString());
+      }
+    };
+
     const handlePopState = () => {
       if (typeof window !== 'undefined') {
         const path = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        setUrlSplitInvoiceId(params.get('invoice_id') || undefined);
+        setUrlSplitTraderId(params.get('trader_id') || undefined);
+
         if (path === '/traders') {
           setActiveWorkspaceTab('traders');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/products') {
+          setActiveWorkspaceTab('products');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/inventory') {
+          setActiveWorkspaceTab('inventory');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/invoices/split' || path === '/invoices') {
+          setActiveWorkspaceTab('split_invoices');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/reports') {
+          setActiveWorkspaceTab('reports');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/competitors') {
+          setActiveWorkspaceTab('radar');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/connections') {
+          setActiveWorkspaceTab('platforms_guide');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/gmail-sync') {
+          setActiveWorkspaceTab('traders_sync');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/help') {
+          setActiveWorkspaceTab('help');
+          setSelectedTraderProfileId(null);
+        } else if (path === '/analytics') {
+          setActiveWorkspaceTab('analytics');
           setSelectedTraderProfileId(null);
         } else if (path.startsWith('/traders/') && path !== '/traders/new') {
           setSelectedTraderProfileId(path.replace('/traders/', ''));
@@ -238,9 +416,11 @@ export default function App() {
     };
 
     window.addEventListener('open_trader_profile', handleOpenProfile);
+    window.addEventListener('open_split_invoices', handleOpenSplit);
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('open_trader_profile', handleOpenProfile);
+      window.removeEventListener('open_split_invoices', handleOpenSplit);
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -249,7 +429,23 @@ export default function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false); // Mobile drawer
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+    } catch (e) {
+      console.warn('Failed to persist sidebar collapse state:', e);
+    }
+  }, [isSidebarCollapsed]);
 
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
@@ -585,12 +781,31 @@ export default function App() {
 
       {/* Top Header Navigation */}
       <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40 w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+        <div className="w-full max-w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-2.5 sm:py-3 flex items-center justify-between gap-2.5 sm:gap-3">
           
-          {/* Brand Logo & Bayyaa Hub */}
+          {/* Right Side (RTL): ☰ Toggle Button + Brand Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsSidebarOpen(prev => !prev);
+                } else {
+                  setIsSidebarCollapsed(prev => !prev);
+                }
+              }}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition shrink-0 cursor-pointer flex items-center justify-center shadow-md active:scale-95"
+              title="طي/توسيع القائمة الجانبية ☰"
+            >
+              <Menu className="w-5 h-5 text-amber-400" />
+            </button>
+
             <div 
-              onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
+              onClick={() => {
+                setActiveWorkspaceTab('traders');
+                setShowOwnerDashboard(false);
+                if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
+              }}
               className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition shrink-0"
               title="رادار التاجر الذكي - منصة بياع"
             >
@@ -619,7 +834,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Super Admin Quick Badge for jassmeinnour@gmail.com */}
+            {/* Super Admin Quick Badge */}
             {isOwner && (
               <button
                 onClick={() => setShowOwnerDashboard((prev) => !prev)}
@@ -636,57 +851,40 @@ export default function App() {
             )}
           </div>
 
-          {/* Quick Header Actions */}
+          {/* Left Side (RTL): Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            {/* Unified Merchant Directory Button */}
-            <ToolbarTooltip
-              title="دليل التجار الموحد"
-              description="استعراض بطاقات جميع المتاجر، تفضيلاتهم، منتجاتهم، طلباتهم، وطباعة بوالص الشحن الخاصة بهم مباشرة."
-              badge="دليل موحد"
-            >
+            {/* PWA Install Button */}
+            {!isInstalled && (
               <button
-                onClick={() => {
-                  setActiveWorkspaceTab('traders');
-                  setShowOwnerDashboard(false);
-                  setSelectedTraderProfileId(null);
-                  if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
-                }}
-                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-slate-950 font-black border border-amber-400 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg cursor-pointer whitespace-nowrap"
+                type="button"
+                onClick={handleInstallPwa}
+                className="px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                title="تثبيت التطبيق على الجهاز (PWA)"
               >
-                <Users className="w-4 h-4 text-slate-950 shrink-0" />
-                <span>دليل التجار الموحد 📚</span>
+                <Download className="w-3.5 h-3.5 text-slate-950" />
+                <span className="hidden sm:inline">تثبيت التطبيق 📱</span>
               </button>
-            </ToolbarTooltip>
+            )}
 
-            {/* Visual Style Control Panel Launch Button */}
-            <button
-              type="button"
-              id="btn-header-visual-customizer-app"
-              onClick={toggleCustomizer}
-              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
-              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
-            >
-              <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-              <span>🎨 تخصيص المظهر</span>
-            </button>
-
-            {/* Watchlist & Price Alerts Web Notifications Center Button */}
-            <button
-              type="button"
-              id="btn-header-watchlist-notifications"
-              onClick={() => setIsWatchlistNotifModalOpen(true)}
-              className="relative px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
-              title="مركز تنبيهات الأسعار الفورية (Web Notifications API)"
-            >
-              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">تنبيهات الأسعار 🔔</span>
-              <span className="sm:hidden">التنبيهات 🔔</span>
-              {watchlistCount > 0 && (
-                <span className="w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-black">
-                  {watchlistCount}
-                </span>
-              )}
-            </button>
+            {/* Smart System Notifications */}
+            <NotificationsDropdown
+              onNavigateToSplit={(invId) => {
+                setActiveWorkspaceTab('split_invoices');
+                setSelectedTraderProfileId(null);
+                if (invId) setUrlSplitInvoiceId(invId);
+                if (typeof window !== 'undefined') {
+                  const url = invId ? `/invoices/split?invoice_id=${invId}` : '/invoices/split';
+                  window.history.pushState({}, '', url);
+                }
+              }}
+              onNavigateToTrader={(trdId) => {
+                setSelectedTraderProfileId(trdId);
+                if (typeof window !== 'undefined') {
+                  window.history.pushState({}, '', `/traders/${trdId}`);
+                }
+              }}
+              onShowToast={showToast}
+            />
 
             <button
               onClick={() => setIsFocusMode(!isFocusMode)}
@@ -702,7 +900,7 @@ export default function App() {
             <LanguageToggle />
             <CloudSyncStatusWidget onShowToast={showToast} />
 
-            {/* Smart Update Button: STRICTLY hidden by default, ONLY rendered if hasUpdate === true */}
+            {/* Smart Update Button */}
             {hasUpdate && (
               <button
                 type="button"
@@ -710,7 +908,6 @@ export default function App() {
                 onClick={applyUpdate}
                 disabled={isUpdating}
                 className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/50 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer whitespace-nowrap animate-pulse"
-                title={`تم الكشف عن إصدار جديد (v${serverVersion || 'أحدث'}) - انقر لتحديث الأكواد`}
               >
                 <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isUpdating ? 'animate-spin' : ''}`} />
                 <span>{isUpdating ? 'جاري التحديث...' : `تحديث متوفر (v${serverVersion}) ⚡`}</span>
@@ -725,133 +922,53 @@ export default function App() {
             </button>
           </div>
         </div>
-
-        {/* Navigation Tabs Bar */}
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 border-t border-slate-800/60 py-2.5">
-          <div className="flex items-center gap-3 flex-wrap">
-            
-            {/* Unified Traders Directory */}
-            <button
-              onClick={() => { 
-                setActiveWorkspaceTab('traders'); 
-                setShowOwnerDashboard(false);
-                setSelectedTraderProfileId(null);
-                if (typeof window !== 'undefined') window.history.pushState({}, '', '/traders');
-              }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'traders' && !showOwnerDashboard
-                  ? 'bg-amber-500 text-slate-950 shadow-lg ring-1 ring-amber-400'
-                  : 'bg-slate-900/90 text-amber-300 hover:text-white border border-amber-500/20'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>دليل التجار الموحد 📚</span>
-            </button>
-
-            {/* Product Management */}
-            <button
-              onClick={() => { setActiveWorkspaceTab('merchants'); setShowOwnerDashboard(false); }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'merchants' && !showOwnerDashboard
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              <Package className="w-4 h-4 text-sky-400" />
-              <span>إدارة المنتجات 📦</span>
-            </button>
-
-            {/* Inventory Management */}
-            <button
-              onClick={() => { setActiveWorkspaceTab('trending'); setShowOwnerDashboard(false); }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'trending' && !showOwnerDashboard
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              <Layers className="w-4 h-4 text-emerald-400" />
-              <span>إدارة المخزون 📊</span>
-            </button>
-
-            {/* Competitor Prices */}
-            <button
-              onClick={() => { setActiveWorkspaceTab('radar'); setShowOwnerDashboard(false); }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'radar' && !showOwnerDashboard
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 text-rose-400" />
-              <span>أسعار المنافسين 💰</span>
-            </button>
-
-            {/* Invoices */}
-            <button
-              onClick={() => { setActiveWorkspaceTab('shipping'); setShowOwnerDashboard(false); }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'shipping' && !showOwnerDashboard
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span>الفواتير 🧾</span>
-            </button>
-
-            {/* Reports */}
-            <button
-              onClick={() => { setActiveWorkspaceTab('reports'); setShowOwnerDashboard(false); }}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeWorkspaceTab === 'reports' && !showOwnerDashboard
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 text-indigo-400" />
-              <span>التقارير 📊</span>
-            </button>
-          </div>
-        </div>
       </header>
 
-      {/* Sidebar Component */}
-      <AppSidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        activeTab={activeWorkspaceTab}
-        onSelectTab={(tab) => {
-          setActiveWorkspaceTab(tab);
-          setIsSidebarOpen(false);
-          if (tab === 'traders') {
-            setSelectedTraderProfileId(null);
-            window.history.pushState({}, '', '/traders');
-          } else {
-            window.history.pushState({}, '', '/');
-          }
-        }}
-        onOpenAllMerchantsHub={() => setIsAllMerchantsHubOpen(true)}
-        onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
-        onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
-        onOpenOnboarding={() => setShowOnboarding(true)}
-        isOwner={isOwner}
-      />
+      {/* Main Workspace Area with Swipe Gestures */}
+      <main 
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6 touch-pan-y"
+      >
+        {/* Mobile Swipe Gesture Helper Banner */}
+        <div className="flex sm:hidden items-center justify-between bg-slate-900/90 border border-amber-500/30 rounded-2xl px-3 py-2 text-[11px] text-amber-300 font-bold mb-4 shadow-md backdrop-blur-md">
+          <span className="flex items-center gap-1">
+            <span className="text-xs">👈</span>
+            <span>سحب يميناً ويساراً للتنقل السريع بين التبويبات</span>
+            <span className="text-xs">👉</span>
+          </span>
+          <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/40 text-white font-mono shrink-0">
+            Swipe Gestures 📱
+          </span>
+        </div>
 
-      {/* Main Workspace Area */}
-      <main className="w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-6">
-        <AnimatePresence mode="wait">
+        <AnimatePresence custom={swipeDirection} mode="wait">
           <motion.div
-            key={activeWorkspaceTab}
+            key={selectedTraderProfileId ? `trader-${selectedTraderProfileId}` : (showOwnerDashboard ? 'owner-dashboard' : activeWorkspaceTab)}
             variants={{
-              hidden: { opacity: 0, y: 10 },
-              visible: { opacity: 1, y: 0 },
-              exit: { opacity: 0, y: -10 }
+              hidden: { 
+                opacity: 0, 
+                x: swipeDirection === 'left' ? 80 : swipeDirection === 'right' ? -80 : 0,
+                y: swipeDirection ? 0 : 12,
+                scale: swipeDirection ? 0.98 : 1
+              },
+              visible: { 
+                opacity: 1, 
+                x: 0, 
+                y: 0, 
+                scale: 1 
+              },
+              exit: { 
+                opacity: 0, 
+                x: swipeDirection === 'left' ? -80 : swipeDirection === 'right' ? 80 : 0,
+                y: swipeDirection ? 0 : -12,
+                scale: swipeDirection ? 0.98 : 1
+              }
             }}
             initial="hidden"
             animate="visible"
             exit="exit"
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            transition={{ duration: 0.24, ease: [0.25, 1, 0.5, 1] }}
           >
             {/* Render Super Admin Dashboard if active */}
             {showOwnerDashboard && isOwner ? (
@@ -908,82 +1025,102 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Prominent New Clickable Sponsored Bayyaa Ad Banner */}
-                {!isFocusMode && (
-                  <BayyaaBannerNew onShowToast={showToast} />
+                {/* Render Home Overview Banner & KPI Cards ONLY on home/reports route */}
+                {(!selectedTraderProfileId && (activeWorkspaceTab === 'reports' || (typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '')))) && (
+                  <>
+                    {/* Prominent Clickable Sponsored Bayyaa Ad Banner */}
+                    {!isFocusMode && (
+                      <BayyaaBannerNew onShowToast={showToast} />
+                    )}
+
+                    {/* Top KPI Overview Cards Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                        <div className="flex items-center justify-between text-slate-400 mb-2">
+                          <span className="text-xs font-bold font-['Cairo']">المنتجات النشطة</span>
+                          <Package className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="text-2xl font-black text-white font-mono">148</div>
+                        <span className="text-[10px] text-emerald-400 font-bold font-['Cairo']">محدثة في الكتالوج</span>
+                      </div>
+
+                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                        <div className="flex items-center justify-between text-slate-400 mb-2">
+                          <span className="text-xs font-bold font-['Cairo']">المنافسون المراقبون</span>
+                          <Users className="w-4 h-4 text-sky-400" />
+                        </div>
+                        <div className="text-2xl font-black text-white font-mono">24</div>
+                        <span className="text-[10px] text-sky-400 font-bold font-['Cairo']">متاجر بالسوق المصري</span>
+                      </div>
+
+                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                        <div className="flex items-center justify-between text-slate-400 mb-2">
+                          <span className="text-xs font-bold font-['Cairo']">حالة التزامن الأخيرة</span>
+                          <Activity className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="text-2xl font-black text-emerald-400 font-mono">مستقر</div>
+                        <span className="text-[10px] text-slate-400 font-bold font-['Cairo']">مزامنة سحابية نشطة</span>
+                      </div>
+
+                      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+                        <div className="flex items-center justify-between text-slate-400 mb-2">
+                          <span className="text-xs font-bold font-['Cairo']">مهلة التجربة/الاشتراك</span>
+                          <Clock className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="text-2xl font-black text-amber-400 font-mono">
+                          {subscriptionState.trialRemainingTime?.days > 0 ? `${subscriptionState.trialRemainingTime.days} أيام` : '3 أيام'}
+                        </div>
+                        <button 
+                          onClick={() => setIsPaymentModalOpen(true)}
+                          className="text-[10px] text-amber-300 hover:text-white underline font-bold font-['Cairo'] mt-0.5 block"
+                        >
+                          فترة السماح (تجديد فودافون كاش)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Sync Monitor */}
+                    <StatsMonitor />
+                  </>
                 )}
-
-                {/* 2. Top KPI Overview Cards Grid (Verified by KPIDashboard tests) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between text-slate-400 mb-2">
-                      <span className="text-xs font-bold font-['Cairo']">المنتجات النشطة</span>
-                      <Package className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <div className="text-2xl font-black text-white font-mono">148</div>
-                    <span className="text-[10px] text-emerald-400 font-bold font-['Cairo']">محدثة في الكتالوج</span>
-                  </div>
-
-                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between text-slate-400 mb-2">
-                      <span className="text-xs font-bold font-['Cairo']">المنافسون المراقبون</span>
-                      <Users className="w-4 h-4 text-sky-400" />
-                    </div>
-                    <div className="text-2xl font-black text-white font-mono">24</div>
-                    <span className="text-[10px] text-sky-400 font-bold font-['Cairo']">متاجر بالسوق المصري</span>
-                  </div>
-
-                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between text-slate-400 mb-2">
-                      <span className="text-xs font-bold font-['Cairo']">حالة التزامن الأخيرة</span>
-                      <Activity className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <div className="text-2xl font-black text-emerald-400 font-mono">مستقر</div>
-                    <span className="text-[10px] text-slate-400 font-bold font-['Cairo']">مزامنة سحابية نشطة</span>
-                  </div>
-
-                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between text-slate-400 mb-2">
-                      <span className="text-xs font-bold font-['Cairo']">مهلة التجربة/الاشتراك</span>
-                      <Clock className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <div className="text-2xl font-black text-amber-400 font-mono">
-                      {subscriptionState.trialRemainingTime?.days > 0 ? `${subscriptionState.trialRemainingTime.days} أيام` : '3 أيام'}
-                    </div>
-                    <button 
-                      onClick={() => setIsPaymentModalOpen(true)}
-                      className="text-[10px] text-amber-300 hover:text-white underline font-bold font-['Cairo'] mt-0.5 block"
-                    >
-                      فترة السماح (تجديد فودافون كاش)
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Live Sync Monitor with Pulse Animation */}
-                <StatsMonitor />
 
                 {/* 4. Active Tab Content Workspace */}
                 <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
                   {selectedTraderProfileId ? (
-                    <TraderProfilePage
+                    <TraderDetailPage
                       traderId={selectedTraderProfileId}
                       onBack={() => {
                         setSelectedTraderProfileId(null);
+                        setActiveWorkspaceTab('traders');
                         if (typeof window !== 'undefined') {
-                          window.history.pushState({}, '', '/');
+                          window.history.pushState({}, '', '/traders');
                         }
                       }}
                       onShowToast={showToast}
                     />
                   ) : activeWorkspaceTab === 'traders' ? (
-                    <MultiMerchantTradersPage 
+                    <TradersPage 
                       onShowToast={showToast} 
-                      onSelectActiveTrader={(trader) => {
-                        setActiveWorkspaceTab('radar');
+                      onSelectTrader={(trdId) => {
+                        setSelectedTraderProfileId(trdId);
                       }}
                     />
-                  ) : activeWorkspaceTab === 'merchants' ? (
-                    <MerchantCatalogManager />
+                  ) : activeWorkspaceTab === 'products' || activeWorkspaceTab === 'merchants' ? (
+                    <ProductsPage onShowToast={showToast} />
+                  ) : activeWorkspaceTab === 'inventory' ? (
+                    <InventoryPage onShowToast={showToast} />
+                  ) : activeWorkspaceTab === 'split_invoices' ? (
+                    <WaybillSplitterPage
+                      initialInvoiceId={urlSplitInvoiceId}
+                      initialTraderId={urlSplitTraderId}
+                      onBack={() => {
+                        setActiveWorkspaceTab('traders');
+                        if (typeof window !== 'undefined') {
+                          window.history.pushState({}, '', '/traders');
+                        }
+                      }}
+                      onShowToast={showToast}
+                    />
                   ) : null}
 
                   {activeWorkspaceTab === 'radar' && (
@@ -1086,6 +1223,10 @@ export default function App() {
                       onStartTour={() => setShowOnboarding(true)}
                       onOpenHotkeysModal={() => setIsHotkeysModalOpen(true)}
                     />
+                  )}
+
+                  {activeWorkspaceTab === 'analytics' && (
+                    <AnalyticsPage />
                   )}
                 </Suspense>
               </div>
@@ -1194,10 +1335,13 @@ export default function App() {
       <AppSidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
         activeTab={activeWorkspaceTab}
         onSelectTab={(tab) => {
           setActiveWorkspaceTab(tab);
           setShowOwnerDashboard(false);
+          setIsSidebarOpen(false);
         }}
         onOpenAllMerchantsHub={() => setIsAllMerchantsHubOpen(true)}
         onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
