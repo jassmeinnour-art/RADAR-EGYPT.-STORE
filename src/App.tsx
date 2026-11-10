@@ -71,7 +71,6 @@ import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
 import { BayyaaBannerNew } from './components/BayyaaBannerNew';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
-import { AnimatedLogosBackground } from './components/AnimatedLogosBackground';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
