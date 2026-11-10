@@ -3,6 +3,7 @@ import { ArrowRight, Zap, TrendingUp, ShieldCheck, Smartphone, Download } from '
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { BayyaaAndMersadOverviewSection } from './BayyaaAndMersadOverviewSection';
+import { AnimatedLogosBackground } from './AnimatedLogosBackground';
 
 export default function LandingPage({ onLoginClick }: { onLoginClick: () => void }) {
   const downloadApk = () => {
@@ -17,8 +18,24 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-['Cairo',sans-serif] p-4 sm:p-6 w-full max-w-full overflow-x-hidden" dir="rtl">
-      <nav className="max-w-7xl mx-auto flex justify-between items-center py-6 flex-wrap gap-4">
+    <div className="min-h-screen bg-slate-950 text-white font-['Cairo',sans-serif] p-4 sm:p-6 w-full max-w-full overflow-x-hidden relative" dir="rtl">
+      
+      {/* Rotating Watermark Background (Landing Page Only) */}
+      <div className="radar-watermark-bg" style={{ position: 'fixed', bottom: '20px', left: '20px', width: '120px', height: '120px', opacity: 0.07, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        <img 
+          src="/radar-watermark.png" 
+          alt="RADAR" 
+          style={{ width: '120px', height: '120px', objectFit: 'contain' }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }} 
+        />
+      </div>
+
+      {/* Fullscreen Animated Logos Background (Landing Page Only) */}
+      <AnimatedLogosBackground />
+
+      <nav className="max-w-7xl mx-auto flex justify-between items-center py-6 flex-wrap gap-4 relative z-10">
         <div className="text-2xl font-black text-amber-500">رادار التاجر</div>
         <div className="flex items-center gap-3 flex-wrap">
           <ThemeToggle variant="pill" />

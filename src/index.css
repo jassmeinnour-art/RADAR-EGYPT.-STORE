@@ -32,6 +32,18 @@ body {
 }
 
 /* حماية صور الشعارات في القائمة الجانبية والرأس والخلفية */
+.sidebar-logo {
+  width: 36px !important;
+  height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  object-fit: contain !important;
+}
+
+img[src*="radar"], img[src*="logo"] {
+  max-width: 120px !important;
+}
+
 aside img, 
 header .brand-logo-img,
 header img {
