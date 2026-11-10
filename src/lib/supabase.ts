@@ -133,35 +133,6 @@ export const multiTenantDb = {
       }
     }
 
-    // If empty, provide the default merchant for Mahmoud Said
-    if (traders.length === 0) {
-      traders = [
-        {
-          id: 'merchant-mahmeud-said',
-          user_id: userId,
-          seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
-          email: 'mahmoud.said@gmail.com',
-          gmail: 'mahmoud.said@gmail.com',
-          phone: '+20 100 123 4567',
-          platform: 'amazon',
-          status: 'active',
-          seller_id: 'A2X9Y5Z1EGYPT',
-          seller_link: 'https://www.amazon.eg/sp?seller=A2X9Y5Z1EGYPT',
-          storefront_link: 'https://www.amazon.eg/s?me=A2X9Y5Z1EGYPT',
-          products_count: 12,
-          total_stock: 184,
-          invoices_count: 3,
-          is_connected: true,
-          last_sync_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-          seller_ids: { amazon: 'A2X9Y5Z1EGYPT' },
-          api_keys: {}
-        }
-      ];
-      try {
-        localStorage.setItem(getTradersStorageKey(userId), JSON.stringify(traders));
-      } catch {}
-    }
-
     return traders;
   },
 
@@ -489,20 +460,24 @@ export const multiTenantDb = {
   async getNotifications(traderId?: string): Promise<AppNotification[]> {
     if (supabaseClient) {
       try {
-        let query = supabaseClient.from('notifications').select('*');
+        let query = supabaseClient.from('invoices').select('id, trader_id, invoice_number, total_amount, created_at');
         if (traderId) query = query.eq('trader_id', traderId);
-        const { data } = await query.order('created_at', { ascending: false });
-        if (data && data.length > 0) return data as AppNotification[];
-      } catch {}
-    }
-    try {
-      const raw = localStorage.getItem('radar_notifications');
-      if (raw) {
-        let list: AppNotification[] = JSON.parse(raw);
-        if (traderId) list = list.filter(n => !n.trader_id || n.trader_id === traderId);
-        return list;
+        const { data, error } = await query.order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data.map((inv: any) => ({
+            id: `notif-inv-${inv.id}`,
+            trader_id: inv.trader_id,
+            type: 'new_invoice',
+            message: `وصلت فاتورة جديدة #${inv.invoice_number || inv.id} بقيمة ${inv.total_amount || 0} ج.م`,
+            severity: 'normal',
+            is_read: false,
+            created_at: inv.created_at || new Date().toISOString()
+          }));
+        }
+      } catch (err) {
+        console.warn('[Supabase getNotifications error]:', err);
       }
-    } catch {}
+    }
     return [];
   },
 

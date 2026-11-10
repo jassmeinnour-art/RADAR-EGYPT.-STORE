@@ -59,6 +59,13 @@ export interface VisualSettings {
   // 5- إدارة الأزرار (Managed Buttons)
   buttonsList: ManagedButtonItem[];
 
+  // 6- أبعاد القائمة الهيدر والتخطيط الشامل
+  sidebarWidth?: number;           // 200px to 340px (default 280)
+  sidebarCollapsedWidth?: number;  // 50px to 90px (default 70)
+  sidebarLogoSize?: number;        // 24px to 60px (default 36)
+  headerHeight?: number;           // 48px to 80px (default 64)
+  appGap?: number;                 // 4px to 24px (default 16)
+
   // Legacy compatibility fields
   fontSizeSmall: number;
   cardMaxWidth: number;
@@ -146,6 +153,13 @@ export const DEFAULT_VISUAL_SETTINGS: VisualSettings = {
 
   // 5- إدارة الأزرار
   buttonsList: DEFAULT_MANAGED_BUTTONS,
+
+  // 6- الأبعاد والتنسيقات الشاملة
+  sidebarWidth: 280,
+  sidebarCollapsedWidth: 70,
+  sidebarLogoSize: 36,
+  headerHeight: 64,
+  appGap: 16,
 
   // Legacy fields
   cardMaxWidth: 720,
@@ -469,6 +483,7 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
     root.style.setProperty('--primary', s.colorPrimary);
     root.style.setProperty('--secondary', s.colorSecondary);
     root.style.setProperty('--background', s.colorBackground);
+    root.style.setProperty('--app-bg', s.colorBackground);
     root.style.setProperty('--card-bg', s.colorCard);
     root.style.setProperty('--card-border', s.colorBorder);
     root.style.setProperty('--card-radius', `${s.borderRadius}px`);
@@ -479,6 +494,14 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
     root.style.setProperty('--success', s.colorSuccess);
     root.style.setProperty('--error', s.colorError);
     root.style.setProperty('--warning', s.colorWarning);
+
+    root.style.setProperty('--sidebar-width', `${s.sidebarWidth || 280}px`);
+    root.style.setProperty('--sidebar-collapsed-width', `${s.sidebarCollapsedWidth || 70}px`);
+    root.style.setProperty('--sidebar-logo-size', `${s.sidebarLogoSize || 36}px`);
+    root.style.setProperty('--header-height', `${s.headerHeight || 64}px`);
+    root.style.setProperty('--app-gap', `${s.appGap || s.gapBetweenCards || 16}px`);
+    root.style.setProperty('--font-size', `${s.fontSizeBase || 14}px`);
+    root.style.setProperty('--button-padding', s.buttonSize === 'small' ? '4px 10px' : s.buttonSize === 'large' ? '12px 24px' : '8px 16px');
 
     root.style.setProperty('--radius', `${s.borderRadius}px`);
     root.style.setProperty('--border-width', `${s.borderWidth}px`);
@@ -492,7 +515,7 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
     root.style.setProperty('--line-height', String(s.lineHeight));
     root.style.setProperty('--card-padding', `${s.cardPadding}px`);
     root.style.setProperty('--card-margin', `${s.cardMargin}px`);
-    root.style.setProperty('--cards-gap', `${s.gapBetweenCards}px`);
+    root.style.setProperty('--cards-gap', `${s.appGap || s.gapBetweenCards || 16}px`);
     root.style.setProperty('--btn-size', `${getButtonHeight(s.buttonSize)}px`);
     root.style.setProperty('--btn-radius', `${getButtonRadius(s.buttonShape)}px`);
     root.style.setProperty('--btn-bg', s.buttonPrimaryColor);
@@ -528,6 +551,13 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
 
     styleTag.textContent = `
       :root {
+        --sidebar-width: ${s.sidebarWidth || 280}px;
+        --sidebar-collapsed-width: ${s.sidebarCollapsedWidth || 70}px;
+        --sidebar-logo-size: ${s.sidebarLogoSize || 36}px;
+        --header-height: ${s.headerHeight || 64}px;
+        --app-gap: ${s.appGap || s.gapBetweenCards || 16}px;
+        --font-size: ${s.fontSizeBase || 14}px;
+        --button-padding: ${s.buttonSize === 'small' ? '4px 10px' : s.buttonSize === 'large' ? '12px 24px' : '8px 16px'};
         --color-primary: ${s.colorPrimary};
         --color-secondary: ${s.colorSecondary};
         --color-card: ${s.colorCard};
@@ -536,12 +566,21 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
         --card-border: ${s.colorBorder};
         --card-radius: ${s.borderRadius}px;
         --card-text: ${s.colorText};
+        --app-bg: ${s.colorBackground};
+        --background: ${s.colorBackground};
         --app-font-family: '${s.fontFamily}', sans-serif;
       }
       body {
         font-family: '${s.fontFamily}', sans-serif !important;
-        font-size: ${s.fontSizeBase}px;
+        font-size: ${s.fontSizeBase || 14}px;
         line-height: ${s.lineHeight};
+        background-color: ${s.colorBackground} !important;
+      }
+      .sidebar-logo {
+        width: var(--sidebar-logo-size, 36px) !important;
+        height: var(--sidebar-logo-size, 36px) !important;
+        max-width: var(--sidebar-logo-size, 36px) !important;
+        max-height: var(--sidebar-logo-size, 36px) !important;
       }
       .dynamic-theme-heading, h1 {
         font-size: ${s.fontSizeH1}px;

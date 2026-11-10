@@ -300,9 +300,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           }
         },
         {
+          id: 'layout_settings_tab',
+          label: 'التحكم في الشكل والتنسيق 🎨',
+          icon: <Palette className="w-4 h-4 text-amber-400" />,
+          isActive: activeTab === 'layout_settings',
+          action: () => {
+            onSelectTab('layout_settings');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings/layout');
+          }
+        },
+        {
           id: 'customizer_action',
-          label: 'تخصيص المظهر 🎨',
-          icon: <Palette className="w-4 h-4 text-pink-400" />,
+          label: 'تخصيص المظهر (سريع) ⚡',
+          icon: <Sparkles className="w-4 h-4 text-pink-400" />,
           action: () => toggleCustomizer()
         }
       ]
@@ -333,7 +343,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[110] lg:hidden transition-opacity duration-300"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -341,26 +351,35 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
       {/* Persistent Desktop Sidebar & Mobile Drawer */}
       <aside
-        className={`fixed top-0 bottom-0 right-0 z-50 bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 right-0 z-[120] bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
-        } ${isCollapsed ? 'lg:w-[70px]' : 'lg:w-[280px]'} w-[280px] max-w-[280px] overflow-hidden`}
-        style={{ width: isCollapsed ? '70px' : '280px', minWidth: isCollapsed ? '70px' : '280px', maxWidth: isCollapsed ? '70px' : '280px' }}
+        }`}
+        style={{ 
+          position: 'fixed',
+          top: 0,
+          height: '100vh',
+          paddingTop: 0,
+          zIndex: 120,
+          width: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
+          minWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
+          maxWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)' 
+        }}
         dir="rtl"
       >
         {/* Sidebar Header */}
         <div 
           className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0" 
-          style={{ width: '100%', maxWidth: '280px', overflow: 'hidden' }}
+          style={{ width: '100%', overflow: 'hidden' }}
         >
           <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
             <div 
-              style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px' }} 
+              style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', minWidth: 'var(--sidebar-logo-size, 36px)', minHeight: 'var(--sidebar-logo-size, 36px)', maxWidth: 'var(--sidebar-logo-size, 36px)', maxHeight: 'var(--sidebar-logo-size, 36px)' }} 
               className="relative shrink-0 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden"
             >
               <img
                 src="/logo.png"
                 alt="رادار التاجر الذكي"
-                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', objectFit: 'contain' }}
+                style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', minWidth: 'var(--sidebar-logo-size, 36px)', minHeight: 'var(--sidebar-logo-size, 36px)', maxWidth: 'var(--sidebar-logo-size, 36px)', maxHeight: 'var(--sidebar-logo-size, 36px)', objectFit: 'contain' }}
                 className="sidebar-logo shrink-0 rounded-xl"
                 onError={(e) => {
                   const target = e.currentTarget;
@@ -370,7 +389,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 }}
               />
               <div 
-                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', display: 'none' }} 
+                style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', display: 'none' }} 
                 className="rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 items-center justify-center text-white shadow-lg shrink-0"
               >
                 <span style={{ fontSize: '20px', lineHeight: 1 }}>🎯</span>
@@ -388,7 +407,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             {/* Collapse / Expand Toggle Button for Desktop */}
             <button
               onClick={handleToggleCollapse}
-              className="hidden lg:flex p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="hidden lg:flex p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title={isCollapsed ? 'توسيع القائمة' : 'طي القائمة'}
             >
               <Menu className="w-5 h-5 shrink-0" style={{ width: '20px', height: '20px' }} />
@@ -397,7 +416,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             {/* Close Button for Mobile Drawer */}
             <button
               onClick={onClose}
-              className="lg:hidden p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="lg:hidden p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="إغلاق القائمة"
             >
               <X className="w-5 h-5 shrink-0" style={{ width: '20px', height: '20px' }} />
@@ -406,7 +425,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </div>
 
         {/* Scrollable Navigation Categories */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-2.5 max-w-[280px]" style={{ maxWidth: '280px', width: '100%' }}>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2.5 w-full" style={{ width: '100%', overflowY: 'auto' }}>
           {categories.map((category) => {
             const isCategoryOpen = openCategories[category.id] ?? true;
 

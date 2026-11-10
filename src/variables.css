@@ -9,4 +9,13 @@
   --app-bg: #0F172A;
   --primary-color: #F97316;
   --card-radius: 12px;
+
+  /* المتغيرات الديناميكية للتحكم في مقاسات وشكل التطبيق */
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 70px;
+  --font-size: 14px;
+  --button-padding: 8px 16px;
+  --header-height: 64px;
+  --sidebar-logo-size: 36px;
+  --app-gap: 16px;
 }
