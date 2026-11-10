@@ -358,10 +358,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               className="relative shrink-0 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden"
             >
               <img
-                src="/bayyaa-logo.png"
+                src="/logo.png"
                 alt="رادار التاجر الذكي"
                 style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px', objectFit: 'contain' }}
-                className="shrink-0 rounded-xl"
+                className="sidebar-logo shrink-0 rounded-xl"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = 'none';
