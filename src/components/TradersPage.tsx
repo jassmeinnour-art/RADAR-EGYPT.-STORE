@@ -207,9 +207,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
     return (
       <div className="w-full font-['Cairo']" dir="rtl">
         <GlobalEmptyState
-          icon={Users}
-          title="📦 لا يوجد تجار"
-          description="اضغط ➕ إضافة تاجر جديد للبدء"
+          icon={<Users className="w-10 h-10 text-amber-400" />}
+          message="لم يتم العثور على تجار مسجلين"
+          description="دليل التجار فارغ حالياً. ابدأ بإضافة تجار جدد لمتابعة أدائهم وربط منتجاتهم من منصات أمازون ونون."
           actionLabel="➕ إضافة تاجر جديد"
           onActionClick={() => setIsAddModalOpen(true)}
         />

@@ -418,11 +418,11 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
       {/* Inventory Items List / Table */}
       {filteredInventory.length === 0 ? (
         <GlobalEmptyState
-          icon={Boxes}
-          title="📦 لا يوجد مخزون - 0 منتج"
-          description="لا توجد منتجات مسجلة في المخزون حالياً من قاعدة البيانات. يمكنك سحب المنتجات والمخزون مباشرة من رابط متجر التاجر."
-          actionLabel="🔄 سحب المخزون من رابط المتجر"
-          onActionClick={() => navigate('/traders')}
+          icon={<Boxes className="w-10 h-10 text-amber-400" />}
+          message="لا يوجد سجلات مخزون متوفرة"
+          description="لم يتم سحب بيانات المخزون من المنصات بعد. تأكد من صحة روابط المتاجر والضغط على زر تحديث المخزون."
+          actionLabel="🔄 تحديث المخزون الآن"
+          onActionClick={() => handleManualRefresh()}
         >
             {(searchQuery || selectedTraderId !== 'all' || selectedPlatform !== 'all' || stockStatusFilter !== 'all') && (
               <button

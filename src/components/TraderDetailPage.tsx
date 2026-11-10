@@ -529,8 +529,8 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
 
         {displayedProducts.length === 0 ? (
           <GlobalEmptyState
-            icon={Package}
-            title="لا توجد منتجات مسجلة لهذا الفلتر"
+            icon={<Package className="w-10 h-10 text-amber-400" />}
+            message="لا توجد منتجات مسجلة لهذا الفلتر"
             description={activePlatformFilter !== 'all' ? `لم يتم العثور على منتجات لمنصة ${activePlatformFilter}` : 'أضف أول منتج لمتجر هذا التاجر'}
             actionLabel="إضافة منتج جديد"
             onActionClick={() => setIsAddModalOpen(true)}
