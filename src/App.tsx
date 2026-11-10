@@ -692,7 +692,7 @@ export default function App() {
     <div dir="rtl" className="w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
       
       {/* Subtle Rotating Watermark Background */}
-      <div className="radar-watermark-bg">
+      <div className="radar-watermark-bg" style={{ position: 'fixed', bottom: '20px', left: '20px', width: '120px', height: '120px', opacity: 0.07, pointerEvents: 'none', zIndex: 0 }}>
         <img 
           src="/radar-watermark.png" 
           alt="RADAR" 
