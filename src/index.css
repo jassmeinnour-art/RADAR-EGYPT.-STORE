@@ -51,3 +51,20 @@ header img {
   max-height: 36px !important;
   object-fit: contain !important;
 }
+
+/* إصلاح قائمة التنبيهات المنبثقة لظهورها فوق جميع العناصر بدون أي حجب */
+.notifications-dropdown {
+  z-index: 9999 !important;
+  position: fixed !important;
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.95), 0 0 35px 5px rgba(0, 0, 0, 0.85) !important;
+}
+
+.notifications-dropdown * {
+  overflow: visible !important;
+}
+
+.notifications-dropdown .notifications-scroll-area {
+  overflow-y: auto !important;
+}

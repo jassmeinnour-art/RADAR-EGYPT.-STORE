@@ -27,7 +27,9 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 60, left: 16 });
 
   const loadNotifications = async () => {
     try {
@@ -81,10 +83,38 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
     return () => window.removeEventListener('radar_notifications_updated', handleUpdate);
   }, []);
 
+  const updateCoords = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = window.innerWidth < 640 ? Math.min(320, window.innerWidth - 24) : 384;
+      let calculatedLeft = rect.left;
+      if (calculatedLeft + dropdownWidth > window.innerWidth - 12) {
+        calculatedLeft = Math.max(12, window.innerWidth - dropdownWidth - 12);
+      }
+      setCoords({
+        top: Math.min(rect.bottom + 8, window.innerHeight - 100),
+        left: Math.max(12, calculatedLeft)
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      const handleScrollResize = () => updateCoords();
+      window.addEventListener('resize', handleScrollResize);
+      window.addEventListener('scroll', handleScrollResize, true);
+      return () => {
+        window.removeEventListener('resize', handleScrollResize);
+        window.removeEventListener('scroll', handleScrollResize, true);
+      };
+    }
+  }, [isOpen]);
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -113,11 +143,15 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
   };
 
   return (
-    <div className="relative font-['Cairo']" ref={dropdownRef} dir="rtl">
+    <div className="relative font-['Cairo'] inline-block" ref={containerRef} dir="rtl">
       {/* Bell Trigger Button */}
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) updateCoords();
+          setIsOpen(!isOpen);
+        }}
         className="relative px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
         title="التنبيهات الذكية (المخزون والفواتير)"
       >
@@ -130,9 +164,19 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
         )}
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu - High Priority Floating Fixed Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-80 sm:w-96 bg-slate-900 border-2 border-slate-700 rounded-3xl shadow-2xl p-4 z-50 text-right space-y-3">
+        <div 
+          className="notifications-dropdown fixed w-80 sm:w-96 rounded-3xl border-2 border-slate-700 p-4 text-right space-y-3 font-['Cairo']"
+          style={{
+            position: 'fixed',
+            zIndex: 9999,
+            backgroundColor: '#0f172a',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.95), 0 0 35px 5px rgba(0, 0, 0, 0.85)'
+          }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
@@ -148,26 +192,36 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
             <div className="flex items-center gap-1.5">
               {unreadCount > 0 && (
                 <button
+                  type="button"
                   onClick={handleMarkAllRead}
-                  className="text-[10px] text-sky-400 hover:underline font-bold"
+                  className="text-[10px] text-sky-400 hover:underline font-bold cursor-pointer"
                 >
                   قراءة الكل
                 </button>
               )}
               {notifications.length > 0 && (
                 <button
+                  type="button"
                   onClick={handleClearAll}
-                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition"
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition cursor-pointer"
                   title="مسح الكل"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                title="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
           {/* Notifications List */}
-          <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+          <div className="notifications-scroll-area space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
             {notifications.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs space-y-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500/40 mx-auto" />
@@ -217,11 +271,12 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
 
                           {isNewInvoice && onNavigateToSplit && (
                             <button
+                              type="button"
                               onClick={() => {
                                 setIsOpen(false);
                                 onNavigateToSplit();
                               }}
-                              className="px-2 py-0.5 rounded-md bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold transition flex items-center gap-1 text-[10px]"
+                              className="px-2 py-0.5 rounded-md bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold transition flex items-center gap-1 text-[10px] cursor-pointer"
                             >
                               <Scissors className="w-3 h-3" />
                               <span>تقسيم الفاتورة</span>

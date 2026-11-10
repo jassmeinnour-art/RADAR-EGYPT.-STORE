@@ -692,7 +692,7 @@ export default function App() {
   const isHomePage = typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '');
 
   return (
-    <div dir="rtl" className="w-full overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
+    <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 pb-20 relative">
       
       {/* Offline Status & IndexedDB Cache Banner */}
       <OfflineNoticeBanner onShowToast={showToast} />
@@ -707,7 +707,7 @@ export default function App() {
 
       {/* PWA Installation Bar - STRICTLY hidden when already installed in standalone mode */}
       {showInstallBar && !isInstalled && (
-        <div className="bg-slate-900 border-b border-amber-600/30 px-3 sm:px-4 py-2 sticky top-0 z-50 backdrop-blur-md w-full max-w-full overflow-x-hidden">
+        <div className="bg-slate-900 border-b border-amber-600/30 px-3 sm:px-4 py-2 sticky top-0 z-50 backdrop-blur-md w-full max-w-full">
           <div className="w-full max-w-full px-2 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-300 font-bold font-mono text-[10px] sm:text-xs">PWA</span>
@@ -770,7 +770,7 @@ export default function App() {
       </div>
 
       {/* Top Header Navigation */}
-      <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-40 w-full max-w-full overflow-x-hidden">
+      <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-[100] w-full max-w-full">
         <div className="w-full max-w-full px-3 sm:px-6 lg:px-8 xl:px-10 py-2.5 sm:py-3 flex items-center justify-between gap-2.5 sm:gap-3">
           
           {/* Right Side (RTL): ☰ Toggle Button + Brand Logo */}
