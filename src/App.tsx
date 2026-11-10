@@ -71,7 +71,6 @@ import LandingPage from './components/LandingPage';
 import { BayyaaLogo } from './components/BayyaaLogo';
 import { BayyaaBannerNew } from './components/BayyaaBannerNew';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
-import { AnimatedLogosBackground } from './components/AnimatedLogosBackground';
 import { MobilePWAInstallPrompt } from './components/MobilePWAInstallPrompt';
 import { PlatformInstallMatrixModal } from './components/PlatformInstallMatrixModal';
 import { usePWAInstall } from './hooks/usePWAInstall';
@@ -79,6 +78,8 @@ import { useAppUpdate } from './hooks/useAppUpdate';
 import { CURRENT_APP_VERSION, APP_VERSION_STORAGE_KEY } from './pwaRegister';
 import headerBrandLogo from './assets/images/regenerated_image_1793023955535.png';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { TabSkeletonLoader } from './components/TabSkeletonLoader';
+import { AIStudioSkeletonLoader } from './components/AIStudioSkeletonLoader';
 
 
 function extractComponent(module: any): React.ComponentType<any> {
@@ -987,7 +988,7 @@ export default function App() {
                   </button>
                 </div>
                 
-                <Suspense fallback={<div className="p-8 text-center text-amber-400">جاري تحميل لوحة التحكم العليا...</div>}>
+                <Suspense fallback={<TabSkeletonLoader title="جاري تحميل لوحة التحكم العليا..." />}>
                   <OwnerDashboard />
                 </Suspense>
               </div>
@@ -1091,7 +1092,7 @@ export default function App() {
                 )}
 
                 {/* 4. Active Tab Content Workspace */}
-                <Suspense fallback={<div className="p-12 text-center text-amber-400 font-bold">جاري تحميل الوحدة المحددة...</div>}>
+                <Suspense fallback={<TabSkeletonLoader />}>
                   {selectedTraderProfileId ? (
                     <TraderDetailPage
                       traderId={selectedTraderProfileId}
@@ -1144,7 +1145,7 @@ export default function App() {
                   {activeWorkspaceTab === 'ai_studio' && (
                     <div className="space-y-6">
                       <AIProductStudio onShowToast={showToast} />
-                      <Suspense fallback={<div className="p-4 text-center text-amber-300 font-bold">جاري تحميل الأداة...</div>}>
+                      <Suspense fallback={<AIStudioSkeletonLoader type="processing_image" message="جاري تحميل أداة التخصيص والذكاء الاصطناعي..." />}>
                         <AIModule onShowToast={showToast} />
                       </Suspense>
                     </div>
