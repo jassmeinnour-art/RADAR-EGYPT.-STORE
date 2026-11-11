@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { WorkspaceTab } from '../App';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import { FounderModeWrapper } from './FounderModeWrapper';
 
 interface AppSidebarProps {
   isOpen: boolean; // For mobile drawer toggle
@@ -370,22 +371,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       )}
 
       {/* Persistent Desktop Sidebar & Mobile Drawer */}
-      <aside
-        className={`fixed top-0 bottom-0 right-0 z-[120] bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
-        }`}
-        style={{ 
-          position: 'fixed',
-          top: 0,
-          height: '100vh',
-          paddingTop: 0,
-          zIndex: 120,
-          width: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
-          minWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
-          maxWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)' 
-        }}
-        dir="rtl"
-      >
+      <FounderModeWrapper elementId="app_sidebar" position="bottom-left">
+        <aside
+          className={`fixed top-0 bottom-0 right-0 z-[120] bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
+            isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+          }`}
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            height: '100vh',
+            paddingTop: 0,
+            zIndex: 120,
+            width: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
+            minWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)', 
+            maxWidth: isCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)' 
+          }}
+          dir="rtl"
+        >
         {/* Sidebar Header */}
         <div 
           className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0" 
@@ -530,6 +532,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </div>
         )}
       </aside>
+      </FounderModeWrapper>
     </>
   );
 };

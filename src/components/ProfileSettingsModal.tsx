@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save, User, Phone, MapPin, DollarSign, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { FounderModeWrapper } from './FounderModeWrapper';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -45,7 +46,8 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl p-6 relative">
+      <FounderModeWrapper elementId="modal_profile_settings" className="w-full max-w-lg">
+        <div className="bg-white rounded-3xl w-full shadow-2xl p-6 relative">
         <button 
           onClick={onClose}
           className="absolute top-4 left-4 p-2 rounded-full hover:bg-slate-100 transition"
@@ -157,6 +159,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
           </button>
         </form>
       </div>
+      </FounderModeWrapper>
     </div>
   );
 };
