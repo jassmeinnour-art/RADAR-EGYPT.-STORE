@@ -52,7 +52,18 @@ header img {
   object-fit: contain !important;
 }
 
-/* إصلاح قائمة التنبيهات المنبثقة لظهورها فوق جميع العناصر بدون أي حجب */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .notifications-dropdown {
   z-index: 9999 !important;
   position: fixed !important;

@@ -7,7 +7,7 @@ export interface Trader {
   email: string;
   phone: string;
   address?: string;
-  platform: 'amazon' | 'noon' | 'jumia' | 'raneen' | 'kanz' | 'homesmart' | 'bayyaa' | string;
+  platform: 'amazon' | 'noon' | 'jumia' | 'raneen' | 'kanz' | 'homesmart' | string;
   status: 'active' | 'inactive';
   seller_ids?: Record<string, string>; // { amazon: '...', noon: '...' }
   api_keys?: Record<string, any>;   // { amazon: { clientId: '...', ... }, noon: '...' }
@@ -965,6 +965,21 @@ class SupabaseQueryBuilder {
     if (this.tableName === 'traders') {
       try {
         const seenIds = new Set<string>();
+        
+        // Ensure Mahmoud Saeed exists in fallback
+        const mahmeudSaeed: Trader = {
+          id: 'merchant-mahmeud-said',
+          user_id: 'demo-user',
+          seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+          email: 'mahmeudsaid4@gmail.com',
+          phone: '+20 100 000 0000',
+          platform: 'amazon',
+          status: 'active',
+          created_at: new Date().toISOString()
+        };
+        dataset.push(mahmeudSaeed);
+        seenIds.add(mahmeudSaeed.id);
+
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
           if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
@@ -1142,7 +1157,7 @@ CREATE TABLE IF NOT EXISTS public.traders (
     seller_name TEXT NOT NULL,
     seller_id TEXT NOT NULL,
     email TEXT NOT NULL,
-    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart', 'bayyaa')),
+    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
@@ -1250,7 +1265,7 @@ USING (
 CREATE TABLE IF NOT EXISTS public.invoices (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
-    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart', 'bayyaa')),
+    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart')),
     invoice_number TEXT,
     order_id TEXT,
     amazon_order_id TEXT,

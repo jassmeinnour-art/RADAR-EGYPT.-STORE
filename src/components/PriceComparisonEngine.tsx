@@ -41,7 +41,7 @@ interface PriceComparisonEngineProps {
   onShowToast?: (msg: string) => void;
 }
 
-export function PriceComparisonEngine({
+export default function PriceComparisonEngine({
   currency = 'ج.م',
   onApplyPrice,
   onShowToast

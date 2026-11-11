@@ -30,12 +30,10 @@ import {
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { PWAInstallButton } from './PWAInstallButton';
 import { InvestorPitchDeckModal } from './InvestorPitchDeckModal';
-import { BayyaaLogo } from './BayyaaLogo';
 import { ErrorBoundary } from './ErrorBoundary';
+import { RadarPhilosophySection } from './RadarPhilosophySection';
 import { useVisualCustomizer, DEFAULT_VISUAL_SETTINGS } from '../context/VisualCustomizerContext';
 import { VisualCustomizerModal } from './VisualCustomizerModal';
-import officialBayyaaImage from '../assets/images/regenerated_image_1792996566255.jpg';
-import { LoginRadarAndBayyaaGuideSection } from './LoginRadarAndBayyaaGuideSection';
 import { AnimatedLogosBackground } from './AnimatedLogosBackground';
 
 interface LoginPageProps {
@@ -48,7 +46,6 @@ const FLOATING_PLATFORMS = [
   { name: 'Noon', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg', left: '22%', duration: '22s', delay: '3s' },
   { name: 'Jumia', logo: 'https://cdn.simpleicons.org/jumia/FF9900', left: '35%', duration: '19s', delay: '1s' },
   { name: 'Raneen', logo: 'https://www.raneen.com.eg/favicon.ico', left: '48%', duration: '25s', delay: '4s' },
-  { name: 'Bayyaa', logo: 'https://bayyaa.com/favicon.ico', left: '62%', duration: '16s', delay: '2s' },
   { name: 'Kanz', logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png', left: '76%', duration: '24s', delay: '5s' },
   { name: 'HomeSmart', logo: 'https://www.homesmart.com.eg/favicon.ico', left: '88%', duration: '20s', delay: '1.5s' }
 ];
@@ -323,38 +320,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           
-          {/* Standalone Official Bayyaa Logo Graphic */}
+          {/* Standalone Official Radar Logo Graphic */}
           <div className="flex items-center gap-3.5">
-            <div className="relative w-14 h-14 rounded-2xl bg-[#FF6B00] p-1 flex items-center justify-center shadow-xl border-2 border-white ring-2 ring-[#FF6B00]/40 shrink-0 overflow-hidden" title="منصة بياع الرسمية (Bayyaa Platform)">
-              <div className="w-full h-full rounded-xl overflow-hidden bg-[#FF6B00] flex items-center justify-center">
+            <div className="relative w-14 h-14 rounded-2xl bg-amber-500/20 p-1 flex items-center justify-center shadow-xl border-2 border-amber-500/30 ring-2 ring-amber-500/10 shrink-0 overflow-hidden" title="رادار التاجر الذكي">
+              <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
                 <img
-                  src="/bayyaa-logo.jpg"
-                  alt="منصة بياع الرسمية (Bayyaa Platform)"
+                  src="/pwa-512x512.png"
+                  alt="رادار التاجر الذكي"
                   className="w-full h-full object-contain select-none"
                   loading="eager"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    if (!target.dataset.triedWhatsapp) {
-                      target.dataset.triedWhatsapp = 'true';
-                      target.src = '/WhatsApp%20Image%202026-10-20%20at%209.39.15%20PM.jpeg';
-                    } else {
-                      target.src = '/bayyaa-logo.png';
-                    }
+                    target.src = '/logo.png';
                   }}
                 />
               </div>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-base text-white font-['Alexandria'] tracking-wide">
-                  منصة بياع (Bayyaa)
+                <span className="font-black text-lg text-white font-['Alexandria'] tracking-wide">
+                  رادار التاجر الذكي
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#FF6B00] text-white shadow-sm border border-white/30">
-                  شريك التسوق الرسمي
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 shadow-sm border border-white/20">
+                  RADAR EGYPT
                 </span>
               </div>
-              <p className="text-[12px] text-amber-300 font-bold hidden sm:block">
-                بوابة التاجر المعتمدة للربط والبيع عبر منصة بياع وأسواق أمازون ونون
+              <p className="text-[12px] text-slate-400 font-bold hidden sm:block">
+                النظام الشامل لإدارة مبيعات ومنافسي أمازون ونون وجوميا
               </p>
             </div>
           </div>
@@ -510,14 +502,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             </p>
           </div>
 
-          {/* Strategic Radar Application Explanation for Marketing Managers & Official Bayyaa Section */}
-          <div className="w-full" style={{ maxWidth: `${Math.max(visualSettings.cardMaxWidth, 980)}px` }}>
-            <LoginRadarAndBayyaaGuideSection
-              onStartDemo={handleDemoLogin}
-              onSignUpMerchant={() => {
-                setMerchantAuthMode('signup');
-                showToast('تم فتح استمارة التسجيل في منصة بياع والرادار 🛒');
-              }}
+          {/* Strategic Radar Application Explanation for Marketing Managers */}
+          <div className="w-full mb-8" style={{ maxWidth: `${Math.max(visualSettings.cardMaxWidth, 980)}px` }}>
+            <RadarPhilosophySection
+              onOpenRadar={handleDemoLogin}
               onShowToast={showToast}
             />
           </div>

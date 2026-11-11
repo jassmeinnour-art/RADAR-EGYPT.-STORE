@@ -601,7 +601,6 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                   <option value="noon">نون (Noon)</option>
                   <option value="jumia">جوميا (Jumia)</option>
                   <option value="raneen">رنين (Raneen)</option>
-                  <option value="bayyaa">بيّاع (Bayyaa)</option>
                 </select>
               </div>
 

@@ -1,6 +1,14 @@
-import fs from 'fs';
-import path from 'path';
+// import fs from 'fs';
+// import path from 'path';
 import * as XLSX from 'xlsx';
+
+// Browser-safe stubs for Node.js modules
+const fs = typeof window === 'undefined' ? (require('fs') as any) : null;
+const path = typeof window === 'undefined' ? (require('path') as any) : {
+  resolve: (...args: string[]) => args.join('/'),
+  join: (...args: string[]) => args.join('/'),
+  extname: (p: string) => p.substring(p.lastIndexOf('.')),
+};
 
 export type SupportedSalesPlatform = 'amazon' | 'noon' | 'jumia' | 'unknown';
 
@@ -52,7 +60,21 @@ export interface SalesAggregationResult {
   generatedAt: string;
 }
 
-const SALES_REPORTS_DIRECTORY = path.resolve(process.cwd(), 'data', 'sales_reports');
+const getProcessCwd = () => {
+  try {
+    return process.cwd();
+  } catch {
+    return '/';
+  }
+};
+
+const getSalesReportsDirectory = () => {
+  if (typeof window !== 'undefined') return '/data/sales_reports';
+  return path.resolve(getProcessCwd(), 'data', 'sales_reports');
+};
+
+const SALES_REPORTS_DIRECTORY = getSalesReportsDirectory();
+
 const SUPPORTED_EXTENSIONS = new Set(['.csv', '.xlsx', '.xls']);
 
 const normalizeHeader = (value: string) =>

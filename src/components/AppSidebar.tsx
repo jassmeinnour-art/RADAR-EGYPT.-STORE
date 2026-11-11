@@ -374,10 +374,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
             <div 
               style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', minWidth: 'var(--sidebar-logo-size, 36px)', minHeight: 'var(--sidebar-logo-size, 36px)', maxWidth: 'var(--sidebar-logo-size, 36px)', maxHeight: 'var(--sidebar-logo-size, 36px)' }} 
-              className="relative shrink-0 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden"
+              className="relative shrink-0 flex-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden"
             >
               <img
-                src="/logo.png"
+                src="/pwa-512x512.png"
                 alt="رادار التاجر الذكي"
                 style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', minWidth: 'var(--sidebar-logo-size, 36px)', minHeight: 'var(--sidebar-logo-size, 36px)', maxWidth: 'var(--sidebar-logo-size, 36px)', maxHeight: 'var(--sidebar-logo-size, 36px)', objectFit: 'contain' }}
                 className="sidebar-logo shrink-0 rounded-xl"

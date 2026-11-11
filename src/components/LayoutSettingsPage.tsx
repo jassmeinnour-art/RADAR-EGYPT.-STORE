@@ -364,3 +364,5 @@ export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowTo
     </div>
   );
 };
+
+export default LayoutSettingsPage;
