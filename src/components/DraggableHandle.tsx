@@ -1,187 +1,122 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Move } from 'lucide-react';
+import { ArrowDownRight, RotateCcw } from 'lucide-react';
 
 interface DraggableHandleProps {
-  /**
-   * Unique ID to persist dimensions in localStorage for this specific element.
-   */
   elementId: string;
-  /**
-   * Reference to the element being resized.
-   */
   targetRef: React.RefObject<HTMLElement | null>;
-  /**
-   * Optional callback when resizing ends.
-   */
   onResizeEnd?: (width: number, height: number) => void;
-  /**
-   * Position of the handle. Defaults to bottom-left.
-   */
   position?: 'bottom-left' | 'bottom-right' | 'top-right' | 'top-left';
 }
 
-/**
- * Reusable Draggable Handle component that allows resizing elements in Founder Mode.
- * Persists dimensions to localStorage automatically.
- */
 export const DraggableHandle: React.FC<DraggableHandleProps> = ({ 
   elementId, 
   targetRef, 
   onResizeEnd,
-  position = 'bottom-left'
+  position = 'bottom-right'
 }) => {
   const { isFounderMode, isOwner, user, profile } = useAuth();
-  const [isResizing, setIsResizing] = useState(false);
-  const [localFounderState, setLocalFounderState] = useState<boolean>(() => {
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+  const [activeHandle, setActiveHandle] = useState<'corner' | 'width' | 'height' | null>(null);
+
+  const [localFounderActive, setLocalFounderActive] = useState<boolean>(() => {
     try {
       return (
         localStorage.getItem('isFounderMode') === 'true' ||
         localStorage.getItem('radar_founder_mode') === 'true' ||
         localStorage.getItem('founder_mode_active') === 'true'
       );
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   });
 
-  const STORAGE_KEY = 'admin_layout_founder';
+  const PRIMARY_STORAGE_KEY = `radar-card-size-${elementId}`;
 
-  // Listen for founder mode change events
   useEffect(() => {
-    const handleModeChange = (e: CustomEvent<{ active?: boolean }>) => {
-      if (typeof e.detail?.active === 'boolean') {
-        setLocalFounderState(e.detail.active);
-      } else {
-        try {
-          setLocalFounderState(
-            localStorage.getItem('isFounderMode') === 'true' ||
-            localStorage.getItem('radar_founder_mode') === 'true' ||
-            localStorage.getItem('founder_mode_active') === 'true'
-          );
-        } catch {}
-      }
-    };
-
-    window.addEventListener('founder_mode_changed' as any, handleModeChange);
-    return () => {
-      window.removeEventListener('founder_mode_changed' as any, handleModeChange);
-    };
+    const handler = (e: any) => setLocalFounderActive(e.detail?.active ?? false);
+    window.addEventListener('founder_mode_changed', handler);
+    return () => window.removeEventListener('founder_mode_changed', handler);
   }, []);
 
-  // Check email identity for founder access
-  const isFounderUser = useMemo(() => {
-    const uEmail = user?.email?.trim().toLowerCase() || '';
-    const pEmail = profile?.email?.trim().toLowerCase() || '';
+  const isFounderIdentity = useMemo(() => {
+    const uEmail = (user?.email || '').trim().toLowerCase();
+    const pEmail = (profile?.email || '').trim().toLowerCase();
     return isOwner || uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
   }, [isOwner, user?.email, profile?.email]);
 
-  const activeFounderMode = isFounderUser && (isFounderMode || localFounderState);
+  const activeFounderMode = isFounderIdentity && (isFounderMode || localFounderActive);
 
-  // Apply saved dimensions on mount or mode change
+  // Restore saved size
   useEffect(() => {
     if (!targetRef.current) return;
-
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(PRIMARY_STORAGE_KEY);
       if (saved) {
-        const layouts = JSON.parse(saved);
-        const myLayout = layouts[elementId];
-        if (myLayout) {
-          if (myLayout.width) targetRef.current.style.width = `${myLayout.width}px`;
-          if (myLayout.height) targetRef.current.style.height = `${myLayout.height}px`;
-        }
+        const { width, height } = JSON.parse(saved);
+        if (width) targetRef.current.style.width = `${width}px`;
+        if (height) targetRef.current.style.height = `${height}px`;
       }
-    } catch (e) {
-      console.warn(`Failed to apply saved dimensions for ${elementId}:`, e);
-    }
+    } catch {}
   }, [elementId, targetRef]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isFounderMode || !targetRef.current) return;
-    
+  const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent, type: 'corner' | 'width' | 'height') => {
+    if (!activeFounderMode || !targetRef.current) return;
     e.stopPropagation();
     e.preventDefault();
+
+    const el = targetRef.current;
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const startW = el.offsetWidth;
+    const startH = el.offsetHeight;
+
     setIsResizing(true);
+    setActiveHandle(type);
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startWidth = targetRef.current.offsetWidth;
-    const startHeight = targetRef.current.offsetHeight;
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const curX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const curY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const dx = curX - startX;
+      const dy = curY - startY;
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!targetRef.current) return;
-      
-      let deltaX = moveEvent.clientX - startX;
-      let deltaY = moveEvent.clientY - startY;
-
-      let newWidth = startWidth;
-      let newHeight = startHeight;
-
-      if (position === 'bottom-right') {
-        newWidth = startWidth + deltaX;
-        newHeight = startHeight + deltaY;
-      } else if (position === 'bottom-left') {
-        newWidth = startWidth - deltaX;
-        newHeight = startHeight + deltaY;
-      } else if (position === 'top-right') {
-        newWidth = startWidth + deltaX;
-        newHeight = startHeight - deltaY;
-      } else if (position === 'top-left') {
-        newWidth = startWidth - deltaX;
-        newHeight = startHeight - deltaY;
+      if (type === 'corner' || type === 'width') {
+        const newW = (position.includes('right') ? startW + dx : startW - dx);
+        el.style.width = `${Math.max(200, Math.min(newW, window.innerWidth))}px`;
       }
-
-      // Constraints
-      if (newWidth < 50) newWidth = 50;
-      if (newHeight < 20) newHeight = 20;
-
-      targetRef.current.style.width = `${newWidth}px`;
-      targetRef.current.style.height = `${newHeight}px`;
+      if (type === 'corner' || type === 'height') {
+        const newH = (position.includes('bottom') ? startH + dy : startH - dy);
+        el.style.height = `${Math.max(120, newH)}px`;
+      }
     };
 
-    const onMouseUp = () => {
+    const onEnd = () => {
       setIsResizing(false);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-
-      if (targetRef.current) {
-        const finalWidth = targetRef.current.offsetWidth;
-        const finalHeight = targetRef.current.offsetHeight;
-        try {
-          const layouts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-          layouts[elementId] = { width: finalWidth, height: finalHeight };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
-        } catch {}
-        onResizeEnd?.(finalWidth, finalHeight);
-      }
+      setActiveHandle(null);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+      localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify({ width: el.offsetWidth, height: el.offsetHeight }));
+      onResizeEnd?.(el.offsetWidth, el.offsetHeight);
     };
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+  }, [activeFounderMode, targetRef, position, PRIMARY_STORAGE_KEY, onResizeEnd]);
 
   if (!activeFounderMode) return null;
 
-  const positionClasses = {
-    'bottom-left': 'bottom-0 left-0 rounded-tr-xl cursor-sw-resize',
-    'bottom-right': 'bottom-0 right-0 rounded-tl-xl cursor-se-resize',
-    'top-right': 'top-0 right-0 rounded-bl-xl cursor-ne-resize',
-    'top-left': 'top-0 left-0 rounded-br-xl cursor-nw-resize',
-  };
-
   return (
-    <div
-      onMouseDown={handleMouseDown}
-      className={`absolute ${positionClasses[position]} w-8 h-8 bg-amber-500 flex items-center justify-center z-[9999] shadow-2xl ${isResizing ? 'scale-125 opacity-100' : 'opacity-70 hover:opacity-100 hover:scale-110'} transition-all ring-4 ring-slate-950/20`}
-      title="اسحب لتغيير أبعاد العنصر (وضع المؤسس)"
-    >
-      <Move className="w-4 h-4 text-slate-950" />
-      
-      {/* Ripple/Glow effect for Founder visibility */}
-      <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-20 pointer-events-none" />
-    </div>
+    <>
+      <div onMouseDown={(e) => handleStart(e, 'corner')} onTouchStart={(e) => handleStart(e, 'corner')} className="absolute bottom-0 right-0 w-7 h-7 bg-orange-500 cursor-se-resize rounded-tl-xl flex items-center justify-center z-[9999] hover:scale-110 transition-transform">
+        <ArrowDownRight className="w-4 h-4 text-slate-950 stroke-[3]" />
+      </div>
+      <div onMouseDown={(e) => handleStart(e, 'width')} onTouchStart={(e) => handleStart(e, 'width')} className="absolute top-2 bottom-8 right-0 w-2.5 bg-orange-500/80 cursor-col-resize z-[9998] hover:w-3 transition-all" />
+      <div onMouseDown={(e) => handleStart(e, 'height')} onTouchStart={(e) => handleStart(e, 'height')} className="absolute bottom-0 left-8 right-8 h-2.5 bg-orange-500/80 cursor-row-resize z-[9998] hover:h-3 transition-all" />
+      <button onClick={() => { targetRef.current!.style.width = ''; targetRef.current!.style.height = ''; localStorage.removeItem(PRIMARY_STORAGE_KEY); }} className="absolute top-1 left-1 z-[9999] p-1 bg-orange-500/20 text-orange-300 rounded hover:bg-orange-500 hover:text-slate-950">
+        <RotateCcw className="w-3.5 h-3.5" />
+      </button>
+    </>
   );
 };
-
-export default DraggableHandle;
