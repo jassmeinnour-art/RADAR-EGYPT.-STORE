@@ -36,7 +36,7 @@ import confetti from 'canvas-confetti';
 import { ProductData, MerchantOffer } from '../types';
 import { loadStoredLiveProducts, AUTHENTIC_AMAZON_EG_ASIN_SPECS_ARRAY } from '../services/livePlatformProductSync';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
-import { PriceComparisonEngine } from './PriceComparisonEngine';
+import PriceComparisonEngine from './PriceComparisonEngine';
 
 export interface DiscountPriceAlert {
   id: string;

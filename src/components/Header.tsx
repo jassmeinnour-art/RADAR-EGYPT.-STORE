@@ -78,10 +78,9 @@ import { LiveStatusIndicator } from './LiveStatusIndicator';
 import { AppUpdateState } from '../hooks/useAppUpdate';
 import { subscribeToApiSyncErrors, loadLocalCachedErrors } from '../services/apiErrorLoggingService';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
-import { BayyaaLogo } from './BayyaaLogo';
+import { NotificationsDropdown } from './NotificationsDropdown';
 import { ToolbarTooltip } from './ToolbarTooltip';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
-import headerBrandLogo from '../assets/images/regenerated_image_1793023955535.png';
 
 interface HeaderProps {
   activeTab: string;
@@ -128,6 +127,8 @@ interface HeaderProps {
   isReadOnlyClientView?: boolean;
   onExitReadOnlyClientView?: () => void;
   onPullOrders?: () => void;
+  onNavigateToSplit?: (invoiceId?: string) => void;
+  onNavigateToTrader?: (traderId: string) => void;
 }
 
 interface SidebarButtonProps {
@@ -223,6 +224,8 @@ export const Header: React.FC<HeaderProps> = ({
   isReadOnlyClientView = false,
   onExitReadOnlyClientView,
   onPullOrders,
+  onNavigateToSplit,
+  onNavigateToTrader,
 }) => {
   const { isPlatformSyncing, isCsvExporting, isDatabaseBusy } = useAsyncOperations();
   const { toggleCustomizer } = useVisualCustomizer();
@@ -594,6 +597,9 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
+              <div className="w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center shadow-lg border-2 border-amber-500 overflow-hidden">
+                <img src="/pwa-512x512.png" alt="RADAR" className="w-full h-full object-cover" />
+              </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold text-[#000000]">
@@ -604,129 +610,15 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-[#000000] font-semibold hidden sm:block">
-                  Amazon.eg · Noon · Jumia — منصة تتبع الأسعار والعمليات اليومية
+                  منظومة تتبع الأسعار والعمليات اليومية المستقلة
                 </p>
-              </div>
-            </div>
-
-            {/* Standalone Official Bayyaa Marketplace Header Graphic */}
-            <div
-              className="flex items-center gap-2 px-2.5 py-1 rounded-2xl bg-[#0F2A4A] border-2 border-[#FF6B00] shadow-md shadow-[#0F2A4A]/20 cursor-pointer hover:scale-105 transition-all"
-              onClick={() => setActiveTab('products')}
-              title="الانتقال إلى متجر ومنصة بياع (Bayyaa Marketplace)"
-            >
-              <div 
-                style={{ width: '36px', height: '36px', minWidth: '36px', minHeight: '36px', maxWidth: '36px', maxHeight: '36px' }}
-                className="w-9 h-9 rounded-xl bg-[#FF6B00] p-0.5 flex items-center justify-center shrink-0 overflow-hidden border border-white"
-              >
-                <img
-                  src={headerBrandLogo}
-                  alt="منصة بياع الرسمية"
-                  style={{ width: '36px', height: '36px', objectFit: 'contain' }}
-                  className="brand-logo-img w-full h-full object-contain select-none"
-                  loading="eager"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    if (!target.dataset.triedWhatsapp) {
-                      target.dataset.triedWhatsapp = 'true';
-                      target.src = '/bayyaa-logo.jpg';
-                    } else {
-                      target.src = '/bayyaa-logo.png';
-                    }
-                  }}
-                />
-              </div>
-              <div className="flex flex-col text-right">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-black text-white font-['Alexandria']">
-                    منصة بياع
-                  </span>
-                  <span className="text-[8px] font-black bg-[#FF6B00] text-white px-1 py-0.2 rounded">
-                    رسمي
-                  </span>
-                </div>
-                <span className="text-[9px] text-amber-400 font-extrabold tracking-wider uppercase font-mono">
-                  Bayyaa
-                </span>
               </div>
             </div>
           </div>
 
           {/* الأزرار الرئيسية الفعالة في الواجهة بتناسق ومحاذاة موحدة */}
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* أزرار تثبيت التطبيق دائمي الظهور ولا يختفيان أبداً لكافة المنصات والأجهزة */}
-            <div id="btn-header-install-app" className="flex items-center gap-1.5 shrink-0">
-              {/* 1. زر تثبيت الهواتف الذكية (Mobile) */}
-              <ToolbarTooltip
-                title="تثبيت الهواتف الذكية (PWA)"
-                description="ثبّت التطبيق على أندرويد وآيفون لمتابعة الأسعار وإدارة متجرك بدون إنترنت."
-                badge="تطبيق هاتف"
-                shortcut="PWA"
-                icon={Smartphone}
-                theme="emerald"
-                side="bottom"
-              >
-                <button
-                  type="button"
-                  id="btn-header-install-mobile"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = '/radar-al-tajer-signed.apk';
-                    link.download = 'radar-al-tajer-signed.apk';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    if (onShowToast) {
-                      onShowToast('جاري تنزيل ملف أندرويد الحقيقي (radar-al-tajer-signed.apk)... 🚀');
-                    }
-                  }}
-                  className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30 select-none whitespace-nowrap"
-                >
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-80" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
-                  </span>
-                  <Smartphone className="w-4 h-4 shrink-0 text-white" />
-                  <span className="whitespace-nowrap">تحميل أندرويد (APK) 📱</span>
-                </button>
 
-              </ToolbarTooltip>
-
-              {/* 2. زر تثبيت الويندوز (Windows Desktop) */}
-              <ToolbarTooltip
-                title="تثبيت سطح المكتب (Windows)"
-                description="شغّل رادار التاجر كبرنامج مستقل على الويندوز بحجم كامل وأداء فائق."
-                badge="سطح المكتب"
-                shortcut="Win + App"
-                icon={Laptop}
-                theme="sky"
-                side="bottom"
-              >
-                <button
-                  type="button"
-                  id="btn-header-install-windows"
-                  onClick={() => {
-                    if (onOpenWindowsInstallModal) {
-                      onOpenWindowsInstallModal();
-                    } else if (onOpenInstallModal) {
-                      onOpenInstallModal();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
-                    }
-                  }}
-                  className="h-10 px-3 flex items-center justify-center gap-1.5 bg-gradient-to-r from-sky-600 via-sky-700 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold rounded-xl text-xs sm:text-sm transition shadow-sm cursor-pointer active:scale-95 shrink-0 border border-sky-400/30 select-none whitespace-nowrap"
-                >
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-80" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-300" />
-                  </span>
-                  <Laptop className="w-4 h-4 shrink-0 text-white" />
-                  <span className="whitespace-nowrap">تثبيت الويندوز (Windows) 💻</span>
-                </button>
-              </ToolbarTooltip>
-
-
-            </div>
 
             {/* زر تنسيق الأزرار والواجهة (Visual Style Control Panel) */}
             <ToolbarTooltip
@@ -797,7 +689,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* زر سحب الطلبات */}
             <ToolbarTooltip
               title="سحب ومزامنة الطلبات"
-              description="جلب أحدث الطلبات الشحنات من المنصات المتصلة (أمازون، نون، بياع) وتحديث المخزون."
+              description="جلب أحدث الطلبات الشحنات من المنصات المتصلة (أمازون، نون) وتحديث المخزون."
               badge="مزامنة حية"
               icon={RefreshCw}
               theme="sky"
@@ -845,8 +737,16 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Quick Dark/Light Mode Toggle Button */}
+            {/* Smart System Notifications */}
+            <NotificationsDropdown
+              onNavigateToSplit={onNavigateToSplit}
+              onNavigateToTrader={onNavigateToTrader}
+              onShowToast={onShowToast}
+            />
+
             <ToolbarTooltip
               title={resolvedColorMode === 'dark' ? "الوضع النهاري" : "الوضع الليلي"}
+
               description="التبديل بين مظهر الإضاءة المريحة للعين أو المظهر الداكن."
               badge="مظهر الشاشة"
               icon={resolvedColorMode === 'dark' ? Sun : Moon}
