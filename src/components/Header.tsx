@@ -130,6 +130,7 @@ interface HeaderProps {
   onPullOrders?: () => void;
   onNavigateToSplit?: (invoiceId?: string) => void;
   onNavigateToTrader?: (traderId: string) => void;
+  onToggleSidebar?: () => void;
 }
 
 interface SidebarButtonProps {
@@ -227,6 +228,7 @@ export const Header: React.FC<HeaderProps> = ({
   onPullOrders,
   onNavigateToSplit,
   onNavigateToTrader,
+  onToggleSidebar,
 }) => {
   const { isPlatformSyncing, isCsvExporting, isDatabaseBusy } = useAsyncOperations();
   const { toggleCustomizer } = useVisualCustomizer();
@@ -587,9 +589,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               id="btn-open-main-sidebar"
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={onToggleSidebar}
               className="h-10 px-3.5 bg-[#F8FAFC] text-[#000000] rounded-xl flex items-center justify-center gap-2 transition border-2 border-[#000000] cursor-pointer active:scale-95 shrink-0"
-              title="فتح قائمة الأدوات وجميع الأقسام والشاشات"
+              title="فتح وإغلاق القائمة الجانبية"
             >
               <Menu className="w-4 h-4 text-[#000000] shrink-0" />
               <span className="text-xs sm:text-sm font-bold hidden md:inline">جميع الأقسام والشاشات</span>
@@ -1150,302 +1152,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         </div>
 
-        {/* 2. الشريط الجانبي (Sidebar) - لتنسيق باقي الأزرار والشاشات ومنع الزحمة في الشريط العلوي */}
-        {isSidebarOpen && (
-          <div
-            onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
-          />
-        )}
 
-        <aside
-          id="main-navigation-sidebar"
-          className={`sidebar-drawer ${
-            isSidebarOpen ? 'open translate-x-0' : 'closed translate-x-full'
-          } fixed top-0 right-0 h-screen w-80 bg-slate-900 border-l border-slate-800 z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl`}
-        >
-          {/* رأس القائمة الجانبية */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-            <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-sky-400" />
-              <span>قائمة الأدوات والشاشات</span>
-            </h2>
-            <button
-              type="button"
-              id="btn-close-main-sidebar"
-              onClick={() => setIsSidebarOpen(false)}
-              className="p-1 text-slate-400 hover:text-slate-100 rounded-md transition cursor-pointer"
-              title="إغلاق القائمة الجانبية"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* محتوى الأزرار المجمعة في مجموعات منظمة */}
-          <div className="p-4 overflow-y-auto flex-1 space-y-6">
-            {/* قسم الذكاء والتسعير */}
-            <div>
-              <span className="text-xs font-semibold text-slate-400 tracking-wider block mb-2">
-                الذكاء والتسعير
-              </span>
-              <div className="space-y-1">
-                <SidebarButton
-                  id="sidebar-btn-smart-analytics"
-                  icon={<BarChart2 className="w-4 h-4" />}
-                  label="تحليلات السوق الذكية"
-                  badge="30 يوم 📊"
-                  isActive={activeTab === 'smart_market_analytics'}
-                  isLocked={isPaywallLocked}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (isPaywallLocked && onOpenSubscriptionModal) {
-                      onOpenSubscriptionModal();
-                      return;
-                    }
-                    setActiveTab('smart_market_analytics');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-                <SidebarButton
-                  id="sidebar-btn-competitor-radar"
-                  icon={<Tag className="w-4 h-4" />}
-                  label="مقارنة الأسعار ورادار المنافسين"
-                  badge="مباشر ⚡"
-                  isActive={activeTab === 'radar'}
-                  isLocked={isPaywallLocked}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (isPaywallLocked && onOpenSubscriptionModal) {
-                      onOpenSubscriptionModal();
-                      return;
-                    }
-                    setActiveTab('radar');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-                <SidebarButton
-                  id="sidebar-btn-publish-platforms"
-                  icon={<Send className="w-4 h-4" />}
-                  label="إرسال وتحديث الأسعار للمنصات"
-                  isLocked={isPaywallLocked}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (isPaywallLocked && onOpenSubscriptionModal) {
-                      onOpenSubscriptionModal();
-                      return;
-                    }
-                    onOpenPublishModal();
-                  }}
-                />
-                {onOpenBestSellersModal && (
-                  <SidebarButton
-                    id="sidebar-btn-bestsellers"
-                    icon={<Flame className="w-4 h-4 text-amber-400 fill-amber-400" />}
-                    label="منتجات التريند والأعلى مبيعات (الصين 👈 مصر)"
-                    badge="Top Trending 🔥"
-                    onClick={() => {
-                      setIsSidebarOpen(false);
-                      onOpenBestSellersModal();
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* قسم التقارير والشيتات */}
-            <div>
-              <span className="text-xs font-semibold text-slate-400 tracking-wider block mb-2">
-                التقارير والشيتات
-              </span>
-              <div className="space-y-1">
-                <SidebarButton
-                  id="sidebar-btn-export-csv"
-                  icon={<FileSpreadsheet className="w-4 h-4" />}
-                  label="رفع وتصدير شيت إكسيل (CSV)"
-                  badge={isExportOverdue ? 'تذكير 24h' : 'CSV / Excel'}
-                  isLocked={isPaywallLocked}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (isPaywallLocked && onOpenSubscriptionModal) {
-                      onOpenSubscriptionModal();
-                      return;
-                    }
-                    if (onOpenExportModal) {
-                      onOpenExportModal();
-                    }
-                  }}
-                />
-                {onOpenAiExcelModal && (
-                  <SidebarButton
-                    id="sidebar-btn-ai-excel"
-                    icon={<Sparkles className="w-4 h-4" />}
-                    label="رفع وإثراء شيت إكسيل بالذكاء (AI)"
-                    isLocked={isPaywallLocked}
-                    onClick={() => {
-                      setIsSidebarOpen(false);
-                      if (isPaywallLocked && onOpenSubscriptionModal) {
-                        onOpenSubscriptionModal();
-                        return;
-                      }
-                      onOpenAiExcelModal();
-                    }}
-                  />
-                )}
-                <SidebarButton
-                  id="sidebar-btn-weekly-reports"
-                  icon={<BarChart2 className="w-4 h-4" />}
-                  label="متابعة التقارير الأسبوعية والتجار"
-                  badge={`${remoteMerchantsCount} تجار`}
-                  isActive={activeTab === 'remote_merchants'}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    setActiveTab('remote_merchants');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-                {onOpenInvestorDeck && (
-                  <SidebarButton
-                    id="sidebar-btn-investor-deck"
-                    icon={<Presentation className="w-4 h-4" />}
-                    label="عرض المستثمرين (Pitch Deck)"
-                    isLocked={isPaywallLocked}
-                    onClick={() => {
-                      setIsSidebarOpen(false);
-                      if (isPaywallLocked && onOpenSubscriptionModal) {
-                        onOpenSubscriptionModal();
-                        return;
-                      }
-                      onOpenInvestorDeck();
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* قسم الإعدادات والربط */}
-            <div>
-              <span className="text-xs font-semibold text-slate-400 tracking-wider block mb-2">
-                الإعدادات
-              </span>
-              <div className="space-y-1">
-                <SidebarButton
-                  id="sidebar-btn-manage-apis"
-                  icon={<Key className="w-4 h-4" />}
-                  label="إدارة المفاتيح وربط APIS"
-                  badge="SP-API 🔐"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onOpenManageApisModal) {
-                      onOpenManageApisModal();
-                    }
-                  }}
-                />
-                <SidebarButton
-                  id="sidebar-btn-account-subscriptions"
-                  icon={<Settings className="w-4 h-4" />}
-                  label="إعدادات الحساب والباقات"
-                  badge={subscriptionBadgeLabel || 'الباقات 👑'}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onOpenSubscriptionModal) {
-                      onOpenSubscriptionModal();
-                    }
-                  }}
-                />
-                <SidebarButton
-                  id="sidebar-btn-audio-theme-settings"
-                  icon={<Palette className="w-4 h-4" />}
-                  label="إعدادات المظهر والتنبيهات الصوتية"
-                  badge={resolvedColorMode === 'light' ? 'نهاري ☀️' : 'ليلي 🌙'}
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    setActiveGlobalSettingsTab('audio');
-                    setIsThemeModalOpen(true);
-                  }}
-                />
-                {onOpenPushNotificationModal && (
-                  <SidebarButton
-                    id="sidebar-btn-push-notifications"
-                    icon={<Bell className="w-4 h-4" />}
-                    label="تنبيهات المتصفح الفورية (FCM)"
-                    onClick={() => {
-                      setIsSidebarOpen(false);
-                      onOpenPushNotificationModal();
-                    }}
-                  />
-                )}
-                {onToggleLanguage && (
-                  <SidebarButton
-                    id="sidebar-btn-toggle-language"
-                    icon={<Globe className="w-4 h-4" />}
-                    label={language === 'en' ? 'تغيير اللغة إلى العربية 🇪🇬' : 'Switch to English 🌐'}
-                    onClick={() => {
-                      setIsSidebarOpen(false);
-                      onToggleLanguage();
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* جميع شاشات وأقسام المنظومة (28 شاشة) مصنفة بوضوح داخل الشريط الجانبي */}
-            <div className="pt-3 border-t border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-sky-400 tracking-wider">
-                  جميع شاشات وأقسام المنظومة ({navItems.length})
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {productCount} منتج مسجل
-                </span>
-              </div>
-
-              {/* فلاتر سريعة لأقسام الشاشات داخل القائمة الجانبية */}
-              <div className="flex flex-wrap gap-1">
-                {navCategories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedNavCategory(cat.id)}
-                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
-                      selectedNavCategory === cat.id
-                        ? 'bg-sky-500 text-slate-950 font-black'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-1">
-                {displayedNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const isTabLocked = isPaywallLocked && LOCKED_NAV_TABS.has(item.id);
-                  return (
-                    <SidebarButton
-                      key={item.id}
-                      id={`btn-nav-tab-${item.id}`}
-                      icon={<Icon className="w-4 h-4" />}
-                      label={item.label}
-                      badge={item.badge}
-                      isActive={activeTab === item.id}
-                      isLocked={isTabLocked}
-                      onClick={() => {
-                        setIsSidebarOpen(false);
-                        if (isTabLocked && onOpenSubscriptionModal) {
-                          onOpenSubscriptionModal();
-                          return;
-                        }
-                        setActiveTab(item.id);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </aside>
 
         {/* Login Error Notification Banner */}
         {loginError && (

@@ -107,21 +107,22 @@ const DashboardHome: React.FC = () => {
           </h1>
           
           <p className="text-lg text-slate-300 font-bold leading-relaxed">
-            تابع منتجاتك وأسعارك ومنافسيك في مكان واحد - على أمازون ونون وجوميا. 
-            <br className="hidden md:block" />
-            المنظومة الأولى في مصر لإدارة التجارة الإلكترونية المستقلة.
+            تابع منتجاتك وأسعارك ومنافسيك في مكان واحد - على أمازون ونون وجوميا
           </p>
           
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
             <button 
               onClick={() => navigate('/traders')}
-              className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
             >
               <span>ابدأ الآن - اذهب للتجار</span>
               <ArrowLeft className="w-5 h-5" />
             </button>
             
-            <button className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border border-slate-700 transition-all active:scale-95">
+            <button 
+              onClick={() => stepsRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border border-slate-700 transition-all active:scale-95 cursor-pointer"
+            >
               شاهد كيف يعمل
             </button>
           </div>
@@ -275,6 +276,17 @@ const DashboardHome: React.FC = () => {
             <p className="text-[10px] text-slate-500 font-bold">روّج لمتجرك أو خدمتك أمام آلاف التجار يومياً</p>
           </div>
         </div>
+      </section>
+
+      {/* Bottom CTA Button */}
+      <section className="pt-6 flex justify-center">
+        <button 
+          onClick={() => navigate('/traders')}
+          className="px-10 py-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-lg rounded-2xl shadow-2xl shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-3 cursor-pointer"
+        >
+          <span>اذهب للتجار</span>
+          <ArrowLeft className="w-6 h-6" />
+        </button>
       </section>
 
     </div>
