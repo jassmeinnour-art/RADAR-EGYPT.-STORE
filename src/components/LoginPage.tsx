@@ -331,7 +331,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
                   loading="eager"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    target.src = '/logo.png';
+                    target.src = '/pwa-512x512.png';
                   }}
                 />
               </div>

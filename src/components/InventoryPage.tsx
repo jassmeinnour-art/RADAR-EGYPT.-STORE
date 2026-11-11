@@ -126,19 +126,24 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
 
       let items: InventoryItem[] = [];
       if (Array.isArray(prodsData) && prodsData.length > 0) {
-        items = prodsData.map((p: any) => ({
-          id: p.id,
-          trader_id: p.trader_id,
-          platform: p.platform || 'amazon',
-          sku: p.sku || 'SKU-001',
-          asin: p.asin || p.sku,
-          title: p.title || p.name,
-          stock_quantity: p.stock || p.stock_quantity || 0,
-          price: p.price || 0,
-          last_sync: p.updated_at || p.created_at,
-          image: p.image,
-          traders: p.traders
-        }));
+        items = prodsData.map((p: any) => {
+          const rawPlat = (p.platform || '').toLowerCase();
+          const cleanPlat = rawPlat.includes('amazon') ? 'amazon' : rawPlat.includes('noon') ? 'noon' : (p.platform || 'amazon');
+          
+          return {
+            id: p.id,
+            trader_id: p.trader_id,
+            platform: cleanPlat,
+            sku: p.sku || 'SKU-001',
+            asin: p.asin || p.sku,
+            title: p.title || p.name,
+            stock_quantity: p.stock || p.stock_quantity || 0,
+            price: p.price || 0,
+            last_sync: p.updated_at || p.created_at,
+            image: p.image,
+            traders: p.traders
+          };
+        });
       }
 
       const safeItems = items.filter(item => item.trader_id && validTraderIds.includes(item.trader_id));

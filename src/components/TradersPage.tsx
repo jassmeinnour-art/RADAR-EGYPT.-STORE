@@ -17,6 +17,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
 
@@ -37,6 +38,7 @@ const PLATFORM_DETAILS: Record<string, { name: string; color: string; logo: stri
 import { dataCache } from '../utils/dataCache';
 
 export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectTrader }) => {
+  const { user } = useAuth();
   const [traders, setTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasMore, setHasMore] = useState<boolean>(true);
@@ -71,10 +73,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
       const from = (targetPage - 1) * PAGE_SIZE;
       const to = targetPage * PAGE_SIZE - 1;
 
-      // Requirement 1 & 2: Range 0..19 (20 per page) + Selective columns only
       const { data, error } = await supabase
         .from('traders')
-        .select('id, seller_name, email, phone, platform, status, seller_id, seller_link, storefront_link, created_at')
+        .select('id, seller_name, email, phone, platform, status, seller_id, seller_link, storefront_link, created_at, products_count')
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -82,20 +83,42 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
         console.error('Error fetching traders:', error);
       }
 
-      const list = Array.isArray(data) ? (data as Trader[]) : [];
-      setHasMore(list.length === PAGE_SIZE);
+      let list = Array.isArray(data) ? (data as Trader[]) : [];
+      
+      // Clean up platform strings if they come in the weird format
+      list = list.map(t => ({
+        ...t,
+        platform: (t.platform || '').includes('amazon') ? 'amazon' : (t.platform || '').includes('noon') ? 'noon' : t.platform
+      }));
+
+      // Fetch real counts if products_count is missing
+      const tradersWithCounts = await Promise.all(list.map(async (t) => {
+        if (t.products_count !== undefined && t.products_count !== null) return t;
+        
+        try {
+          const { count } = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('trader_id', t.id);
+          return { ...t, products_count: count || 0 };
+        } catch {
+          return { ...t, products_count: 0 };
+        }
+      }));
+
+      setHasMore(tradersWithCounts.length === PAGE_SIZE);
 
       if (targetPage === 1) {
-        setTraders(list);
+        setTraders(tradersWithCounts);
       } else {
         setTraders((prev) => {
-          const combined = [...prev, ...list];
+          const combined = [...prev, ...tradersWithCounts];
           const unique = Array.from(new Map(combined.map((t) => [t.id, t])).values());
           return unique;
         });
       }
 
-      dataCache.set(cacheKey, list);
+      dataCache.set(cacheKey, tradersWithCounts);
       setPage(targetPage);
     } catch (err) {
       console.error('Error fetching traders:', err);
@@ -131,6 +154,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
     setIsSubmitting(true);
     try {
       const newTraderPayload = {
+        user_id: user?.id || 'demo-user',
         seller_name: formName.trim(),
         email: formEmail.trim() || 'mahmeudsaid4@gmail.com',
         phone: formPhone.trim(),
@@ -470,9 +494,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
             logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png'
           };
           const sellerId = trader.seller_id || trader.seller_ids?.[trader.platform] || 'غير محدد';
-          const productCount = trader.products_count ?? (trader.amazon_count ? (trader.amazon_count + (trader.noon_count || 0)) : 125);
-          const amazonCount = trader.amazon_count ?? 45;
-          const noonCount = trader.noon_count ?? 80;
+          const productCount = trader.products_count ?? 0;
+          const amazonCount = trader.amazon_count ?? 0;
+          const noonCount = trader.noon_count ?? 0;
 
           return (
             <div

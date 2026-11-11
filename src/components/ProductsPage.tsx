@@ -109,11 +109,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       const fetchedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
       const total = count ?? fetchedProds.length;
 
-      setProducts(fetchedProds);
+      // Clean up platform strings
+      const cleanedProds = fetchedProds.map(p => ({
+        ...p,
+        platform: (p.platform || '').includes('amazon') ? 'amazon' : (p.platform || '').includes('noon') ? 'noon' : p.platform
+      }));
+
+      setProducts(cleanedProds);
       setTotalCount(total);
       setCurrentPage(page);
 
-      dataCache.set(cacheKey, { products: fetchedProds, total });
+      dataCache.set(cacheKey, { products: cleanedProds, total });
 
       // 2. Fetch traders ONLY for the dropdown options (selective columns)
       const { data: tradersData } = await supabase
