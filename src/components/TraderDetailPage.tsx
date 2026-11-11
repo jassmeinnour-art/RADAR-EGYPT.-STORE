@@ -161,35 +161,35 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
 
   // Platform specific partitions and statistics
   const amazonProducts = useMemo(() => {
-    return products.filter(p => p.platform?.toLowerCase() === 'amazon');
+    return products.filter(p => (p.platform || '').toLowerCase().includes('amazon'));
   }, [products]);
 
   const noonProducts = useMemo(() => {
-    return products.filter(p => p.platform?.toLowerCase() === 'noon');
+    return products.filter(p => (p.platform || '').toLowerCase().includes('noon'));
   }, [products]);
 
   const jumiaProducts = useMemo(() => {
-    return products.filter(p => p.platform?.toLowerCase() === 'jumia');
+    return products.filter(p => (p.platform || '').toLowerCase().includes('jumia'));
   }, [products]);
 
-  // Statistics calculation for Amazon and Noon
+  // Statistics calculation
   const amazonStats = useMemo(() => {
-    const count = amazonProducts.length || trader?.amazon_count || 45;
-    const stock = amazonProducts.reduce((sum, p) => sum + (p.stock || 0), 0) || 720;
-    const value = amazonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0) || 285000;
+    const count = amazonProducts.length;
+    const stock = amazonProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const value = amazonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0);
     return { count, stock, value };
-  }, [amazonProducts, trader]);
+  }, [amazonProducts]);
 
   const noonStats = useMemo(() => {
-    const count = noonProducts.length || trader?.noon_count || 80;
-    const stock = noonProducts.reduce((sum, p) => sum + (p.stock || 0), 0) || 1450;
-    const value = noonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0) || 395000;
+    const count = noonProducts.length;
+    const stock = noonProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const value = noonProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 1)), 0);
     return { count, stock, value };
-  }, [noonProducts, trader]);
+  }, [noonProducts]);
 
   const totalStock = useMemo(() => {
-    return products.reduce((acc, p) => acc + (p.stock || 0), 0) || (amazonStats.stock + noonStats.stock);
-  }, [products, amazonStats, noonStats]);
+    return products.reduce((acc, p) => acc + (p.stock || 0), 0);
+  }, [products]);
 
   const totalValue = useMemo(() => {
     return products.reduce((acc, p) => acc + ((p.price || 0) * (p.stock || 1)), 0) || (amazonStats.value + noonStats.value);

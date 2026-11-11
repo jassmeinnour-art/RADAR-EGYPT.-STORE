@@ -20,11 +20,98 @@ import { supabase, Product, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
 
-import { dataCache } from '../utils/dataCache';
-
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
 }
+
+import { dataCache } from '../utils/dataCache';
+import { DraggableHandle } from './DraggableHandle';
+import { useRef } from 'react';
+
+const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) => void }> = ({ product, onPlatformChange }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const hasPlatform = Boolean(product.platform && product.platform.trim());
+  const platLower = (product.platform || '').toLowerCase();
+  const isAmazon = platLower === 'amazon';
+  const isNoon = platLower === 'noon';
+
+  const platformBadgeStyle = !hasPlatform
+    ? 'text-slate-400 bg-slate-800/60 border-slate-700'
+    : isAmazon
+    ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
+    : isNoon
+    ? 'text-yellow-300 bg-yellow-500/15 border-yellow-500/30'
+    : 'text-sky-300 bg-sky-500/15 border-sky-500/30';
+
+  const platformDisplayLabel = hasPlatform ? product.platform!.toUpperCase() : 'غير محدد';
+
+  return (
+    <div
+      ref={cardRef}
+      className="bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-3xl p-5 transition-all group flex flex-col justify-between shadow-lg relative overflow-hidden h-full"
+    >
+      <DraggableHandle elementId={`product_card_${product.id}`} targetRef={cardRef} position="bottom-right" />
+      
+      <div className="space-y-3">
+        {/* Top Bar: Real Platform Badge & Status (NO seller name repetition) */}
+        <div className="flex items-center justify-between gap-2">
+          <span 
+            onClick={() => {
+              if (hasPlatform) onPlatformChange(product.platform!);
+            }}
+            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl border ${platformBadgeStyle} ${hasPlatform ? 'cursor-pointer hover:opacity-80' : ''} transition`}
+            title={hasPlatform ? `تصفية حسب منصة ${product.platform}` : 'منصة غير محدودة في Supabase'}
+          >
+            {platformDisplayLabel}
+          </span>
+          <span className="text-[10px] text-slate-500 font-mono">
+            {product.created_at ? new Date(product.created_at).toLocaleDateString('ar-EG') : 'محدث'}
+          </span>
+        </div>
+
+        {/* Title & SKU */}
+        <div>
+          <img 
+            src={product.image || "/placeholder-product.png"} 
+            onError={(e: any) => e.target.src = "/placeholder-product.png"} 
+            className="w-full h-32 object-cover rounded-2xl mb-2 border border-slate-800"
+            alt={product.title}
+          />
+          <h3 className="text-sm font-black text-white group-hover:text-sky-300 transition line-clamp-2 leading-snug">
+            {product.title}
+          </h3>
+          <div className="flex items-center gap-1.5 mt-2 text-[11px] font-mono text-slate-400">
+            <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="font-bold text-amber-300/90">SKU: {product.sku}</span>
+          </div>
+        </div>
+
+        {/* Metrics: Price + Stock Only */}
+        <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
+          <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
+            <div className="text-[10px] text-slate-400 font-bold mb-0.5">السعر الحالي</div>
+            <div className="text-sm font-black text-white font-mono">
+              {product.price.toLocaleString()} ج.م
+            </div>
+          </div>
+
+          <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
+            <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون المتوفر</div>
+            <div className="text-sm font-black text-emerald-400 font-mono">
+              {product.stock || 0} قطعة
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Status */}
+      <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
+        <span className="font-mono text-slate-400">ID: {product.id.substring(0, 12)}</span>
+        <span className="text-sky-400 font-bold">نشط في الكتالوج ✓</span>
+      </div>
+    </div>
+  );
+};
 
 export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   // Main list is strictly products
@@ -109,11 +196,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       const fetchedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
       const total = count ?? fetchedProds.length;
 
-      setProducts(fetchedProds);
+      // Clean up platform strings
+      const cleanedProds = fetchedProds.map(p => ({
+        ...p,
+        platform: (p.platform || '').includes('amazon') ? 'amazon' : (p.platform || '').includes('noon') ? 'noon' : p.platform
+      }));
+
+      setProducts(cleanedProds);
       setTotalCount(total);
       setCurrentPage(page);
 
-      dataCache.set(cacheKey, { products: fetchedProds, total });
+      dataCache.set(cacheKey, { products: cleanedProds, total });
 
       // 2. Fetch traders ONLY for the dropdown options (selective columns)
       const { data: tradersData } = await supabase
@@ -250,7 +343,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     return traderOptions.find(t => t.id === urlTraderId) || null;
   }, [urlTraderId, traderOptions]);
 
-  const activeTraderName = activeTraderObj ? activeTraderObj.seller_name : (urlTraderId ? 'Mahmeud Said Store' : null);
+  const activeTraderName = activeTraderObj ? activeTraderObj.seller_name : (urlTraderId ? 'محمود سعيد' : null);
   const activePlatformName = urlPlatform && urlPlatform !== 'all' 
     ? (urlPlatform === 'amazon' ? 'Amazon' : urlPlatform === 'noon' ? 'Noon' : urlPlatform.toUpperCase()) 
     : null;

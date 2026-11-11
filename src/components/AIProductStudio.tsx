@@ -170,7 +170,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
           sku: productData.sku,
           sellingPrice: productData.targetPrice,
           currency: 'EGP',
-          platforms: ['amazon_eg', 'noon_eg', 'jumia_eg', 'bayyaa_marketplace'],
+          platforms: ['amazon_eg', 'noon_eg', 'jumia_eg'],
           seoData: productData.seoListing,
           imageDataUrl: uploadedImage
         }),
@@ -193,8 +193,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
       // Fallback for demo
       const mockResults: PublishResult[] = [
         { platformId: 'amazon_eg', platformName: 'أمازون مصر', status: 'success', publishedPrice: productData.targetPrice || 0, currency: 'ج.م', sku: productData.sku || '', timestamp: new Date().toLocaleTimeString(), message: 'تم النشر بنجاح' },
-        { platformId: 'noon_eg', platformName: 'نون مصر', status: 'success', publishedPrice: productData.targetPrice || 0, currency: 'ج.م', sku: productData.sku || '', timestamp: new Date().toLocaleTimeString(), message: 'تم النشر بنجاح' },
-        { platformId: 'bayyaa_marketplace', platformName: 'بياع ماركت', status: 'success', publishedPrice: productData.targetPrice || 0, currency: 'ج.م', sku: productData.sku || '', timestamp: new Date().toLocaleTimeString(), message: 'تم النشر بنجاح' }
+        { platformId: 'noon_eg', platformName: 'نون مصر', status: 'success', publishedPrice: productData.targetPrice || 0, currency: 'ج.م', sku: productData.sku || '', timestamp: new Date().toLocaleTimeString(), message: 'تم النشر بنجاح' }
       ];
       setPublishResults(mockResults);
       setActiveStep(4);
@@ -753,7 +752,7 @@ export const AIProductStudio: React.FC<AIProductStudioProps> = ({
             </div>
 
             <div className="p-3 bg-sky-500/10 border border-sky-500/20 rounded-xl text-[10px] text-sky-300 leading-relaxed">
-              <strong>نصيحة بياع:</strong> رفع صور حقيقية للمنتج من زوايا متعددة يزيد من ثقة المشتري بنسبة 40% في السوق المصري.
+              <strong>نصيحة رادار:</strong> رفع صور حقيقية للمنتج من زوايا متعددة يزيد من ثقة المشتري بنسبة 40% في السوق المصري.
             </div>
           </div>
 

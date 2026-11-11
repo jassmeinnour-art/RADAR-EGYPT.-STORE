@@ -31,11 +31,11 @@ export default function LandingPage({ onLoginClick }: { onLoginClick: () => void
       <AnimatedLogosBackground />
 
       <nav className="max-w-7xl mx-auto flex justify-between items-center py-6 flex-wrap gap-4 relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center shadow-lg border-2 border-amber-500 overflow-hidden">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-3xl bg-slate-950 flex items-center justify-center shadow-2xl border-2 border-amber-500 overflow-hidden hover:scale-105 transition-transform">
             <img src="/pwa-512x512.png" alt="RADAR" className="w-full h-full object-cover" />
           </div>
-          <div className="text-2xl font-black text-white">رادار التاجر</div>
+          <div className="text-3xl font-black text-white tracking-tighter">RADAR</div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <ThemeToggle variant="pill" />

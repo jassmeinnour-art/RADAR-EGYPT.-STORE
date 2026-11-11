@@ -81,6 +81,8 @@ interface AuthContextType {
   signInDemoMerchant: (displayName?: string, storeName?: string) => Promise<void>;
   signInAsOwner: () => Promise<void>;
   signOut: () => Promise<void>;
+  isFounderMode: boolean;
+  toggleFounderMode: () => void;
   updateStoreProfile: (updates: Partial<UserMerchantProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearLoginError: () => void;
@@ -95,6 +97,7 @@ interface FirebaseAuthError extends Error {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
+export const FOUNDER_EMAIL = 'jassmeinnour@gmail.com';
 const DEMO_USER_STORAGE_KEY = 'merchant_radar_demo_user';
 const SESSION_EMAIL_OVERRIDE_KEY = 'merchant_radar_session_email_override';
 const PROFILE_CACHE_KEY_PREFIX = 'merchant_radar_profile_v2_';
@@ -146,6 +149,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
   const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState<boolean>(false);
+  const [rawFounderMode, setRawFounderMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('isFounderMode') === 'true' || localStorage.getItem('radar_founder_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleFounderMode = useCallback(() => {
+    setRawFounderMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('isFounderMode', String(next));
+        localStorage.setItem('radar_founder_mode', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Guard against concurrent redundant Firestore synchronizations
   const activeSyncUidsRef = useRef<Set<string>>(new Set());
@@ -758,12 +779,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsUnauthorizedDomain(false);
   };
 
-  // Exclusive Owner Access Check: true ONLY when logged in as jassmeinnour@gmail.com
+  // Exclusive Owner & Founder Access Check: true ONLY when logged in as jassmeinnour@gmail.com
   const isOwner = Boolean(
     user &&
     ((user.email && user.email.trim().toLowerCase() === OWNER_EMAIL) ||
      (profile?.email && profile.email.trim().toLowerCase() === OWNER_EMAIL))
   );
+
+  // Founder Mode is strictly accessible to the owner (jassmeinnour@gmail.com)
+  const isFounderMode = Boolean(isOwner && rawFounderMode);
 
   return (
     <AuthContext.Provider
@@ -790,6 +814,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateStoreProfile,
         refreshProfile,
         clearLoginError,
+        isFounderMode,
+        toggleFounderMode,
       }}
     >
       {children}
@@ -820,6 +846,8 @@ const FALLBACK_AUTH_CONTEXT: AuthContextType = {
   updateStoreProfile: async () => {},
   refreshProfile: async () => {},
   clearLoginError: () => {},
+  isFounderMode: false,
+  toggleFounderMode: () => {},
 };
 
 export const useAuth = (): AuthContextType => {

@@ -65,7 +65,8 @@ import {
   Presentation,
   Lock,
   Eye,
-  Laptop
+  Laptop,
+  Shield
 } from 'lucide-react';
 import { ConnectedMerchantPlatform } from '../types';
 import { isExportOverdue24h, getHoursSinceLastExport } from '../utils/csvProductManager';
@@ -280,7 +281,9 @@ export const Header: React.FC<HeaderProps> = ({
     signOut, 
     updateStoreProfile, 
     loginError, 
-    clearLoginError 
+    clearLoginError,
+    isFounderMode,
+    toggleFounderMode
   } = useAuth();
 
   const { 
@@ -597,13 +600,13 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
-              <div className="w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center shadow-lg border-2 border-amber-500 overflow-hidden">
+              <div className="w-12 h-12 rounded-2xl bg-slate-950 flex items-center justify-center shadow-2xl border-2 border-amber-500 overflow-hidden group-hover:scale-105 transition-transform">
                 <img src="/pwa-512x512.png" alt="RADAR" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-lg font-extrabold text-[#000000]">
-                    رادار التاجر الذكي
+                    RADAR
                   </h1>
                   <span className="text-[10px] font-extrabold bg-[#000000] text-amber-300 border border-[#000000] px-2 py-0.5 rounded-md hidden lg:inline-block font-mono" dir="ltr">
                     RADAR EG
@@ -639,6 +642,48 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-extrabold whitespace-nowrap">🎨 تنسيق الأزرار والواجهة</span>
               </button>
             </ToolbarTooltip>
+
+            {/* Founder Mode Toggle (Only when registered email is jassmeinnour@gmail.com) */}
+            {(user?.email === 'jassmeinnour@gmail.com' || profile?.email === 'jassmeinnour@gmail.com') && (
+              <ToolbarTooltip
+                title={isFounderMode ? "إيقاف وضع المؤسس" : "تفعيل وضع المؤسس"}
+                description="يسمح لك هذا الوضع بتغيير أبعاد الكروت والبانرات مباشرة في الواجهة."
+                badge="وضع المؤسس"
+                icon={Shield}
+                theme="indigo"
+                side="bottom"
+              >
+                <button
+                  type="button"
+                  id="btn-header-founder-mode-toggle"
+                  onClick={() => {
+                    toggleFounderMode();
+                    const nextState = !isFounderMode;
+                    try {
+                      localStorage.setItem('isFounderMode', String(nextState));
+                      localStorage.setItem('radar_founder_mode', String(nextState));
+                    } catch {}
+                    if (onShowToast) {
+                      onShowToast(
+                        nextState
+                          ? '👑 تم تفعيل وضع المؤسس! يمكنك الآن سحب مقابض التعديل (DraggableHandle) لتغيير أبعاد العناصر.'
+                          : '🔒 تم إيقاف وضع المؤسس وإخفاء مقابض التعديل.'
+                      );
+                    }
+                  }}
+                  className={`h-10 px-3.5 flex items-center justify-center gap-2 border-2 font-black rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group shrink-0 select-none whitespace-nowrap ${
+                    isFounderMode 
+                      ? 'bg-indigo-600 text-white border-indigo-400 animate-pulse' 
+                      : 'bg-[#F8FAFC] text-[#000000] border-[#000000] hover:bg-indigo-50'
+                  }`}
+                >
+                  <Shield className={`w-4 h-4 shrink-0 ${isFounderMode ? 'text-white' : 'text-indigo-600'}`} />
+                  <span className="font-extrabold whitespace-nowrap">
+                    {isFounderMode ? 'إيقاف وضع المؤسس' : 'وضع المؤسس 👑'}
+                  </span>
+                </button>
+              </ToolbarTooltip>
+            )}
 
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (
@@ -1144,41 +1189,6 @@ export const Header: React.FC<HeaderProps> = ({
                 الذكاء والتسعير
               </span>
               <div className="space-y-1">
-                <SidebarButton
-                  id="sidebar-btn-install-mobile"
-                  icon={<Smartphone className="w-4 h-4 text-emerald-400" />}
-                  label="تحميل أندرويد (APK المباشر)"
-                  badge="APK 📱"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    const link = document.createElement('a');
-                    link.href = '/radar-al-tajer-signed.apk';
-                    link.download = 'radar-al-tajer-signed.apk';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    if (onShowToast) {
-                      onShowToast('جاري تنزيل تطبيق أندرويد الحقيقي (APK)... 🚀');
-                    }
-                  }}
-                />
-
-                <SidebarButton
-                  id="sidebar-btn-install-windows"
-                  icon={<Laptop className="w-4 h-4 text-sky-400" />}
-                  label="تثبيت الويندوز (Windows Desktop)"
-                  badge="Win 10/11 💻"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onOpenWindowsInstallModal) {
-                      onOpenWindowsInstallModal();
-                    } else if (onOpenInstallModal) {
-                      onOpenInstallModal();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-pwa-install-modal', { detail: { category: 'windows' } }));
-                    }
-                  }}
-                />
                 <SidebarButton
                   id="sidebar-btn-smart-analytics"
                   icon={<BarChart2 className="w-4 h-4" />}

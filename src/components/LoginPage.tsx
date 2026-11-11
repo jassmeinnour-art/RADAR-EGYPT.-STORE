@@ -322,16 +322,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           
           {/* Standalone Official Radar Logo Graphic */}
           <div className="flex items-center gap-3.5">
-            <div className="relative w-14 h-14 rounded-2xl bg-amber-500/20 p-1 flex items-center justify-center shadow-xl border-2 border-amber-500/30 ring-2 ring-amber-500/10 shrink-0 overflow-hidden" title="رادار التاجر الذكي">
+            <div className="relative w-14 h-14 rounded-2xl bg-amber-500/20 p-1 flex items-center justify-center shadow-xl border-2 border-amber-500/30 ring-2 ring-amber-500/10 shrink-0 overflow-hidden" title="RADAR">
               <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
                 <img
                   src="/pwa-512x512.png"
-                  alt="رادار التاجر الذكي"
+                  alt="RADAR"
                   className="w-full h-full object-contain select-none"
                   loading="eager"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    target.src = '/logo.png';
+                    target.src = '/pwa-512x512.png';
                   }}
                 />
               </div>
@@ -339,7 +339,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-black text-lg text-white font-['Alexandria'] tracking-wide">
-                  رادار التاجر الذكي
+                  RADAR
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 shadow-sm border border-white/20">
                   RADAR EGYPT
