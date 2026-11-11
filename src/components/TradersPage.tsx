@@ -214,6 +214,26 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
       }
 
       let list = Array.isArray(data) ? (data as Trader[]) : [];
+
+      const defaultMahmoud: Trader = {
+        id: 'A37JIM7LHQI6IM',
+        user_id: user?.uid || 'demo-user',
+        seller_name: 'محمود سعيد',
+        email: 'mahmeudsaid4@gmail.com',
+        phone: '+20 100 000 0000',
+        platform: 'amazon',
+        status: 'active',
+        seller_id: 'A37JIM7LHQI6IM',
+        created_at: '2026-01-01T00:00:00.000Z',
+        products_count: 4,
+        amazon_count: 4,
+        noon_count: 0
+      };
+
+      const hasMahmoud = list.some(t => t.seller_id === 'A37JIM7LHQI6IM' || t.email === 'mahmeudsaid4@gmail.com');
+      if (!hasMahmoud) {
+        list.unshift(defaultMahmoud);
+      }
       
       // Clean up platform strings if they come in the weird format
       list = list.map(t => ({

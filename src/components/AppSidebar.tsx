@@ -314,8 +314,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           label: 'الإعدادات ⚙️',
           icon: <Settings className="w-4 h-4 text-slate-300" />,
           action: () => {
-            onSelectTab('help');
-            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings');
+            onSelectTab('layout_settings');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings/layout');
           }
         },
         {
@@ -338,15 +338,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     },
     {
       id: 'help',
-      title: '🆘 المساعدة',
+      title: '🆘 المساعدة والدعم',
       icon: <HelpCircle className="w-5 h-5 text-blue-300" />,
       headerBg: 'bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950',
       borderColor: 'border-blue-500/40',
       items: [
         {
           id: 'help_page_tab',
-          label: 'دليل الاستخدام 📖',
+          label: 'دليل الاستخدام والنمو 📖',
           icon: <BookOpen className="w-4 h-4 text-blue-300" />,
+          badge: 'دليل شامل 🚀',
           isActive: activeTab === 'help',
           action: () => {
             onSelectTab('help');

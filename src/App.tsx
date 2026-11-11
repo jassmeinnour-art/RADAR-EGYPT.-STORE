@@ -98,19 +98,18 @@ export default function App() {
   }
 
   if (!user) {
-    if (showLogin) {
-      return (
-        <LoginPage 
-          onLoginSuccess={() => {
-            setShowLogin(false);
-            setActiveWorkspaceTab('home');
-            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-          }} 
-          onBackToLanding={() => setShowLogin(false)}
-        />
-      );
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.history.replaceState({}, '', '/login');
     }
-    return <LandingPage onLoginClick={() => setShowLogin(true)} />;
+    return (
+      <LoginPage 
+        onLoginSuccess={() => {
+          setShowLogin(false);
+          setActiveWorkspaceTab('home');
+          if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+        }} 
+      />
+    );
   }
 
   const renderActiveTab = () => {
@@ -157,6 +156,16 @@ export default function App() {
     }
   };
 
+  const handleToggleSidebar = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen((prev) => !prev);
+    } else {
+      const next = !isSidebarCollapsed;
+      setIsSidebarCollapsed(next);
+      localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+    }
+  };
+
   return (
     <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 pb-20 relative font-['Cairo']">
       <OfflineNoticeBanner onShowToast={showToast} />
@@ -175,6 +184,26 @@ export default function App() {
           setActiveWorkspaceTab(tab);
           setShowOwnerDashboard(false);
           setIsSidebarOpen(false);
+          if (typeof window !== 'undefined') {
+            const pathMap: Record<string, string> = {
+              home: '/',
+              traders: '/traders',
+              products: '/products',
+              inventory: '/inventory',
+              shipping: '/invoices',
+              split_invoices: '/invoices/split',
+              reports: '/reports',
+              radar: '/competitors',
+              analytics: '/analytics',
+              platforms_guide: '/connections',
+              traders_sync: '/gmail-sync',
+              layout_settings: '/settings/layout',
+              help: '/help'
+            };
+            if (pathMap[tab]) {
+              window.history.pushState({}, '', pathMap[tab]);
+            }
+          }
         }}
         onOpenAllMerchantsHub={() => {}}
         onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
@@ -193,6 +222,7 @@ export default function App() {
           onShowToast={showToast}
           activeTab={activeWorkspaceTab}
           setActiveTab={(tab: string) => setActiveWorkspaceTab(tab as WorkspaceTab)}
+          onToggleSidebar={handleToggleSidebar}
           onOpenScanner={() => {}}
           onOpenPublishModal={() => {}}
           connectedPlatforms={[]}

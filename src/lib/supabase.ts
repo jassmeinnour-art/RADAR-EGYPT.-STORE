@@ -955,6 +955,28 @@ class SupabaseQueryBuilder {
         }
         const res = await query;
         if (!res.error && res.data !== null && res.data !== undefined) {
+          if (this.tableName === 'traders') {
+            let list = Array.isArray(res.data) ? res.data : [res.data];
+            const mahmeudSaeed: Trader = {
+              id: 'A37JIM7LHQI6IM',
+              user_id: 'demo-user',
+              seller_name: 'محمود سعيد',
+              email: 'mahmeudsaid4@gmail.com',
+              phone: '+20 100 000 0000',
+              platform: 'amazon',
+              status: 'active',
+              seller_id: 'A37JIM7LHQI6IM',
+              created_at: '2026-01-01T00:00:00.000Z',
+              products_count: 4,
+              amazon_count: 4,
+              noon_count: 0
+            };
+            const hasMahmoud = list.some((t: any) => t.seller_id === 'A37JIM7LHQI6IM' || t.email === 'mahmeudsaid4@gmail.com');
+            if (!hasMahmoud) {
+              list = [mahmeudSaeed, ...list];
+            }
+            return { data: this.isSingle ? list[0] : list, error: null };
+          }
           return { data: res.data, error: null };
         }
       } catch (err) {
@@ -1281,13 +1303,15 @@ CREATE INDEX IF NOT EXISTS idx_traders_platform ON public.traders(platform);
 ALTER TABLE public.traders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "traders_select_own_policy" ON public.traders;
+DROP POLICY IF EXISTS "traders_select_open_policy" ON public.traders;
 DROP POLICY IF EXISTS "traders_insert_own_policy" ON public.traders;
 DROP POLICY IF EXISTS "traders_update_own_policy" ON public.traders;
 DROP POLICY IF EXISTS "traders_delete_own_policy" ON public.traders;
 
-CREATE POLICY "traders_select_own_policy"
-ON public.traders FOR SELECT TO authenticated
-USING (auth.uid()::text = user_id::text);
+-- سياسة القراءة المفتوحة لتمكين استعراض التجار المسجلين في رادار
+CREATE POLICY "traders_select_open_policy"
+ON public.traders FOR SELECT
+USING (true);
 
 CREATE POLICY "traders_insert_own_policy"
 ON public.traders FOR INSERT TO authenticated
