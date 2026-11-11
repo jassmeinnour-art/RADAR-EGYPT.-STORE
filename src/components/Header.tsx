@@ -66,7 +66,9 @@ import {
   Lock,
   Eye,
   Laptop,
-  Shield
+  Shield,
+  Pencil,
+  Ruler
 } from 'lucide-react';
 import { ConnectedMerchantPlatform } from '../types';
 import { isExportOverdue24h, getHoursSinceLastExport } from '../utils/csvProductManager';
@@ -287,6 +289,12 @@ export const Header: React.FC<HeaderProps> = ({
     isFounderMode,
     toggleFounderMode
   } = useAuth();
+
+  const isFounderUserStrict = useMemo(() => {
+    const uEmail = user?.email?.trim().toLowerCase() || '';
+    const pEmail = profile?.email?.trim().toLowerCase() || '';
+    return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
+  }, [user?.email, profile?.email]);
 
   const { 
     currentTheme, 
@@ -597,6 +605,41 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-xs sm:text-sm font-bold hidden md:inline">جميع الأقسام والشاشات</span>
             </button>
 
+            {/* Founder Mode Fixed Button (Appears strictly for jassmeinnour@gmail.com) */}
+            {isFounderUserStrict && (
+              <button
+                type="button"
+                id="btn-header-founder-mode-fixed"
+                onClick={() => {
+                  toggleFounderMode();
+                  const nextState = !isFounderMode;
+                  try {
+                    localStorage.setItem('isFounderMode', String(nextState));
+                    localStorage.setItem('radar_founder_mode', String(nextState));
+                    localStorage.setItem('founder_mode_active', String(nextState));
+                    window.dispatchEvent(new CustomEvent('founder_mode_changed', { detail: { active: nextState } }));
+                  } catch {}
+                  if (onShowToast) {
+                    onShowToast(
+                      nextState
+                        ? 'تم تفعيل وضع المؤسس! ظهرت مقابض السحب على الكروت.'
+                        : 'تم إيقاف وضع المؤسس وإخفاء مقابض السحب.'
+                    );
+                  }
+                }}
+                className={`h-10 px-3.5 flex items-center justify-center gap-2 font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md cursor-pointer active:scale-95 shrink-0 select-none ${
+                  isFounderMode 
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-2 border-amber-400 ring-2 ring-amber-400/50' 
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-2 border-amber-600 font-extrabold'
+                }`}
+                title={isFounderMode ? "إيقاف وضع المؤسس" : "وضع المؤسس"}
+              >
+                <Pencil className="w-4 h-4 shrink-0 text-current" />
+                <Ruler className="w-4 h-4 shrink-0 text-current -mr-1" />
+                <span>{isFounderMode ? 'إيقاف وضع المؤسس' : 'وضع المؤسس'}</span>
+              </button>
+            )}
+
             {/* Main Radar Brand Identity */}
             <div
               className="flex items-center gap-2.5 cursor-pointer group"
@@ -645,47 +688,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </ToolbarTooltip>
 
-            {/* Founder Mode Toggle (Only when registered email is jassmeinnour@gmail.com) */}
-            {(user?.email === 'jassmeinnour@gmail.com' || profile?.email === 'jassmeinnour@gmail.com') && (
-              <ToolbarTooltip
-                title={isFounderMode ? "إيقاف وضع المؤسس" : "تفعيل وضع المؤسس"}
-                description="يسمح لك هذا الوضع بتغيير أبعاد الكروت والبانرات مباشرة في الواجهة."
-                badge="وضع المؤسس"
-                icon={Shield}
-                theme="indigo"
-                side="bottom"
-              >
-                <button
-                  type="button"
-                  id="btn-header-founder-mode-toggle"
-                  onClick={() => {
-                    toggleFounderMode();
-                    const nextState = !isFounderMode;
-                    try {
-                      localStorage.setItem('isFounderMode', String(nextState));
-                      localStorage.setItem('radar_founder_mode', String(nextState));
-                    } catch {}
-                    if (onShowToast) {
-                      onShowToast(
-                        nextState
-                          ? '👑 تم تفعيل وضع المؤسس! يمكنك الآن سحب مقابض التعديل (DraggableHandle) لتغيير أبعاد العناصر.'
-                          : '🔒 تم إيقاف وضع المؤسس وإخفاء مقابض التعديل.'
-                      );
-                    }
-                  }}
-                  className={`h-10 px-3.5 flex items-center justify-center gap-2 border-2 font-black rounded-xl text-xs sm:text-sm transition shadow-xs cursor-pointer active:scale-95 group shrink-0 select-none whitespace-nowrap ${
-                    isFounderMode 
-                      ? 'bg-indigo-600 text-white border-indigo-400 animate-pulse' 
-                      : 'bg-[#F8FAFC] text-[#000000] border-[#000000] hover:bg-indigo-50'
-                  }`}
-                >
-                  <Shield className={`w-4 h-4 shrink-0 ${isFounderMode ? 'text-white' : 'text-indigo-600'}`} />
-                  <span className="font-extrabold whitespace-nowrap">
-                    {isFounderMode ? 'إيقاف وضع المؤسس' : 'وضع المؤسس 👑'}
-                  </span>
-                </button>
-              </ToolbarTooltip>
-            )}
+
 
             {/* زر منتجات التريند والأعلى مبيعات (الصين 👈 مصر) */}
             {onOpenBestSellersModal && (

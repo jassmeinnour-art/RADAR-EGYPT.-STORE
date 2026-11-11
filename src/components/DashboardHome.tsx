@@ -26,7 +26,7 @@ interface DashboardHomeProps {
 }
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
-  const { user, profile, isOwner, toggleFounderMode } = useAuth();
+  const { user, profile, isOwner, isFounderMode, toggleFounderMode } = useAuth();
   
   const heroRef = useRef<HTMLDivElement>(null);
   const whyRef = useRef<HTMLDivElement>(null);
@@ -80,11 +80,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       desc: 'تحكم كامل في أحجام الإطارات بالسحب - خاص بمؤسس التطبيق فقط.',
       isActionable: true,
       action: () => {
-        const userEmail = profile?.email || user?.email || '';
+        const userEmail = (profile?.email || user?.email || '').trim().toLowerCase();
         if (userEmail === 'jassmeinnour@gmail.com') {
           toggleFounderMode();
+          const nextState = !isFounderMode;
+          try {
+            localStorage.setItem('isFounderMode', String(nextState));
+            localStorage.setItem('radar_founder_mode', String(nextState));
+            localStorage.setItem('founder_mode_active', String(nextState));
+            window.dispatchEvent(new CustomEvent('founder_mode_changed', { detail: { active: nextState } }));
+          } catch {}
           if (onShowToast) {
-            onShowToast('👑 تم تبديل وضع المؤسس بنجاح! ظهرت مقابض السحب على العناصر.');
+            onShowToast(nextState ? 'تم تفعيل وضع المؤسس! ظهرت مقابض التعديل بالسحب على الكروت.' : 'تم إيقاف وضع المؤسس وإخفاء المقابض.');
           }
         } else {
           alert('عذراً، وضع المؤسس متاح حصرياً لـ jassmeinnour@gmail.com فقط.');

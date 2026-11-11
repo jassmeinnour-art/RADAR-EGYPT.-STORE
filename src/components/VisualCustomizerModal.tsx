@@ -47,6 +47,7 @@ import {
   getButtonRadius,
   THEME_PRESETS
 } from '../context/VisualCustomizerContext';
+import { FounderModeWrapper } from './FounderModeWrapper';
 
 // Reusable Arrow Control Component per user requirement (Strictly NO <input type="range">)
 interface ArrowControlProps {
@@ -232,7 +233,8 @@ export const VisualCustomizerModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 overflow-hidden animate-in fade-in duration-200" dir="rtl">
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-7xl h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+      <FounderModeWrapper elementId="modal_visual_customizer" className="w-full max-w-7xl h-[94vh]">
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full h-full flex flex-col shadow-2xl overflow-hidden">
         
         {/* Top Control Bar */}
         <div className="px-5 py-3 border-b border-slate-800/80 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -1362,6 +1364,7 @@ export const VisualCustomizerModal: React.FC = () => {
         </div>
 
       </div>
+      </FounderModeWrapper>
     </div>
   );
 };
