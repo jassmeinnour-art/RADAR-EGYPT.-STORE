@@ -8,8 +8,11 @@ import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { DownloadFAB } from './components/DownloadFAB';
+import LandingPage from './components/LandingPage';
+import { LoginPage } from './components/LoginPage';
 
 // Lazy loaded components
+const DashboardHome = lazy(() => import('./components/DashboardHome'));
 const TradersPage = lazy(() => import('./components/TradersPage'));
 const ProductsPage = lazy(() => import('./components/ProductsPage'));
 const InventoryPage = lazy(() => import('./components/InventoryPage'));
@@ -27,7 +30,7 @@ const OwnerDashboard = lazy(() => import('./components/OwnerDashboard'));
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 
 export type WorkspaceTab = 
-  | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
+  | 'home' | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
   | 'shipping' | 'trending' | 'reports' | 'auto_pricing' | 'price_comparison' | 'platforms_guide' 
   | 'traders_sync' | 'split_invoices' | 'help' | 'analytics' | 'layout_settings';
 
@@ -35,6 +38,7 @@ export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
+      if (path === '/traders') return 'traders';
       if (path === '/products') return 'products';
       if (path === '/inventory') return 'inventory';
       if (path === '/invoices') return 'shipping';
@@ -47,7 +51,7 @@ export default function App() {
       if (path === '/settings/layout') return 'layout_settings';
       if (path === '/help') return 'help';
     }
-    return 'traders';
+    return 'home';
   });
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -59,20 +63,62 @@ export default function App() {
     return false;
   });
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   
-  const { user, profile } = useAuth();
+  const { user, profile, isLoading, isOwner } = useAuth();
   const subscriptionState = useSubscription(profile);
-  const isOwner = user?.email === OWNER_EMAIL;
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/traders') setActiveWorkspaceTab('traders');
+      else if (path === '/products') setActiveWorkspaceTab('products');
+      else if (path === '/inventory') setActiveWorkspaceTab('inventory');
+      else if (path === '/invoices') setActiveWorkspaceTab('shipping');
+      else if (path === '/invoices/split') setActiveWorkspaceTab('split_invoices');
+      else if (path === '/reports') setActiveWorkspaceTab('reports');
+      else if (path === '/competitors') setActiveWorkspaceTab('radar');
+      else if (path === '/analytics') setActiveWorkspaceTab('analytics');
+      else if (path === '/connections') setActiveWorkspaceTab('platforms_guide');
+      else if (path === '/gmail-sync') setActiveWorkspaceTab('traders_sync');
+      else if (path === '/settings/layout') setActiveWorkspaceTab('layout_settings');
+      else if (path === '/help') setActiveWorkspaceTab('help');
+      else if (path === '/') setActiveWorkspaceTab('home');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const showToast = (msg: string) => {
-    // Implement toast logic or use a library
     console.log(msg);
   };
+
+  if (isLoading) {
+    return <TabSkeletonLoader />;
+  }
+
+  if (!user) {
+    if (showLogin) {
+      return (
+        <LoginPage 
+          onLoginSuccess={() => {
+            setShowLogin(false);
+            setActiveWorkspaceTab('home');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+          }} 
+          onBackToLanding={() => setShowLogin(false)}
+        />
+      );
+    }
+    return <LandingPage onLoginClick={() => setShowLogin(true)} />;
+  }
 
   const renderActiveTab = () => {
     if (showOwnerDashboard && isOwner) return <OwnerDashboard />;
 
     switch (activeWorkspaceTab) {
+      case 'home':
+        return <DashboardHome />;
       case 'traders':
         return <TradersPage onShowToast={showToast} />;
       case 'products':
@@ -98,9 +144,16 @@ export default function App() {
       case 'layout_settings':
         return <LayoutSettingsPage />;
       case 'help':
-        return <HelpPage />;
+        return (
+          <HelpPage 
+            onNavigateToPlatformsGuide={() => {
+              setActiveWorkspaceTab('platforms_guide');
+              if (typeof window !== 'undefined') window.history.pushState({}, '', '/connections');
+            }}
+          />
+        );
       default:
-        return <TradersPage onShowToast={showToast} />;
+        return <DashboardHome />;
     }
   };
 

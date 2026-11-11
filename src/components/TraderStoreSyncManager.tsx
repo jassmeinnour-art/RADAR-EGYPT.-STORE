@@ -23,7 +23,7 @@ import {
 
 export interface ConnectedTrader {
   id: string;
-  name: string;
+  seller_name: string;
   email: string;
   platform: 'amazon_sp_api' | 'noon_seller' | 'jumia_seller' | 'shopify' | 'woocommerce';
   seller_id: string;
@@ -132,7 +132,7 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: traderName,
+          seller_name: traderName,
           email: storeEmail,
           seller_id: sellerId,
           platform,
@@ -192,8 +192,8 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
   };
 
   // Handle Disconnect Trader
-  const handleDisconnectTrader = async (traderId: string, name: string) => {
-    if (!window.confirm(`هل أنت تأكد من إلغاء ربط متجر "${name}"؟`)) return;
+  const handleDisconnectTrader = async (traderId: string, seller_name: string) => {
+    if (!window.confirm(`هل أنت تأكد من إلغاء ربط متجر "${seller_name}"؟`)) return;
 
     try {
       const res = await fetch(`/api/traders/${traderId}`, { method: 'DELETE' });
@@ -343,7 +343,7 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-0.5">
                   <h4 className="font-black text-white text-sm flex items-center gap-1.5">
-                    <span>{trader.name}</span>
+                    <span>{trader.seller_name}</span>
                   </h4>
                   <p className="text-[11px] text-slate-400 font-mono">{trader.email}</p>
                 </div>
@@ -390,7 +390,7 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDisconnectTrader(trader.id, trader.name);
+                      handleDisconnectTrader(trader.id, trader.seller_name);
                     }}
                     className="p-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 rounded-lg transition cursor-pointer"
                     title="إلغاء ربط المتجر"

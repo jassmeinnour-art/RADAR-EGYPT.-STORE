@@ -729,13 +729,15 @@ class SupabaseQueryBuilder {
   private isDelete: boolean = false;
   private isUpdate: boolean = false;
   private updatePayload: any = null;
+  private returnCount: boolean = false;
 
   constructor(tableName: string) {
     this.tableName = tableName;
   }
 
-  select(fields: string = '*', options?: { count?: string }): this {
+  select(fields: string = '*', options?: { count?: string; head?: boolean }): this {
     this.selectFields = fields;
+    if (options?.count) this.returnCount = true;
     return this;
   }
 
@@ -924,7 +926,7 @@ class SupabaseQueryBuilder {
     return { data: [], error: null };
   }
 
-  private async execute(): Promise<{ data: any; error: any }> {
+  private async execute(): Promise<{ data: any; error: any; count?: number }> {
     if (this.isDelete) {
       return this.executeDelete();
     }
@@ -968,9 +970,9 @@ class SupabaseQueryBuilder {
         
         // Ensure Mahmoud Saeed exists in fallback
         const mahmeudSaeed: Trader = {
-          id: 'merchant-mahmeud-said',
+          id: 'A37JIM7LHQI6IM',
           user_id: 'demo-user',
-          seller_name: 'متجر محمود سعيد (Mahmeud Said Store)',
+          seller_name: 'محمود سعيد',
           email: 'mahmeudsaid4@gmail.com',
           phone: '+20 100 000 0000',
           platform: 'amazon',
@@ -1001,7 +1003,14 @@ class SupabaseQueryBuilder {
         }
       } catch {}
 
-        dataset = [];
+      // Fallback to local storage if dataset still empty
+      if (dataset.length === 0) {
+        try {
+          const storedKey = 'radar_multi_tenant_traders_default';
+          const raw = localStorage.getItem(storedKey);
+          if (raw) dataset = JSON.parse(raw);
+        } catch {}
+      }
 
 
       // Check if join with traders(seller_name) is requested
@@ -1021,6 +1030,103 @@ class SupabaseQueryBuilder {
         } catch {}
         const traderMap = new Map<string, any>();
         traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
+        allTraders.forEach(t => {
+          if (t && t.id) traderMap.set(t.id, t);
+        });
+
+        dataset = dataset.map(p => {
+          const trd = traderMap.get(p.trader_id);
+          return {
+            ...p,
+            traders: {
+              seller_name: trd?.seller_name || 'تاجر غير محدد'
+            }
+          };
+        });
+      }
+    } else if (this.tableName === 'products') {
+      try {
+        const seenIds = new Set<string>();
+        
+        // Ensure Mahmoud Saeed's 4 real products exist in fallback
+        const mahmeudProducts: Product[] = [
+          {
+            id: 'prod-ms-1',
+            trader_id: 'A37JIM7LHQI6IM',
+            title: 'كرسي مكتب طبي هيدروليك - أسود',
+            sku: 'OFFICE-CHAIR-BLK-01',
+            price: 2450,
+            stock: 12,
+            platform: 'amazon',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'prod-ms-2',
+            trader_id: 'A37JIM7LHQI6IM',
+            title: 'طاولة مكتب خشب زان 120سم',
+            sku: 'DESK-WOOD-120',
+            price: 3200,
+            stock: 5,
+            platform: 'amazon',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'prod-ms-3',
+            trader_id: 'A37JIM7LHQI6IM',
+            title: 'حامل شاشة مزدوج متحرك',
+            sku: 'MONITOR-MOUNT-DUAL',
+            price: 850,
+            stock: 25,
+            platform: 'amazon',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'prod-ms-4',
+            trader_id: 'A37JIM7LHQI6IM',
+            title: 'مصباح مكتب LED بـ 3 مستويات إضاءة',
+            sku: 'LED-DESK-LAMP-03',
+            price: 450,
+            stock: 40,
+            platform: 'amazon',
+            created_at: new Date().toISOString()
+          }
+        ];
+        
+        dataset.push(...mahmeudProducts);
+        mahmeudProducts.forEach(p => seenIds.add(p.id));
+
+        // Load from local storage products
+        const keys = Object.keys(localStorage);
+        for (const k of keys) {
+          if (k.startsWith('radar_multi_tenant_products_')) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(p => {
+                    if (p && p.id && !seenIds.has(p.id)) {
+                      seenIds.add(p.id);
+                      dataset.push(p);
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+
+      // Check if join with traders(seller_name) is requested
+      if (this.selectFields.includes('traders')) {
+        let allTraders: any[] = [];
+        try {
+          const raw = localStorage.getItem('radar_multi_tenant_traders_default');
+          if (raw) allTraders = JSON.parse(raw);
+        } catch {}
+        
+        const traderMap = new Map<string, any>();
+        traderMap.set('A37JIM7LHQI6IM', { seller_name: 'محمود سعيد' });
         allTraders.forEach(t => {
           if (t && t.id) traderMap.set(t.id, t);
         });
@@ -1120,16 +1226,21 @@ class SupabaseQueryBuilder {
     if (this.isSingle) {
       return {
         data: dataset[0] || null,
-        error: dataset.length > 0 ? null : { message: 'Row not found' }
+        error: dataset.length > 0 ? null : { message: 'Row not found' },
+        count: this.returnCount ? dataset.length : undefined
       };
     }
 
-    return { data: dataset, error: null };
+    return { 
+      data: dataset, 
+      error: null, 
+      count: this.returnCount ? dataset.length : undefined 
+    };
   }
 
   // Support await query
-  then<TResult1 = { data: any; error: any }, TResult2 = never>(
-    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = { data: any; error: any; count?: number }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any; count?: number }) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected);

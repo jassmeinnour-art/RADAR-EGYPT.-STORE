@@ -39,7 +39,6 @@ const SUPPORTED_PLATFORMS = [
   { id: 'noon', name: 'نون (Noon)', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg', color: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300' },
   { id: 'jumia', name: 'جوميا (Jumia)', logo: 'https://cdn.simpleicons.org/jumia/FF9900', color: 'border-orange-500/30 bg-orange-500/10 text-orange-300' },
   { id: 'raneen', name: 'رنين (Raneen)', logo: 'https://www.raneen.com.eg/favicon.ico', color: 'border-blue-500/30 bg-blue-500/10 text-blue-300' },
-  { id: 'bayyaa', name: 'بيّاع (Bayyaa)', logo: 'https://bayyaa.com/favicon.ico', color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' },
   { id: 'kanz', name: 'كنز (Kanz)', logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png', color: 'border-purple-500/30 bg-purple-500/10 text-purple-300' },
   { id: 'homesmart', name: 'هوم سمارت (HomeSmart)', logo: 'https://www.homesmart.com.eg/favicon.ico', color: 'border-rose-500/30 bg-rose-500/10 text-rose-300' },
 ];
@@ -191,7 +190,7 @@ export const MultiMerchantTradersPage: React.FC<MultiMerchantTradersPageProps> =
           {filteredTraders.map(trader => {
             const plat = SUPPORTED_PLATFORMS.find(p => p.id === trader.platform) || SUPPORTED_PLATFORMS[0];
             const sellerId = trader.seller_id || trader.seller_ids?.[trader.platform] || 'A2X9Y5Z1EGYPT';
-            const isConnected = !!(trader.gmail || trader.is_connected);
+            const isConnected = !!(trader.email || trader.is_connected);
             const lastSync = trader.last_sync_at ? 'منذ 10 دقائق' : 'محدث الآن';
             const invoicesCount = trader.invoices_count || 3;
             const productsCount = trader.products_count || 12;

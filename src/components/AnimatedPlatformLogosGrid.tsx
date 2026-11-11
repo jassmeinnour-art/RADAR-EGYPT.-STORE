@@ -75,15 +75,6 @@ const SUPPORTED_PLATFORMS: PlatformBadgeMeta[] = [
     bgGradient: 'from-rose-950/80 via-slate-900 to-slate-950',
     borderColor: 'border-rose-500/50',
     description: 'الإلكترونيات والتقسيط الذكي'
-  },
-  {
-    code: 'bayyaa_partner',
-    name: 'منصة بياع',
-    badgeText: 'Bayyaa Partner',
-    color: '#FF6B00',
-    bgGradient: 'from-orange-950/90 via-slate-900 to-amber-950/80',
-    borderColor: 'border-[#FF6B00]',
-    description: 'شريك التسوق والنمو التجاري الخارجي'
   }
 ];
 

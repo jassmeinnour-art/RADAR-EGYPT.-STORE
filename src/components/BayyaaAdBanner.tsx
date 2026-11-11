@@ -1,19 +1,31 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   ShoppingBag, 
   ExternalLink,
   Info
 } from 'lucide-react';
-import headerBrandLogo from '../assets/images/regenerated_image_1793023955535.png';
+import { DraggableHandle } from './DraggableHandle';
+
+import bayyaaLogo from '../assets/images/regenerated_image_1794400223452.png';
+
+const BAYYAA_LOGO_URL = bayyaaLogo;
 
 export const BayyaaAdBanner: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const openBayyaa = () => {
     window.open('https://bayyaa.com', '_blank');
   };
 
   return (
     <div className="w-full max-w-5xl mx-auto py-8 px-4" dir="rtl">
-      <div className="relative group">
+      <div className="relative group" ref={containerRef}>
+        {/* Resize Handle for Founder Mode */}
+        <DraggableHandle 
+          elementId="bayyaa_ad_banner" 
+          targetRef={containerRef} 
+          position="bottom-left"
+        />
+
         {/* Ad Label */}
         <div className="absolute -top-3 right-6 z-20 flex items-center gap-1.5 px-3 py-1 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full shadow-lg border border-amber-400">
           <span>إعلان ممول</span>
@@ -27,26 +39,26 @@ export const BayyaaAdBanner: React.FC = () => {
           <div className="flex items-center gap-5 relative z-10 text-right">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 p-0.5 shadow-xl flex items-center justify-center shrink-0 border border-white/20">
               <img
-                src={headerBrandLogo}
+                src={BAYYAA_LOGO_URL}
                 alt="منصة بياع"
                 className="w-full h-full object-cover rounded-xl"
                 onError={(e) => {
                   const target = e.currentTarget;
-                  target.src = '/bayyaa-logo.jpg';
+                  target.src = 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png';
                 }}
               />
             </div>
             
             <div className="space-y-1">
               <h3 className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">
-                اكتشف منصة بياع (BAYYAA)
+                بياع (Bayyaa) - إعلان ممول
               </h3>
-              <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-                سوق إلكتروني مصري مستقل يتيح لك عرض وبيع منتجاتك مباشرة للمستهلكين. انضم لآلاف التجار في أسرع المنصات نمواً.
+              <p className="text-sm text-slate-400 max-w-md leading-relaxed font-bold">
+                بياع هو إعلان ممول فقط وليس جزءاً من منظومة رادار. يمكنك عرض منتجاتك كتاجر في سوق بياع المستقل.
               </p>
-              <div className="text-[10px] text-slate-500 font-bold mt-2 flex items-center gap-1">
-                <Info className="w-3 h-3" />
-                <span>إعلان - لا يوجد ربط برمجى أو تقنى بين تطبيق رادار ومنصة بياع الخارجية</span>
+              <div className="text-[11px] text-amber-500 font-black mt-2 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5" />
+                <span>إعلان - لا يوجد ربط بين رادار وبياع</span>
               </div>
             </div>
           </div>

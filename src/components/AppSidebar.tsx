@@ -137,6 +137,25 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   // 6 Specified Categories
   const categories: NavCategory[] = [
     {
+      id: 'home',
+      title: '🏠 الرئيسية',
+      icon: <Zap className="w-5 h-5 text-sky-400" />,
+      headerBg: 'bg-gradient-to-r from-slate-900 via-slate-950 to-indigo-950',
+      borderColor: 'border-sky-500/40',
+      items: [
+        {
+          id: 'home_tab',
+          label: 'لوحة التحكم الرئيسية 🏠',
+          icon: <Zap className="w-4 h-4 text-sky-400" />,
+          isActive: activeTab === 'home',
+          action: () => {
+            onSelectTab('home');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+          }
+        }
+      ]
+    },
+    {
       id: 'merchants',
       title: '📦 التجار والمنتجات',
       icon: <Building2 className="w-5 h-5 text-amber-300" />,
@@ -378,7 +397,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             >
               <img
                 src="/pwa-512x512.png"
-                alt="رادار التاجر الذكي"
+                alt="RADAR"
                 style={{ width: 'var(--sidebar-logo-size, 36px)', height: 'var(--sidebar-logo-size, 36px)', minWidth: 'var(--sidebar-logo-size, 36px)', minHeight: 'var(--sidebar-logo-size, 36px)', maxWidth: 'var(--sidebar-logo-size, 36px)', maxHeight: 'var(--sidebar-logo-size, 36px)', objectFit: 'contain' }}
                 className="sidebar-logo shrink-0 rounded-xl"
                 onError={(e) => {
@@ -397,7 +416,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             </div>
             {!isCollapsed && (
               <div className="truncate min-w-0">
-                <h2 style={{ fontSize: '18px', fontWeight: 900 }} className="text-white tracking-wide truncate">رادار التاجر الذكي</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 900 }} className="text-white tracking-wide truncate">RADAR</h2>
                 <p className="text-[10px] text-amber-300 font-bold truncate">RADAR EGYPT v54</p>
               </div>
             )}
