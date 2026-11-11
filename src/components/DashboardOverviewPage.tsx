@@ -92,6 +92,10 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
 
   // Component refs for Founder Mode resizing handles
   const headerBannerRef = useRef<HTMLDivElement>(null);
+  const statTradersRef = useRef<HTMLDivElement>(null);
+  const statProductsRef = useRef<HTMLDivElement>(null);
+  const statSalesRef = useRef<HTMLDivElement>(null);
+  const statRevenueRef = useRef<HTMLDivElement>(null);
   const salesChartPanelRef = useRef<HTMLDivElement>(null);
   const platformChartPanelRef = useRef<HTMLDivElement>(null);
   const tradersListCardRef = useRef<HTMLDivElement>(null);
@@ -239,7 +243,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+        <div ref={statTradersRef} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg relative">
+          <DraggableHandle elementId="stat_card_traders" targetRef={statTradersRef} position="bottom-right" />
           <div className="flex items-center justify-between">
             <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl">
               <Building2 className="w-6 h-6" />
@@ -252,7 +257,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
           </div>
         </div>
 
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+        <div ref={statProductsRef} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg relative">
+          <DraggableHandle elementId="stat_card_products" targetRef={statProductsRef} position="bottom-right" />
           <div className="flex items-center justify-between">
             <div className="p-3 bg-sky-500/20 text-sky-400 rounded-2xl">
               <Package className="w-6 h-6" />
@@ -265,7 +271,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
           </div>
         </div>
 
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+        <div ref={statSalesRef} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg relative">
+          <DraggableHandle elementId="stat_card_sales" targetRef={statSalesRef} position="bottom-right" />
           <div className="flex items-center justify-between">
             <div className="p-3 bg-purple-500/20 text-purple-400 rounded-2xl">
               <Truck className="w-6 h-6" />
@@ -278,7 +285,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
           </div>
         </div>
 
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+        <div ref={statRevenueRef} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg relative">
+          <DraggableHandle elementId="stat_card_revenue" targetRef={statRevenueRef} position="bottom-right" />
           <div className="flex items-center justify-between">
             <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl">
               <Activity className="w-6 h-6" />
