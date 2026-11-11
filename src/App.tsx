@@ -8,11 +8,14 @@ import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { VisualCustomizerModal } from './components/VisualCustomizerModal';
 import { DownloadFAB } from './components/DownloadFAB';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import LandingPage from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
+import { RouteDebugger } from './components/RouteDebugger';
 
 // Lazy loaded components
 const DashboardHome = lazy(() => import('./components/DashboardHome'));
+const DashboardOverviewPage = lazy(() => import('./components/DashboardOverviewPage'));
 const TradersPage = lazy(() => import('./components/TradersPage'));
 const ProductsPage = lazy(() => import('./components/ProductsPage'));
 const InventoryPage = lazy(() => import('./components/InventoryPage'));
@@ -30,7 +33,7 @@ const OwnerDashboard = lazy(() => import('./components/OwnerDashboard'));
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 
 export type WorkspaceTab = 
-  | 'home' | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
+  | 'home' | 'dashboard' | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
   | 'shipping' | 'trending' | 'reports' | 'auto_pricing' | 'price_comparison' | 'platforms_guide' 
   | 'traders_sync' | 'split_invoices' | 'help' | 'analytics' | 'layout_settings';
 
@@ -38,6 +41,7 @@ export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
+      if (path === '/dashboard') return 'dashboard';
       if (path === '/traders') return 'traders';
       if (path === '/products') return 'products';
       if (path === '/inventory') return 'inventory';
@@ -64,6 +68,8 @@ export default function App() {
   });
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [hasLazyLoadError, setHasLazyLoadError] = useState<boolean>(false);
+  const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   
   const { user, profile, isLoading, isOwner } = useAuth();
   const subscriptionState = useSubscription(profile);
@@ -71,7 +77,8 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
-      if (path === '/traders') setActiveWorkspaceTab('traders');
+      if (path === '/dashboard') setActiveWorkspaceTab('dashboard');
+      else if (path === '/traders') setActiveWorkspaceTab('traders');
       else if (path === '/products') setActiveWorkspaceTab('products');
       else if (path === '/inventory') setActiveWorkspaceTab('inventory');
       else if (path === '/invoices') setActiveWorkspaceTab('shipping');
@@ -112,47 +119,76 @@ export default function App() {
     );
   }
 
-  const renderActiveTab = () => {
-    if (showOwnerDashboard && isOwner) return <OwnerDashboard />;
+  /**
+   * Guidance & verification function to validate that a component exists
+   * for the active tab before rendering in renderActiveTab. If the component
+   * is missing or fails to resolve, logs error details to the console and
+   * safely directs the user to DashboardHome to prevent a blank screen.
+   */
+  const resolveTabComponent = (tab: WorkspaceTab): React.ReactNode => {
+    if (showOwnerDashboard && isOwner) {
+      if (OwnerDashboard) return <OwnerDashboard />;
+      console.error('[Route Resolver Error] OwnerDashboard component is missing or failed to load. Redirecting to DashboardHome.');
+      return <DashboardHome onShowToast={showToast} />;
+    }
 
-    switch (activeWorkspaceTab) {
-      case 'home':
-        return <DashboardHome />;
-      case 'traders':
-        return <TradersPage onShowToast={showToast} />;
-      case 'products':
-      case 'merchants':
-        return <ProductsPage onShowToast={showToast} />;
-      case 'inventory':
-        return <InventoryPage onShowToast={showToast} />;
-      case 'shipping':
-        return <ShippingManagementDashboard onShowToast={showToast} />;
-      case 'split_invoices':
-        return <WaybillSplitterPage onShowToast={showToast} />;
-      case 'reports':
-      case 'trending':
-        return <PerformanceDashboard onShowToast={showToast} />;
-      case 'radar':
-        return <PriceComparisonEngine onShowToast={showToast} />;
-      case 'analytics':
-        return <AnalyticsPage />;
-      case 'platforms_guide':
-        return <PlatformsOnboardingGuide />;
-      case 'traders_sync':
-        return <TraderStoreSyncManager onShowToast={showToast} />;
-      case 'layout_settings':
-        return <LayoutSettingsPage />;
-      case 'help':
-        return (
-          <HelpPage 
-            onNavigateToPlatformsGuide={() => {
-              setActiveWorkspaceTab('platforms_guide');
-              if (typeof window !== 'undefined') window.history.pushState({}, '', '/connections');
-            }}
-          />
-        );
-      default:
-        return <DashboardHome />;
+    const componentMap: Record<string, React.ReactNode> = {
+      home: <DashboardHome onShowToast={showToast} />,
+      dashboard: <DashboardOverviewPage onShowToast={showToast} />,
+      traders: <TradersPage onShowToast={showToast} />,
+      products: <ProductsPage onShowToast={showToast} />,
+      merchants: <ProductsPage onShowToast={showToast} />,
+      inventory: <InventoryPage onShowToast={showToast} />,
+      shipping: <ShippingManagementDashboard onShowToast={showToast} />,
+      split_invoices: <WaybillSplitterPage onShowToast={showToast} />,
+      reports: <PerformanceDashboard onShowToast={showToast} />,
+      trending: <PerformanceDashboard onShowToast={showToast} />,
+      radar: <PriceComparisonEngine onShowToast={showToast} />,
+      auto_pricing: <PriceComparisonEngine onShowToast={showToast} />,
+      price_comparison: <PriceComparisonEngine onShowToast={showToast} />,
+      analytics: <AnalyticsPage />,
+      platforms_guide: <PlatformsOnboardingGuide />,
+      traders_sync: <TraderStoreSyncManager onShowToast={showToast} />,
+      layout_settings: <LayoutSettingsPage />,
+      help: (
+        <HelpPage 
+          onNavigateToPlatformsGuide={() => {
+            setActiveWorkspaceTab('platforms_guide');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/connections');
+          }}
+        />
+      ),
+    };
+
+    const resolvedComponent = componentMap[tab];
+
+    if (!resolvedComponent) {
+      setHasLazyLoadError(true);
+      setFailedTabName(tab);
+      console.error(
+        `[Route Resolver Error] Could not find or resolve component for activeWorkspaceTab: "${tab}". ` +
+        `Redirecting user to DashboardHome to prevent a blank screen.`
+      );
+      // Automatically redirect active tab to home in background state to keep route synced
+      setTimeout(() => {
+        setActiveWorkspaceTab('home');
+        if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
+      }, 0);
+      return <DashboardHome onShowToast={showToast} />;
+    }
+
+    return resolvedComponent;
+  };
+
+  const renderActiveTab = () => {
+    try {
+      console.debug(`[Lazy Map Diagnostic] Resolving component for active tab: "${activeWorkspaceTab}"`);
+      return resolveTabComponent(activeWorkspaceTab);
+    } catch (err) {
+      setHasLazyLoadError(true);
+      setFailedTabName(activeWorkspaceTab);
+      console.error(`[renderActiveTab Exception] Failed to resolve component for tab "${activeWorkspaceTab}":`, err);
+      return <DashboardHome onShowToast={showToast} />;
     }
   };
 
@@ -187,6 +223,7 @@ export default function App() {
           if (typeof window !== 'undefined') {
             const pathMap: Record<string, string> = {
               home: '/',
+              dashboard: '/dashboard',
               traders: '/traders',
               products: '/products',
               inventory: '/inventory',
@@ -243,9 +280,14 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <Suspense fallback={<TabSkeletonLoader />}>
-                {renderActiveTab()}
-              </Suspense>
+              <ErrorBoundary 
+                sectionName={`tab-${activeWorkspaceTab}`} 
+                fallback={<DashboardHome onShowToast={showToast} />}
+              >
+                <Suspense fallback={<TabSkeletonLoader />}>
+                  {renderActiveTab()}
+                </Suspense>
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>
@@ -253,6 +295,37 @@ export default function App() {
 
       <VisualCustomizerModal />
       <DownloadFAB />
+      <RouteDebugger
+        activeTab={activeWorkspaceTab}
+        hasLazyLoadError={hasLazyLoadError}
+        failedTabName={failedTabName}
+        onNavigate={(tab) => {
+          setHasLazyLoadError(false);
+          setActiveWorkspaceTab(tab);
+          setShowOwnerDashboard(false);
+          if (typeof window !== 'undefined') {
+            const pathMap: Record<string, string> = {
+              home: '/',
+              dashboard: '/dashboard',
+              traders: '/traders',
+              products: '/products',
+              inventory: '/inventory',
+              shipping: '/invoices',
+              split_invoices: '/invoices/split',
+              reports: '/reports',
+              radar: '/competitors',
+              analytics: '/analytics',
+              platforms_guide: '/connections',
+              traders_sync: '/gmail-sync',
+              layout_settings: '/settings/layout',
+              help: '/help'
+            };
+            if (pathMap[tab]) {
+              window.history.pushState({}, '', pathMap[tab]);
+            }
+          }
+        }}
+      />
     </div>
   );
 }

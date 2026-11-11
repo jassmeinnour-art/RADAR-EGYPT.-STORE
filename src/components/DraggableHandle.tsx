@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Move } from 'lucide-react';
 
@@ -31,10 +31,52 @@ export const DraggableHandle: React.FC<DraggableHandleProps> = ({
   onResizeEnd,
   position = 'bottom-left'
 }) => {
-  const { isFounderMode, isOwner } = useAuth();
+  const { isFounderMode, isOwner, user, profile } = useAuth();
   const [isResizing, setIsResizing] = useState(false);
+  const [localFounderState, setLocalFounderState] = useState<boolean>(() => {
+    try {
+      return (
+        localStorage.getItem('isFounderMode') === 'true' ||
+        localStorage.getItem('radar_founder_mode') === 'true' ||
+        localStorage.getItem('founder_mode_active') === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
 
   const STORAGE_KEY = 'admin_layout_founder';
+
+  // Listen for founder mode change events
+  useEffect(() => {
+    const handleModeChange = (e: CustomEvent<{ active?: boolean }>) => {
+      if (typeof e.detail?.active === 'boolean') {
+        setLocalFounderState(e.detail.active);
+      } else {
+        try {
+          setLocalFounderState(
+            localStorage.getItem('isFounderMode') === 'true' ||
+            localStorage.getItem('radar_founder_mode') === 'true' ||
+            localStorage.getItem('founder_mode_active') === 'true'
+          );
+        } catch {}
+      }
+    };
+
+    window.addEventListener('founder_mode_changed' as any, handleModeChange);
+    return () => {
+      window.removeEventListener('founder_mode_changed' as any, handleModeChange);
+    };
+  }, []);
+
+  // Check email identity for founder access
+  const isFounderUser = useMemo(() => {
+    const uEmail = user?.email?.trim().toLowerCase() || '';
+    const pEmail = profile?.email?.trim().toLowerCase() || '';
+    return isOwner || uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
+  }, [isOwner, user?.email, profile?.email]);
+
+  const activeFounderMode = isFounderUser && (isFounderMode || localFounderState);
 
   // Apply saved dimensions on mount or mode change
   useEffect(() => {
@@ -119,7 +161,7 @@ export const DraggableHandle: React.FC<DraggableHandleProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  if (!isOwner || !isFounderMode) return null;
+  if (!activeFounderMode) return null;
 
   const positionClasses = {
     'bottom-left': 'bottom-0 left-0 rounded-tr-xl cursor-sw-resize',

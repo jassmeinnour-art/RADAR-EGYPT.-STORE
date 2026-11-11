@@ -21,8 +21,12 @@ import { DraggableHandle } from './DraggableHandle';
 import { useRef } from 'react';
 import bayyaaLogo from '../assets/images/regenerated_image_1794400223452.png';
 
-const DashboardHome: React.FC = () => {
-  const { isFounderMode } = useAuth();
+interface DashboardHomeProps {
+  onShowToast?: (msg: string) => void;
+}
+
+const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
+  const { user, profile, isOwner, toggleFounderMode } = useAuth();
   
   const heroRef = useRef<HTMLDivElement>(null);
   const whyRef = useRef<HTMLDivElement>(null);
@@ -62,29 +66,51 @@ const DashboardHome: React.FC = () => {
 
   const features = [
     { 
-      icon: <Shield className="w-5 h-5 text-indigo-400" />, 
-      title: 'وضع المؤسس', 
-      desc: 'تحكم كامل في أحجام الإطارات بالسحب - خاص بمؤسس التطبيق فقط.' 
+      icon: <Sliders className="w-5 h-5 text-amber-400" />, 
+      title: 'لوحة التحكم الكاملة', 
+      desc: 'تحكم في عرض القائمة والأزرار والخط بما يناسب مظهرك المفضل وعرض ملخص العمليات.',
+      isActionable: true,
+      action: () => {
+        navigate('/dashboard');
+      }
     },
     { 
-      icon: <Sliders className="w-5 h-5 text-amber-400" />, 
-      title: 'لوحة تحكم كاملة', 
-      desc: 'تحكم في عرض القائمة والأزرار والخط بما يناسب مظهرك المفضل.' 
+      icon: <Shield className="w-5 h-5 text-indigo-400" />, 
+      title: 'وضع المؤسس', 
+      desc: 'تحكم كامل في أحجام الإطارات بالسحب - خاص بمؤسس التطبيق فقط.',
+      isActionable: true,
+      action: () => {
+        const userEmail = profile?.email || user?.email || '';
+        if (userEmail === 'jassmeinnour@gmail.com') {
+          toggleFounderMode();
+          if (onShowToast) {
+            onShowToast('👑 تم تبديل وضع المؤسس بنجاح! ظهرت مقابض السحب على العناصر.');
+          }
+        } else {
+          alert('عذراً، وضع المؤسس متاح حصرياً لـ jassmeinnour@gmail.com فقط.');
+        }
+      }
     },
     { 
       icon: <Download className="w-5 h-5 text-emerald-400" />, 
       title: 'زر تحميل عائم', 
-      desc: 'يظهر بذكاء عند البحث عن "تحميل" ويختفي فوراً بعد انتهاء التحميل.' 
+      desc: 'يظهر بذكاء عند البحث عن "تحميل" ويختفي فوراً بعد انتهاء التحميل.',
+      isActionable: true,
+      action: () => {
+        window.location.href = '/radar-al-tajer-signed.apk';
+      }
     },
     { 
       icon: <Zap className="w-5 h-5 text-sky-400" />, 
       title: 'تنبيهات حقيقية', 
-      desc: 'بيانات مستمدة من الفواتير والمنصات الحقيقية فقط - لا بيانات وهمية.' 
+      desc: 'بيانات مستمدة من الفواتير والمنصات الحقيقية فقط - لا بيانات وهمية.',
+      isActionable: false
     },
     { 
       icon: <Lock className="w-5 h-5 text-slate-400" />, 
       title: 'أمان البيانات', 
-      desc: 'بياناتك في Supabase مشفرة - كل تاجر يرى بياناته الخاصة فقط.' 
+      desc: 'بياناتك في Supabase مشفرة - كل تاجر يرى بياناته الخاصة فقط.',
+      isActionable: false
     },
   ];
 
@@ -100,8 +126,6 @@ const DashboardHome: React.FC = () => {
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
         
         <div className="relative z-10 space-y-6 max-w-3xl">
-
-          
           <h1 className="text-4xl md:text-6xl font-black text-white leading-tight">
             رادار - <span className="text-amber-500">التاجر الذكي</span>
           </h1>
@@ -182,21 +206,45 @@ const DashboardHome: React.FC = () => {
         <div className="space-y-6">
           <h2 className="text-3xl font-black text-white">خواص التطبيق الاحترافية 💎</h2>
           <p className="text-slate-400 font-bold leading-relaxed">
-            رادار ليس مجرد أداة لتتبع الأسعار، بل هو نظام متكامل مصمم للنمو والاستقرار.
+            رادار ليس مجرد أداة لتتبع الأسعار، بل هو نظام متكامل مصمم للنمو والاستقرار. الكروت القابلة للضغط مميزة بسهم تفاعلي.
           </p>
           
           <div className="space-y-4">
-            {features.map((f, i) => (
-              <div key={i} className="flex items-start gap-4 p-4 bg-slate-900/40 border border-slate-800/50 rounded-2xl hover:bg-slate-900 transition">
-                <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 mt-1">
-                  {f.icon}
+            {features.map((f, i) => {
+              const content = (
+                <div className={`flex items-start justify-between gap-4 p-4 bg-slate-900/40 border rounded-2xl transition ${f.isActionable ? 'border-amber-500/40 hover:border-amber-500 hover:bg-slate-900 cursor-pointer group' : 'border-slate-800/50'}`}>
+                  <div className="flex items-start gap-4">
+                    <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 mt-1 shrink-0">
+                      {f.icon}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white mb-1">{f.title}</h4>
+                      <p className="text-[11px] text-slate-400 font-bold">{f.desc}</p>
+                    </div>
+                  </div>
+
+                  {f.isActionable ? (
+                    <div className="flex items-center gap-1.5 text-amber-400 font-black text-xs shrink-0 self-center group-hover:translate-x-[-4px] transition-transform">
+                      <span className="hidden sm:inline">اضغط للذهاب</span>
+                      <ArrowLeft className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 shrink-0 self-center">
+                      معلومة معرفية
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <h4 className="text-sm font-black text-white mb-1">{f.title}</h4>
-                  <p className="text-[11px] text-slate-500 font-bold">{f.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+
+              if (f.isActionable && f.action) {
+                return (
+                  <div key={i} onClick={f.action} role="button" tabIndex={0}>
+                    {content}
+                  </div>
+                );
+              }
+              return <div key={i}>{content}</div>;
+            })}
           </div>
         </div>
 
@@ -252,7 +300,7 @@ const DashboardHome: React.FC = () => {
 
             <button 
               onClick={() => window.open('https://bayyaa.com', '_blank')}
-              className="mt-6 w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 group-hover:scale-95 active:scale-90"
+              className="mt-6 w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 group-hover:scale-95 active:scale-90 cursor-pointer"
             >
               <span>زيارة بياع</span>
               <ExternalLink className="w-4 h-4" />
