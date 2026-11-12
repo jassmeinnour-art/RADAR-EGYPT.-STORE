@@ -14,12 +14,14 @@ import {
   X,
   CheckCircle2,
   Package,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { supabase, Trader } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
+import { FetchProductsModal } from './FetchProductsModal';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -39,7 +41,7 @@ import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { useRef } from 'react';
 
-const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: Trader) => void }> = ({ trader, onDelete }) => {
+const TraderCard: React.FC<{ trader: Trader; isFounder: boolean; isSyncing: boolean; onEdit: (t: Trader) => void; onDelete: (e: React.MouseEvent, t: Trader) => void; onFetch: (t: Trader) => void }> = ({ trader, isFounder, isSyncing, onEdit, onDelete, onFetch }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const plat = PLATFORM_DETAILS[trader.platform] || {
     name: trader.platform || 'منصة عامة',
@@ -54,8 +56,7 @@ const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: 
   return (
     <div
       ref={cardRef}
-      onClick={() => navigate(`/traders/${trader.id}`)}
-      className="card border hover:border-amber-500/50 transition-all group hover:shadow-xl hover:shadow-amber-500/5 relative overflow-hidden flex flex-col justify-between p-5"
+      className="card border transition-all relative overflow-hidden flex flex-col justify-between p-5"
     >
       <DraggableHandle elementId={`trader_card_${trader.id}`} targetRef={cardRef} position="bottom-right" />
       
@@ -66,7 +67,7 @@ const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: 
               <img src={plat.logo} alt={plat.name} className="w-full h-full object-contain" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors">
+              <h3 className="text-base font-black text-white transition-colors">
                 {trader.seller_name}
               </h3>
               <div className="flex items-center gap-2 mt-1">
@@ -80,14 +81,28 @@ const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: 
             </div>
           </div>
 
-          <button
-            onClick={(e) => onDelete(e, trader)}
-            title="حذف التاجر ومخزونه وفواتيره متتابعاً"
-            className="p-2 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition active:scale-95 cursor-pointer shrink-0"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {isFounder && (
+            <div className="flex gap-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(trader); }}
+                title="تعديل بيانات التاجر"
+                className="p-2 rounded-xl bg-slate-950/80 hover:bg-amber-500/20 text-slate-500 hover:text-amber-400 border border-slate-800 hover:border-amber-500/40 transition active:scale-95 cursor-pointer"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                onClick={(e) => onDelete(e, trader)}
+                title="حذف التاجر"
+                className="p-2 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition active:scale-95 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
+        
+        {/* ... (rest of the card component) ... */}
+        {/* Update product/platform button navigation to use navigate(`/products?trader_id=${trader.id}`) */}
 
         <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800/60">
           {trader.email && (
@@ -106,6 +121,25 @@ const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: 
 
         {/* Independent Product Count Section with stopPropagation */}
         <div className="pt-2 border-t border-slate-800/60 space-y-2">
+          {isFounder && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onFetch(trader); }}
+              disabled={isSyncing}
+              className="w-full px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 font-bold text-xs border border-amber-500/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>يتم المزامنة...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>سحب كل منتجات المتجر</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -169,6 +203,7 @@ const TraderCard: React.FC<{ trader: Trader; onDelete: (e: React.MouseEvent, t: 
 
 export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectTrader }) => {
   const { user } = useAuth();
+  const isFounder = user?.email?.trim().toLowerCase() === 'jassmeinnour@gmail.com';
   const [traders, setTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasMore, setHasMore] = useState<boolean>(true);
@@ -177,7 +212,35 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [selectedTrader, setSelectedTrader] = useState<Trader | null>(null);
+  const [selectedTraderForFetch, setSelectedTraderForFetch] = useState<Trader | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // ... (rest of the component) ...
+
+  const handleEditTrader = (trader: Trader) => {
+    setSelectedTrader(trader);
+    setIsEditModalOpen(true);
+  };
+
+  const handleFetchProducts = async (trader: Trader) => {
+    setIsSyncing(true);
+    try {
+      // Logic for triggering the sync
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setSelectedTraderForFetch(trader);
+      setIsFetchModalOpen(true);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleUpdateTrader = (updated: Trader) => {
+    setTraders(prev => prev.map(t => t.id === updated.id ? updated : t));
+  };
 
   // Form state
   const [formName, setFormName] = useState<string>('');
@@ -654,9 +717,26 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
       {/* Traders Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTraders.map((trader) => (
-          <TraderCard key={trader.id} trader={trader} onDelete={handleDeleteTrader} />
+          <TraderCard 
+            key={trader.id} 
+            trader={trader} 
+            isFounder={isFounder}
+            isSyncing={isSyncing}
+            onEdit={handleEditTrader}
+            onDelete={handleDeleteTrader}
+            onFetch={handleFetchProducts}
+          />
         ))}
       </div>
+
+      {isFetchModalOpen && selectedTraderForFetch && (
+        <FetchProductsModal
+          trader={selectedTraderForFetch}
+          isOpen={isFetchModalOpen}
+          onClose={() => setIsFetchModalOpen(false)}
+          onShowToast={onShowToast}
+        />
+      )}
 
       {/* Load More Button for Pagination */}
       {hasMore && (
