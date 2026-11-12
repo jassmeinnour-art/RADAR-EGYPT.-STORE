@@ -19,6 +19,7 @@ import {
 import { supabase, Product, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
+import { SyncReportDisplay } from './SyncReportDisplay';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -132,6 +133,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [syncStats, setSyncStats] = useState<{ total: number; new: number; updated: number } | null>(null);
 
   // New product form
   const [newTitle, setNewTitle] = useState<string>('');
@@ -230,6 +232,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   // Initial mount & sync with URL
   useEffect(() => {
+    const raw = localStorage.getItem('radar_last_sync_stats');
+    if (raw) setSyncStats(JSON.parse(raw));
+
     const { trader_id, platform } = readQueryParams();
     fetchProductsAndTraders(trader_id, platform);
 
@@ -362,7 +367,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             <h2 className="text-xl font-black text-white">إدارة المنتجات 📦</h2>
             <p className="text-xs text-slate-400">
               القائمة الرئيسية لمنتجات التجار | إجمالي المنتجات المعروضة:{' '}
-              <span className="font-mono font-bold text-amber-400">{filteredProducts.length}</span>
+              <span className="font-mono font-bold text-amber-400">{totalCount}</span>
             </p>
           </div>
         </div>
@@ -424,6 +429,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           </button>
         )}
       </div>
+
+      {syncStats && <SyncReportDisplay stats={syncStats} />}
 
       {/* Filters Bar: Search + Trader Dropdown + Platform Filter Dropdown */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
