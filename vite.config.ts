@@ -13,14 +13,28 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    chunkSizeWarningLimit: 2000,
-    minify: 'esbuild',
+    target: 'es2020',
+    sourcemap: false,
+    cssMinify: true,
+    chunkSizeWarningLimit: 1500,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        passes: 2,
+        drop_debugger: true,
+      },
+      format: {
+        comments: false,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'ui': ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
+          'supabase': ['@supabase/supabase-js'],
+          'charts': ['recharts'],
+          'ui-icons': ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
           'animations': ['framer-motion', 'canvas-confetti'],
           'export-docs': ['jspdf', 'jspdf-autotable', 'html2canvas', 'xlsx'],
           'analytics': ['@vercel/analytics', '@vercel/speed-insights'],

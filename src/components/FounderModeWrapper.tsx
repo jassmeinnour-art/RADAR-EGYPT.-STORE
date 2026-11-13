@@ -21,13 +21,14 @@ export const FounderModeWrapper: React.FC<FounderModeWrapperProps> = ({
   position = 'bottom-right',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { isFounderMode, user, profile } = useAuth();
+  const { isFounderMode, isOwner, user, profile } = useAuth();
 
-  // Strict check: Founder mode must be ON and Email must be jassmeinnour@gmail.com
+  // Strict check: Founder mode must be ON and authenticated non-anonymous Email must be jassmeinnour@gmail.com
   const canEnableFounderMode = useMemo(() => {
-    const email = (user?.email || profile?.email || '').trim().toLowerCase();
+    if (!user || user.isAnonymous || !isOwner) return false;
+    const email = (user.email || profile?.email || '').trim().toLowerCase();
     return isFounderMode && email === 'jassmeinnour@gmail.com';
-  }, [isFounderMode, user?.email, profile?.email]);
+  }, [isFounderMode, isOwner, user, profile?.email]);
 
   return (
     <div

@@ -34,6 +34,17 @@ import {
   isFirestoreCacheFresh,
   markFirestoreCacheFetched
 } from '../db';
+import {
+  isSupabaseConfigured,
+  supabaseClient,
+  setSupabaseActiveEmail,
+  setSupabaseSession,
+  getActiveSupabaseSession,
+  signInWithSupabasePassword,
+  signUpWithSupabasePassword,
+  signOutSupabase,
+} from '../lib/supabase';
+import { dataCache } from '../utils/dataCache';
 
 export interface UserSessionData {
   sessionId: string;
@@ -140,11 +151,89 @@ function setCachedUserProfile(uid: string, prof: UserMerchantProfile): void {
   }
 }
 
+function hasPersistedSupabaseToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+        const raw = localStorage.getItem(k);
+        if (raw && raw.includes('access_token')) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // safe
+  }
+  return false;
+}
+
+function supabaseUserToAuthUser(sbUser: any): User {
+  const email = (sbUser?.email || '').trim().toLowerCase();
+  const isOwner = email === OWNER_EMAIL;
+  const metaName = sbUser?.user_metadata?.display_name || sbUser?.user_metadata?.full_name;
+  return {
+    uid: sbUser?.id || `sb_${Date.now()}`,
+    email: email || null,
+    displayName: metaName || (isOwner ? 'ياسمين نور (مالكة المنظومة 👑)' : 'تاجر مصري معتمد'),
+    photoURL: sbUser?.user_metadata?.avatar_url || '',
+    isAnonymous: false,
+    emailVerified: Boolean(sbUser?.email_confirmed_at || true),
+    providerData: [],
+    metadata: {},
+  } as unknown as User;
+}
+
+function getInitialDemoUser(): User | null {
+  if (isSupabaseConfigured) return null;
+  try {
+    const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as User;
+  } catch {
+    // safe
+  }
+  return null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserMerchantProfile | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (isSupabaseConfigured) {
+      return null;
+    }
+    const initial = getInitialDemoUser() || auth.currentUser;
+    if (initial) {
+      const initialEmail = initial.email || getSessionEmailOverride() || '';
+      setSupabaseActiveEmail(initialEmail || null);
+    } else {
+      setSupabaseActiveEmail(null);
+    }
+    return initial;
+  });
+  const [profile, setProfile] = useState<UserMerchantProfile | null>(() => {
+    if (isSupabaseConfigured) return null;
+    const initial = getInitialDemoUser() || auth.currentUser;
+    if (!initial) return null;
+    const cached = getCachedUserProfile(initial.uid);
+    if (cached) return cached;
+    return {
+      uid: initial.uid,
+      displayName: initial.displayName || 'تاجر مصري معتمد',
+      email: initial.email || getSessionEmailOverride() || '',
+      storeName: (initial as any).storeName || 'متجر التاجر المصري',
+      city: 'القاهرة',
+      preferredCurrency: 'EGP',
+      sessionCount: 1,
+    };
+  });
   const [sessionData, setSessionData] = useState<UserSessionData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (isSupabaseConfigured) {
+      // Only wait briefly if a persisted Supabase session token exists; otherwise open /login immediately
+      return hasPersistedSupabaseToken();
+    }
+    return !(getInitialDemoUser() || auth.currentUser);
+  });
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
@@ -220,8 +309,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
     const storedEmailOverride = explicitEmailOverride || getSessionEmailOverride();
-    const resolvedEmail = currentUser.email || storedEmailOverride || (currentUser.isAnonymous ? OWNER_EMAIL : '');
-    const isOwnerAccount = resolvedEmail.trim().toLowerCase() === OWNER_EMAIL;
+    const resolvedEmail = currentUser.email || storedEmailOverride || '';
+    const isOwnerAccount = !currentUser.isAnonymous && resolvedEmail.trim().toLowerCase() === OWNER_EMAIL;
+    setSupabaseActiveEmail(resolvedEmail || null);
 
     // 1. Instant optimistic profile from cache or user object - 0ms UI blocking
     const cached = getCachedUserProfile(currentUser.uid);
@@ -296,7 +386,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const existingProfileData = userSnap.data() as UserMerchantProfile;
         sessionCount = (existingProfileData.sessionCount || 0) + 1;
         const finalEmail = explicitEmailOverride || currentUser.email || storedEmailOverride || existingProfileData.email || resolvedEmail;
-        const finalIsOwner = finalEmail.trim().toLowerCase() === OWNER_EMAIL;
+        const finalIsOwner = !currentUser.isAnonymous && finalEmail.trim().toLowerCase() === OWNER_EMAIL;
+        setSupabaseActiveEmail(finalEmail || null);
 
         finalProfile = {
           ...existingProfileData,
@@ -389,17 +480,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Validate database connection using db.ts diagnostic helper with timeout
+    let isMounted = true;
+
+    // Hard 3-second maximum loading failsafe — never trap user in infinite loading
+    const hardLoadingTimeout = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 3000);
+
+    // Primary path when Supabase is configured: check Supabase Auth session FIRST
+    if (isSupabaseConfigured && supabaseClient) {
+      setIsDbConnected(true);
+      let sbSubscription: { unsubscribe: () => void } | null = null;
+
+      const applySupabaseSession = (session: any) => {
+        if (!isMounted) return;
+        if (session?.user && session?.access_token) {
+          setSupabaseSession(session);
+          const mappedUser = supabaseUserToAuthUser(session.user);
+          const verifiedEmail = (session.user.email || '').trim().toLowerCase();
+          setSessionEmailOverride(verifiedEmail || null);
+          setUser(mappedUser);
+          const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+          const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+          setProfile({
+            uid: mappedUser.uid,
+            displayName: isOwnerAcct
+              ? 'ياسمين نور (مالكة المنظومة 👑)'
+              : session.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+            email: verifiedEmail,
+            storeName:
+              session.user.user_metadata?.store_name ||
+              (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+            city: 'القاهرة',
+            preferredCurrency: 'EGP',
+            role: isOwnerAcct ? 'super_admin' : 'merchant',
+            sessionCount: 1,
+          });
+          setSessionData({
+            sessionId: `sb_${mappedUser.uid.slice(0, 6)}`,
+            lastLoginAt: shortTimestamp,
+            lastSeenAt: shortTimestamp,
+            sessionCount: 1,
+            deviceInfo: typeof navigator !== 'undefined' ? (navigator.platform || 'متصفح الويب') : 'متصفح الويب',
+            isOnline: true,
+          });
+        } else {
+          setSupabaseSession(null);
+          setSupabaseActiveEmail(null);
+          setSessionEmailOverride(null);
+          setUser(null);
+          setProfile(null);
+          setSessionData(null);
+        }
+        clearTimeout(hardLoadingTimeout);
+        setIsLoading(false);
+      };
+
+      getActiveSupabaseSession(2500)
+        .then((session) => {
+          applySupabaseSession(session);
+        })
+        .catch(() => {
+          applySupabaseSession(null);
+        });
+
+      try {
+        const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+          applySupabaseSession(session);
+        });
+        sbSubscription = data?.subscription || null;
+      } catch {
+        clearTimeout(hardLoadingTimeout);
+        setIsLoading(false);
+      }
+
+      return () => {
+        isMounted = false;
+        clearTimeout(hardLoadingTimeout);
+        sbSubscription?.unsubscribe();
+      };
+    }
+
+    // Fallback path when Supabase env vars are not configured (Firebase / Local Preview)
     const testTimeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000));
     Promise.race([testDbConnection(), testTimeout])
       .then(connected => {
-        setIsDbConnected(Boolean(connected));
+        if (isMounted) setIsDbConnected(Boolean(connected));
       })
       .catch(() => {
-        setIsDbConnected(false);
+        if (isMounted) setIsDbConnected(false);
       });
 
-    // Check if demo user is saved in storage
     let savedDemoUser: any = null;
     try {
       const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
@@ -408,34 +581,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // safe
     }
 
-    // Safety timeout: if auth state change takes longer than 2 seconds (due to network or CORS domain error), force loading false
     const splashTimeout = setTimeout(() => {
-      setIsLoading((prevLoading) => {
-        if (prevLoading) {
-          console.info('Auth init timeout reached, bypassing splash screen safely.');
-          return false;
-        }
-        return prevLoading;
-      });
-    }, 1000);
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 350);
 
     let unsubscribe = () => {};
     try {
-      // Listen to Firebase Auth state - INSTANT resolution without blocking UI
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         clearTimeout(splashTimeout);
+        clearTimeout(hardLoadingTimeout);
         if (currentUser) {
           setUser(currentUser);
-          // Clear any stored demo user if a real Firebase user logs in
           try { localStorage.removeItem(DEMO_USER_STORAGE_KEY); } catch {}
-          // Trigger fast background sync (non-blocking!)
           syncUserSession(currentUser);
         } else if (savedDemoUser) {
           setUser(savedDemoUser as User);
+          const demoEmail = savedDemoUser.email || 'demo.merchant@radar.eg';
+          setSupabaseActiveEmail(demoEmail);
           setProfile({
             uid: savedDemoUser.uid,
             displayName: savedDemoUser.displayName || 'تاجر تجريبي',
-            email: savedDemoUser.email || 'demo@merchantradar.eg',
+            email: demoEmail,
             storeName: savedDemoUser.storeName || 'متجر التاجر التجريبي (القاهرة)',
             city: 'القاهرة',
             preferredCurrency: 'EGP',
@@ -449,32 +617,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isOnline: true,
           });
         } else {
+          setSupabaseActiveEmail(null);
           setUser(null);
           setProfile(null);
           setSessionData(null);
         }
-        // Instantly finish loading state so dashboard renders with 0 delay!
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }, (authError) => {
         clearTimeout(splashTimeout);
+        clearTimeout(hardLoadingTimeout);
         console.warn('Auth state change error (CORS / domain / network):', authError);
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       });
     } catch (err) {
       clearTimeout(splashTimeout);
+      clearTimeout(hardLoadingTimeout);
       console.warn('Failed to initialize Firebase Auth listener:', err);
-      setIsLoading(false);
+      if (isMounted) setIsLoading(false);
     }
 
     return () => {
+      isMounted = false;
       clearTimeout(splashTimeout);
+      clearTimeout(hardLoadingTimeout);
       unsubscribe();
     };
   }, []);
 
   // Heartbeat session updater: updates lastSeenAt in Firestore users collection
   useEffect(() => {
-    if (!user || user.isAnonymous) return;
+    if (!user || user.isAnonymous || !auth.currentUser) return;
 
     const interval = setInterval(async () => {
       try {
@@ -515,83 +687,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 1.5 Owner Session Instant Access (jassmeinnour@gmail.com)
+  // Owner login strictly requires verified password or Google OAuth (no passwordless backdoor)
   const signInAsOwner = async () => {
-    setLoginError(null);
-    setAuthErrorCode(null);
-    setIsUnauthorizedDomain(false);
-    setSessionEmailOverride(OWNER_EMAIL);
-
-    try {
-      if (auth.currentUser) {
-        setUser(auth.currentUser);
-        await syncUserSession(auth.currentUser, 'الإدارة العامة — رادار التاجر مصر', OWNER_EMAIL);
-        return;
-      }
-      const res = await signInAnonymously(auth);
-      if (res.user) {
-        setUser(res.user);
-        await syncUserSession(res.user, 'الإدارة العامة — رادار التاجر مصر', OWNER_EMAIL);
-        return;
-      }
-    } catch {
-      // Fallback to local owner session if Firebase anonymous auth is restricted
-    }
-
-    const ownerUser = {
-      uid: `owner_jassmein_${Date.now().toString(36)}`,
-      displayName: 'ياسمين نور (مالكة المنظومة 👑)',
-      email: OWNER_EMAIL,
-      photoURL: '',
-      isAnonymous: false,
-      emailVerified: true,
-    } as unknown as User;
-
-    try {
-      localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(ownerUser));
-    } catch {}
-
-    setUser(ownerUser);
-    setProfile({
-      uid: ownerUser.uid,
-      displayName: 'ياسمين نور (مالكة المنظومة 👑)',
-      email: OWNER_EMAIL,
-      storeName: 'الإدارة العامة — رادار التاجر مصر',
-      city: 'القاهرة',
-      preferredCurrency: 'EGP',
-      sessionCount: 1,
-    });
-    setSessionData({
-      sessionId: `sess_owner_${Date.now()}`,
-      lastLoginAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      lastSeenAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      sessionCount: 1,
-      deviceInfo: typeof navigator !== 'undefined' ? (navigator.platform || 'متصفح الويب') : 'متصفح الويب',
-      isOnline: true,
-    });
+    const msg = 'دخول مالكة المنصة يتطلب التحقق عبر البريد الإلكتروني وكلمة المرور أو حساب Google الموثق.';
+    setLoginError(msg);
+    throw new Error(msg);
   };
 
-  // 2. Email & Password Sign-In (does NOT require Authorized Domain in Firebase!)
+  // 2. Email & Password Sign-In (Supabase Auth primary when configured)
   const signInWithEmail = async (email: string, pass: string) => {
     setLoginError(null);
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     const cleanEmail = email.trim().toLowerCase();
-    setSessionEmailOverride(cleanEmail);
+
+    if (isSupabaseConfigured && supabaseClient) {
+      try {
+        const { data, error } = await signInWithSupabasePassword(cleanEmail, pass);
+        if (error || !data?.session || !data?.user) {
+          const msg = 'الإيميل أو كلمة المرور غلط';
+          setSessionEmailOverride(null);
+          setSupabaseSession(null);
+          setLoginError(msg);
+          throw new Error(msg);
+        }
+        setSupabaseSession(data.session);
+        const verifiedEmail = (data.user.email || cleanEmail).trim().toLowerCase();
+        const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+        const mappedUser = supabaseUserToAuthUser(data.user);
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
+        setUser(mappedUser);
+        const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        setProfile({
+          uid: mappedUser.uid,
+          displayName: isOwnerAcct
+            ? 'ياسمين نور (مالكة المنظومة 👑)'
+            : data.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+          email: verifiedEmail,
+          storeName:
+            data.user.user_metadata?.store_name ||
+            (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+          city: 'القاهرة',
+          preferredCurrency: 'EGP',
+          role: isOwnerAcct ? 'super_admin' : 'merchant',
+          sessionCount: 1,
+        });
+        setSessionData({
+          sessionId: `sb_${mappedUser.uid.slice(0, 6)}`,
+          lastLoginAt: shortTimestamp,
+          lastSeenAt: shortTimestamp,
+          sessionCount: 1,
+          deviceInfo: typeof navigator !== 'undefined' ? (navigator.platform || 'متصفح الويب') : 'متصفح الويب',
+          isOnline: true,
+        });
+        return;
+      } catch (err: any) {
+        const msg = err?.message || 'الإيميل أو كلمة المرور غلط';
+        setLoginError(msg);
+        throw new Error(msg);
+      }
+    }
+
     try {
       const res = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       if (res.user) {
+        const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
         setUser(res.user);
-        syncUserSession(res.user, undefined, cleanEmail);
+        syncUserSession(res.user, undefined, verifiedEmail);
       }
     } catch (error: unknown) {
-      // If Owner email is used and Email/Password provider is not configured in Firebase Console, seamlessly authenticate Owner session
-      if (cleanEmail === OWNER_EMAIL) {
-        await signInAsOwner();
-        return;
-      }
-      handleAuthError(error, 'تعذر تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.');
-      throw error;
+      setSessionEmailOverride(null);
+      handleAuthError(error, 'الإيميل أو كلمة المرور غلط');
+      throw new Error('الإيميل أو كلمة المرور غلط');
     }
   };
 
@@ -601,7 +771,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     const cleanEmail = email.trim().toLowerCase();
-    setSessionEmailOverride(cleanEmail);
+
+    if (isSupabaseConfigured && supabaseClient) {
+      const { data, error } = await signUpWithSupabasePassword(cleanEmail, pass, {
+        display_name: displayName?.trim() || '',
+        store_name: storeName?.trim() || '',
+      });
+      if (error) {
+        const rawMsg = String(error.message || '').toLowerCase();
+        let friendly = 'تعذر إنشاء حساب التاجر بالبريد الإلكتروني.';
+        if (rawMsg.includes('already registered') || rawMsg.includes('already exists')) {
+          friendly = 'هذا البريد الإلكتروني مسجل بالفعل. يرجى التبديل لتبويب تسجيل الدخول.';
+        } else if (rawMsg.includes('password')) {
+          friendly = 'كلمة المرور ضعيفة. يجب أن تتكون من 6 خانات على الأقل.';
+        } else if (rawMsg.includes('email')) {
+          friendly = 'صيغة البريد الإلكتروني غير صالحة.';
+        }
+        setLoginError(friendly);
+        throw new Error(friendly);
+      }
+      if (data?.session && data?.user) {
+        setSupabaseSession(data.session);
+        const verifiedEmail = (data.user.email || cleanEmail).trim().toLowerCase();
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
+        setUser(supabaseUserToAuthUser(data.user));
+        return;
+      }
+      if (data?.user && !data?.session) {
+        const confirmMsg = 'تم إنشاء الحساب بنجاح! يرجى تأكيد البريد الإلكتروني ثم تسجيل الدخول.';
+        setLoginError(confirmMsg);
+        throw new Error(confirmMsg);
+      }
+    }
+
     try {
       const res = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       if (res.user) {
@@ -612,14 +815,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // non-blocking
           }
         }
+        const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
         setUser(res.user);
-        syncUserSession(res.user, storeName, cleanEmail);
+        syncUserSession(res.user, storeName, verifiedEmail);
       }
     } catch (error: unknown) {
-      if (cleanEmail === OWNER_EMAIL) {
-        await signInAsOwner();
-        return;
-      }
+      setSessionEmailOverride(null);
       handleAuthError(error, 'تعذر إنشاء حساب التاجر بالبريد الإلكتروني.');
       throw error;
     }
@@ -630,6 +833,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoginError(null);
     setAuthErrorCode(null);
     try {
+      if (isSupabaseConfigured && supabaseClient) {
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim());
+        if (error) throw error;
+        return;
+      }
       await sendPasswordResetEmail(auth, email.trim());
     } catch (error: unknown) {
       handleAuthError(error, 'تعذر إرسال رابط إعادة تعيين كلمة المرور.');
@@ -637,12 +845,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 5. Demo Merchant Instant Access (Non-owner merchant session)
+  // 5. Demo Merchant Instant Access (Blocked when live RLS Supabase Auth is enforced)
   const signInDemoMerchant = async (displayName?: string, storeName?: string) => {
+    if (isSupabaseConfigured) {
+      const msg = 'نظام الأمان (RLS) مفعل حالياً — يرجى تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.';
+      setLoginError(msg);
+      throw new Error(msg);
+    }
     setLoginError(null);
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     setSessionEmailOverride('demo.merchant@radar.eg');
+    setSupabaseActiveEmail('demo.merchant@radar.eg');
+    try {
+      localStorage.removeItem('isFounderMode');
+      localStorage.removeItem('radar_founder_mode');
+      localStorage.removeItem('founder_mode_active');
+    } catch {}
+    setRawFounderMode(false);
 
     try {
       if (auth.currentUser) {
@@ -700,10 +920,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       try {
         localStorage.removeItem(DEMO_USER_STORAGE_KEY);
+        localStorage.removeItem('isFounderMode');
+        localStorage.removeItem('radar_founder_mode');
+        localStorage.removeItem('founder_mode_active');
         setSessionEmailOverride(null);
       } catch {}
 
-      if (user && !user.isAnonymous) {
+      setSupabaseActiveEmail(null);
+      setRawFounderMode(false);
+      dataCache.invalidate();
+
+      await signOutSupabase();
+
+      if (!isSupabaseConfigured && user && !user.isAnonymous) {
         try {
           const userDocRef = doc(usersCollection, user.uid);
           await updateDoc(userDocRef, {
@@ -713,13 +942,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Silent fallback on sign out
         }
       }
-      await fbSignOut(auth);
+      await fbSignOut(auth).catch(() => {});
       setUser(null);
       setProfile(null);
       setSessionData(null);
       setLoginError(null);
       setAuthErrorCode(null);
       setIsUnauthorizedDomain(false);
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.history.replaceState({}, '', '/login');
+      }
     } catch (error) {
       console.error('Sign Out Error:', error);
       throw error;
@@ -779,9 +1011,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsUnauthorizedDomain(false);
   };
 
-  // Exclusive Owner & Founder Access Check: true ONLY when logged in as jassmeinnour@gmail.com
+  // Exclusive Owner & Founder Access Check: true ONLY when authenticated (non-anonymous) as jassmeinnour@gmail.com
   const isOwner = Boolean(
     user &&
+    !user.isAnonymous &&
     ((user.email && user.email.trim().toLowerCase() === OWNER_EMAIL) ||
      (profile?.email && profile.email.trim().toLowerCase() === OWNER_EMAIL))
   );

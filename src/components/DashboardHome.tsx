@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
   Zap, 
   Users, 
@@ -9,17 +9,13 @@ import {
   Sliders, 
   Download, 
   Lock, 
-  ExternalLink, 
-  Info,
-  CheckCircle2,
-  ChevronLeft,
-  Plus
+  CheckCircle2
 } from 'lucide-react';
 import { navigate } from '../utils/navigation';
 import { useAuth } from '../context/AuthContext';
 import { DraggableHandle } from './DraggableHandle';
-import { useRef } from 'react';
-import bayyaaLogo from '../assets/images/regenerated_image_1794400223452.png';
+
+const SponsoredAdsSection = lazy(() => import('./SponsoredAdsSection'));
 
 interface DashboardHomeProps {
   onShowToast?: (msg: string) => void;
@@ -27,12 +23,37 @@ interface DashboardHomeProps {
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
   const { user, profile, isOwner, isFounderMode, toggleFounderMode } = useAuth();
-  
+  const [showAds, setShowAds] = useState(false);
+
   const heroRef = useRef<HTMLDivElement>(null);
   const whyRef = useRef<HTMLDivElement>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
-  const adsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const win = typeof window !== 'undefined' ? window : null;
+    if (!win) return;
+
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    let idleId: number | undefined;
+
+    const triggerAds = () => setShowAds(true);
+
+    if ('requestIdleCallback' in win) {
+      idleId = (win as any).requestIdleCallback(triggerAds, { timeout: 250 });
+    } else {
+      timerId = globalThis.setTimeout(triggerAds, 120);
+    }
+
+    return () => {
+      if (idleId !== undefined && 'cancelIdleCallback' in win) {
+        (win as any).cancelIdleCallback(idleId);
+      }
+      if (timerId !== undefined) {
+        globalThis.clearTimeout(timerId);
+      }
+    };
+  }, []);
 
   const whyCards = [
     { 
@@ -64,6 +85,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
     { number: '4', title: 'استقبل التنبيهات', desc: 'عدّل سعرك قبل ما تخسر مبيعاتك بناءً على تنبيهات التغيير الذكية.' },
   ];
 
+  const isFounderUser = Boolean(
+    user &&
+    !user.isAnonymous &&
+    isOwner &&
+    (profile?.email || user?.email || '').trim().toLowerCase() === 'jassmeinnour@gmail.com'
+  );
+
   const features = [
     { 
       icon: <Sliders className="w-5 h-5 text-amber-400" />, 
@@ -74,30 +102,29 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
         navigate('/dashboard');
       }
     },
-    { 
-      icon: <Shield className="w-5 h-5 text-indigo-400" />, 
-      title: 'وضع المؤسس', 
-      desc: 'تحكم كامل في أحجام الإطارات بالسحب - خاص بمؤسس التطبيق فقط.',
-      isActionable: true,
-      action: () => {
-        const userEmail = (profile?.email || user?.email || '').trim().toLowerCase();
-        if (userEmail === 'jassmeinnour@gmail.com') {
-          toggleFounderMode();
-          const nextState = !isFounderMode;
-          try {
-            localStorage.setItem('isFounderMode', String(nextState));
-            localStorage.setItem('radar_founder_mode', String(nextState));
-            localStorage.setItem('founder_mode_active', String(nextState));
-            window.dispatchEvent(new CustomEvent('founder_mode_changed', { detail: { active: nextState } }));
-          } catch {}
-          if (onShowToast) {
-            onShowToast(nextState ? 'تم تفعيل وضع المؤسس! ظهرت مقابض التعديل بالسحب على الكروت.' : 'تم إيقاف وضع المؤسس وإخفاء المقابض.');
+    ...(isFounderUser
+      ? [
+          {
+            icon: <Shield className="w-5 h-5 text-indigo-400" />,
+            title: 'وضع المؤسس',
+            desc: 'تحكم كامل في أحجام الإطارات بالسحب - خاص بمؤسس التطبيق فقط.',
+            isActionable: true,
+            action: () => {
+              toggleFounderMode();
+              const nextState = !isFounderMode;
+              try {
+                localStorage.setItem('isFounderMode', String(nextState));
+                localStorage.setItem('radar_founder_mode', String(nextState));
+                localStorage.setItem('founder_mode_active', String(nextState));
+                window.dispatchEvent(new CustomEvent('founder_mode_changed', { detail: { active: nextState } }));
+              } catch {}
+              if (onShowToast) {
+                onShowToast(nextState ? 'تم تفعيل وضع المؤسس! ظهرت مقابض التعديل بالسحب على الكروت.' : 'تم إيقاف وضع المؤسس وإخفاء المقابض.');
+              }
+            }
           }
-        } else {
-          alert('عذراً، وضع المؤسس متاح حصرياً لـ jassmeinnour@gmail.com فقط.');
-        }
-      }
-    },
+        ]
+      : []),
     { 
       icon: <Download className="w-5 h-5 text-emerald-400" />, 
       title: 'زر تحميل عائم', 
@@ -127,10 +154,9 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       {/* Hero Section */}
       <section 
         ref={heroRef}
-        className="relative min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 rounded-[3rem] border border-slate-800 shadow-2xl overflow-hidden"
+        className="relative min-h-[380px] flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 rounded-[3rem] border border-slate-800 shadow-2xl overflow-hidden"
       >
         <DraggableHandle elementId="home_hero" targetRef={heroRef} position="bottom-left" />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
         
         <div className="relative z-10 space-y-6 max-w-3xl">
           <h1 className="text-4xl md:text-6xl font-black text-white leading-tight">
@@ -144,7 +170,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
             <button 
               onClick={() => navigate('/traders')}
-              className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+              className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/20 transition-colors duration-200 flex items-center gap-2 cursor-pointer"
             >
               <span>ابدأ الآن - اذهب للتجار</span>
               <ArrowLeft className="w-5 h-5" />
@@ -152,7 +178,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
             
             <button 
               onClick={() => stepsRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border border-slate-700 transition-all active:scale-95 cursor-pointer"
+              className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border border-slate-700 transition-colors duration-200 cursor-pointer"
             >
               شاهد كيف يعمل
             </button>
@@ -170,8 +196,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {whyCards.map((card, idx) => (
-            <div key={idx} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-amber-500/30 transition shadow-lg group">
-              <div className="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <div key={idx} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-amber-500/30 transition-colors duration-200 shadow-lg">
+              <div className="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4">
                 {card.icon}
               </div>
               <h3 className="text-lg font-black text-white mb-2">{card.title}</h3>
@@ -191,8 +217,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {steps.map((step, idx) => (
-            <div key={idx} className="relative group">
-              <div className="text-6xl font-black text-white/5 absolute -top-4 -right-4 pointer-events-none group-hover:text-amber-500/10 transition-colors">
+            <div key={idx} className="relative">
+              <div className="text-6xl font-black text-white/5 absolute -top-4 -right-4 pointer-events-none">
                 {step.number}
               </div>
               <div className="relative z-10 space-y-3">
@@ -219,7 +245,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
           <div className="space-y-4">
             {features.map((f, i) => {
               const content = (
-                <div className={`flex items-start justify-between gap-4 p-4 bg-slate-900/40 border rounded-2xl transition ${f.isActionable ? 'border-amber-500/40 hover:border-amber-500 hover:bg-slate-900 cursor-pointer group' : 'border-slate-800/50'}`}>
+                <div className={`flex items-start justify-between gap-4 p-4 bg-slate-900/40 border rounded-2xl transition-colors duration-200 ${f.isActionable ? 'border-amber-500/40 hover:border-amber-500 hover:bg-slate-900 cursor-pointer' : 'border-slate-800/50'}`}>
                   <div className="flex items-start gap-4">
                     <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 mt-1 shrink-0">
                       {f.icon}
@@ -231,7 +257,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
                   </div>
 
                   {f.isActionable ? (
-                    <div className="flex items-center gap-1.5 text-amber-400 font-black text-xs shrink-0 self-center group-hover:translate-x-[-4px] transition-transform">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-black text-xs shrink-0 self-center">
                       <span className="hidden sm:inline">اضغط للذهاب</span>
                       <ArrowLeft className="w-4 h-4" />
                     </div>
@@ -255,10 +281,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
           </div>
         </div>
 
-        <div className="relative p-6 bg-slate-950 border border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden aspect-video flex items-center justify-center group">
+        <div className="relative p-6 bg-slate-950 border border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden aspect-video flex items-center justify-center">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-indigo-500/5" />
-          <Sliders className="w-24 h-24 text-amber-500/20 group-hover:scale-110 transition-transform" />
-          <div className="absolute bottom-8 right-8 left-8 p-6 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-3xl space-y-2">
+          <Sliders className="w-24 h-24 text-amber-500/20" />
+          <div className="absolute bottom-8 right-8 left-8 p-6 bg-slate-900/90 border border-slate-800 rounded-3xl space-y-2">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-black text-white">بيانات Supabase حية ⚡</span>
@@ -268,76 +294,28 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
         </div>
       </section>
 
-      {/* Sponsored Ads Section */}
-      <section ref={adsRef} className="relative pt-12 border-t border-slate-800/50 space-y-8">
-        <DraggableHandle elementId="home_ads" targetRef={adsRef} position="top-right" />
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl md:text-3xl font-black text-white">إعلانات ممولة 📣</h2>
-          <p className="text-slate-500 text-[10px] font-bold">هذه إعلانات ممولة - لا يوجد ربط بين رادار والمعلنين</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Bayyaa Ad */}
-          <div className="col-span-1 lg:col-span-1 p-6 bg-slate-900 border-2 border-orange-500/30 rounded-3xl relative overflow-hidden flex flex-col justify-between h-full group">
-            <div className="absolute -top-3 left-6 z-20 px-3 py-1 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full shadow-lg">
-              إعلان ممول
-            </div>
-            
-            <div className="space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-orange-600 p-0.5 shadow-xl flex items-center justify-center">
-                <img 
-                  src={bayyaaLogo} 
-                  alt="Bayyaa" 
-                  className="w-full h-full object-cover rounded-xl"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.src = 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png';
-                  }}
-                />
-              </div>
-              <div>
-                <h3 className="text-xl font-black text-white">بياع (Bayyaa)</h3>
-                <p className="text-xs text-slate-400 font-bold mt-1">سوق التجار المستقل لبيع المنتجات مباشرة للمستهلك.</p>
-              </div>
-              <div className="flex items-center gap-1.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <Info className="w-3 h-3 text-amber-500" />
-                <span className="text-[10px] text-amber-500 font-black">إعلان - لا يوجد ربط بين رادار وبياع</span>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => window.open('https://bayyaa.com', '_blank')}
-              className="mt-6 w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 group-hover:scale-95 active:scale-90 cursor-pointer"
-            >
-              <span>زيارة بياع</span>
-              <ExternalLink className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Placeholder Ads */}
-          <div className="p-8 bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center space-y-3 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center">
-              <Plus className="w-6 h-6 text-slate-500" />
-            </div>
-            <h4 className="text-sm font-black text-slate-400">مساحة إعلانية متاحة</h4>
-            <p className="text-[10px] text-slate-500 font-bold">تواصل معنا لحجز مساحتك الإعلانية هنا</p>
-          </div>
-
-          <div className="p-8 bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center space-y-3 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center">
-              <Plus className="w-6 h-6 text-slate-500" />
-            </div>
-            <h4 className="text-sm font-black text-slate-400">مساحة إعلانية متاحة</h4>
-            <p className="text-[10px] text-slate-500 font-bold">روّج لمتجرك أو خدمتك أمام آلاف التجار يومياً</p>
-          </div>
-        </div>
-      </section>
+      {/* Deferred Sponsored Ads Section (loads after initial homepage render) */}
+      {showAds ? (
+        <Suspense
+          fallback={
+            <section className="pt-12 border-t border-slate-800/50">
+              <div className="h-44 rounded-3xl bg-slate-900/40 border border-slate-800/60" />
+            </section>
+          }
+        >
+          <SponsoredAdsSection />
+        </Suspense>
+      ) : (
+        <section className="pt-12 border-t border-slate-800/50">
+          <div className="h-44 rounded-3xl bg-slate-900/40 border border-slate-800/60" />
+        </section>
+      )}
 
       {/* Bottom CTA Button */}
       <section className="pt-6 flex justify-center">
         <button 
           onClick={() => navigate('/traders')}
-          className="px-10 py-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-lg rounded-2xl shadow-2xl shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-3 cursor-pointer"
+          className="px-10 py-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-lg rounded-2xl shadow-2xl shadow-amber-500/25 transition-colors duration-200 flex items-center gap-3 cursor-pointer"
         >
           <span>اذهب للتجار</span>
           <ArrowLeft className="w-6 h-6" />

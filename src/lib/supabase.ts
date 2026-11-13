@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 
 export interface Trader {
   id: string;
@@ -14,7 +14,9 @@ export interface Trader {
   created_at?: string;
   seller_id?: string;
   seller_link?: string;
+  destination_url?: string;
   storefront_link?: string;
+  store_url?: string;
   gmail?: string;
   // UI helpers
   products_count?: number;
@@ -76,10 +78,210 @@ export const isSupabaseConfigured = Boolean(
   !SUPABASE_ANON_KEY.includes('your-supabase-anon-key')
 );
 
+let activeAuthenticatedEmail: string | null = null;
+let activeAccessToken: string | null = null;
+
 // Real Supabase JS Client instance if credentials are valid
 export const supabaseClient: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const headers = new Headers(init?.headers || {});
+          const urlStr =
+            typeof input === 'string'
+              ? input
+              : input instanceof URL
+              ? input.toString()
+              : input.url;
+          const isApiCall =
+            urlStr.includes('/rest/v1/') ||
+            urlStr.includes('/rpc/') ||
+            urlStr.includes('/functions/v1/');
+          if (isApiCall && activeAccessToken) {
+            const currentAuth = headers.get('Authorization') || headers.get('authorization') || '';
+            if (!currentAuth || currentAuth === `Bearer ${SUPABASE_ANON_KEY}`) {
+              headers.set('Authorization', `Bearer ${activeAccessToken}`);
+            }
+          }
+          if (!init?.signal && typeof AbortController !== 'undefined') {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 10000);
+            return fetch(input, { ...init, headers, signal: controller.signal }).finally(() =>
+              clearTimeout(timer)
+            );
+          }
+          return fetch(input, { ...init, headers });
+        },
+      },
+    })
   : null;
+
+const FOUNDER_EMAIL = 'jassmeinnour@gmail.com';
+const DEMO_SKUS = new Set([
+  'OFFICE-CHAIR-BLK-01',
+  'DESK-WOOD-120',
+  'MONITOR-MOUNT-DUAL',
+  'LED-DESK-LAMP-03',
+  'ANK-65W-EG-01',
+  'CBL-TC-02',
+]);
+const PROTECTED_TABLES = new Set([
+  'traders',
+  'products',
+  'invoices',
+  'invoice_items',
+  'inventory_sync',
+  'platform_connections',
+  'split_invoices',
+  'notifications',
+]);
+
+export function setSupabaseSession(session: Session | null): void {
+  activeAccessToken = session?.access_token || null;
+  activeAuthenticatedEmail = session?.user?.email
+    ? session.user.email.trim().toLowerCase()
+    : null;
+  if (supabaseClient?.realtime) {
+    try {
+      supabaseClient.realtime.setAuth(session?.access_token || SUPABASE_ANON_KEY);
+    } catch {
+      // safe
+    }
+  }
+}
+
+// Keep activeAccessToken & activeAuthenticatedEmail synced whenever Supabase refreshes or updates session
+if (supabaseClient) {
+  try {
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+    });
+  } catch {
+    // safe
+  }
+}
+
+export async function getActiveSupabaseSession(timeoutMs = 2000): Promise<Session | null> {
+  if (!supabaseClient) return null;
+  try {
+    const timeout = new Promise<{ data: { session: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null } }), timeoutMs)
+    );
+    const result: any = await Promise.race([supabaseClient.auth.getSession(), timeout]);
+    const session: Session | null = result?.data?.session || null;
+    if (session?.access_token) {
+      setSupabaseSession(session);
+    } else if (!activeAccessToken) {
+      setSupabaseSession(null);
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export async function signInWithSupabasePassword(email: string, password: string) {
+  if (!supabaseClient) {
+    return { data: { user: null, session: null }, error: { message: 'Supabase is not configured' } };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const res = await supabaseClient.auth.signInWithPassword({ email: cleanEmail, password });
+  if (!res.error && res.data?.session) {
+    setSupabaseSession(res.data.session);
+  }
+  return res;
+}
+
+export async function signUpWithSupabasePassword(
+  email: string,
+  password: string,
+  metadata?: Record<string, any>
+) {
+  if (!supabaseClient) {
+    return { data: { user: null, session: null }, error: { message: 'Supabase is not configured' } };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const res = await supabaseClient.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: metadata ? { data: metadata } : undefined,
+  });
+  if (!res.error && res.data?.session) {
+    setSupabaseSession(res.data.session);
+  }
+  return res;
+}
+
+export async function signOutSupabase(): Promise<void> {
+  setSupabaseSession(null);
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch {
+      // safe
+    }
+  }
+}
+
+export function setSupabaseActiveEmail(email: string | null): void {
+  activeAuthenticatedEmail = email ? email.trim().toLowerCase() : null;
+  if (!email) {
+    activeAccessToken = null;
+  }
+}
+
+export function getSupabaseActiveEmail(): string | null {
+  if (activeAuthenticatedEmail) return activeAuthenticatedEmail;
+  if (typeof window !== 'undefined' && !isSupabaseConfigured) {
+    try {
+      const demoRaw = localStorage.getItem('merchant_radar_demo_user');
+      if (demoRaw) {
+        const parsed = JSON.parse(demoRaw);
+        if (parsed?.email) return String(parsed.email).trim().toLowerCase();
+      }
+      const override = localStorage.getItem('merchant_radar_session_email_override');
+      if (override) return override.trim().toLowerCase();
+    } catch {
+      // safe
+    }
+  }
+  return null;
+}
+
+export function isFounderSession(): boolean {
+  return getSupabaseActiveEmail() === FOUNDER_EMAIL;
+}
+
+export function isDemoOrOrphanProduct(p: any): boolean {
+  if (!p) return true;
+  const id = String(p.id || '');
+  const sku = String(p.sku || '').trim().toUpperCase();
+  const title = String(p.title || '');
+  const traderId = String(p.trader_id || '').trim();
+  if (!traderId) return true;
+  if (DEMO_SKUS.has(sku)) return true;
+  if (
+    id.startsWith('PRD-AMZ-') ||
+    id.startsWith('PRD-NOON-') ||
+    id.startsWith('prod-amz-') ||
+    id.startsWith('prod-noon-') ||
+    sku.includes('MS-DESK') ||
+    sku.includes('S24') ||
+    sku.includes('AIRPODS') ||
+    sku.includes('ANKER') ||
+    title.includes('سامسونج') ||
+    title.includes('إيربودز') ||
+    title.includes('كرسي مكتب هيدروليك')
+  ) {
+    return true;
+  }
+  return false;
+}
 
 // Local isolated storage keys helper for multi-tenant isolation
 function getTradersStorageKey(userId: string): string {
@@ -103,6 +305,8 @@ export const multiTenantDb = {
     let traders: Trader[] = [];
 
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         const { data, error } = await supabaseClient
           .from('traders')
@@ -375,6 +579,8 @@ export const multiTenantDb = {
   async getInvoicesByTrader(traderId: string): Promise<any[]> {
     if (!traderId) return [];
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         const { data } = await supabaseClient
           .from('invoices')
@@ -409,6 +615,8 @@ export const multiTenantDb = {
    */
   async getSplitInvoices(originalInvoiceId?: string, traderId?: string): Promise<SplitInvoice[]> {
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         let query = supabaseClient.from('split_invoices').select('*');
         if (originalInvoiceId) query = query.eq('original_invoice_id', originalInvoiceId);
@@ -459,6 +667,8 @@ export const multiTenantDb = {
    */
   async getNotifications(traderId?: string): Promise<AppNotification[]> {
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         let query = supabaseClient.from('invoices').select('id, trader_id, invoice_number, total_amount, created_at');
         if (traderId) query = query.eq('trader_id', traderId);
@@ -542,7 +752,12 @@ export const multiTenantDb = {
    * Fetch products for a specific trader (Strictly authentic, no demo data)
    */
   async getProductsByTrader(traderId: string): Promise<Product[]> {
-    if (!traderId) return [];
+    if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
+    }
+    const activeEmail = getSupabaseActiveEmail();
+    if (!traderId || !activeEmail) return [];
 
     let fetchedProducts: Product[] = [];
 
@@ -555,7 +770,7 @@ export const multiTenantDb = {
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data) && data.length > 0) {
-          fetchedProducts = data as Product[];
+          fetchedProducts = (data as Product[]).filter(p => !isDemoOrOrphanProduct(p));
         }
       } catch (err) {
         console.warn('[MultiTenant Supabase Products Fetch Error]:', err);
@@ -569,7 +784,7 @@ export const multiTenantDb = {
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.products) && json.products.length > 0) {
-            fetchedProducts = json.products;
+            fetchedProducts = (json.products as Product[]).filter(p => !isDemoOrOrphanProduct(p));
           }
         }
       } catch {
@@ -584,25 +799,7 @@ export const multiTenantDb = {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            // Clean out any legacy mock products (Samsung S24, AirPods, Anker, MS-DESK, etc.)
-            const cleaned = parsed.filter((p: any) => {
-              const id = String(p.id || '');
-              const sku = String(p.sku || '');
-              const title = String(p.title || '');
-              const isMock = 
-                id.startsWith('PRD-AMZ-') || 
-                id.startsWith('PRD-NOON-') || 
-                id.startsWith('prod-amz-') || 
-                id.startsWith('prod-noon-') || 
-                sku.includes('MS-DESK') || 
-                sku.includes('S24') || 
-                sku.includes('AIRPODS') || 
-                sku.includes('ANKER') ||
-                title.includes('سامسونج') ||
-                title.includes('إيربودز') ||
-                title.includes('كرسي مكتب هيدروليك');
-              return !isMock && p.trader_id === traderId;
-            });
+            const cleaned = parsed.filter((p: any) => !isDemoOrOrphanProduct(p) && p.trader_id === traderId);
             if (cleaned.length !== parsed.length) {
               localStorage.setItem(getProductsStorageKey(traderId), JSON.stringify(cleaned));
             }
@@ -726,6 +923,7 @@ class SupabaseQueryBuilder {
   private orderConfig?: { col: string; ascending: boolean };
   private isSingle: boolean = false;
   private limitCount?: number;
+  private rangeConfig?: { from: number; to: number };
   private isDelete: boolean = false;
   private isUpdate: boolean = false;
   private updatePayload: any = null;
@@ -777,17 +975,37 @@ class SupabaseQueryBuilder {
   }
 
   range(from: number, to: number): this {
+    this.rangeConfig = { from, to };
     this.limitCount = Math.max(1, (to - from) + 1);
     return this;
   }
 
   async insert(records: any): Promise<{ data: any; error: any }> {
-    const arr = Array.isArray(records) ? records : [records];
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
+    const activeEmail = getSupabaseActiveEmail();
+    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    }
+
+    const rawArr = Array.isArray(records) ? records : [records];
+    const arr = this.tableName === 'products' ? rawArr.filter(p => !isDemoOrOrphanProduct(p)) : rawArr;
+    if (arr.length === 0) {
+      return { data: this.isSingle ? null : [], error: null };
+    }
+
     if (supabaseClient) {
       try {
         const res = await supabaseClient.from(this.tableName).insert(arr).select();
         if (!res.error && res.data) {
           return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+        if (res.error) {
+          return { data: null, error: res.error };
         }
       } catch (err) {
         console.warn(`[Supabase Insert Fallback on ${this.tableName}]:`, err);
@@ -842,6 +1060,17 @@ class SupabaseQueryBuilder {
   }
 
   private async executeUpdate(): Promise<{ data: any; error: any }> {
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
+    const activeEmail = getSupabaseActiveEmail();
+    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    }
+
     if (supabaseClient) {
       try {
         let builder: any = supabaseClient.from(this.tableName).update(this.updatePayload);
@@ -850,13 +1079,62 @@ class SupabaseQueryBuilder {
           if (f.type === 'neq') builder = builder.neq(f.col, f.val);
         }
         const res = await builder.select();
-        if (!res.error) return { data: res.data, error: null };
+        if (!res.error && res.data && res.data.length > 0) {
+          return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+        if (res.error) {
+          return { data: null, error: res.error };
+        }
       } catch {}
     }
-    return { data: this.updatePayload, error: null };
+
+    // Also update localStorage fallback so edits remain consistent
+    const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+    let updatedRow: any = this.updatePayload;
+    if (this.tableName === 'traders' && eqId) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            const list = JSON.parse(raw);
+            if (!Array.isArray(list)) continue;
+            let modified = false;
+            const nextList = list.map((t: any) => {
+              if (t && String(t.id) === String(eqId)) {
+                const ownerEmail = String(t.email || t.gmail || '').trim().toLowerCase();
+                if (activeEmail === FOUNDER_EMAIL || ownerEmail === activeEmail) {
+                  modified = true;
+                  updatedRow = { ...t, ...this.updatePayload };
+                  return updatedRow;
+                }
+              }
+              return t;
+            });
+            if (modified) {
+              localStorage.setItem(k, JSON.stringify(nextList));
+            }
+          }
+        }
+      } catch {}
+    }
+
+    return { data: this.isSingle ? updatedRow : [updatedRow], error: null };
   }
 
   private async executeDelete(): Promise<{ data: any; error: any }> {
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
+    const activeEmail = getSupabaseActiveEmail();
+    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    }
+
     if (supabaseClient) {
       try {
         let builder: any = supabaseClient.from(this.tableName).delete();
@@ -866,7 +1144,10 @@ class SupabaseQueryBuilder {
           if (f.type === 'in') builder = builder.in(f.col, f.val);
           if (f.type === 'not') builder = builder.not(f.col, f.operator || 'is', f.val);
         }
-        await builder;
+        const res = await builder;
+        if (res?.error) {
+          return { data: null, error: res.error };
+        }
       } catch (e) {
         console.warn(`[Supabase Delete Warning on ${this.tableName}]:`, e);
       }
@@ -934,10 +1215,67 @@ class SupabaseQueryBuilder {
       return this.executeUpdate();
     }
 
+    // Strict Session Verification: NEVER query protected Supabase tables without an active user access_token
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return {
+          data: this.isSingle ? null : [],
+          error: { message: 'Unauthorized: active session required' },
+          count: 0,
+        };
+      }
+    }
+
+    const activeEmail = getSupabaseActiveEmail();
+
+    // Enforce authentication for all protected tables
+    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+      return {
+        data: this.isSingle ? null : [],
+        error: { message: 'Unauthorized: authentication required' },
+        count: 0,
+      };
+    }
+
+    const isFounder = activeEmail === FOUNDER_EMAIL;
+
+    // Resolve allowed trader IDs for non-founder isolation
+    const getAllowedTraderIds = (): Set<string> => {
+      const allowed = new Set<string>();
+      if (activeEmail === 'mahmeudsaid4@gmail.com') {
+        allowed.add('A37JIM7LHQI6IM');
+      }
+      if (typeof localStorage !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((t: any) => {
+                    const tEmail = String(t?.email || t?.gmail || '').trim().toLowerCase();
+                    if (t?.id && tEmail && tEmail === activeEmail) {
+                      allowed.add(String(t.id));
+                    }
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+      return allowed;
+    };
+
     // 1. Try real Supabase if configured
     if (supabaseClient) {
       try {
-        let query: any = supabaseClient.from(this.tableName).select(this.selectFields);
+        let query: any = this.returnCount
+          ? supabaseClient.from(this.tableName).select(this.selectFields, { count: 'exact' })
+          : supabaseClient.from(this.tableName).select(this.selectFields);
         for (const f of this.filters) {
           if (f.type === 'eq') query = query.eq(f.col, f.val);
           if (f.type === 'neq') query = query.neq(f.col, f.val);
@@ -947,76 +1285,106 @@ class SupabaseQueryBuilder {
         if (this.orderConfig) {
           query = query.order(this.orderConfig.col, { ascending: this.orderConfig.ascending });
         }
-        if (this.limitCount) {
+        if (this.rangeConfig) {
+          query = query.range(this.rangeConfig.from, this.rangeConfig.to);
+        } else if (this.limitCount) {
           query = query.limit(this.limitCount);
         }
         if (this.isSingle) {
           query = query.single();
         }
-        const res = await query;
+        const queryTimeout = new Promise<any>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: { message: 'Query timeout' } }), 8000)
+        );
+        const res = await Promise.race([query, queryTimeout]);
         if (!res.error && res.data !== null && res.data !== undefined) {
-          if (this.tableName === 'traders') {
-            let list = Array.isArray(res.data) ? res.data : [res.data];
-            const mahmeudSaeed: Trader = {
-              id: 'A37JIM7LHQI6IM',
-              user_id: 'demo-user',
-              seller_name: 'محمود سعيد',
-              email: 'mahmeudsaid4@gmail.com',
-              phone: '+20 100 000 0000',
-              platform: 'amazon',
-              status: 'active',
-              seller_id: 'A37JIM7LHQI6IM',
-              created_at: '2026-01-01T00:00:00.000Z',
-              products_count: 4,
-              amazon_count: 4,
-              noon_count: 0
-            };
-            const hasMahmoud = list.some((t: any) => t.seller_id === 'A37JIM7LHQI6IM' || t.email === 'mahmeudsaid4@gmail.com');
-            if (!hasMahmoud) {
-              list = [mahmeudSaeed, ...list];
+          let safeData = res.data;
+          // Defense-in-depth client-side filtering (purge demo SKUs & enforce trader row isolation)
+          if (Array.isArray(safeData)) {
+            if (this.tableName === 'products') {
+              safeData = safeData.filter((p: any) => !isDemoOrOrphanProduct(p));
+              if (!isFounder) {
+                const allowedIds = getAllowedTraderIds();
+                safeData = safeData.filter((p: any) => allowedIds.has(String(p.trader_id)));
+              }
+            } else if (this.tableName === 'traders' && !isFounder) {
+              safeData = safeData.filter((t: any) => {
+                const tEmail = String(t?.email || t?.gmail || '').trim().toLowerCase();
+                return tEmail === activeEmail;
+              });
             }
-            return { data: this.isSingle ? list[0] : list, error: null };
           }
-          return { data: res.data, error: null };
+          return {
+            data: safeData,
+            error: null,
+            count: typeof res.count === 'number' ? (Array.isArray(safeData) ? Math.min(res.count, safeData.length || res.count) : res.count) : undefined,
+          };
+        }
+        // If RLS denied (401/403/42501), return empty cleanly instead of leaking local fallback
+        if (res.error) {
+          const msg = String(res.error?.message || '').toLowerCase();
+          if (
+            res.error?.code === '42501' ||
+            res.error?.code === 'PGRST301' ||
+            msg.includes('jwt') ||
+            msg.includes('permission') ||
+            msg.includes('unauthorized')
+          ) {
+            return {
+              data: this.isSingle ? null : [],
+              error: res.error,
+              count: 0,
+            };
+          }
         }
       } catch (err) {
         console.warn(`[Supabase Query error on ${this.tableName}, falling back to local storage]:`, err);
       }
     }
 
-    // 2. Fallback to local dataset
+    // 2. Fallback to local dataset (strictly isolated & purged of demo data)
     let dataset: any[] = [];
     if (this.tableName === 'traders') {
       try {
         const seenIds = new Set<string>();
-        
-        // Ensure Mahmoud Saeed exists in fallback
-        const mahmeudSaeed: Trader = {
-          id: 'A37JIM7LHQI6IM',
-          user_id: 'demo-user',
-          seller_name: 'محمود سعيد',
-          email: 'mahmeudsaid4@gmail.com',
-          phone: '+20 100 000 0000',
-          platform: 'amazon',
-          status: 'active',
-          created_at: new Date().toISOString()
-        };
-        dataset.push(mahmeudSaeed);
-        seenIds.add(mahmeudSaeed.id);
+
+        // Only expose Mahmoud Saeed real trader record to Founder or Mahmoud Saeed himself
+        if (isFounder || activeEmail === 'mahmeudsaid4@gmail.com') {
+          const mahmeudSaeed: Trader = {
+            id: 'A37JIM7LHQI6IM',
+            user_id: 'mahmeudsaid4',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            gmail: 'mahmeudsaid4@gmail.com',
+            phone: '+20 100 000 0000',
+            platform: 'amazon',
+            seller_id: 'A37JIM7LHQI6IM',
+            destination_url: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
+            seller_link: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
+            store_url: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
+            storefront_link: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
+            status: 'active',
+            created_at: new Date().toISOString()
+          };
+          dataset.push(mahmeudSaeed);
+          seenIds.add(mahmeudSaeed.id);
+        }
 
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
             try {
               const raw = localStorage.getItem(k);
               if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
                   parsed.forEach(t => {
-                    if (t && t.id && !seenIds.has(t.id)) {
-                      seenIds.add(t.id);
-                      dataset.push(t);
-                    }
+                    if (!t || !t.id || seenIds.has(t.id)) return;
+                    const tEmail = String(t.email || t.gmail || '').trim().toLowerCase();
+                    if (!tEmail || String(t.id).includes('star-steel')) return;
+                    if (!isFounder && tEmail !== activeEmail) return;
+                    seenIds.add(t.id);
+                    dataset.push(t);
                   });
                 }
               }
@@ -1024,100 +1392,11 @@ class SupabaseQueryBuilder {
           }
         }
       } catch {}
-
-      // Fallback to local storage if dataset still empty
-      if (dataset.length === 0) {
-        try {
-          const storedKey = 'radar_multi_tenant_traders_default';
-          const raw = localStorage.getItem(storedKey);
-          if (raw) dataset = JSON.parse(raw);
-        } catch {}
-      }
-
-
-      // Check if join with traders(seller_name) is requested
-      if (this.selectFields.includes('traders')) {
-        let allTraders: any[] = [];
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) allTraders.push(...parsed);
-              }
-            }
-          }
-        } catch {}
-        const traderMap = new Map<string, any>();
-        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
-        allTraders.forEach(t => {
-          if (t && t.id) traderMap.set(t.id, t);
-        });
-
-        dataset = dataset.map(p => {
-          const trd = traderMap.get(p.trader_id);
-          return {
-            ...p,
-            traders: {
-              seller_name: trd?.seller_name || 'تاجر غير محدد'
-            }
-          };
-        });
-      }
     } else if (this.tableName === 'products') {
       try {
         const seenIds = new Set<string>();
-        
-        // Ensure Mahmoud Saeed's 4 real products exist in fallback
-        const mahmeudProducts: Product[] = [
-          {
-            id: 'prod-ms-1',
-            trader_id: 'A37JIM7LHQI6IM',
-            title: 'كرسي مكتب طبي هيدروليك - أسود',
-            sku: 'OFFICE-CHAIR-BLK-01',
-            price: 2450,
-            stock: 12,
-            platform: 'amazon',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 'prod-ms-2',
-            trader_id: 'A37JIM7LHQI6IM',
-            title: 'طاولة مكتب خشب زان 120سم',
-            sku: 'DESK-WOOD-120',
-            price: 3200,
-            stock: 5,
-            platform: 'amazon',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 'prod-ms-3',
-            trader_id: 'A37JIM7LHQI6IM',
-            title: 'حامل شاشة مزدوج متحرك',
-            sku: 'MONITOR-MOUNT-DUAL',
-            price: 850,
-            stock: 25,
-            platform: 'amazon',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 'prod-ms-4',
-            trader_id: 'A37JIM7LHQI6IM',
-            title: 'مصباح مكتب LED بـ 3 مستويات إضاءة',
-            sku: 'LED-DESK-LAMP-03',
-            price: 450,
-            stock: 40,
-            platform: 'amazon',
-            created_at: new Date().toISOString()
-          }
-        ];
-        
-        dataset.push(...mahmeudProducts);
-        mahmeudProducts.forEach(p => seenIds.add(p.id));
+        const allowedIds = !isFounder ? getAllowedTraderIds() : null;
 
-        // Load from local storage products
         const keys = Object.keys(localStorage);
         for (const k of keys) {
           if (k.startsWith('radar_multi_tenant_products_')) {
@@ -1126,11 +1405,15 @@ class SupabaseQueryBuilder {
               if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
-                  parsed.forEach(p => {
-                    if (p && p.id && !seenIds.has(p.id)) {
-                      seenIds.add(p.id);
-                      dataset.push(p);
-                    }
+                  const cleanList = parsed.filter((p: any) => !isDemoOrOrphanProduct(p));
+                  if (cleanList.length !== parsed.length) {
+                    localStorage.setItem(k, JSON.stringify(cleanList));
+                  }
+                  cleanList.forEach(p => {
+                    if (!p || !p.id || seenIds.has(p.id)) return;
+                    if (allowedIds && !allowedIds.has(String(p.trader_id))) return;
+                    seenIds.add(p.id);
+                    dataset.push(p);
                   });
                 }
               }
@@ -1139,26 +1422,15 @@ class SupabaseQueryBuilder {
         }
       } catch {}
 
-      // Check if join with traders(seller_name) is requested
       if (this.selectFields.includes('traders')) {
-        let allTraders: any[] = [];
-        try {
-          const raw = localStorage.getItem('radar_multi_tenant_traders_default');
-          if (raw) allTraders = JSON.parse(raw);
-        } catch {}
-        
         const traderMap = new Map<string, any>();
         traderMap.set('A37JIM7LHQI6IM', { seller_name: 'محمود سعيد' });
-        allTraders.forEach(t => {
-          if (t && t.id) traderMap.set(t.id, t);
-        });
-
         dataset = dataset.map(p => {
           const trd = traderMap.get(p.trader_id);
           return {
             ...p,
             traders: {
-              seller_name: trd?.seller_name || 'تاجر غير محدد'
+              seller_name: trd?.seller_name || 'تاجر معتمد'
             }
           };
         });
@@ -1169,44 +1441,15 @@ class SupabaseQueryBuilder {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            dataset = parsed;
+            const allowedIds = !isFounder ? getAllowedTraderIds() : null;
+            dataset = parsed.filter((item: any) => {
+              if (isDemoOrOrphanProduct(item)) return false;
+              if (allowedIds && !allowedIds.has(String(item.trader_id))) return false;
+              return true;
+            });
           }
         }
       } catch {}
-
-      if (dataset.length === 0) {
-        // Mock data purged as per user request.
-      }
-
-      // Check if join with traders(seller_name) is requested
-      if (this.selectFields.includes('traders')) {
-        let allTraders: any[] = [];
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) allTraders.push(...parsed);
-              }
-            }
-          }
-        } catch {}
-        const traderMap = new Map<string, any>();
-        traderMap.set('merchant-mahmeud-said', { seller_name: 'متجر محمود سعيد (Mahmeud Said Store)' });
-        allTraders.forEach(t => {
-          if (t && t.id) traderMap.set(t.id, t);
-        });
-
-        dataset = dataset.map(item => {
-          const trd = traderMap.get(item.trader_id);
-          return {
-            ...item,
-            traders: trd ? { seller_name: trd.seller_name } : null
-          };
-        });
-      }
     }
 
     // Apply filters
@@ -1239,8 +1482,12 @@ class SupabaseQueryBuilder {
       });
     }
 
-    // Apply limit
-    if (this.limitCount !== undefined) {
+    const totalMatchedCount = dataset.length;
+
+    // Apply range or limit
+    if (this.rangeConfig) {
+      dataset = dataset.slice(this.rangeConfig.from, this.rangeConfig.to + 1);
+    } else if (this.limitCount !== undefined) {
       dataset = dataset.slice(0, this.limitCount);
     }
 
@@ -1249,14 +1496,14 @@ class SupabaseQueryBuilder {
       return {
         data: dataset[0] || null,
         error: dataset.length > 0 ? null : { message: 'Row not found' },
-        count: this.returnCount ? dataset.length : undefined
+        count: this.returnCount ? totalMatchedCount : undefined
       };
     }
 
     return { 
       data: dataset, 
       error: null, 
-      count: this.returnCount ? dataset.length : undefined 
+      count: this.returnCount ? totalMatchedCount : undefined 
     };
   }
 
@@ -1280,211 +1527,151 @@ export const supabase = {
  * Complete Supabase Row Level Security (RLS) SQL Script
  * Binds traders.user_id = auth.uid() and secures all trader products
  */
-export const SUPABASE_RLS_SQL = `-- 1. تفعيل ملحق UUID
+export const SUPABASE_RLS_SQL = `-- ============================================================================
+-- RADAR EGYPT SECURITY HARDENING & RLS POLICIES (radaregypt.store)
+-- Founder: jassmeinnour@gmail.com | Real Trader: mahmeudsaid4@gmail.com
+-- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. جدول التجار (traders)
-CREATE TABLE IF NOT EXISTS public.traders (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    seller_name TEXT NOT NULL,
-    seller_id TEXT NOT NULL,
-    email TEXT NOT NULL,
-    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart')),
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+-- 1. Ensure complete schema columns exist on traders & products
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS gmail TEXT;
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_id TEXT;
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS destination_url TEXT;
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS store_url TEXT;
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_link TEXT;
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS storefront_link TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_traders_user_id ON public.traders(user_id);
-CREATE INDEX IF NOT EXISTS idx_traders_platform ON public.traders(platform);
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS asin TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS product_url TEXT;
 
--- 3. تفعيل RLS لجدول traders
+-- 2. Purge all demo products, orphan rows, and demo traders
+DELETE FROM public.products
+WHERE sku IN ('OFFICE-CHAIR-BLK-01', 'DESK-WOOD-120', 'MONITOR-MOUNT-DUAL', 'LED-DESK-LAMP-03')
+   OR trader_id IS NULL
+   OR TRIM(trader_id) = ''
+   OR trader_id NOT IN (SELECT id FROM public.traders);
+
+DELETE FROM public.traders
+WHERE LOWER(COALESCE(email, gmail, '')) <> 'mahmeudsaid4@gmail.com'
+  AND COALESCE(seller_id, '') <> 'A37JIM7LHQI6IM';
+
+-- 3. Drop ALL existing open / "Allow all" policies across protected tables
+DO $$
+DECLARE
+  pol RECORD;
+BEGIN
+  FOR pol IN
+    SELECT schemaname, tablename, policyname
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN (
+        'traders', 'products', 'invoices', 'invoice_items',
+        'inventory_sync', 'platform_connections', 'split_invoices', 'notifications'
+      )
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I;', pol.policyname, pol.schemaname, pol.tablename);
+  END LOOP;
+END $$;
+
+-- 4. Revoke anonymous public access and lock down RLS
+REVOKE ALL ON public.traders FROM anon;
+REVOKE ALL ON public.products FROM anon;
+REVOKE ALL ON public.invoices FROM anon;
+REVOKE ALL ON public.invoice_items FROM anon;
+REVOKE ALL ON public.inventory_sync FROM anon;
+REVOKE ALL ON public.platform_connections FROM anon;
+REVOKE ALL ON public.split_invoices FROM anon;
+REVOKE ALL ON public.notifications FROM anon;
+
 ALTER TABLE public.traders ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "traders_select_own_policy" ON public.traders;
-DROP POLICY IF EXISTS "traders_select_open_policy" ON public.traders;
-DROP POLICY IF EXISTS "traders_insert_own_policy" ON public.traders;
-DROP POLICY IF EXISTS "traders_update_own_policy" ON public.traders;
-DROP POLICY IF EXISTS "traders_delete_own_policy" ON public.traders;
-
--- سياسة القراءة المفتوحة لتمكين استعراض التجار المسجلين في رادار
-CREATE POLICY "traders_select_open_policy"
-ON public.traders FOR SELECT
-USING (true);
-
-CREATE POLICY "traders_insert_own_policy"
-ON public.traders FOR INSERT TO authenticated
-WITH CHECK (auth.uid()::text = user_id::text);
-
-CREATE POLICY "traders_update_own_policy"
-ON public.traders FOR UPDATE TO authenticated
-USING (auth.uid()::text = user_id::text)
-WITH CHECK (auth.uid()::text = user_id::text);
-
-CREATE POLICY "traders_delete_own_policy"
-ON public.traders FOR DELETE TO authenticated
-USING (auth.uid()::text = user_id::text);
-
--- 4. جدول المنتجات وحمايته بـ RLS
-CREATE TABLE IF NOT EXISTS public.products (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    sku TEXT NOT NULL,
-    price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    stock INTEGER NOT NULL DEFAULT 0,
-    image TEXT,
-    buybox_price NUMERIC(12, 2),
-    competitor_price NUMERIC(12, 2),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
-CREATE INDEX IF NOT EXISTS idx_products_trader_id ON public.products(trader_id);
-
+ALTER TABLE public.traders FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_sync ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_sync FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_connections FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.split_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.split_invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "products_select_own_trader_policy" ON public.products;
-DROP POLICY IF EXISTS "products_insert_own_trader_policy" ON public.products;
-DROP POLICY IF EXISTS "products_update_own_trader_policy" ON public.products;
-DROP POLICY IF EXISTS "products_delete_own_trader_policy" ON public.products;
+-- 5. Founder (jassmeinnour@gmail.com) FULL ACCESS on all tables
+CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE POLICY "products_select_own_trader_policy"
-ON public.products FOR SELECT TO authenticated
-USING (
-    EXISTS (
-        SELECT 1 FROM public.traders
-        WHERE public.traders.id = public.products.trader_id
-        AND public.traders.user_id::text = auth.uid()::text
-    )
-);
+CREATE POLICY "founder_all_products" ON public.products FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE POLICY "products_insert_own_trader_policy"
-ON public.products FOR INSERT TO authenticated
-WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM public.traders
-        WHERE public.traders.id = public.products.trader_id
-        AND public.traders.user_id::text = auth.uid()::text
-    )
-);
+CREATE POLICY "founder_all_invoices" ON public.invoices FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE POLICY "products_update_own_trader_policy"
-ON public.products FOR UPDATE TO authenticated
-USING (
-    EXISTS (
-        SELECT 1 FROM public.traders
-        WHERE public.traders.id = public.products.trader_id
-        AND public.traders.user_id::text = auth.uid()::text
-    )
-)
-WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM public.traders
-        WHERE public.traders.id = public.products.trader_id
-        AND public.traders.user_id::text = auth.uid()::text
-    )
-);
+CREATE POLICY "founder_all_invoice_items" ON public.invoice_items FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE POLICY "products_delete_own_trader_policy"
-ON public.products FOR DELETE TO authenticated
-USING (
-    EXISTS (
-        SELECT 1 FROM public.traders
-        WHERE public.traders.id = public.products.trader_id
-        AND public.traders.user_id::text = auth.uid()::text
-    )
-);
--- 5. الفواتير والطلبات
-CREATE TABLE IF NOT EXISTS public.invoices (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
-    platform TEXT NOT NULL CHECK (platform IN ('amazon', 'noon', 'jumia', 'raneen', 'kanz', 'homesmart')),
-    invoice_number TEXT,
-    order_id TEXT,
-    amazon_order_id TEXT,
-    marketplace_id TEXT,
-    invoice_date TIMESTAMPTZ,
-    total_amount NUMERIC(12, 2),
-    status TEXT,
-    raw_data JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+CREATE POLICY "founder_all_inventory_sync" ON public.inventory_sync FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE TABLE IF NOT EXISTS public.invoice_items (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    invoice_id TEXT NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
-    sku TEXT,
-    asin TEXT,
-    title TEXT,
-    quantity INTEGER,
-    price NUMERIC(12, 2),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+CREATE POLICY "founder_all_platform_connections" ON public.platform_connections FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE TABLE IF NOT EXISTS public.inventory_sync (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
-    platform TEXT,
-    sku TEXT,
-    asin TEXT,
-    stock_quantity INTEGER,
-    price NUMERIC(12, 2),
-    last_sync TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+CREATE POLICY "founder_all_split_invoices" ON public.split_invoices FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE TABLE IF NOT EXISTS public.platform_connections (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    trader_id TEXT NOT NULL REFERENCES public.traders(id) ON DELETE CASCADE,
-    platform TEXT,
-    seller_id TEXT,
-    access_token TEXT,
-    refresh_token TEXT,
-    credentials JSONB,
-    is_connected BOOLEAN DEFAULT false,
-    last_sync TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+CREATE POLICY "founder_all_notifications" ON public.notifications FOR ALL TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
+  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
-CREATE TABLE IF NOT EXISTS public.split_invoices (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    original_invoice_id TEXT REFERENCES public.invoices(id) ON DELETE CASCADE,
-    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
-    split_number TEXT,
-    product_title TEXT,
-    product_sku TEXT,
-    product_asin TEXT,
-    quantity INTEGER,
-    price NUMERIC(12, 2),
-    barcode_url TEXT,
-    pdf_url TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+-- 6. Trader strict row-level isolation (READ / UPDATE own data ONLY)
+CREATE POLICY "trader_select_own" ON public.traders FOR SELECT TO authenticated
+  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
 
-CREATE TABLE IF NOT EXISTS public.notifications (
-    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    trader_id TEXT REFERENCES public.traders(id) ON DELETE CASCADE,
-    type TEXT NOT NULL,
-    message TEXT NOT NULL,
-    severity TEXT DEFAULT 'normal',
-    is_read BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
+CREATE POLICY "trader_update_own" ON public.traders FOR UPDATE TO authenticated
+  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')))
+  WITH CHECK (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
 
--- 11. تفعيل الحذف المتتابع (ON DELETE CASCADE) للجداول المرتبطة بالتجار
-ALTER TABLE public.inventory_sync DROP CONSTRAINT IF EXISTS inventory_sync_trader_id_fkey;
-ALTER TABLE public.inventory_sync ADD CONSTRAINT inventory_sync_trader_id_fkey 
-  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+CREATE POLICY "trader_products_select_own" ON public.products FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
 
-ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_trader_id_fkey;
-ALTER TABLE public.products ADD CONSTRAINT products_trader_id_fkey 
-  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+CREATE POLICY "trader_products_insert_own" ON public.products FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
 
-ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_trader_id_fkey;
-ALTER TABLE public.invoices ADD CONSTRAINT invoices_trader_id_fkey 
-  FOREIGN KEY (trader_id) REFERENCES public.traders(id) ON DELETE CASCADE;
+CREATE POLICY "trader_products_update_own" ON public.products FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
+
+CREATE POLICY "trader_invoices_select_own" ON public.invoices FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
+
+CREATE POLICY "trader_invoices_update_own" ON public.invoices FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
+
+CREATE POLICY "trader_invoice_items_select_own" ON public.invoice_items FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.invoices i JOIN public.traders t ON t.id = i.trader_id
+    WHERE i.id = invoice_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))
+  ));
+
+CREATE POLICY "trader_inventory_sync_own" ON public.inventory_sync FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
+
+CREATE POLICY "trader_notifications_own" ON public.notifications FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
 `;
 
 // Self-executing cleaner: purge legacy 'Star Steel' or 'star-steel' orphaned items from local storage
