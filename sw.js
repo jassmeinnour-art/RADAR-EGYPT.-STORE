@@ -4,7 +4,7 @@
 // Integrated Network Status Detection & Client Notification for Auto-Sync
 // ============================================================================
 
-const CACHE_VERSION = 'v1.3.0';
+const CACHE_VERSION = 'v1.3.1';
 const STATIC_CACHE = `radar-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `radar-images-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `radar-dynamic-${CACHE_VERSION}`;
@@ -376,8 +376,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Skip Vite HMR, dev tools, and WebSockets
+  // Skip Vite HMR, dev tools, WebSockets, and live Supabase/Firebase Auth & REST APIs
   if (
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('supabase.in') ||
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('firebaseio.com') ||
     url.pathname.includes('/@vite/') ||
     url.pathname.includes('/@fs/') ||
     url.pathname.includes('/node_modules/') ||

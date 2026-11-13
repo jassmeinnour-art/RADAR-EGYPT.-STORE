@@ -73,7 +73,7 @@ export default function App() {
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
-  const { user, isLoading, isOwner } = useAuth();
+  const { user, isLoading, isOwner, signOut } = useAuth();
 
   useEffect(() => {
     if (!user || !isOwner) {
@@ -82,9 +82,10 @@ export default function App() {
   }, [user, isOwner]);
 
   useEffect(() => {
+    if (!user) return;
     const id = window.setTimeout(() => setMountDeferredOverlays(true), 400);
     return () => clearTimeout(id);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -112,8 +113,17 @@ export default function App() {
     if (msg) console.log(msg);
   };
 
-  if (isLoading) {
-    return <TabSkeletonLoader />;
+  if (isLoading && (typeof window === 'undefined' || window.location.pathname !== '/login')) {
+    return (
+      <TabSkeletonLoader
+        onGoToLogin={() => {
+          signOut().catch(() => {});
+          if (typeof window !== 'undefined') {
+            window.location.assign('/login');
+          }
+        }}
+      />
+    );
   }
 
   if (!user) {

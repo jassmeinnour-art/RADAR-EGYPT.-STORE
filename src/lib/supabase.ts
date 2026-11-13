@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 
 export interface Trader {
   id: string;
@@ -78,9 +78,47 @@ export const isSupabaseConfigured = Boolean(
   !SUPABASE_ANON_KEY.includes('your-supabase-anon-key')
 );
 
+let activeAuthenticatedEmail: string | null = null;
+let activeAccessToken: string | null = null;
+
 // Real Supabase JS Client instance if credentials are valid
 export const supabaseClient: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const headers = new Headers(init?.headers || {});
+          const urlStr =
+            typeof input === 'string'
+              ? input
+              : input instanceof URL
+              ? input.toString()
+              : input.url;
+          const isApiCall =
+            urlStr.includes('/rest/v1/') ||
+            urlStr.includes('/rpc/') ||
+            urlStr.includes('/functions/v1/');
+          if (isApiCall && activeAccessToken) {
+            const currentAuth = headers.get('Authorization') || headers.get('authorization') || '';
+            if (!currentAuth || currentAuth === `Bearer ${SUPABASE_ANON_KEY}`) {
+              headers.set('Authorization', `Bearer ${activeAccessToken}`);
+            }
+          }
+          if (!init?.signal && typeof AbortController !== 'undefined') {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 10000);
+            return fetch(input, { ...init, headers, signal: controller.signal }).finally(() =>
+              clearTimeout(timer)
+            );
+          }
+          return fetch(input, { ...init, headers });
+        },
+      },
+    })
   : null;
 
 const FOUNDER_EMAIL = 'jassmeinnour@gmail.com';
@@ -103,15 +141,103 @@ const PROTECTED_TABLES = new Set([
   'notifications',
 ]);
 
-let activeAuthenticatedEmail: string | null = null;
+export function setSupabaseSession(session: Session | null): void {
+  activeAccessToken = session?.access_token || null;
+  activeAuthenticatedEmail = session?.user?.email
+    ? session.user.email.trim().toLowerCase()
+    : null;
+  if (supabaseClient?.realtime) {
+    try {
+      supabaseClient.realtime.setAuth(session?.access_token || SUPABASE_ANON_KEY);
+    } catch {
+      // safe
+    }
+  }
+}
+
+// Keep activeAccessToken & activeAuthenticatedEmail synced whenever Supabase refreshes or updates session
+if (supabaseClient) {
+  try {
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+    });
+  } catch {
+    // safe
+  }
+}
+
+export async function getActiveSupabaseSession(timeoutMs = 2000): Promise<Session | null> {
+  if (!supabaseClient) return null;
+  try {
+    const timeout = new Promise<{ data: { session: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null } }), timeoutMs)
+    );
+    const result: any = await Promise.race([supabaseClient.auth.getSession(), timeout]);
+    const session: Session | null = result?.data?.session || null;
+    if (session?.access_token) {
+      setSupabaseSession(session);
+    } else if (!activeAccessToken) {
+      setSupabaseSession(null);
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export async function signInWithSupabasePassword(email: string, password: string) {
+  if (!supabaseClient) {
+    return { data: { user: null, session: null }, error: { message: 'Supabase is not configured' } };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const res = await supabaseClient.auth.signInWithPassword({ email: cleanEmail, password });
+  if (!res.error && res.data?.session) {
+    setSupabaseSession(res.data.session);
+  }
+  return res;
+}
+
+export async function signUpWithSupabasePassword(
+  email: string,
+  password: string,
+  metadata?: Record<string, any>
+) {
+  if (!supabaseClient) {
+    return { data: { user: null, session: null }, error: { message: 'Supabase is not configured' } };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const res = await supabaseClient.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: metadata ? { data: metadata } : undefined,
+  });
+  if (!res.error && res.data?.session) {
+    setSupabaseSession(res.data.session);
+  }
+  return res;
+}
+
+export async function signOutSupabase(): Promise<void> {
+  setSupabaseSession(null);
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch {
+      // safe
+    }
+  }
+}
 
 export function setSupabaseActiveEmail(email: string | null): void {
   activeAuthenticatedEmail = email ? email.trim().toLowerCase() : null;
+  if (!email) {
+    activeAccessToken = null;
+  }
 }
 
 export function getSupabaseActiveEmail(): string | null {
   if (activeAuthenticatedEmail) return activeAuthenticatedEmail;
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !isSupabaseConfigured) {
     try {
       const demoRaw = localStorage.getItem('merchant_radar_demo_user');
       if (demoRaw) {
@@ -179,6 +305,8 @@ export const multiTenantDb = {
     let traders: Trader[] = [];
 
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         const { data, error } = await supabaseClient
           .from('traders')
@@ -451,6 +579,8 @@ export const multiTenantDb = {
   async getInvoicesByTrader(traderId: string): Promise<any[]> {
     if (!traderId) return [];
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         const { data } = await supabaseClient
           .from('invoices')
@@ -485,6 +615,8 @@ export const multiTenantDb = {
    */
   async getSplitInvoices(originalInvoiceId?: string, traderId?: string): Promise<SplitInvoice[]> {
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         let query = supabaseClient.from('split_invoices').select('*');
         if (originalInvoiceId) query = query.eq('original_invoice_id', originalInvoiceId);
@@ -535,6 +667,8 @@ export const multiTenantDb = {
    */
   async getNotifications(traderId?: string): Promise<AppNotification[]> {
     if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
       try {
         let query = supabaseClient.from('invoices').select('id, trader_id, invoice_number, total_amount, created_at');
         if (traderId) query = query.eq('trader_id', traderId);
@@ -618,6 +752,10 @@ export const multiTenantDb = {
    * Fetch products for a specific trader (Strictly authentic, no demo data)
    */
   async getProductsByTrader(traderId: string): Promise<Product[]> {
+    if (supabaseClient) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) return [];
+    }
     const activeEmail = getSupabaseActiveEmail();
     if (!traderId || !activeEmail) return [];
 
@@ -843,6 +981,12 @@ class SupabaseQueryBuilder {
   }
 
   async insert(records: any): Promise<{ data: any; error: any }> {
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
     const activeEmail = getSupabaseActiveEmail();
     if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
       return { data: null, error: { message: 'Unauthorized: authentication required' } };
@@ -859,6 +1003,9 @@ class SupabaseQueryBuilder {
         const res = await supabaseClient.from(this.tableName).insert(arr).select();
         if (!res.error && res.data) {
           return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+        if (res.error) {
+          return { data: null, error: res.error };
         }
       } catch (err) {
         console.warn(`[Supabase Insert Fallback on ${this.tableName}]:`, err);
@@ -913,6 +1060,12 @@ class SupabaseQueryBuilder {
   }
 
   private async executeUpdate(): Promise<{ data: any; error: any }> {
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
     const activeEmail = getSupabaseActiveEmail();
     if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
       return { data: null, error: { message: 'Unauthorized: authentication required' } };
@@ -928,6 +1081,9 @@ class SupabaseQueryBuilder {
         const res = await builder.select();
         if (!res.error && res.data && res.data.length > 0) {
           return { data: this.isSingle ? res.data[0] : res.data, error: null };
+        }
+        if (res.error) {
+          return { data: null, error: res.error };
         }
       } catch {}
     }
@@ -968,6 +1124,17 @@ class SupabaseQueryBuilder {
   }
 
   private async executeDelete(): Promise<{ data: any; error: any }> {
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return { data: null, error: { message: 'Unauthorized: active session required' } };
+      }
+    }
+    const activeEmail = getSupabaseActiveEmail();
+    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    }
+
     if (supabaseClient) {
       try {
         let builder: any = supabaseClient.from(this.tableName).delete();
@@ -977,7 +1144,10 @@ class SupabaseQueryBuilder {
           if (f.type === 'in') builder = builder.in(f.col, f.val);
           if (f.type === 'not') builder = builder.not(f.col, f.operator || 'is', f.val);
         }
-        await builder;
+        const res = await builder;
+        if (res?.error) {
+          return { data: null, error: res.error };
+        }
       } catch (e) {
         console.warn(`[Supabase Delete Warning on ${this.tableName}]:`, e);
       }
@@ -1038,6 +1208,25 @@ class SupabaseQueryBuilder {
   }
 
   private async execute(): Promise<{ data: any; error: any; count?: number }> {
+    if (this.isDelete) {
+      return this.executeDelete();
+    }
+    if (this.isUpdate) {
+      return this.executeUpdate();
+    }
+
+    // Strict Session Verification: NEVER query protected Supabase tables without an active user access_token
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+      if (!session?.access_token) {
+        return {
+          data: this.isSingle ? null : [],
+          error: { message: 'Unauthorized: active session required' },
+          count: 0,
+        };
+      }
+    }
+
     const activeEmail = getSupabaseActiveEmail();
 
     // Enforce authentication for all protected tables
@@ -1047,13 +1236,6 @@ class SupabaseQueryBuilder {
         error: { message: 'Unauthorized: authentication required' },
         count: 0,
       };
-    }
-
-    if (this.isDelete) {
-      return this.executeDelete();
-    }
-    if (this.isUpdate) {
-      return this.executeUpdate();
     }
 
     const isFounder = activeEmail === FOUNDER_EMAIL;
@@ -1111,7 +1293,10 @@ class SupabaseQueryBuilder {
         if (this.isSingle) {
           query = query.single();
         }
-        const res = await query;
+        const queryTimeout = new Promise<any>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: { message: 'Query timeout' } }), 8000)
+        );
+        const res = await Promise.race([query, queryTimeout]);
         if (!res.error && res.data !== null && res.data !== undefined) {
           let safeData = res.data;
           // Defense-in-depth client-side filtering (purge demo SKUs & enforce trader row isolation)
@@ -1134,6 +1319,23 @@ class SupabaseQueryBuilder {
             error: null,
             count: typeof res.count === 'number' ? (Array.isArray(safeData) ? Math.min(res.count, safeData.length || res.count) : res.count) : undefined,
           };
+        }
+        // If RLS denied (401/403/42501), return empty cleanly instead of leaking local fallback
+        if (res.error) {
+          const msg = String(res.error?.message || '').toLowerCase();
+          if (
+            res.error?.code === '42501' ||
+            res.error?.code === 'PGRST301' ||
+            msg.includes('jwt') ||
+            msg.includes('permission') ||
+            msg.includes('unauthorized')
+          ) {
+            return {
+              data: this.isSingle ? null : [],
+              error: res.error,
+              count: 0,
+            };
+          }
         }
       } catch (err) {
         console.warn(`[Supabase Query error on ${this.tableName}, falling back to local storage]:`, err);

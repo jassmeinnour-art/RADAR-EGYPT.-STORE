@@ -202,7 +202,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
       }
     } catch (err: any) {
       console.error('Merchant auth error:', err);
-      const msg = err?.message || 'تعذر استكمال العملية، يرجى التحقق من البيانات والمحاولة مجدداً.';
+      const msg = err?.message || 'الإيميل أو كلمة المرور غلط';
       setLocalFormError(msg);
     } finally {
       setIsSubmitting(false);
@@ -231,7 +231,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
       onLoginSuccess?.();
     } catch (err: any) {
       console.error('Owner login error:', err);
-      setLocalFormError(err?.message || 'كلمة المرور غير صحيحة أو تعذر تسجيل دخول مالكة التطبيق.');
+      setLocalFormError(err?.message || 'الإيميل أو كلمة المرور غلط');
     } finally {
       setIsSubmitting(false);
       setActiveAction(null);
