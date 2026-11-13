@@ -56,7 +56,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
     signUpWithEmail, 
     signInWithGoogle, 
     signInDemoMerchant, 
-    signInAsOwner,
     sendPasswordReset,
     loginError, 
     isUnauthorizedDomain,
@@ -74,15 +73,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
   const [merchantAuthMode, setMerchantAuthMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   
   // Merchant form inputs
-  const [merchantEmail, setMerchantEmail] = useState<string>('merchant@store.eg');
-  const [merchantPassword, setMerchantPassword] = useState<string>('123456');
+  const [merchantEmail, setMerchantEmail] = useState<string>('');
+  const [merchantPassword, setMerchantPassword] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>('');
   const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [showMerchantPassword, setShowMerchantPassword] = useState<boolean>(false);
 
   // Owner form inputs
-  const [ownerPassword, setOwnerPassword] = useState<string>('••••••••••••');
+  const [ownerPassword, setOwnerPassword] = useState<string>('');
   const [showOwnerPassword, setShowOwnerPassword] = useState<boolean>(false);
 
   // UI status states
@@ -211,22 +210,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
     }
   };
 
-  // Owner Direct Access Handler (jassmeinnour@gmail.com)
+  // Owner Verified Access Handler (jassmeinnour@gmail.com)
   const handleOwnerSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLocalFormError(null);
     clearLoginError();
+
+    if (!ownerPassword || ownerPassword.trim().length < 6) {
+      setLocalFormError('يرجى إدخال كلمة المرور الخاصة بحساب المالكة (6 خانات على الأقل) أو استخدام تسجيل الدخول عبر Google.');
+      return;
+    }
+
     setIsSubmitting(true);
     setActiveAction('owner');
 
     try {
-      showToast('جاري توثيق جلسة مالكة المنصة (جاسمين نور)...');
-      await signInAsOwner();
-      showToast('مرحباً بكِ جاسمين! تم تفعيل لوحة تحكم المالك الحصرية.');
+      showToast('جاري التحقق من كلمة مرور مالكة المنصة (جاسمين نور)...');
+      await signInWithEmail(OWNER_EMAIL, ownerPassword);
+      showToast('مرحباً بكِ جاسمين! تم التحقق وتفعيل لوحة تحكم المالك الحصرية.');
       onLoginSuccess?.();
     } catch (err: any) {
       console.error('Owner login error:', err);
-      setLocalFormError(err?.message || 'تعذر تسجيل دخول مالكة التطبيق، يرجى المحاولة مرة أخرى.');
+      setLocalFormError(err?.message || 'كلمة المرور غير صحيحة أو تعذر تسجيل دخول مالكة التطبيق.');
     } finally {
       setIsSubmitting(false);
       setActiveAction(null);

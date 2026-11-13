@@ -1,19 +1,17 @@
 import React, { useState, Suspense, lazy, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from './context/AuthContext';
-import { useSubscription } from './hooks/useSubscription';
 import { AppSidebar } from './components/AppSidebar';
 import { Header } from './components/Header';
 import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
-import { VisualCustomizerModal } from './components/VisualCustomizerModal';
-import { DownloadFAB } from './components/DownloadFAB';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import LandingPage from './components/LandingPage';
-import { LoginPage } from './components/LoginPage';
-import { RouteDebugger } from './components/RouteDebugger';
 
-// Lazy loaded components
+// Lazy loaded pages & non-critical overlays
+const LoginPage = lazy(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
+const VisualCustomizerModal = lazy(() => import('./components/VisualCustomizerModal').then((m) => ({ default: m.VisualCustomizerModal })));
+const DownloadFAB = lazy(() => import('./components/DownloadFAB'));
+const RouteDebugger = lazy(() => import('./components/RouteDebugger').then((m) => ({ default: m.RouteDebugger })));
+
 const DashboardHome = lazy(() => import('./components/DashboardHome'));
 const DashboardOverviewPage = lazy(() => import('./components/DashboardOverviewPage'));
 const TradersPage = lazy(() => import('./components/TradersPage'));
@@ -61,18 +59,32 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sidebarCollapsed');
-      return saved ? JSON.parse(saved) : false;
+      try {
+        const saved = localStorage.getItem('sidebarCollapsed');
+        return saved ? JSON.parse(saved) : false;
+      } catch {
+        return false;
+      }
     }
     return false;
   });
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
   const [hasLazyLoadError, setHasLazyLoadError] = useState<boolean>(false);
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
+  const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
-  const { user, profile, isLoading, isOwner } = useAuth();
-  const subscriptionState = useSubscription(profile);
+  const { user, isLoading, isOwner } = useAuth();
+
+  useEffect(() => {
+    if (!user || !isOwner) {
+      setShowOwnerDashboard(false);
+    }
+  }, [user, isOwner]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setMountDeferredOverlays(true), 400);
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -97,7 +109,7 @@ export default function App() {
   }, []);
 
   const showToast = (msg: string) => {
-    console.log(msg);
+    if (msg) console.log(msg);
   };
 
   if (isLoading) {
@@ -109,26 +121,20 @@ export default function App() {
       window.history.replaceState({}, '', '/login');
     }
     return (
-      <LoginPage 
-        onLoginSuccess={() => {
-          setShowLogin(false);
-          setActiveWorkspaceTab('home');
-          if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-        }} 
-      />
+      <Suspense fallback={<TabSkeletonLoader />}>
+        <LoginPage 
+          onLoginSuccess={() => {
+            setActiveWorkspaceTab('home');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+          }} 
+        />
+      </Suspense>
     );
   }
 
-  /**
-   * Guidance & verification function to validate that a component exists
-   * for the active tab before rendering in renderActiveTab. If the component
-   * is missing or fails to resolve, logs error details to the console and
-   * safely directs the user to DashboardHome to prevent a blank screen.
-   */
   const resolveTabComponent = (tab: WorkspaceTab): React.ReactNode => {
     if (showOwnerDashboard && isOwner) {
       if (OwnerDashboard) return <OwnerDashboard />;
-      console.error('[Route Resolver Error] OwnerDashboard component is missing or failed to load. Redirecting to DashboardHome.');
       return <DashboardHome onShowToast={showToast} />;
     }
 
@@ -165,11 +171,6 @@ export default function App() {
     if (!resolvedComponent) {
       setHasLazyLoadError(true);
       setFailedTabName(tab);
-      console.error(
-        `[Route Resolver Error] Could not find or resolve component for activeWorkspaceTab: "${tab}". ` +
-        `Redirecting user to DashboardHome to prevent a blank screen.`
-      );
-      // Automatically redirect active tab to home in background state to keep route synced
       setTimeout(() => {
         setActiveWorkspaceTab('home');
         if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
@@ -182,7 +183,6 @@ export default function App() {
 
   const renderActiveTab = () => {
     try {
-      console.debug(`[Lazy Map Diagnostic] Resolving component for active tab: "${activeWorkspaceTab}"`);
       return resolveTabComponent(activeWorkspaceTab);
     } catch (err) {
       setHasLazyLoadError(true);
@@ -243,14 +243,16 @@ export default function App() {
           }
         }}
         onOpenAllMerchantsHub={() => {}}
-        onOpenOwnerDashboard={() => setShowOwnerDashboard(true)}
+        onOpenOwnerDashboard={() => {
+          if (isOwner) setShowOwnerDashboard(true);
+        }}
         onOpenSubscriptionModal={() => {}}
         onOpenOnboarding={() => {}}
         isOwner={isOwner}
       />
 
       <div 
-        className="transition-all duration-300"
+        className="transition-[padding] duration-200"
         style={{
           paddingRight: isSidebarOpen ? '0' : (isSidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)')
         }}
@@ -272,60 +274,56 @@ export default function App() {
         />
         
         <main className="w-full p-4 md:p-6 lg:p-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={showOwnerDashboard ? 'owner' : activeWorkspaceTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+          <div key={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
+            <ErrorBoundary 
+              sectionName={`tab-${activeWorkspaceTab}`} 
+              fallback={<DashboardHome onShowToast={showToast} />}
             >
-              <ErrorBoundary 
-                sectionName={`tab-${activeWorkspaceTab}`} 
-                fallback={<DashboardHome onShowToast={showToast} />}
-              >
-                <Suspense fallback={<TabSkeletonLoader />}>
-                  {renderActiveTab()}
-                </Suspense>
-              </ErrorBoundary>
-            </motion.div>
-          </AnimatePresence>
+              <Suspense fallback={<TabSkeletonLoader />}>
+                {renderActiveTab()}
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
 
-      <VisualCustomizerModal />
-      <DownloadFAB />
-      <RouteDebugger
-        activeTab={activeWorkspaceTab}
-        hasLazyLoadError={hasLazyLoadError}
-        failedTabName={failedTabName}
-        onNavigate={(tab) => {
-          setHasLazyLoadError(false);
-          setActiveWorkspaceTab(tab);
-          setShowOwnerDashboard(false);
-          if (typeof window !== 'undefined') {
-            const pathMap: Record<string, string> = {
-              home: '/',
-              dashboard: '/dashboard',
-              traders: '/traders',
-              products: '/products',
-              inventory: '/inventory',
-              shipping: '/invoices',
-              split_invoices: '/invoices/split',
-              reports: '/reports',
-              radar: '/competitors',
-              analytics: '/analytics',
-              platforms_guide: '/connections',
-              traders_sync: '/gmail-sync',
-              layout_settings: '/settings/layout',
-              help: '/help'
-            };
-            if (pathMap[tab]) {
-              window.history.pushState({}, '', pathMap[tab]);
-            }
-          }
-        }}
-      />
+      {mountDeferredOverlays && (
+        <Suspense fallback={null}>
+          <VisualCustomizerModal />
+          <DownloadFAB />
+          <RouteDebugger
+            activeTab={activeWorkspaceTab}
+            hasLazyLoadError={hasLazyLoadError}
+            failedTabName={failedTabName}
+            onNavigate={(tab) => {
+              setHasLazyLoadError(false);
+              setActiveWorkspaceTab(tab);
+              setShowOwnerDashboard(false);
+              if (typeof window !== 'undefined') {
+                const pathMap: Record<string, string> = {
+                  home: '/',
+                  dashboard: '/dashboard',
+                  traders: '/traders',
+                  products: '/products',
+                  inventory: '/inventory',
+                  shipping: '/invoices',
+                  split_invoices: '/invoices/split',
+                  reports: '/reports',
+                  radar: '/competitors',
+                  analytics: '/analytics',
+                  platforms_guide: '/connections',
+                  traders_sync: '/gmail-sync',
+                  layout_settings: '/settings/layout',
+                  help: '/help'
+                };
+                if (pathMap[tab]) {
+                  window.history.pushState({}, '', pathMap[tab]);
+                }
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

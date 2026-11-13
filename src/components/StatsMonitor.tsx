@@ -18,7 +18,7 @@ export const StatsMonitor: React.FC = () => {
   const { activeOperations, recentCompleted } = useAsyncOperations();
   const { profile, user } = useAuth();
 
-  const userEmail = profile?.email || user?.email || 'jassmeinnour@gmail.com';
+  const userEmail = profile?.email || user?.email || '';
 
   const [consecutiveFailures, setConsecutiveFailures] = useState<number>(() => {
     try {

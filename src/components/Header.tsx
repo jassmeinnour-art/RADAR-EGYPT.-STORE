@@ -280,7 +280,6 @@ export const Header: React.FC<HeaderProps> = ({
     isOwner,
     signInWithGoogle, 
     signInAsGuest,
-    signInAsOwner,
     signInDemoMerchant,
     signOut, 
     updateStoreProfile, 
@@ -291,10 +290,11 @@ export const Header: React.FC<HeaderProps> = ({
   } = useAuth();
 
   const isFounderUserStrict = useMemo(() => {
-    const uEmail = user?.email?.trim().toLowerCase() || '';
+    if (!user || user.isAnonymous || !isOwner) return false;
+    const uEmail = user.email?.trim().toLowerCase() || '';
     const pEmail = profile?.email?.trim().toLowerCase() || '';
     return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
-  }, [user?.email, profile?.email]);
+  }, [user, profile?.email, isOwner]);
 
   const { 
     currentTheme, 
@@ -645,8 +645,8 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 cursor-pointer group"
               onClick={() => setActiveTab('radar')}
             >
-              <div className="w-12 h-12 rounded-2xl bg-slate-950 flex items-center justify-center shadow-2xl border-2 border-amber-500 overflow-hidden group-hover:scale-105 transition-transform">
-                <img src="/pwa-512x512.png" alt="RADAR" className="w-full h-full object-cover" />
+              <div className="w-12 h-12 rounded-2xl bg-slate-950 flex items-center justify-center shadow-2xl border-2 border-amber-500 overflow-hidden">
+                <img src="/pwa-512x512.png" alt="RADAR" width={48} height={48} loading="lazy" decoding="async" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -841,6 +841,10 @@ export const Header: React.FC<HeaderProps> = ({
                     <img
                       src={user.photoURL}
                       alt="Avatar"
+                      width={24}
+                      height={24}
+                      loading="lazy"
+                      decoding="async"
                       className="w-6 h-6 rounded-full border border-sky-400/50 object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -854,7 +858,7 @@ export const Header: React.FC<HeaderProps> = ({
                       {profile?.displayName || 'التاجر'}
                     </div>
                     <div className="text-[9px] font-semibold text-emerald-400 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       <span>متصل</span>
                     </div>
                   </div>
@@ -876,6 +880,10 @@ export const Header: React.FC<HeaderProps> = ({
                         <img 
                           src={user.photoURL} 
                           alt="Avatar" 
+                          width={40}
+                          height={40}
+                          loading="lazy"
+                          decoding="async"
                           className="w-10 h-10 rounded-full border border-slate-300 object-cover"
                           referrerPolicy="no-referrer"
                         />
@@ -1080,35 +1088,20 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                      {isOwner ? (
+                      {isOwner && (
                         <button
                           type="button"
                           id="btn-usermenu-switch-to-merchant"
                           onClick={async () => {
                             setShowUserMenu(false);
                             await signInDemoMerchant();
-                            onShowToast?.('تم التبديل لمنظور تاجر عادي (تم إخفاء زر مناقشة Google AI Studio من الـ DOM) 👤');
+                            onShowToast?.('تم التبديل لمنظور تاجر عادي (تم إخفاء وضع المؤسس بالكامل)');
                           }}
                           className="w-full py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                          title="معاينة المنظومة كتاجر عادي للتحقق من اختفاء زر الأونر تماماً من شجرة الـ DOM"
+                          title="معاينة المنظومة كتاجر عادي"
                         >
                           <Users className="w-3.5 h-3.5 text-slate-600" />
-                          <span>معاينة منظور تاجر آخر (إخفاء زر الأونر)</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          id="btn-usermenu-switch-to-owner"
-                          onClick={async () => {
-                            setShowUserMenu(false);
-                            await signInAsOwner();
-                            onShowToast?.('تم الدخول بحساب مالكة التطبيق (jassmeinnour@gmail.com) وتفعيل زر مناقشة Google AI Studio 🛠️👑');
-                          }}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                          title="تفعيل جلسة مالكة التطبيق (jassmeinnour@gmail.com)"
-                        >
-                          <Crown className="w-3.5 h-3.5 text-sky-600" />
-                          <span>تفعيل حساب المالكة (jassmeinnour@gmail.com) 🛠️</span>
+                          <span>معاينة منظور تاجر آخر</span>
                         </button>
                       )}
 

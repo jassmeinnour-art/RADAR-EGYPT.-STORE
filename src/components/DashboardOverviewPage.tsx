@@ -33,6 +33,8 @@ import {
   Bar 
 } from 'recharts';
 import { supabase } from '../lib/supabase';
+import { dataCache } from '../utils/dataCache';
+import { useAuth } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { NotificationRadarCard } from './NotificationRadarCard';
 import { DraggableHandle } from './DraggableHandle';
@@ -77,10 +79,13 @@ const DEFAULT_PLATFORM_DISTRIBUTION_DATA = [
 ];
 
 export default function DashboardOverviewPage({ onShowToast }: DashboardOverviewPageProps) {
+  const { user, profile } = useAuth();
+  const activeEmail = (profile?.email || user?.email || '').trim().toLowerCase();
+
   const [tradersCount, setTradersCount] = useState<number>(0);
   const [productsCount, setProductsCount] = useState<number>(0);
   const [salesCount, setSalesCount] = useState<number>(0);
-  const [totalRevenue, setTotalRevenue] = useState<number>(185000);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [tradersList, setTradersList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -102,56 +107,93 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
   const alertsCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!activeEmail) {
+      setTradersList([]);
+      setTradersCount(0);
+      setProductsCount(0);
+      setSalesCount(0);
+      setTotalRevenue(0);
+      setRecentAlerts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    const OVERVIEW_CACHE_KEY = `dashboard_overview_snapshot_${activeEmail}_v2`;
+
     async function loadDashboardData() {
+      const cached = dataCache.getStale<{
+        tradersList: any[];
+        tradersCount: number;
+        productsCount: number;
+        salesCount: number;
+        totalRevenue: number;
+        recentAlerts: any[];
+      }>(OVERVIEW_CACHE_KEY);
+
+      if (cached && isMounted) {
+        setTradersList(cached.data.tradersList);
+        setTradersCount(cached.data.tradersCount);
+        setProductsCount(cached.data.productsCount);
+        setSalesCount(cached.data.salesCount);
+        setTotalRevenue(cached.data.totalRevenue);
+        setRecentAlerts(cached.data.recentAlerts);
+        setIsLoading(false);
+        if (cached.isFresh) return;
+      }
+
       try {
-        setIsLoading(true);
-        // Fetch traders
-        const { data: tradersData } = await supabase.from('traders').select('*');
-        const traders = Array.isArray(tradersData) ? tradersData : [];
+        if (!cached) setIsLoading(true);
+        const [tradersRes, productsRes, invoicesRes, notifRes] = await Promise.all([
+          supabase.from('traders').select('id, seller_name, seller_id, platform').limit(20),
+          supabase.from('products').select('id', { count: 'exact', head: false }).limit(1),
+          supabase.from('invoices').select('id, total_amount').limit(100),
+          supabase.from('notifications').select('id, message, created_at').order('created_at', { ascending: false }).limit(5),
+        ]);
+
+        if (!isMounted) return;
+
+        const traders = Array.isArray(tradersRes.data) ? tradersRes.data : [];
+        const tCount = traders.length;
+        const pCount = typeof productsRes.count === 'number'
+          ? productsRes.count
+          : (Array.isArray(productsRes.data) ? productsRes.data.length : 0);
+        const invoices = Array.isArray(invoicesRes.data) ? invoicesRes.data : [];
+        const sCount = invoices.length;
+        const revSum = invoices.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+        const alerts = Array.isArray(notifRes.data) ? notifRes.data : [];
+
         setTradersList(traders);
-        setTradersCount(traders.length > 0 ? traders.length : 1); // at least Mahmoud Saeed
-
-        // Fetch products
-        const { data: prodData } = await supabase.from('products').select('*');
-        const products = Array.isArray(prodData) ? prodData : [];
-        setProductsCount(products.length > 0 ? products.length : 40);
-
-        // Fetch invoices / sales
-        const { data: invData } = await supabase.from('invoices').select('*');
-        const invoices = Array.isArray(invData) ? invData : [];
-        setSalesCount(invoices.length > 0 ? invoices.length : 156);
-        
-        if (invoices.length > 0) {
-          const sum = invoices.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
-          if (sum > 0) setTotalRevenue(sum);
-        }
-
-        // Fetch notifications / alerts
-        const { data: notifData } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(5);
-        const alerts = Array.isArray(notifData) ? notifData : [
-          { id: '1', message: 'تم تحديث سعر كرسي مكتب طبي هيدروليك على أمازون بنجاح', created_at: new Date().toISOString() },
-          { id: '2', message: 'تنبيه: انخفاض سعر المنافس في منتج طاولة مكتب خشب زان', created_at: new Date().toISOString() },
-          { id: '3', message: 'تمت مزامنة مخزون تاجر محمود سعيد (A37JIM7LHQI6IM) بنجاح', created_at: new Date().toISOString() }
-        ];
+        setTradersCount(tCount);
+        setProductsCount(pCount);
+        setSalesCount(sCount);
+        setTotalRevenue(revSum);
         setRecentAlerts(alerts);
+
+        dataCache.set(OVERVIEW_CACHE_KEY, {
+          tradersList: traders,
+          tradersCount: tCount,
+          productsCount: pCount,
+          salesCount: sCount,
+          totalRevenue: revSum,
+          recentAlerts: alerts,
+        });
       } catch (err) {
         console.warn('Dashboard data fetch fallback:', err);
-        setTradersCount(1);
-        setProductsCount(40);
-        setSalesCount(156);
-        setRecentAlerts([
-          { id: '1', message: 'تحديث آلي للأسعار على أمازون ونون مصر', created_at: new Date().toISOString() },
-          { id: '2', message: 'تم ربط حساب التاجر محمود سعيد بنجاح', created_at: new Date().toISOString() }
-        ]);
-        setTradersList([
-          { id: 'A37JIM7LHQI6IM', seller_name: 'محمود سعيد', email: 'mahmeudsaid4@gmail.com', platform: 'amazon', seller_id: 'A37JIM7LHQI6IM' }
-        ]);
+        if (!cached && isMounted) {
+          setTradersCount(0);
+          setProductsCount(0);
+          setSalesCount(0);
+          setTotalRevenue(0);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
+
     loadDashboardData();
-  }, []);
+    return () => { isMounted = false; };
+  }, [activeEmail]);
 
   // Filtered sales chart data based on selected timeframe
   const displaySalesData = useMemo(() => {
@@ -549,7 +591,7 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
                   </div>
                   <div>
                     <strong className="text-sm text-white block">{t.seller_name}</strong>
-                    <span className="text-[11px] text-slate-400 font-mono">ID: {t.seller_id || 'A37JIM7LHQI6IM'} | {t.platform || 'amazon'}</span>
+                    <span className="text-[11px] text-slate-400 font-mono">ID: {t.seller_id || t.id || '-'} | {t.platform || 'amazon'}</span>
                   </div>
                 </div>
                 <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-xs font-bold">
@@ -576,7 +618,7 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
           <div className="space-y-3">
             {recentAlerts.map((alert, idx) => (
               <div key={alert.id || idx} className="p-3.5 bg-slate-950 border border-slate-800/80 rounded-2xl flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-amber-400 mt-2 shrink-0 animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-amber-400 mt-2 shrink-0" />
                 <div className="space-y-1">
                   <p className="text-xs text-slate-200 font-bold leading-relaxed">{alert.message}</p>
                   <span className="text-[10px] text-slate-500 font-mono">

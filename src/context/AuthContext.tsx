@@ -34,6 +34,8 @@ import {
   isFirestoreCacheFresh,
   markFirestoreCacheFetched
 } from '../db';
+import { setSupabaseActiveEmail } from '../lib/supabase';
+import { dataCache } from '../utils/dataCache';
 
 export interface UserSessionData {
   sessionId: string;
@@ -140,11 +142,44 @@ function setCachedUserProfile(uid: string, prof: UserMerchantProfile): void {
   }
 }
 
+function getInitialDemoUser(): User | null {
+  try {
+    const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as User;
+  } catch {
+    // safe
+  }
+  return null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserMerchantProfile | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const initial = getInitialDemoUser() || auth.currentUser;
+    if (initial) {
+      const initialEmail = initial.email || getSessionEmailOverride() || '';
+      setSupabaseActiveEmail(initialEmail || null);
+    } else {
+      setSupabaseActiveEmail(null);
+    }
+    return initial;
+  });
+  const [profile, setProfile] = useState<UserMerchantProfile | null>(() => {
+    const initial = getInitialDemoUser() || auth.currentUser;
+    if (!initial) return null;
+    const cached = getCachedUserProfile(initial.uid);
+    if (cached) return cached;
+    return {
+      uid: initial.uid,
+      displayName: initial.displayName || 'تاجر مصري معتمد',
+      email: initial.email || getSessionEmailOverride() || '',
+      storeName: (initial as any).storeName || 'متجر التاجر المصري',
+      city: 'القاهرة',
+      preferredCurrency: 'EGP',
+      sessionCount: 1,
+    };
+  });
   const [sessionData, setSessionData] = useState<UserSessionData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !(getInitialDemoUser() || auth.currentUser));
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
@@ -220,8 +255,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
     const storedEmailOverride = explicitEmailOverride || getSessionEmailOverride();
-    const resolvedEmail = currentUser.email || storedEmailOverride || (currentUser.isAnonymous ? OWNER_EMAIL : '');
-    const isOwnerAccount = resolvedEmail.trim().toLowerCase() === OWNER_EMAIL;
+    const resolvedEmail = currentUser.email || storedEmailOverride || '';
+    const isOwnerAccount = !currentUser.isAnonymous && resolvedEmail.trim().toLowerCase() === OWNER_EMAIL;
+    setSupabaseActiveEmail(resolvedEmail || null);
 
     // 1. Instant optimistic profile from cache or user object - 0ms UI blocking
     const cached = getCachedUserProfile(currentUser.uid);
@@ -296,7 +332,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const existingProfileData = userSnap.data() as UserMerchantProfile;
         sessionCount = (existingProfileData.sessionCount || 0) + 1;
         const finalEmail = explicitEmailOverride || currentUser.email || storedEmailOverride || existingProfileData.email || resolvedEmail;
-        const finalIsOwner = finalEmail.trim().toLowerCase() === OWNER_EMAIL;
+        const finalIsOwner = !currentUser.isAnonymous && finalEmail.trim().toLowerCase() === OWNER_EMAIL;
+        setSupabaseActiveEmail(finalEmail || null);
 
         finalProfile = {
           ...existingProfileData,
@@ -408,16 +445,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // safe
     }
 
-    // Safety timeout: if auth state change takes longer than 2 seconds (due to network or CORS domain error), force loading false
+    // Safety timeout: if auth state change takes longer than 350ms, unblock UI immediately
     const splashTimeout = setTimeout(() => {
       setIsLoading((prevLoading) => {
         if (prevLoading) {
-          console.info('Auth init timeout reached, bypassing splash screen safely.');
           return false;
         }
         return prevLoading;
       });
-    }, 1000);
+    }, 350);
 
     let unsubscribe = () => {};
     try {
@@ -432,10 +468,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           syncUserSession(currentUser);
         } else if (savedDemoUser) {
           setUser(savedDemoUser as User);
+          const demoEmail = savedDemoUser.email || 'demo.merchant@radar.eg';
+          setSupabaseActiveEmail(demoEmail);
           setProfile({
             uid: savedDemoUser.uid,
             displayName: savedDemoUser.displayName || 'تاجر تجريبي',
-            email: savedDemoUser.email || 'demo@merchantradar.eg',
+            email: demoEmail,
             storeName: savedDemoUser.storeName || 'متجر التاجر التجريبي (القاهرة)',
             city: 'القاهرة',
             preferredCurrency: 'EGP',
@@ -449,6 +487,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isOnline: true,
           });
         } else {
+          setSupabaseActiveEmail(null);
           setUser(null);
           setProfile(null);
           setSessionData(null);
@@ -515,81 +554,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 1.5 Owner Session Instant Access (jassmeinnour@gmail.com)
+  // Owner login strictly requires verified password or Google OAuth (no passwordless backdoor)
   const signInAsOwner = async () => {
-    setLoginError(null);
-    setAuthErrorCode(null);
-    setIsUnauthorizedDomain(false);
-    setSessionEmailOverride(OWNER_EMAIL);
-
-    try {
-      if (auth.currentUser) {
-        setUser(auth.currentUser);
-        await syncUserSession(auth.currentUser, 'الإدارة العامة — رادار التاجر مصر', OWNER_EMAIL);
-        return;
-      }
-      const res = await signInAnonymously(auth);
-      if (res.user) {
-        setUser(res.user);
-        await syncUserSession(res.user, 'الإدارة العامة — رادار التاجر مصر', OWNER_EMAIL);
-        return;
-      }
-    } catch {
-      // Fallback to local owner session if Firebase anonymous auth is restricted
-    }
-
-    const ownerUser = {
-      uid: `owner_jassmein_${Date.now().toString(36)}`,
-      displayName: 'ياسمين نور (مالكة المنظومة 👑)',
-      email: OWNER_EMAIL,
-      photoURL: '',
-      isAnonymous: false,
-      emailVerified: true,
-    } as unknown as User;
-
-    try {
-      localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(ownerUser));
-    } catch {}
-
-    setUser(ownerUser);
-    setProfile({
-      uid: ownerUser.uid,
-      displayName: 'ياسمين نور (مالكة المنظومة 👑)',
-      email: OWNER_EMAIL,
-      storeName: 'الإدارة العامة — رادار التاجر مصر',
-      city: 'القاهرة',
-      preferredCurrency: 'EGP',
-      sessionCount: 1,
-    });
-    setSessionData({
-      sessionId: `sess_owner_${Date.now()}`,
-      lastLoginAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      lastSeenAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      sessionCount: 1,
-      deviceInfo: typeof navigator !== 'undefined' ? (navigator.platform || 'متصفح الويب') : 'متصفح الويب',
-      isOnline: true,
-    });
+    const msg = 'دخول مالكة المنصة يتطلب التحقق عبر البريد الإلكتروني وكلمة المرور أو حساب Google الموثق.';
+    setLoginError(msg);
+    throw new Error(msg);
   };
 
-  // 2. Email & Password Sign-In (does NOT require Authorized Domain in Firebase!)
+  // 2. Email & Password Sign-In (strict password verification)
   const signInWithEmail = async (email: string, pass: string) => {
     setLoginError(null);
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     const cleanEmail = email.trim().toLowerCase();
-    setSessionEmailOverride(cleanEmail);
     try {
       const res = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       if (res.user) {
+        const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
         setUser(res.user);
-        syncUserSession(res.user, undefined, cleanEmail);
+        syncUserSession(res.user, undefined, verifiedEmail);
       }
     } catch (error: unknown) {
-      // If Owner email is used and Email/Password provider is not configured in Firebase Console, seamlessly authenticate Owner session
-      if (cleanEmail === OWNER_EMAIL) {
-        await signInAsOwner();
-        return;
-      }
+      setSessionEmailOverride(null);
       handleAuthError(error, 'تعذر تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.');
       throw error;
     }
@@ -601,7 +589,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     const cleanEmail = email.trim().toLowerCase();
-    setSessionEmailOverride(cleanEmail);
     try {
       const res = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       if (res.user) {
@@ -612,14 +599,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // non-blocking
           }
         }
+        const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
+        setSessionEmailOverride(verifiedEmail);
+        setSupabaseActiveEmail(verifiedEmail);
         setUser(res.user);
-        syncUserSession(res.user, storeName, cleanEmail);
+        syncUserSession(res.user, storeName, verifiedEmail);
       }
     } catch (error: unknown) {
-      if (cleanEmail === OWNER_EMAIL) {
-        await signInAsOwner();
-        return;
-      }
+      setSessionEmailOverride(null);
       handleAuthError(error, 'تعذر إنشاء حساب التاجر بالبريد الإلكتروني.');
       throw error;
     }
@@ -643,6 +630,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     setSessionEmailOverride('demo.merchant@radar.eg');
+    setSupabaseActiveEmail('demo.merchant@radar.eg');
+    try {
+      localStorage.removeItem('isFounderMode');
+      localStorage.removeItem('radar_founder_mode');
+      localStorage.removeItem('founder_mode_active');
+    } catch {}
+    setRawFounderMode(false);
 
     try {
       if (auth.currentUser) {
@@ -700,8 +694,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       try {
         localStorage.removeItem(DEMO_USER_STORAGE_KEY);
+        localStorage.removeItem('isFounderMode');
+        localStorage.removeItem('radar_founder_mode');
+        localStorage.removeItem('founder_mode_active');
         setSessionEmailOverride(null);
       } catch {}
+
+      setSupabaseActiveEmail(null);
+      setRawFounderMode(false);
+      dataCache.invalidate();
 
       if (user && !user.isAnonymous) {
         try {
@@ -779,9 +780,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsUnauthorizedDomain(false);
   };
 
-  // Exclusive Owner & Founder Access Check: true ONLY when logged in as jassmeinnour@gmail.com
+  // Exclusive Owner & Founder Access Check: true ONLY when authenticated (non-anonymous) as jassmeinnour@gmail.com
   const isOwner = Boolean(
     user &&
+    !user.isAnonymous &&
     ((user.email && user.email.trim().toLowerCase() === OWNER_EMAIL) ||
      (profile?.email && profile.email.trim().toLowerCase() === OWNER_EMAIL))
   );

@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import http from 'http';
 import path from 'path';
 import crypto from 'node:crypto';
@@ -32,6 +33,16 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Enable gzip/deflate compression for HTML, JS, CSS, JSON responses (skip binary APK streams)
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.path.endsWith('.apk')) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 // Trust reverse proxy (Vercel, Cloud Run, Cloudflare, Nginx) for accurate x-forwarded-* headers
 app.enable('trust proxy');
@@ -6709,8 +6720,17 @@ async function startServer() {
       }
     } else {
       const distPath = path.join(process.cwd(), 'dist');
-      app.use(express.static(distPath));
+      app.use(express.static(distPath, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        }
+      }));
       app.get('*', (req, res) => {
+        res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }

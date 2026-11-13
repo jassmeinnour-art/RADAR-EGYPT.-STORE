@@ -63,10 +63,11 @@ export const FounderDraggableContainer: React.FC<FounderDraggableContainerProps>
   }, []);
 
   const isFounderStrict = useMemo(() => {
-    const uEmail = user?.email?.trim().toLowerCase() || '';
-    const pEmail = profile?.email?.trim().toLowerCase() || '';
-    return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com' || isOwner;
-  }, [user?.email, profile?.email, isOwner]);
+    if (!user || user.isAnonymous || !isOwner) return false;
+    const uEmail = (user.email || '').trim().toLowerCase();
+    const pEmail = (profile?.email || '').trim().toLowerCase();
+    return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
+  }, [user, profile?.email, isOwner]);
 
   const showHandle = isFounderStrict && (isFounderMode || localFounderActive);
 

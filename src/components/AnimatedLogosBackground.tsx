@@ -53,6 +53,10 @@ export const AnimatedLogosBackground: React.FC = () => {
             <img 
               src={logo.imageUrl} 
               alt={logo.name} 
+              width={20}
+              height={20}
+              loading="lazy"
+              decoding="async"
               className="w-5 h-5 object-contain shrink-0" 
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -60,7 +64,7 @@ export const AnimatedLogosBackground: React.FC = () => {
             />
           ) : (
             <span 
-              className="rounded-full shadow-lg shrink-0 animate-pulse"
+              className="rounded-full shadow-lg shrink-0"
               style={{ 
                 backgroundColor: logo.color,
                 width: `${Math.round(logo.sizePx * 0.22)}px`,

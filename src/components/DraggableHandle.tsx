@@ -38,10 +38,11 @@ export const DraggableHandle: React.FC<DraggableHandleProps> = ({
   }, []);
 
   const isFounderIdentity = useMemo(() => {
-    const uEmail = (user?.email || '').trim().toLowerCase();
+    if (!user || user.isAnonymous || !isOwner) return false;
+    const uEmail = (user.email || '').trim().toLowerCase();
     const pEmail = (profile?.email || '').trim().toLowerCase();
-    return isOwner || uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
-  }, [isOwner, user?.email, profile?.email]);
+    return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
+  }, [isOwner, user, profile?.email]);
 
   const activeFounderMode = isFounderIdentity && (isFounderMode || localFounderActive);
 
