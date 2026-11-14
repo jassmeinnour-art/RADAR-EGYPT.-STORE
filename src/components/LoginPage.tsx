@@ -1,1127 +1,298 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Store, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ArrowLeft, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Copy, 
-  Check, 
-  ExternalLink, 
-  Sparkles, 
-  ShieldCheck, 
-  Shield,
-  HelpCircle,
+import React, { useState, useEffect } from 'react';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertTriangle,
   RefreshCw,
+  LogIn,
+  UserPlus,
   User as UserIcon,
-  Crown,
-  Smartphone,
-  Presentation,
-  Monitor,
-  Tablet,
-  RotateCcw,
-  Key,
-  Sliders,
-  Palette
+  Store,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
-import { PWAInstallButton } from './PWAInstallButton';
-import { InvestorPitchDeckModal } from './InvestorPitchDeckModal';
-import { ErrorBoundary } from './ErrorBoundary';
-import { RadarPhilosophySection } from './RadarPhilosophySection';
-import { useVisualCustomizer, DEFAULT_VISUAL_SETTINGS } from '../context/VisualCustomizerContext';
-import { VisualCustomizerModal } from './VisualCustomizerModal';
-import { AnimatedLogosBackground } from './AnimatedLogosBackground';
+import { clearStaleRadarCache } from './EmergencyLoginButton';
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
   onBackToLanding?: () => void;
 }
 
-const FLOATING_PLATFORMS = [
-  { name: 'Amazon', logo: 'https://cdn.simpleicons.org/amazon/FF9900', left: '8%', duration: '18s', delay: '0s' },
-  { name: 'Noon', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg', left: '22%', duration: '22s', delay: '3s' },
-  { name: 'Jumia', logo: 'https://cdn.simpleicons.org/jumia/FF9900', left: '35%', duration: '19s', delay: '1s' },
-  { name: 'Raneen', logo: 'https://www.raneen.com.eg/favicon.ico', left: '48%', duration: '25s', delay: '4s' },
-  { name: 'Kanz', logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png', left: '76%', duration: '24s', delay: '5s' },
-  { name: 'HomeSmart', logo: 'https://www.homesmart.com.eg/favicon.ico', left: '88%', duration: '20s', delay: '1.5s' }
-];
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  const { signInWithEmail, signUpWithEmail, clearLoginError } = useAuth();
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLanding }) => {
-  const { 
-    signInWithEmail, 
-    signUpWithEmail, 
-    signInWithGoogle, 
-    signInDemoMerchant, 
-    sendPasswordReset,
-    loginError, 
-    isUnauthorizedDomain,
-    currentDomain,
-    domainInfo,
-    clearLoginError,
-    isDbConnected
-  } = useAuth();
-
-  const { settings: visualSettings, toggleCustomizer } = useVisualCustomizer();
-
-  // Mode and form states
-  const [activeMobileTab, setActiveMobileTab] = useState<'merchant' | 'owner'>('merchant');
-  const [viewportMode, setViewportMode] = useState<'auto' | 'desktop' | 'tablet' | 'mobile'>('auto');
-  const [merchantAuthMode, setMerchantAuthMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
-  
-  // Merchant form inputs
-  const [merchantEmail, setMerchantEmail] = useState<string>('');
-  const [merchantPassword, setMerchantPassword] = useState<string>('');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>('');
-  const [rememberMe, setRememberMe] = useState<boolean>(true);
-  const [showMerchantPassword, setShowMerchantPassword] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Owner form inputs
-  const [ownerPassword, setOwnerPassword] = useState<string>('');
-  const [showOwnerPassword, setShowOwnerPassword] = useState<boolean>(false);
-
-  // UI status states
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [activeAction, setActiveAction] = useState<string | null>(null);
-  const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
-  const [showDomainHelp, setShowDomainHelp] = useState<boolean>(false);
-  const [resetSentSuccess, setResetSentSuccess] = useState<boolean>(false);
-  const [localFormError, setLocalFormError] = useState<string | null>(null);
-  const [isInvestorDeckOpen, setIsInvestorDeckOpen] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimeoutRef = useRef<any>(null);
-
-  const showToast = (msg: string) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setToastMessage(msg);
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
-
-  // Load saved credentials if available
+  // Clear any old localStorage keys that could hang the app on /login
   useEffect(() => {
-    try {
-      const savedEmail = localStorage.getItem('radar_remembered_merchant_email');
-      if (savedEmail) {
-        setMerchantEmail(savedEmail);
-      }
-    } catch (e) {
-      console.warn('Failed to load remembered email:', e);
-    }
+    clearStaleRadarCache();
   }, []);
 
-  // Listen to Global Error Monitor unfreeze / reset event
-  useEffect(() => {
-    const handleResetLoading = () => {
-      setIsSubmitting(false);
-      setActiveAction(null);
-    };
-    window.addEventListener('app_force_reset_loading', handleResetLoading);
-    return () => window.removeEventListener('app_force_reset_loading', handleResetLoading);
-  }, []);
-
-  // Copy current domain to clipboard
-  const handleCopyDomain = () => {
-    if (!currentDomain) return;
-    navigator.clipboard.writeText(currentDomain);
-    setCopiedDomain(true);
-    showToast('تم نسخ النطاق إلى الحافظة بنجاح');
-    setTimeout(() => setCopiedDomain(false), 2500);
-  };
-
-  // Merchant Login / Signup / Reset Submit Handler
-  const handleMerchantSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalFormError(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     clearLoginError();
 
-    // Dismiss virtual keyboard to prevent keyboard overlay freeze
-    if (document.activeElement && typeof (document.activeElement as HTMLElement).blur === 'function') {
-      (document.activeElement as HTMLElement).blur();
-    }
-
-    const cleanEmail = merchantEmail.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setLocalFormError('يرجى إدخال بريد إلكتروني صحيح للتاجر');
+      setErrorMsg('يرجى إدخال بريد إلكتروني صحيح');
       return;
     }
 
-    if (merchantAuthMode !== 'forgot' && (!merchantPassword || merchantPassword.length < 6)) {
-      setLocalFormError('كلمة المرور يجب أن تتكون من 6 أحرف أو أرقام على الأقل');
+    if (!password || password.length < 6) {
+      setErrorMsg('كلمة المرور يجب أن تتكون من 6 أحرف أو أرقام على الأقل');
       return;
-    }
-
-    if (merchantAuthMode === 'signup') {
-      if (!displayName.trim()) {
-        setLocalFormError('يرجى كتابة اسم التاجر أو المسؤول');
-        return;
-      }
-      if (!storeName.trim()) {
-        setLocalFormError('يرجى كتابة اسم المتجر أو العلامة التجارية');
-        return;
-      }
-    }
-
-    if (rememberMe) {
-      try {
-        localStorage.setItem('radar_remembered_merchant_email', cleanEmail);
-      } catch (err) {
-        console.warn('Could not save email to storage:', err);
-      }
-    } else {
-      localStorage.removeItem('radar_remembered_merchant_email');
     }
 
     setIsSubmitting(true);
-    setActiveAction('merchant');
 
     try {
-      if (merchantAuthMode === 'signin') {
-        showToast('جاري تسجيل دخول التاجر والتحقق من الصلاحيات...');
-        await signInWithEmail(cleanEmail, merchantPassword);
-        showToast('تم تسجيل الدخول بنجاح! جاري تحويلك لمساحة العمل...');
+      if (mode === 'signin') {
+        await signInWithEmail(cleanEmail, password);
         onLoginSuccess?.();
-      } else if (merchantAuthMode === 'signup') {
-        showToast('جاري إنشاء حساب التاجر السحابي...');
-        await signUpWithEmail(cleanEmail, merchantPassword, displayName.trim(), storeName.trim());
-        showToast('تم إنشاء الحساب بنجاح! مرحباً بك في رادار التاجر الذكي.');
+      } else {
+        await signUpWithEmail(
+          cleanEmail,
+          password,
+          displayName.trim() || undefined,
+          storeName.trim() || undefined
+        );
+        setSuccessMsg('تم إنشاء الحساب بنجاح!');
         onLoginSuccess?.();
-      } else if (merchantAuthMode === 'forgot') {
-        await sendPasswordReset(cleanEmail);
-        setResetSentSuccess(true);
-        showToast('تم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني.');
       }
     } catch (err: any) {
-      console.error('Merchant auth error:', err);
-      const msg = err?.message || 'الإيميل أو كلمة المرور غلط';
-      setLocalFormError(msg);
+      setErrorMsg(err?.message || 'الإيميل أو كلمة المرور غلط');
     } finally {
       setIsSubmitting(false);
-      setActiveAction(null);
-    }
-  };
-
-  // Owner Verified Access Handler (jassmeinnour@gmail.com)
-  const handleOwnerSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setLocalFormError(null);
-    clearLoginError();
-
-    if (!ownerPassword || ownerPassword.trim().length < 6) {
-      setLocalFormError('يرجى إدخال كلمة المرور الخاصة بحساب المالكة (6 خانات على الأقل) أو استخدام تسجيل الدخول عبر Google.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setActiveAction('owner');
-
-    try {
-      showToast('جاري التحقق من كلمة مرور مالكة المنصة (جاسمين نور)...');
-      await signInWithEmail(OWNER_EMAIL, ownerPassword);
-      showToast('مرحباً بكِ جاسمين! تم التحقق وتفعيل لوحة تحكم المالك الحصرية.');
-      onLoginSuccess?.();
-    } catch (err: any) {
-      console.error('Owner login error:', err);
-      setLocalFormError(err?.message || 'الإيميل أو كلمة المرور غلط');
-    } finally {
-      setIsSubmitting(false);
-      setActiveAction(null);
-    }
-  };
-
-  // Google OAuth Login Handler
-  const handleGoogleLogin = async () => {
-    setLocalFormError(null);
-    setIsSubmitting(true);
-    setActiveAction('google');
-    clearLoginError();
-    try {
-      showToast('جاري فتح نافذة تسجيل الدخول عبر Google...');
-      await signInWithGoogle();
-      showToast('تم تسجيل الدخول بواسطة Google بنجاح!');
-      onLoginSuccess?.();
-    } catch (err: any) {
-      console.error('Google login error:', err);
-      if (!loginError) {
-        setLocalFormError(err?.message || 'حدث خطأ أثناء تسجيل الدخول عبر Google.');
-      }
-    } finally {
-      setIsSubmitting(false);
-      setActiveAction(null);
-    }
-  };
-
-  // Instant Demo Access Handler
-  const handleDemoLogin = async () => {
-    setLocalFormError(null);
-    setIsSubmitting(true);
-    setActiveAction('demo');
-    clearLoginError();
-    try {
-      showToast('جاري بدء الجلسة التجريبية الفورية للتاجر...');
-      await signInDemoMerchant('تاجر تجريبي معتمد', 'متجر العتبة للتجارة الحديثة');
-      showToast('تم الدخول التجريبي بنجاح! استكشف ميزات الرادار الآن.');
-      onLoginSuccess?.();
-    } catch (err: any) {
-      console.error('Demo login error:', err);
-      setLocalFormError(err?.message || 'تعذر بدء الجلسة التجريبية، يرجى المحاولة مرة أخرى.');
-    } finally {
-      setIsSubmitting(false);
-      setActiveAction(null);
-    }
-  };
-
-  // Container width styling based on viewport simulation mode
-  const getViewportContainerStyle = () => {
-    switch (viewportMode) {
-      case 'desktop':
-        return 'w-full max-w-[1280px] shadow-2xl';
-      case 'tablet':
-        return 'w-full max-w-[768px] shadow-2xl';
-      case 'mobile':
-        return 'w-full max-w-[390px] shadow-2xl';
-      case 'auto':
-      default:
-        return 'w-full max-w-5xl';
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#08090D] text-slate-100 flex flex-col justify-between font-['Cairo',sans-serif] selection:bg-amber-500 selection:text-slate-950 relative overflow-x-hidden" dir="rtl">
-      
-      {/* Floating Platforms Background */}
-      <div className="platform-floating-bg">
-        {FLOATING_PLATFORMS.map((p, i) => (
-          <div 
-            key={i} 
-            className="floating-icon" 
-            style={{
-              left: p.left,
-              animationDuration: p.duration,
-              animationDelay: p.delay,
-              backgroundImage: `url(${p.logo})`
-            }} 
-          />
-        ))}
-      </div>
-
-      {/* Fullscreen Animated Logos Background */}
-      <AnimatedLogosBackground />
-
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
-
-      {/* Top Viewport Switcher & Status Toolbar */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-2.5">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          
-          {/* Standalone Official Radar Logo Graphic */}
-          <div className="flex items-center gap-3.5">
-            <div className="relative w-14 h-14 rounded-2xl bg-amber-500/20 p-1 flex items-center justify-center shadow-xl border-2 border-amber-500/30 ring-2 ring-amber-500/10 shrink-0 overflow-hidden" title="RADAR">
-              <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
-                <img
-                  src="/pwa-512x512.png"
-                  alt="RADAR"
-                  className="w-full h-full object-contain select-none"
-                  loading="eager"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.src = '/pwa-512x512.png';
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-lg text-white font-['Alexandria'] tracking-wide">
-                  RADAR
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 shadow-sm border border-white/20">
-                  RADAR EGYPT
-                </span>
-              </div>
-              <p className="text-[12px] text-slate-400 font-bold hidden sm:block">
-                النظام الشامل لإدارة مبيعات ومنافسي أمازون ونون وجوميا
-              </p>
-            </div>
-          </div>
-
-          {/* Viewport Resolution Controls (Desktop / Tablet / Mobile / Auto) */}
-          <div className="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 gap-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setViewportMode('auto')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all ${
-                viewportMode === 'auto'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-              title="تلقائي 100% متجاوب مع عرض شاشة جهازك"
-            >
-              <span>تلقائي</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportMode('desktop')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all ${
-                viewportMode === 'desktop'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-              title="معاينة شاشات الكمبيوتر والديسكتوب"
-            >
-              <Monitor className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">كمبيوتر</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportMode('tablet')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all ${
-                viewportMode === 'tablet'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-              title="معاينة شاشات الأجهزة اللوحية والتابلت (768px)"
-            >
-              <Tablet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">تابلت</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewportMode('mobile');
-                setActiveMobileTab('merchant');
+    <div
+      className="min-h-screen bg-[#08090D] text-slate-100 flex flex-col items-center justify-center p-4 font-['Cairo',sans-serif]"
+      dir="rtl"
+    >
+      <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+        {/* Static RADAR Logo & Title */}
+        <div className="flex flex-col items-center text-center space-y-3">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 p-1.5 flex items-center justify-center shadow-lg">
+            <img
+              src="/pwa-512x512.png"
+              alt="RADAR"
+              width={56}
+              height={56}
+              className="w-full h-full object-contain rounded-xl"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
               }}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all ${
-                viewportMode === 'mobile'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-              title="معاينة شاشات الجوال والهواتف الذكية (390px)"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">جوال</span>
-            </button>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="flex items-center gap-2 text-xs">
-            {onBackToLanding && (
-              <button
-                type="button"
-                onClick={onBackToLanding}
-                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition flex items-center gap-1.5"
-                title="العودة للصفحة التعريفية"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">الرئيسية</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setIsInvestorDeckOpen(true)}
-              className="h-8 px-3 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition"
-              title="عرض المستثمرين التفاعلي"
-            >
-              <Presentation className="w-3.5 h-3.5 text-slate-950" />
-              <span className="hidden sm:inline">Pitch Deck</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowDomainHelp(!showDomainHelp)}
-              className="h-8 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold transition flex items-center gap-1"
-              title="التحقق من حالة قاعدة البيانات والنطاقات"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden xl:inline">{isDbConnected ? 'Firebase متصل' : 'تهيئة النطاقات'}</span>
-            </button>
-
-            {/* Visual Style Control Panel Launch Button */}
-            <button
-              type="button"
-              onClick={toggleCustomizer}
-              id="btn-open-visual-customizer-login"
-              className="h-8 px-3 rounded-lg bg-gradient-to-r from-amber-500/20 via-[#FF6B00]/25 to-amber-500/20 hover:from-amber-500/35 hover:to-[#FF6B00]/40 border border-amber-400/40 text-amber-300 font-extrabold flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 whitespace-nowrap"
-              title="لوحة التحكم السريعة في التنسيق والأبعاد وهوامش الأزرار والبطاقات"
-            >
-              <Palette className="w-3.5 h-3.5 text-amber-400" />
-              <span>🎨 تنسيق الأزرار والواجهة</span>
-            </button>
-
-            <PWAInstallButton variant="header" />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Interactive Login Canvas */}
-      <main className="flex-1 w-full p-4 sm:p-6 md:p-8 flex items-center justify-center relative z-10 overflow-y-auto">
-        <div 
-          id="viewport-container" 
-          className={`transition-all duration-300 mx-auto flex flex-col justify-center items-center ${getViewportContainerStyle()} ${
-            viewportMode !== 'auto' ? 'bg-slate-900/60 rounded-3xl border border-slate-800/80 p-4 sm:p-8' : ''
-          }`}
-        >
-
-          {/* Viewport Simulation Bar Indicator (Visible only during simulated viewport modes) */}
-          {viewportMode !== 'auto' && (
-            <div className="w-full mb-6 bg-slate-950/80 px-4 py-2 rounded-2xl border border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-                <span className="mr-2 text-slate-300 font-bold">
-                  {viewportMode === 'desktop' && 'Desktop Simulation (1280px)'}
-                  {viewportMode === 'tablet' && 'Tablet Simulation (768px)'}
-                  {viewportMode === 'mobile' && 'Mobile Smartphone Simulation (390px)'}
-                </span>
-              </div>
-              <div className="text-[11px] text-amber-400 font-bold">
-                متناسق 100% RTL
-              </div>
-            </div>
-          )}
-
-          {/* Header Title Section */}
-          <div className="text-center max-w-lg mb-6 sm:mb-8 relative z-10 px-2">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-3">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>نظام المصادقة والتسجيل الآمن</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight font-['Alexandria'] leading-tight">
-              بوابة دخول منصة <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-amber-200">رادار التاجر الذكي</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
-              اختر نوع الحساب للمتابعة لمساحة العمل المخصصة لمتابعة المبيعات والأسعار
-            </p>
-          </div>
-
-          {/* Strategic Radar Application Explanation for Marketing Managers */}
-          <div className="w-full mb-8" style={{ maxWidth: `${Math.max(visualSettings.cardMaxWidth, 980)}px` }}>
-            <RadarPhilosophySection
-              onOpenRadar={handleDemoLogin}
-              onShowToast={showToast}
             />
           </div>
-
-          {/* Global Error Banner */}
-          {(loginError || localFormError) && (
-            <div className="w-full max-w-4xl mb-6 p-4 rounded-2xl bg-rose-950/70 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-3 animate-fadeIn">
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="font-bold text-sm">تنبيه في عملية المصادقة:</div>
-                <div className="leading-relaxed">{localFormError || loginError}</div>
-                {isUnauthorizedDomain && (
-                  <div className="pt-2 mt-2 border-t border-rose-800/50 flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-indigo-300">{currentDomain}</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyDomain}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center gap-1"
-                    >
-                      {copiedDomain ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                      <span>نسخ النطاق</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Password Reset Confirmation Banner */}
-          {resetSentSuccess && (
-            <div className="w-full max-w-4xl mb-6 p-4 rounded-2xl bg-emerald-950/70 border border-emerald-800/80 text-emerald-200 text-xs flex items-center gap-3 animate-fadeIn">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-              <span>تم إرسال رابط استعادة كلمة المرور إلى {merchantEmail}. تفقد صندوق الوارد أو الرسائل غير المرغوب فيها.</span>
-            </div>
-          )}
-
-          {/* Mobile Screen Mode Switcher Tabs (Visible on mobile viewports or simulated mobile) */}
-          <div className={`w-full max-w-md mb-6 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 ${
-            viewportMode === 'mobile' ? 'flex' : 'flex md:hidden'
-          } relative z-10`}>
-            <button
-              type="button"
-              onClick={() => setActiveMobileTab('merchant')}
-              className={`flex-1 py-3 min-h-[48px] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeMobileTab === 'merchant'
-                  ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Store className="w-4 h-4" />
-              <span>التاجر / المسوق</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMobileTab('owner')}
-              className={`flex-1 py-3 min-h-[48px] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeMobileTab === 'owner'
-                  ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Crown className="w-4 h-4" />
-              <span>مالك المنصة</span>
-            </button>
-          </div>
-
-          {/* Dual Login Cards Container Grid */}
-          <div className={`w-full max-w-4xl ${
-            viewportMode === 'mobile'
-              ? 'flex flex-col gap-6'
-              : 'grid grid-cols-1 md:grid-cols-2 gap-6'
-          } items-stretch relative z-10`}>
-            
-            {/* ============================================================ */}
-            {/* CARD 1: MERCHANT / MARKETER LOGIN (التاجر والمسوقين)           */}
-            {/* ============================================================ */}
-            <div 
-              id="card-merchant" 
-              className={`bg-slate-950/90 rounded-2xl border border-slate-800 p-6 sm:p-7 flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300 group shadow-2xl relative ${
-                viewportMode === 'mobile' && activeMobileTab !== 'merchant' ? 'hidden' : 'flex'
-              } ${
-                activeMobileTab !== 'merchant' ? 'max-md:hidden' : ''
-              }`}
-            >
-              <div>
-                {/* Card Badge & Icon */}
-                <div className="flex items-center justify-between mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl group-hover:scale-110 transition-transform shrink-0">
-                    <Store className="w-6 h-6 text-amber-400" />
-                  </div>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    حساب تجاري / مسوق
-                  </span>
-                </div>
-
-                <div className="mb-6">
-                  <h3 className="text-lg font-black text-white mb-1.5 font-['Alexandria']">
-                    {merchantAuthMode === 'signin' && 'دخول التاجر والمسوقين'}
-                    {merchantAuthMode === 'signup' && 'إنشاء حساب تاجر جديد'}
-                    {merchantAuthMode === 'forgot' && 'استعادة كلمة المرور للتاجر'}
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    {merchantAuthMode === 'signin' && 'متابعة حركة المنتجات، تحليل أسعار المنافسين على أمازون ونون وجوميا، وتتبع البوالص.'}
-                    {merchantAuthMode === 'signup' && 'سجل حسابك التجاري الآن لتتمتع بفترة تجربة مجانية لكافة أدوات الذكاء الاصطناعي.'}
-                    {merchantAuthMode === 'forgot' && 'أدخل بريدك الإلكتروني المسجل وسنرسل لك رابطاً لإعادة تعيين كلمة المرور فوراً.'}
-                  </p>
-                </div>
-
-                {/* Sub-mode Switcher for Merchant: Signin / Signup */}
-                {merchantAuthMode !== 'forgot' && (
-                  <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-bold mb-4">
-                    <button
-                      type="button"
-                      onClick={() => { setMerchantAuthMode('signin'); setLocalFormError(null); }}
-                      className={`h-9 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                        merchantAuthMode === 'signin'
-                          ? 'bg-amber-500 text-slate-950 font-black shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      تسجيل الدخول
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMerchantAuthMode('signup'); setLocalFormError(null); }}
-                      className={`h-9 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                        merchantAuthMode === 'signup'
-                          ? 'bg-amber-500 text-slate-950 font-black shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      حساب جديد
-                    </button>
-                  </div>
-                )}
-
-                {/* Merchant Form */}
-                <form onSubmit={handleMerchantSubmit} className="space-y-4 text-right" noValidate>
-                  
-                  {/* Signup Specific Fields */}
-                  {merchantAuthMode === 'signup' && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          اسم التاجر / المسؤول <span className="text-amber-400">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            required
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder="مثال: أحمد محمود"
-                            className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-3 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition"
-                          />
-                          <UserIcon className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          اسم المتجر أو العلامة التجارية <span className="text-amber-400">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            required
-                            value={storeName}
-                            onChange={(e) => setStoreName(e.target.value)}
-                            placeholder="مثال: متجر التقنية المصرية - القاهرة"
-                            className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-3 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition"
-                          />
-                          <Store className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Merchant Email Field */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      البريد الإلكتروني للتاجر <span className="text-amber-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="email"
-                        required
-                        value={merchantEmail}
-                        onChange={(e) => setMerchantEmail(e.target.value)}
-                        placeholder="merchant@store.eg"
-                        dir="ltr"
-                        className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-3 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-left"
-                      />
-                      <Mail className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                    </div>
-                  </div>
-
-                  {/* Merchant Password Field (only for signin and signup) */}
-                  {merchantAuthMode !== 'forgot' && (
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="block text-xs font-medium text-slate-300">
-                          كلمة المرور <span className="text-amber-400">*</span>
-                        </label>
-                        {merchantAuthMode === 'signin' && (
-                          <button
-                            type="button"
-                            onClick={() => { setMerchantAuthMode('forgot'); setLocalFormError(null); }}
-                            className="text-[11px] text-amber-400 hover:underline cursor-pointer"
-                          >
-                            نسيت كلمة المرور؟
-                          </button>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          type={showMerchantPassword ? 'text' : 'password'}
-                          required
-                          value={merchantPassword}
-                          onChange={(e) => setMerchantPassword(e.target.value)}
-                          placeholder="••••••••"
-                          dir="ltr"
-                          className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-10 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-left"
-                        />
-                        <Lock className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                        <button
-                          type="button"
-                          onClick={() => setShowMerchantPassword(!showMerchantPassword)}
-                          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer p-1"
-                          tabIndex={-1}
-                          title={showMerchantPassword ? 'إخفاء' : 'إظهار'}
-                        >
-                          {showMerchantPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Remember Me Checkbox */}
-                  {merchantAuthMode === 'signin' && (
-                    <div className="flex items-center justify-between pt-1">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
-                        />
-                        <span className="text-xs text-slate-400">تذكر بيانات تسجيل الدخول</span>
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Golden Action Submit Button (Min 48px touch target) */}
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full mt-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black min-h-[48px] py-3 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSubmitting && activeAction === 'merchant' ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>جاري التحقق والاتصال...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>
-                          {merchantAuthMode === 'signin' && 'تسجيل الدخول كتاجر'}
-                          {merchantAuthMode === 'signup' && 'إنشاء حساب تاجر جديد'}
-                          {merchantAuthMode === 'forgot' && 'إرسال رابط الاستعادة'}
-                        </span>
-                        <ArrowLeft className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  {/* Forgot Password Mode Back Button */}
-                  {merchantAuthMode === 'forgot' && (
-                    <button
-                      type="button"
-                      onClick={() => setMerchantAuthMode('signin')}
-                      className="w-full text-center text-xs text-slate-400 hover:text-white py-2 cursor-pointer font-bold"
-                    >
-                      العودة لصفحة تسجيل الدخول
-                    </button>
-                  )}
-                </form>
-
-                {/* Alternative Quick Auth Options */}
-                {merchantAuthMode === 'signin' && (
-                  <div className="mt-5 pt-4 border-t border-slate-900 space-y-2.5">
-                    <div className="relative my-2 text-center">
-                      <span className="relative px-3 bg-slate-950 text-[11px] text-slate-500 font-bold">
-                        أو الدخول السريع عبر
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {/* Google Login */}
-                      <button
-                        type="button"
-                        onClick={handleGoogleLogin}
-                        disabled={isSubmitting}
-                        className="w-full min-h-[44px] rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-98 disabled:opacity-50 cursor-pointer"
-                        title="الدخول بواسطة حساب Google"
-                      >
-                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                        </svg>
-                        <span>حساب Google</span>
-                      </button>
-
-                      {/* Demo Merchant Login */}
-                      <button
-                        type="button"
-                        onClick={handleDemoLogin}
-                        disabled={isSubmitting}
-                        className="w-full min-h-[44px] rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 disabled:opacity-50 cursor-pointer"
-                        title="تجربة فورية كتاجر تجريبي"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        <span>دخول تجريبي ⚡</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Card Footer Quick Info */}
-              <div className="mt-6 pt-4 border-t border-slate-900 flex items-center justify-between text-xs text-slate-500">
-                <span>ليس لديك حساب؟</span>
-                <button
-                  type="button"
-                  onClick={() => { setMerchantAuthMode('signup'); setLocalFormError(null); }}
-                  className="text-amber-400 font-bold hover:underline cursor-pointer"
-                >
-                  تجربة مجانية لمدة 7 أيام
-                </button>
-              </div>
-            </div>
-
-            {/* ============================================================ */}
-            {/* CARD 2: OWNER / ADMIN LOGIN (دخول مالكة النظام والوكالة)       */}
-            {/* ============================================================ */}
-            <div 
-              id="card-owner" 
-              className={`bg-slate-950/90 rounded-2xl border border-slate-800 p-6 sm:p-7 flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300 group shadow-2xl relative ${
-                viewportMode === 'mobile' && activeMobileTab !== 'owner' ? 'hidden' : 'flex'
-              } ${
-                activeMobileTab !== 'owner' ? 'max-md:hidden' : ''
-              }`}
-            >
-              <div>
-                {/* Card Badge & Icon */}
-                <div className="flex items-center justify-between mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl group-hover:scale-110 transition-transform shrink-0">
-                    <Crown className="w-6 h-6 text-amber-400" />
-                  </div>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                    <span>لوحة المالك الحصرية</span>
-                  </span>
-                </div>
-
-                <div className="mb-6">
-                  <h3 className="text-lg font-black text-white mb-1.5 font-['Alexandria'] flex items-center gap-2">
-                    <span>دخول مالكة النظام والوكالة</span>
-                    <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
-                      Super Admin
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    التحكم الكامل في حسابات التجار، المشتريات، متابعة الاشتراكات، والتقارير المالية الشاملة.
-                  </p>
-                </div>
-
-                {/* Owner Form */}
-                <form onSubmit={handleOwnerSubmit} className="space-y-4 text-right">
-                  
-                  {/* Dedicated Owner Email Display (Read-Only / Authenticated) */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      حساب المالك الرئيسي
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="email"
-                        value={OWNER_EMAIL}
-                        readOnly
-                        dir="ltr"
-                        className="w-full min-h-[48px] bg-slate-900/90 border border-amber-500/30 rounded-xl py-3 pr-10 pl-24 text-xs sm:text-sm text-amber-300 font-mono font-bold focus:outline-none cursor-default text-left select-all"
-                      />
-                      <Crown className="w-4 h-4 text-amber-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300 font-bold">
-                        صلاحية دائمة
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Owner Security Key / Password Field */}
-                  <div>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-medium text-slate-300">
-                        رمز الأمان أو كلمة المرور
-                      </label>
-                      <span className="text-[10px] text-emerald-400/90 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
-                        مصادقة فورية موثقة
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showOwnerPassword ? 'text' : 'password'}
-                        value={ownerPassword}
-                        onChange={(e) => setOwnerPassword(e.target.value)}
-                        placeholder="••••••••••••"
-                        dir="ltr"
-                        className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-10 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition text-left"
-                      />
-                      <Key className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                      <button
-                        type="button"
-                        onClick={() => setShowOwnerPassword(!showOwnerPassword)}
-                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer p-1"
-                        tabIndex={-1}
-                      >
-                        {showOwnerPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Lifetime Active Status Badge */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
-                    <span className="text-emerald-400 flex items-center gap-2 font-bold">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                      </span>
-                      <span>حساب مالكة النظام نشط ومدى الحياة</span>
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      SYSTEM_ADMIN
-                    </span>
-                  </div>
-
-                  {/* Golden Action Submit Button (Min 48px touch target) */}
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full mt-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black min-h-[48px] py-3 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSubmitting && activeAction === 'owner' ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>جاري توثيق جلسة المالك...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4 text-slate-950" />
-                        <span>دخول لوحة التحكم المباشرة (المالكة)</span>
-                        <ArrowLeft className="w-4 h-4 text-slate-950" />
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                {/* Owner Security Guarantee Notice */}
-                <div className="mt-5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 text-[11px] text-amber-200/80 leading-relaxed">
-                  🛡️ <strong>صلاحيات الإشراف الشامل:</strong> تتيح هذه اللوحة لمالكة النظام مراجعة جميع متاجر المنصة، تشغيل المحاكاة السعرية، وإصدار بوالص الشحن عبر المنافذ السريعة.
-                </div>
-              </div>
-
-              {/* Card Footer Quick Info */}
-              <div className="mt-6 pt-4 border-t border-slate-900 flex items-center justify-between text-xs text-slate-500">
-                <span>إدارة النظام والوكالة بالكامل</span>
-                <span className="text-amber-400 font-mono font-bold">الإصدار v2.4.5</span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Bottom Security Note */}
-          <div className="mt-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-            <Shield className="w-4 h-4 text-slate-400" />
-            <span>جميع البيانات والاتصالات مشفرة ببروتوكول SSL و Firebase Security Rules على أعلى مستوى</span>
-          </div>
-
-        </div>
-      </main>
-
-      {/* Interactive Toast Notification Alert */}
-      {toastMessage && (
-        <div className="fixed bottom-6 left-6 z-50 animate-fadeIn bg-slate-900 border border-amber-500/50 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-sm">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm shrink-0">
-            <CheckCircle2 className="w-5 h-5 text-amber-400" />
-          </div>
-          <div className="text-right">
-            <h4 className="text-xs font-bold text-white">إشعار واجهة النظام</h4>
-            <p className="text-[11px] text-slate-300 leading-normal">{toastMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Authorized Domain Setup Guidance Modal */}
-      {showDomainHelp && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn text-right">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowDomainHelp(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm cursor-pointer"
-              >
-                ✕
-              </button>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-white font-['Alexandria']">
-                  دليل النطاقات المصرح بها (Authorized Domains)
-                </h3>
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
-              <p>
-                لتفعيل تسجيل الدخول بواسطة <strong className="text-white">Google</strong> بنجاح بدون خطأ <code className="text-rose-400 bg-rose-950/40 px-1 py-0.5 rounded font-mono">auth/unauthorized-domain</code>، يجب أن يكون نطاق التطبيق الحالي مضافاً في إعدادات فايربيس:
-              </p>
-
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-[11px] text-slate-400 block font-bold">النطاق الحالي لتطبيقك (Host):</span>
-                <div className="flex items-center justify-between gap-2 bg-slate-900 p-2.5 rounded-xl border border-amber-900/60">
-                  <span className="font-mono text-xs text-amber-300 truncate" dir="ltr">
-                    {currentDomain || 'ais-dev-...europe-west2.run.app'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyDomain}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0 transition-all"
-                  >
-                    {copiedDomain ? <Check className="w-3.5 h-3.5 text-slate-950" /> : <Copy className="w-3.5 h-3.5 text-slate-950" />}
-                    <span>{copiedDomain ? 'تم النسخ!' : 'نسخ النطاق'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-slate-300 bg-slate-800/40 p-3.5 rounded-2xl border border-slate-800">
-                <h4 className="font-black text-white text-xs">خطوات الإضافة في ثوانٍ:</h4>
-                <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-300">
-                  <li>اضغط على زر <strong className="text-amber-400">نسخ النطاق</strong> أعلاه.</li>
-                  <li>اضغط على رابط <strong className="text-amber-400">إعدادات Firebase Console</strong> أدناه لفتح الصفحة مباشرة.</li>
-                  <li>توجه إلى قسم <strong className="text-white">Authorized domains</strong> واضغط <strong className="text-white">Add domain</strong>.</li>
-                  <li>الصق النطاق المنسوخ واضغط <strong className="text-white">Save (حفظ)</strong>.</li>
-                </ol>
-              </div>
-
-              <div className="p-3 bg-amber-950/40 border border-amber-800/50 rounded-xl text-[11px] text-amber-200">
-                💡 <strong>ملاحظة مهمة:</strong> تسجيل الدخول بالبريد الإلكتروني وكلمة المرور وكذلك الوضع التجريبي الفوري يعملان بشكل فوري ومستقل دون الحاجة لخطوة النطاقات!
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex items-center gap-3">
-              <a
-                href={domainInfo.consoleAuthSettingsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <span>فتح صفحة إعدادات Firebase Console</span>
-                <ExternalLink className="w-4 h-4 text-slate-950" />
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowDomainHelp(false)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
-              >
-                إغلاق
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Investor Pitch Deck Modal */}
-      <ErrorBoundary sectionName="عرض المستثمرين">
-        <InvestorPitchDeckModal
-          isOpen={isInvestorDeckOpen}
-          onClose={() => setIsInvestorDeckOpen(false)}
-          onStartLiveDemo={handleDemoLogin}
-        />
-      </ErrorBoundary>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 py-4 z-10 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            © {new Date().getFullYear()} رادار التاجر الذكي (RADAR) • جميع الحقوق محفوظة
-          </div>
-          <div className="flex items-center gap-4 text-amber-400/80 font-medium">
-            <span>أمازون · نون · جوميا</span>
-            <span>•</span>
-            <span>بوابة المصادقة المزدوجة المتناسقة</span>
+            <div className="flex items-center justify-center gap-2">
+              <h1 className="text-2xl font-black text-white tracking-wide">RADAR</h1>
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500 text-slate-950">
+                EGYPT
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 font-bold mt-1">
+              رادار التاجر الذكي — تسجيل الدخول الآمن
+            </p>
           </div>
         </div>
-      </footer>
 
-      {/* Visual Customizer Modal */}
-      <VisualCustomizerModal />
+        {/* Mode Switcher: دخول / إنشاء حساب */}
+        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-black">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('signin');
+              setErrorMsg(null);
+              setSuccessMsg(null);
+            }}
+            className={`py-2.5 rounded-lg transition-colors cursor-pointer ${
+              mode === 'signin'
+                ? 'bg-amber-500 text-slate-950'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            دخول
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('signup');
+              setErrorMsg(null);
+              setSuccessMsg(null);
+            }}
+            className={`py-2.5 rounded-lg transition-colors cursor-pointer ${
+              mode === 'signup'
+                ? 'bg-amber-500 text-slate-950'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            إنشاء حساب
+          </button>
+        </div>
+
+        {/* Red Error Alert */}
+        {errorMsg && (
+          <div className="p-3.5 rounded-xl bg-rose-950/90 border-2 border-rose-500 text-rose-100 text-xs font-bold flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {successMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs font-bold">
+            {successMsg}
+          </div>
+        )}
+
+        {/* Static Login / Signup Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 text-right" noValidate>
+          {mode === 'signup' && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  اسم التاجر
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="مثال: محمود سعيد"
+                    className="w-full min-h-[46px] bg-slate-900 border border-slate-800 rounded-xl py-2.5 pr-10 pl-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                  />
+                  <UserIcon className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  اسم المتجر
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    placeholder="مثال: متجر القاهرة"
+                    className="w-full min-h-[46px] bg-slate-900 border border-slate-800 rounded-xl py-2.5 pr-10 pl-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                  />
+                  <Store className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div>
+            <label htmlFor="login-email" className="block text-xs font-bold text-slate-300 mb-1.5">
+              الإيميل
+            </label>
+            <div className="relative">
+              <input
+                id="login-email"
+                type="email"
+                required
+                dir="ltr"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@gmail.com"
+                className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 text-left"
+              />
+              <Mail className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="login-password" className="block text-xs font-bold text-slate-300 mb-1.5">
+              كلمة المرور
+            </label>
+            <div className="relative">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                dir="ltr"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl py-3 pr-10 pl-10 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 text-left"
+              />
+              <Lock className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+                tabIndex={-1}
+                aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>جاري التحقق...</span>
+              </>
+            ) : mode === 'signin' ? (
+              <>
+                <LogIn className="w-4 h-4" />
+                <span>دخول</span>
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4" />
+                <span>إنشاء حساب</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Quick Founder Email Fill (still requires password) */}
+        <div className="pt-3 border-t border-slate-900 flex items-center justify-between text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+            <span>محمي بـ Supabase RLS</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail(OWNER_EMAIL);
+              setMode('signin');
+              setErrorMsg(null);
+            }}
+            className="text-amber-400 hover:underline font-bold cursor-pointer"
+          >
+            تعبئة إيميل المؤسس
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

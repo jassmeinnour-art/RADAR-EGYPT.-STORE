@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { GlobalEmptyState } from './GlobalEmptyState';
+import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--card-bg, #1E293B)',
@@ -51,7 +52,8 @@ const bigNumber: React.CSSProperties = {
 };
 
 export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [range, setRange] = useState<'7' | '30' | '90'>('30');
   const [traders, setTraders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -69,11 +71,17 @@ export default function AnalyticsPage() {
         supabase.from('products').select('*'),
         supabase.from('invoices').select('*'),
       ]);
+      if (t.error && p.error && i.error) {
+        setFetchError(true);
+      } else {
+        setFetchError(false);
+      }
       setTraders(t.data || []);
       setProducts(p.data || []);
       setInvoices(i.data || []);
     } catch (e) {
       console.error(e);
+      setFetchError(true);
       setTraders([]);
       setProducts([]);
       setInvoices([]);
@@ -101,34 +109,34 @@ export default function AnalyticsPage() {
 
   const isEmpty = totalTraders === 0 && totalProducts === 0 && totalInvoices === 0;
 
-  if (loading) {
-    return (
-      <div style={{ padding: 24, color: 'var(--card-text, #fff)' }}>
-        ⏳ جاري تحميل التحليلات...
-      </div>
-    );
-  }
-
   if (isEmpty) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8" dir="rtl">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-4" dir="rtl">
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ color: 'var(--card-text, #fff)', fontSize: '20px', fontWeight: 900 }}>📊 تحليل الأسعار ومعدل حركة المخزون</h2>
           <p style={smallText}>تتبع تحليلي لأسعار البيع في مصر (أمازون، نون، جوميا) مع قياس دوران المخزون والتأثير بالطلب.</p>
         </div>
+        {fetchError && (
+          <EmergencyErrorBanner message="تعذر جلب بيانات التحليلات من قاعدة البيانات." />
+        )}
         <GlobalEmptyState
           icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
-          message="📊 لا توجد تحليلات متاحة"
+          message={fetchError ? 'لا توجد بيانات' : '📊 لا توجد تحليلات متاحة'}
           description="دليل التجار والمنتجات فارغ حالياً. أضف تجاراً ومنتجات وفواتير أولاً لتتمكن المنظومة من تتبع الأسعار وتوليد الرسوم البيانية."
           actionLabel="➕ إضافة تاجر جديد"
           onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/traders' } }))}
-        />
+        >
+          <EmergencyLoginButton />
+        </GlobalEmptyState>
       </div>
     );
   }
 
   return (
     <div style={{ padding: 24, fontFamily: 'var(--font-family)' }}>
+      {fetchError && (
+        <EmergencyErrorBanner message="حدث خطأ أثناء تحديث بيانات التحليلات." />
+      )}
       {/* العنوان */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
@@ -152,8 +160,8 @@ export default function AnalyticsPage() {
               {r === '7' ? '7 أيام' : r === '30' ? '30 يوم' : '90 يوم'}
             </button>
           ))}
-          <button onClick={loadData} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--card-text)', cursor: 'pointer' }}>
-            <RefreshCw size={16} /> تحديث
+          <button onClick={loadData} disabled={loading} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--card-text)', cursor: 'pointer' }}>
+            <RefreshCw size={16} className={loading ? 'animate-spin inline ml-1' : 'inline ml-1'} /> تحديث
           </button>
         </div>
       </div>

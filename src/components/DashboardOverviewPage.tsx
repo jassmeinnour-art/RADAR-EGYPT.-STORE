@@ -38,6 +38,7 @@ import { useAuth } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { NotificationRadarCard } from './NotificationRadarCard';
 import { DraggableHandle } from './DraggableHandle';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 
 interface DashboardOverviewPageProps {
   onShowToast?: (msg: string) => void;
@@ -88,7 +89,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
   const [totalRevenue, setTotalRevenue] = useState<number>(0);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [tradersList, setTradersList] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<boolean>(false);
 
   // Interactive Chart View States
   const [salesChartMetric, setSalesChartMetric] = useState<'sales' | 'orders'>('sales');
@@ -153,6 +155,12 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
 
         if (!isMounted) return;
 
+        if (tradersRes.error && productsRes.error) {
+          setFetchError(true);
+        } else {
+          setFetchError(false);
+        }
+
         const traders = Array.isArray(tradersRes.data) ? tradersRes.data : [];
         const tCount = traders.length;
         const pCount = typeof productsRes.count === 'number'
@@ -180,6 +188,7 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
         });
       } catch (err) {
         console.warn('Dashboard data fetch fallback:', err);
+        if (isMounted) setFetchError(true);
         if (!cached && isMounted) {
           setTradersCount(0);
           setProductsCount(0);
@@ -252,6 +261,9 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
     <div className="w-full space-y-8 pb-20 font-['Cairo'] text-right" dir="rtl">
       
       {/* Header Banner */}
+      {fetchError && (
+        <EmergencyErrorBanner message="تعذر جلب بيانات لوحة التحكم — لا توجد بيانات متاحة حالياً." />
+      )}
       <div ref={headerBannerRef} className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <DraggableHandle elementId="dashboard_header_banner" targetRef={headerBannerRef} position="bottom-left" />
         <div className="space-y-2 relative z-10">

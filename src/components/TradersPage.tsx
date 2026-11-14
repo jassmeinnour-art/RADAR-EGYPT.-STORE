@@ -20,6 +20,7 @@ import { FetchProductsModal } from './FetchProductsModal';
 import { EditTraderModal } from './EditTraderModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
+import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -235,7 +236,8 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const isFounder = Boolean(user && !user.isAnonymous && isOwner && userEmail === 'jassmeinnour@gmail.com');
 
   const [traders, setTraders] = useState<Trader[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 20;
@@ -297,6 +299,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
       if (error) {
         console.error('Error fetching traders:', error);
+        setFetchError(true);
+      } else {
+        setFetchError(false);
       }
 
       let list = Array.isArray(data) ? (data as Trader[]) : [];
@@ -355,6 +360,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       setPage(targetPage);
     } catch (err) {
       console.error('Error fetching traders:', err);
+      setFetchError(true);
       if (!cached && targetPage === 1) setTraders([]);
     } finally {
       setIsLoading(false);
@@ -594,48 +600,21 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       </div>
     );
 
-  if (isLoading) {
-    return (
-      <div className="w-full space-y-8 font-['Cairo']" dir="rtl">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-8 rounded-[2.5rem] border border-slate-800 bg-slate-900/40">
-          <div className="flex items-center gap-6 w-full">
-            <div className="w-16 h-16 rounded-2xl bg-slate-800/80" />
-            <div className="space-y-3 flex-1">
-              <div className="h-6 w-48 bg-slate-800/80 rounded-lg" />
-              <div className="h-3.5 w-32 bg-slate-800/60 rounded-lg" />
-            </div>
-          </div>
-          <div className="h-14 w-full md:w-56 bg-amber-500/10 rounded-2xl border border-amber-500/5" />
-        </div>
-        <div className="h-14 w-full max-w-xl bg-slate-900/40 border border-slate-800/50 rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-3xl bg-slate-900/40 border border-slate-800/50 p-6 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-800/80" />
-                <div className="space-y-2">
-                  <div className="h-4 w-32 bg-slate-800/80 rounded-lg" />
-                  <div className="h-3 w-20 bg-slate-800/60 rounded-md" />
-                </div>
-              </div>
-              <div className="h-10 w-full bg-slate-800/50 rounded-2xl" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (traders.length === 0) {
     return (
-      <div className="w-full font-['Cairo']" dir="rtl">
+      <div className="w-full font-['Cairo'] space-y-4" dir="rtl">
+        {fetchError && (
+          <EmergencyErrorBanner message="تعذر جلب بيانات التجار من قاعدة البيانات — لا توجد بيانات." />
+        )}
         <GlobalEmptyState
           icon={<Users className="w-10 h-10 text-amber-400" />}
-          message="لم يتم العثور على تجار مسجلين"
+          message={fetchError ? 'لا توجد بيانات' : 'لم يتم العثور على تجار مسجلين'}
           description={isFounder ? 'دليل التجار فارغ حالياً. ابدأ بإضافة تجار جدد لمتابعة أدائهم وربط منتجاتهم.' : 'لا توجد بيانات تاجر مرتبطة بهذا الحساب حالياً.'}
           actionLabel={isFounder ? '➕ إضافة تاجر جديد' : undefined}
           onActionClick={isFounder ? () => setIsAddModalOpen(true) : undefined}
-        />
+        >
+          <EmergencyLoginButton />
+        </GlobalEmptyState>
         {renderAddTraderModal()}
       </div>
     );

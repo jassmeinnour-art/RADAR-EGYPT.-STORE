@@ -14,6 +14,8 @@ import {
 import { navigate } from '../utils/navigation';
 import { useAuth } from '../context/AuthContext';
 import { DraggableHandle } from './DraggableHandle';
+import { supabase } from '../lib/supabase';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 
 const SponsoredAdsSection = lazy(() => import('./SponsoredAdsSection'));
 
@@ -24,6 +26,8 @@ interface DashboardHomeProps {
 const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
   const { user, profile, isOwner, isFounderMode, toggleFounderMode } = useAuth();
   const [showAds, setShowAds] = useState(false);
+  const [bgSummary, setBgSummary] = useState<{ tradersCount: number; productsCount: number } | null>(null);
+  const [bgFetchError, setBgFetchError] = useState<boolean>(false);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const whyRef = useRef<HTMLDivElement>(null);
@@ -54,6 +58,46 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       }
     };
   }, []);
+
+  // Fetch traders and products summary strictly in background AFTER homepage structure renders
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const bgTimer = globalThis.setTimeout(async () => {
+      try {
+        const [tradersRes, productsRes] = await Promise.all([
+          supabase.from('traders').select('id', { count: 'exact' }).limit(5),
+          supabase.from('products').select('id', { count: 'exact' }).limit(5),
+        ]);
+        if (!active) return;
+        if (tradersRes.error && productsRes.error) {
+          setBgFetchError(true);
+          return;
+        }
+        const tCount =
+          typeof tradersRes.count === 'number'
+            ? tradersRes.count
+            : Array.isArray(tradersRes.data)
+            ? tradersRes.data.length
+            : 0;
+        const pCount =
+          typeof productsRes.count === 'number'
+            ? productsRes.count
+            : Array.isArray(productsRes.data)
+            ? productsRes.data.length
+            : 0;
+        setBgSummary({ tradersCount: tCount, productsCount: pCount });
+        setBgFetchError(false);
+      } catch {
+        if (active) setBgFetchError(true);
+      }
+    }, 80);
+
+    return () => {
+      active = false;
+      globalThis.clearTimeout(bgTimer);
+    };
+  }, [user]);
 
   const whyCards = [
     { 
@@ -289,10 +333,20 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-black text-white">بيانات Supabase حية ⚡</span>
             </div>
-            <p className="text-[10px] text-slate-400 font-bold">تحديث فوري لكل الحركات المالية والمخزنية</p>
+            <p className="text-[10px] text-slate-400 font-bold">
+              {bgSummary
+                ? `متصل الآن: ${bgSummary.tradersCount} تاجر • ${bgSummary.productsCount} منتج نشط`
+                : bgFetchError
+                ? 'لا توجد بيانات متاحة حالياً'
+                : 'تحديث فوري لكل الحركات المالية والمخزنية'}
+            </p>
           </div>
         </div>
       </section>
+
+      {bgFetchError && (
+        <EmergencyErrorBanner message="تعذر جلب بيانات التجار والمنتجات في الخلفية." />
+      )}
 
       {/* Deferred Sponsored Ads Section (loads after initial homepage render) */}
       {showAds ? (

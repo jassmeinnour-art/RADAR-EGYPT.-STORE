@@ -84,6 +84,7 @@ import { ProfileSettingsModal } from './ProfileSettingsModal';
 import { NotificationsDropdown } from './NotificationsDropdown';
 import { ToolbarTooltip } from './ToolbarTooltip';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import { EmergencyLoginButton } from './EmergencyLoginButton';
 
 interface HeaderProps {
   activeTab: string;
@@ -687,6 +688,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-extrabold whitespace-nowrap">🎨 تنسيق الأزرار والواجهة</span>
               </button>
             </ToolbarTooltip>
+
+            <EmergencyLoginButton className="h-10 px-3 border-2 border-[#000000]" />
 
 
 

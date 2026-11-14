@@ -5,9 +5,12 @@ import { Header } from './components/Header';
 import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import LoginPage from './components/LoginPage';
+import NotFoundPage from './components/NotFoundPage';
+import { EmergencyLoginButton, EmergencyErrorBanner } from './components/EmergencyLoginButton';
+import { navigate } from './utils/navigation';
 
-// Lazy loaded pages & non-critical overlays
-const LoginPage = lazy(() => import('./components/LoginPage').then((m) => ({ default: m.LoginPage })));
+// Lazy loaded workspace pages & non-critical overlays
 const VisualCustomizerModal = lazy(() => import('./components/VisualCustomizerModal').then((m) => ({ default: m.VisualCustomizerModal })));
 const DownloadFAB = lazy(() => import('./components/DownloadFAB'));
 const RouteDebugger = lazy(() => import('./components/RouteDebugger').then((m) => ({ default: m.RouteDebugger })));
@@ -33,25 +36,35 @@ export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 export type WorkspaceTab = 
   | 'home' | 'dashboard' | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
   | 'shipping' | 'trending' | 'reports' | 'auto_pricing' | 'price_comparison' | 'platforms_guide' 
-  | 'traders_sync' | 'split_invoices' | 'help' | 'analytics' | 'layout_settings';
+  | 'traders_sync' | 'split_invoices' | 'help' | 'analytics' | 'layout_settings' | 'not_found';
+
+function resolvePathToTab(rawPath: string): WorkspaceTab {
+  const normalized = (rawPath || '/').replace(/\/+$/, '') || '/';
+  if (normalized === '/' || normalized === '/index.html' || normalized === '/login') return 'home';
+  if (normalized === '/dashboard') return 'dashboard';
+  if (normalized === '/traders' || normalized.startsWith('/traders/')) return 'traders';
+  if (normalized === '/products') return 'products';
+  if (normalized === '/inventory') return 'inventory';
+  if (normalized === '/invoices') return 'shipping';
+  if (normalized === '/invoices/split') return 'split_invoices';
+  if (normalized === '/reports') return 'reports';
+  if (normalized === '/trending') return 'trending';
+  if (normalized === '/competitors') return 'radar';
+  if (normalized === '/auto-pricing') return 'auto_pricing';
+  if (normalized === '/price-comparison') return 'price_comparison';
+  if (normalized === '/watchlist') return 'watchlist';
+  if (normalized === '/analytics') return 'analytics';
+  if (normalized === '/connections') return 'platforms_guide';
+  if (normalized === '/gmail-sync') return 'traders_sync';
+  if (normalized === '/settings/layout') return 'layout_settings';
+  if (normalized === '/help') return 'help';
+  return 'not_found';
+}
 
 export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
     if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path === '/dashboard') return 'dashboard';
-      if (path === '/traders') return 'traders';
-      if (path === '/products') return 'products';
-      if (path === '/inventory') return 'inventory';
-      if (path === '/invoices') return 'shipping';
-      if (path === '/invoices/split') return 'split_invoices';
-      if (path === '/reports') return 'reports';
-      if (path === '/competitors') return 'radar';
-      if (path === '/analytics') return 'analytics';
-      if (path === '/connections') return 'platforms_guide';
-      if (path === '/gmail-sync') return 'traders_sync';
-      if (path === '/settings/layout') return 'layout_settings';
-      if (path === '/help') return 'help';
+      return resolvePathToTab(window.location.pathname);
     }
     return 'home';
   });
@@ -73,7 +86,7 @@ export default function App() {
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
-  const { user, isLoading, isOwner, signOut } = useAuth();
+  const { user, isOwner, signOut } = useAuth();
 
   useEffect(() => {
     if (!user || !isOwner) {
@@ -89,21 +102,7 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path === '/dashboard') setActiveWorkspaceTab('dashboard');
-      else if (path === '/traders') setActiveWorkspaceTab('traders');
-      else if (path === '/products') setActiveWorkspaceTab('products');
-      else if (path === '/inventory') setActiveWorkspaceTab('inventory');
-      else if (path === '/invoices') setActiveWorkspaceTab('shipping');
-      else if (path === '/invoices/split') setActiveWorkspaceTab('split_invoices');
-      else if (path === '/reports') setActiveWorkspaceTab('reports');
-      else if (path === '/competitors') setActiveWorkspaceTab('radar');
-      else if (path === '/analytics') setActiveWorkspaceTab('analytics');
-      else if (path === '/connections') setActiveWorkspaceTab('platforms_guide');
-      else if (path === '/gmail-sync') setActiveWorkspaceTab('traders_sync');
-      else if (path === '/settings/layout') setActiveWorkspaceTab('layout_settings');
-      else if (path === '/help') setActiveWorkspaceTab('help');
-      else if (path === '/') setActiveWorkspaceTab('home');
+      setActiveWorkspaceTab(resolvePathToTab(window.location.pathname));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -113,32 +112,17 @@ export default function App() {
     if (msg) console.log(msg);
   };
 
-  if (isLoading && (typeof window === 'undefined' || window.location.pathname !== '/login')) {
-    return (
-      <TabSkeletonLoader
-        onGoToLogin={() => {
-          signOut().catch(() => {});
-          if (typeof window !== 'undefined') {
-            window.location.assign('/login');
-          }
-        }}
-      />
-    );
-  }
-
   if (!user) {
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.history.replaceState({}, '', '/login');
     }
     return (
-      <Suspense fallback={<TabSkeletonLoader />}>
-        <LoginPage 
-          onLoginSuccess={() => {
-            setActiveWorkspaceTab('home');
-            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-          }} 
-        />
-      </Suspense>
+      <LoginPage 
+        onLoginSuccess={() => {
+          setActiveWorkspaceTab('home');
+          if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+        }} 
+      />
     );
   }
 
@@ -174,18 +158,29 @@ export default function App() {
           }}
         />
       ),
+      not_found: (
+        <NotFoundPage
+          onGoHome={() => {
+            setHasLazyLoadError(false);
+            setActiveWorkspaceTab('home');
+            navigate('/');
+          }}
+        />
+      ),
     };
 
     const resolvedComponent = componentMap[tab];
 
     if (!resolvedComponent) {
-      setHasLazyLoadError(true);
-      setFailedTabName(tab);
-      setTimeout(() => {
-        setActiveWorkspaceTab('home');
-        if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
-      }, 0);
-      return <DashboardHome onShowToast={showToast} />;
+      return (
+        <NotFoundPage
+          onGoHome={() => {
+            setHasLazyLoadError(false);
+            setActiveWorkspaceTab('home');
+            navigate('/');
+          }}
+        />
+      );
     }
 
     return resolvedComponent;
@@ -284,10 +279,22 @@ export default function App() {
         />
         
         <main className="w-full p-4 md:p-6 lg:p-8">
+          {hasLazyLoadError && (
+            <div className="mb-4">
+              <EmergencyErrorBanner message="لا توجد بيانات — تعذر تحميل الصفحة المطلوبة." />
+            </div>
+          )}
           <div key={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
             <ErrorBoundary 
               sectionName={`tab-${activeWorkspaceTab}`} 
-              fallback={<DashboardHome onShowToast={showToast} />}
+              fallback={
+                <div className="space-y-4">
+                  <EmergencyErrorBanner message="تعذر عرض هذه الصفحة مؤقتاً." />
+                  <div className="flex justify-center">
+                    <EmergencyLoginButton />
+                  </div>
+                </div>
+              }
             >
               <Suspense fallback={<TabSkeletonLoader />}>
                 {renderActiveTab()}

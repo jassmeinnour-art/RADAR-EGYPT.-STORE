@@ -34,6 +34,7 @@ import {
   Settings
 } from 'lucide-react';
 import { multiTenantDb, Trader, Product } from '../lib/supabase';
+import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 
 interface TraderProfilePageProps {
   traderId: string;
@@ -50,7 +51,8 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
   const [trader, setTrader] = useState<Trader | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isScrapingStorefront, setIsScrapingStorefront] = useState(false);
@@ -71,6 +73,7 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
       const allTraders = await multiTenantDb.getTradersByUser('current-user');
       const currentTrader = allTraders.find(t => t.id === traderId);
       if (currentTrader) {
+        setFetchError(false);
         setTrader(currentTrader);
         setEditFormData({
           seller_id: currentTrader.seller_id || currentTrader.seller_ids?.[currentTrader.platform] || '',
@@ -85,6 +88,7 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
       }
     } catch (e) {
       console.error('Error loading trader profile:', e);
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
@@ -190,21 +194,18 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
     if (onShowToast) onShowToast(`⚡ تمت المزامنة السريعة لـ ${platform} بنجاح!`);
   };
 
-  if (isLoading) {
-    return (
-      <div className="py-20 text-center space-y-4">
-        <RefreshCw className="w-12 h-12 text-amber-500 animate-spin mx-auto" />
-        <p className="text-slate-400 font-bold">جاري تحميل ملف التاجر...</p>
-      </div>
-    );
-  }
-
   if (!trader) {
     return (
-      <div className="py-20 text-center space-y-4">
+      <div className="py-12 text-center space-y-4">
+        {fetchError && <EmergencyErrorBanner message="تعذر جلب ملف التاجر من قاعدة البيانات." />}
         <AlertTriangle className="w-16 h-16 text-rose-500 mx-auto" />
-        <h2 className="text-white font-bold">لم يتم العثور على التاجر</h2>
-        <button onClick={onBack} className="text-amber-400 underline">العودة للدليل</button>
+        <h2 className="text-white font-bold">
+          {isLoading ? 'لا توجد بيانات معروضة بعد' : 'لا توجد بيانات'}
+        </h2>
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <button onClick={onBack} className="text-amber-400 underline font-bold text-xs">العودة للدليل</button>
+          <EmergencyLoginButton />
+        </div>
       </div>
     );
   }

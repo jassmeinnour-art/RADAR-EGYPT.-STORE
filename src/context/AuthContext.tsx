@@ -151,22 +151,53 @@ function setCachedUserProfile(uid: string, prof: UserMerchantProfile): void {
   }
 }
 
-function hasPersistedSupabaseToken(): boolean {
-  if (typeof window === 'undefined') return false;
+function clearStaleRadarStorageKeys(): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (
+        k.startsWith('radar-card-size') ||
+        k.startsWith('radar-user') ||
+        k === 'merchant_radar_demo_user' ||
+        k === 'radar_cached_data'
+      ) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // safe
+  }
+}
+
+function readPersistedSupabaseSession(): any | null {
+  if (typeof window === 'undefined') return null;
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
         const raw = localStorage.getItem(k);
-        if (raw && raw.includes('access_token')) {
-          return true;
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (parsed?.access_token && parsed?.user) {
+          return parsed;
+        }
+        if (parsed?.currentSession?.access_token && parsed?.currentSession?.user) {
+          return parsed.currentSession;
         }
       }
     }
   } catch {
     // safe
   }
-  return false;
+  return null;
+}
+
+function isLoginPathname(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname === '/login';
 }
 
 function supabaseUserToAuthUser(sbUser: any): User {
@@ -186,7 +217,7 @@ function supabaseUserToAuthUser(sbUser: any): User {
 }
 
 function getInitialDemoUser(): User | null {
-  if (isSupabaseConfigured) return null;
+  if (isSupabaseConfigured || isLoginPathname()) return null;
   try {
     const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
     if (raw) return JSON.parse(raw) as User;
@@ -197,8 +228,25 @@ function getInitialDemoUser(): User | null {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (isLoginPathname()) {
+    clearStaleRadarStorageKeys();
+  }
+
   const [user, setUser] = useState<User | null>(() => {
+    if (isLoginPathname()) {
+      setSupabaseActiveEmail(null);
+      return null;
+    }
     if (isSupabaseConfigured) {
+      const persisted = readPersistedSupabaseSession();
+      if (persisted?.access_token && persisted?.user) {
+        setSupabaseSession(persisted);
+        const mapped = supabaseUserToAuthUser(persisted.user);
+        setSessionEmailOverride(mapped.email || null);
+        return mapped;
+      }
+      setSupabaseSession(null);
+      setSupabaseActiveEmail(null);
       return null;
     }
     const initial = getInitialDemoUser() || auth.currentUser;
@@ -211,7 +259,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return initial;
   });
   const [profile, setProfile] = useState<UserMerchantProfile | null>(() => {
-    if (isSupabaseConfigured) return null;
+    if (isLoginPathname()) return null;
+    if (isSupabaseConfigured) {
+      const persisted = readPersistedSupabaseSession();
+      if (!persisted?.user) return null;
+      const verifiedEmail = String(persisted.user.email || '').trim().toLowerCase();
+      const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+      return {
+        uid: persisted.user.id,
+        displayName: isOwnerAcct
+          ? 'ياسمين نور (مالكة المنظومة 👑)'
+          : persisted.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+        email: verifiedEmail,
+        storeName:
+          persisted.user.user_metadata?.store_name ||
+          (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+        city: 'القاهرة',
+        preferredCurrency: 'EGP',
+        role: isOwnerAcct ? 'super_admin' : 'merchant',
+        sessionCount: 1,
+      };
+    }
     const initial = getInitialDemoUser() || auth.currentUser;
     if (!initial) return null;
     const cached = getCachedUserProfile(initial.uid);
@@ -227,13 +295,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   });
   const [sessionData, setSessionData] = useState<UserSessionData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (isSupabaseConfigured) {
-      // Only wait briefly if a persisted Supabase session token exists; otherwise open /login immediately
-      return hasPersistedSupabaseToken();
-    }
-    return !(getInitialDemoUser() || auth.currentUser);
-  });
+  // NEVER block rendering with a full-page loading screen
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
@@ -482,14 +545,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let isMounted = true;
 
-    // Hard 3-second maximum loading failsafe — never trap user in infinite loading
-    const hardLoadingTimeout = setTimeout(() => {
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    }, 3000);
+    // On /login: NEVER call Supabase or Firebase on load — wait strictly for user clicking "دخول"
+    if (isLoginPathname()) {
+      clearStaleRadarStorageKeys();
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
 
-    // Primary path when Supabase is configured: check Supabase Auth session FIRST
+    // Primary path when Supabase is configured: validate persisted session in background (non-blocking)
     if (isSupabaseConfigured && supabaseClient) {
       setIsDbConnected(true);
       let sbSubscription: { unsubscribe: () => void } | null = null;
@@ -534,17 +599,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
           setSessionData(null);
         }
-        clearTimeout(hardLoadingTimeout);
         setIsLoading(false);
       };
 
-      getActiveSupabaseSession(2500)
-        .then((session) => {
-          applySupabaseSession(session);
-        })
-        .catch(() => {
-          applySupabaseSession(null);
-        });
+      // Only query Supabase getSession if a persisted token already exists locally
+      if (readPersistedSupabaseSession()) {
+        getActiveSupabaseSession(2500)
+          .then((session) => {
+            applySupabaseSession(session);
+          })
+          .catch(() => {
+            applySupabaseSession(null);
+          });
+      }
 
       try {
         const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => {
@@ -552,13 +619,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         sbSubscription = data?.subscription || null;
       } catch {
-        clearTimeout(hardLoadingTimeout);
         setIsLoading(false);
       }
 
       return () => {
         isMounted = false;
-        clearTimeout(hardLoadingTimeout);
         sbSubscription?.unsubscribe();
       };
     }
@@ -591,7 +656,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         clearTimeout(splashTimeout);
-        clearTimeout(hardLoadingTimeout);
         if (currentUser) {
           setUser(currentUser);
           try { localStorage.removeItem(DEMO_USER_STORAGE_KEY); } catch {}
@@ -625,13 +689,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isMounted) setIsLoading(false);
       }, (authError) => {
         clearTimeout(splashTimeout);
-        clearTimeout(hardLoadingTimeout);
         console.warn('Auth state change error (CORS / domain / network):', authError);
         if (isMounted) setIsLoading(false);
       });
     } catch (err) {
       clearTimeout(splashTimeout);
-      clearTimeout(hardLoadingTimeout);
       console.warn('Failed to initialize Firebase Auth listener:', err);
       if (isMounted) setIsLoading(false);
     }
@@ -639,7 +701,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
       clearTimeout(splashTimeout);
-      clearTimeout(hardLoadingTimeout);
       unsubscribe();
     };
   }, []);

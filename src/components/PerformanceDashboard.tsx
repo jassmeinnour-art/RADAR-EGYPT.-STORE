@@ -31,6 +31,7 @@ import {
   Cell
 } from 'recharts';
 import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
+import { MarketTrendsAnalysis } from './MarketTrendsAnalysis';
 
 interface PerformanceDashboardProps {
   currency?: string;
@@ -133,25 +134,38 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           </div>
         </div>
 
-        {/* Date Range Selector Pills */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 self-start md:self-auto">
-          {[
-            { id: '30d', label: 'الـ 30 يوماً الماضية' },
-            { id: '14d', label: 'آخر 14 يوماً' },
-            { id: '7d', label: 'آخر 7 أيام' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setDateRange(item.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                dateRange === item.id
-                  ? 'bg-indigo-600 text-white shadow-md font-black'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+        {/* Date Range Selector Pills & Market Trends Jump */}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById('market-trends-analysis-section')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>تحليل اتجاهات السوق</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
+            {[
+              { id: '30d', label: 'الـ 30 يوماً الماضية' },
+              { id: '14d', label: 'آخر 14 يوماً' },
+              { id: '7d', label: 'آخر 7 أيام' },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setDateRange(item.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  dateRange === item.id
+                    ? 'bg-indigo-600 text-white shadow-md font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -364,6 +378,9 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
         </p>
 
       </div>
+
+      {/* Market Trends & Next-Period Price Forecast Analysis */}
+      <MarketTrendsAnalysis currency={currency} onShowToast={onShowToast} />
 
     </div>
   );
