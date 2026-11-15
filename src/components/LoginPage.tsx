@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import {
   Mail,
   Lock,
@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { clearStaleRadarCache } from './EmergencyLoginButton';
+
+const PWAInstallPrompt = lazy(() => import('./PWAInstallPrompt'));
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -293,6 +295,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </button>
         </div>
       </div>
+      <Suspense fallback={null}>
+        <PWAInstallPrompt />
+      </Suspense>
     </div>
   );
 };

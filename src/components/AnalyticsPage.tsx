@@ -31,6 +31,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { GlobalEmptyState } from './GlobalEmptyState';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--card-bg, #1E293B)',
@@ -61,6 +62,11 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     loadData();
+    const handleRefresh = () => {
+      loadData();
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
   }, []);
 
   async function loadData() {

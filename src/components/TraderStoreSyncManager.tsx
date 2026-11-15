@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Sparkles
 } from 'lucide-react';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 export interface ConnectedTrader {
   id: string;
@@ -116,6 +117,11 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
 
   useEffect(() => {
     fetchTradersData();
+    const handleRefresh = () => {
+      fetchTradersData();
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
   }, [selectedTraderId]);
 
   // Handle Connecting New Trader Store

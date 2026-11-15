@@ -49,6 +49,7 @@ interface AppSidebarProps {
   onOpenSubscriptionModal: () => void;
   onOpenOnboarding: () => void;
   onForceRefresh?: () => void;
+  onPrefetchTab?: (tab: WorkspaceTab) => void;
   isOwner: boolean;
   trialDaysRemaining?: number;
 }
@@ -63,6 +64,7 @@ interface NavCategory {
     id: string;
     label: string;
     icon: React.ReactNode;
+    preloadTab?: WorkspaceTab;
     action: () => void;
     isActive?: boolean;
     badge?: string;
@@ -81,6 +83,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenSubscriptionModal,
   onOpenOnboarding,
   onForceRefresh,
+  onPrefetchTab,
   isOwner,
   trialDaysRemaining = 3
 }) => {
@@ -148,6 +151,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'home_tab',
           label: 'لوحة التحكم الرئيسية 🏠',
           icon: <Zap className="w-4 h-4 text-sky-400" />,
+          preloadTab: 'home',
           isActive: activeTab === 'home',
           action: () => {
             onSelectTab('home');
@@ -167,6 +171,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'traders_multi',
           label: 'دليل التجار الموحد 📚',
           icon: <Users className="w-4 h-4 text-amber-300" />,
+          preloadTab: 'traders',
           isActive: activeTab === 'traders',
           action: () => {
             onSelectTab('traders');
@@ -177,6 +182,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'merchants_tab',
           label: 'المنتجات 🛍️',
           icon: <Package className="w-4 h-4 text-sky-300" />,
+          preloadTab: 'products',
           isActive: activeTab === 'products' || activeTab === 'merchants',
           action: () => {
             onSelectTab('products');
@@ -187,6 +193,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'inventory_tab',
           label: 'المخزون 📦',
           icon: <Layers className="w-4 h-4 text-emerald-300" />,
+          preloadTab: 'inventory',
           isActive: activeTab === 'inventory',
           action: () => {
             onSelectTab('inventory');
@@ -206,6 +213,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'shipping_tab',
           label: 'الفواتير 🧾',
           icon: <Truck className="w-4 h-4 text-purple-200" />,
+          preloadTab: 'shipping',
           isActive: activeTab === 'shipping',
           action: () => {
             onSelectTab('shipping');
@@ -216,6 +224,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'split_invoices_tab',
           label: 'مقسم البوالص ✂️',
           icon: <Scissors className="w-4 h-4 text-amber-300" />,
+          preloadTab: 'split_invoices',
           isActive: activeTab === 'split_invoices',
           action: () => {
             onSelectTab('split_invoices');
@@ -226,6 +235,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'reports_tab',
           label: 'التقارير 📊',
           icon: <BarChart3 className="w-4 h-4 text-emerald-300" />,
+          preloadTab: 'reports',
           isActive: activeTab === 'reports' || activeTab === 'trending',
           action: () => {
             onSelectTab('reports');
@@ -245,6 +255,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'radar_tab',
           label: 'أسعار المنافسين 🏷️',
           icon: <Compass className="w-4 h-4 text-teal-300" />,
+          preloadTab: 'radar',
           isActive: activeTab === 'radar',
           action: () => {
             onSelectTab('radar');
@@ -255,6 +266,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'analytics_tab',
           label: 'تحليل الأسعار 📈',
           icon: <BarChart3 className="w-4 h-4 text-teal-300" />,
+          preloadTab: 'analytics',
           isActive: activeTab === 'analytics',
           action: () => {
             onSelectTab('analytics');
@@ -274,6 +286,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'platforms_guide_tab',
           label: 'ربط المنصات 🔗',
           icon: <Link2 className="w-4 h-4 text-sky-300" />,
+          preloadTab: 'platforms_guide',
           isActive: activeTab === 'platforms_guide',
           action: () => {
             onSelectTab('platforms_guide');
@@ -284,6 +297,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'gmail_sync_tab',
           label: 'سحب من الجيميل 📧',
           icon: <Mail className="w-4 h-4 text-amber-300" />,
+          preloadTab: 'traders_sync',
           isActive: activeTab === 'traders_sync',
           action: () => {
             onSelectTab('traders_sync');
@@ -314,6 +328,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'settings_tab',
           label: 'الإعدادات ⚙️',
           icon: <Settings className="w-4 h-4 text-slate-300" />,
+          preloadTab: 'layout_settings',
           action: () => {
             onSelectTab('layout_settings');
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings/layout');
@@ -323,6 +338,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           id: 'layout_settings_tab',
           label: 'التحكم في الشكل والتنسيق 🎨',
           icon: <Palette className="w-4 h-4 text-amber-400" />,
+          preloadTab: 'layout_settings',
           isActive: activeTab === 'layout_settings',
           action: () => {
             onSelectTab('layout_settings');
@@ -349,6 +365,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           label: 'دليل الاستخدام والنمو 📖',
           icon: <BookOpen className="w-4 h-4 text-blue-300" />,
           badge: 'دليل شامل 🚀',
+          preloadTab: 'help',
           isActive: activeTab === 'help',
           action: () => {
             onSelectTab('help');
@@ -483,6 +500,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       <button
                         key={item.id}
                         onClick={() => handleItemClick(item.action)}
+                        onMouseEnter={() => {
+                          if (item.preloadTab) onPrefetchTab?.(item.preloadTab);
+                        }}
+                        onFocus={() => {
+                          if (item.preloadTab) onPrefetchTab?.(item.preloadTab);
+                        }}
                         title={isCollapsed ? item.label : undefined}
                         className={`w-full text-right px-2.5 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-between cursor-pointer ${
                           item.isActive

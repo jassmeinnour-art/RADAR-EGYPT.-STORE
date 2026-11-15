@@ -28,6 +28,7 @@ import { getPriceHistory, PriceHistoryEntry } from '../utils/priceHistoryManager
 import { auth } from '../firebase';
 import { navigate } from '../utils/navigation';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface MarketTrendsAnalysisProps {
   currency?: string;
@@ -168,6 +169,11 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
 
   useEffect(() => {
     loadMarketData();
+    const handleRefresh = () => {
+      loadMarketData();
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
   }, [loadMarketData]);
 
   // Available platforms from actual products

@@ -19,6 +19,7 @@ import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { OptimizedImage } from './OptimizedImage';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -294,8 +295,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       fetchProductsAndTraders(current.trader_id, current.platform);
     };
 
+    const handleRefresh = () => {
+      const current = readQueryParams();
+      fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
+    };
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
 

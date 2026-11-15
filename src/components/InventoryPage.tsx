@@ -20,6 +20,7 @@ import {
 import { supabase, Trader } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface InventoryItem {
   id: string;
@@ -172,6 +173,11 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onShowToast }) => 
 
   useEffect(() => {
     fetchInventoryData(1);
+    const handleRefresh = () => {
+      fetchInventoryData(1, true);
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
   }, []);
 
   const handleManualRefresh = async () => {

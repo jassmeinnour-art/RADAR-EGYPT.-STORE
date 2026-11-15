@@ -39,6 +39,7 @@ import { navigate } from '../utils/navigation';
 import { NotificationRadarCard } from './NotificationRadarCard';
 import { DraggableHandle } from './DraggableHandle';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface DashboardOverviewPageProps {
   onShowToast?: (msg: string) => void;
@@ -123,8 +124,8 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
     let isMounted = true;
     const OVERVIEW_CACHE_KEY = `dashboard_overview_snapshot_${activeEmail}_v2`;
 
-    async function loadDashboardData() {
-      const cached = dataCache.getStale<{
+    async function loadDashboardData(forceFresh = false) {
+      const cached = forceFresh ? null : dataCache.getStale<{
         tradersList: any[];
         tradersCount: number;
         productsCount: number;
@@ -201,7 +202,14 @@ export default function DashboardOverviewPage({ onShowToast }: DashboardOverview
     }
 
     loadDashboardData();
-    return () => { isMounted = false; };
+    const handleRefresh = () => {
+      loadDashboardData(true);
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => {
+      isMounted = false;
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    };
   }, [activeEmail]);
 
   // Filtered sales chart data based on selected timeframe

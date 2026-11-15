@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { INITIAL_AUTO_PRICING_PRODUCTS, AUTO_PRICING_PRODUCTS_STORAGE_KEY } from '../data/autoPricingEngineData';
 import { AutoPricingProductItem } from '../types/autoPricing';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface ComparisonItem {
   id: string;
@@ -54,21 +55,27 @@ export default function PriceComparisonEngine({
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(AUTO_PRICING_PRODUCTS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProducts(parsed);
-          generateComparison(parsed);
-          return;
+    const loadComparisonData = () => {
+      try {
+        const saved = localStorage.getItem(AUTO_PRICING_PRODUCTS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProducts(parsed);
+            generateComparison(parsed);
+            return;
+          }
         }
+      } catch (e) {
+        console.warn('Could not load stored auto pricing products:', e);
       }
-    } catch (e) {
-      console.warn('Could not load stored auto pricing products:', e);
-    }
-    setProducts(INITIAL_AUTO_PRICING_PRODUCTS);
-    generateComparison(INITIAL_AUTO_PRICING_PRODUCTS);
+      setProducts(INITIAL_AUTO_PRICING_PRODUCTS);
+      generateComparison(INITIAL_AUTO_PRICING_PRODUCTS);
+    };
+
+    loadComparisonData();
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, loadComparisonData);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, loadComparisonData);
   }, []);
 
   const generateComparison = (items: AutoPricingProductItem[]) => {

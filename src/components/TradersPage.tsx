@@ -21,6 +21,7 @@ import { EditTraderModal } from './EditTraderModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -369,6 +370,11 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
   useEffect(() => {
     fetchTraders(1);
+    const handleRefresh = () => {
+      fetchTraders(1, true);
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, isFounder]);
 

@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { DraggableHandle } from './DraggableHandle';
 import { supabase } from '../lib/supabase';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 const SponsoredAdsSection = lazy(() => import('./SponsoredAdsSection'));
 
@@ -63,7 +64,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
   useEffect(() => {
     if (!user) return;
     let active = true;
-    const bgTimer = globalThis.setTimeout(async () => {
+
+    const loadSummary = async () => {
       try {
         const [tradersRes, productsRes] = await Promise.all([
           supabase.from('traders').select('id', { count: 'exact' }).limit(5),
@@ -91,11 +93,19 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       } catch {
         if (active) setBgFetchError(true);
       }
-    }, 80);
+    };
+
+    const bgTimer = globalThis.setTimeout(loadSummary, 80);
+
+    const handleRefresh = () => {
+      loadSummary();
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
 
     return () => {
       active = false;
       globalThis.clearTimeout(bgTimer);
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     };
   }, [user]);
 

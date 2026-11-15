@@ -1,13 +1,16 @@
 // ============================================================================
 // Service Worker (sw.js) - RADAR EGYPT (رادار التاجر الذكي)
-// CacheFirst for Static Assets & NetworkFirst for Dynamic Routes
-// Integrated Network Status Detection & Client Notification for Auto-Sync
+// CacheFirst for Static Assets, Fonts & Images | NetworkFirst for Navigation
+// Full Offline Caching & PWA Lifecycle Support
 // ============================================================================
 
-const CACHE_VERSION = 'v1.3.1';
+const CACHE_VERSION = 'v1.4.0';
 const STATIC_CACHE = `radar-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `radar-images-${CACHE_VERSION}`;
+const FONT_CACHE = `radar-fonts-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `radar-dynamic-${CACHE_VERSION}`;
+
+const VALID_CACHES = [STATIC_CACHE, IMAGE_CACHE, FONT_CACHE, DYNAMIC_CACHE];
 
 // Core static assets and icons to precache during install
 const PRECACHE_ASSETS = [
@@ -15,12 +18,12 @@ const PRECACHE_ASSETS = [
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
+  '/favicon-32x32.png',
   '/icon.svg',
   '/apple-touch-icon.png',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
-  '/pwa-maskable-512x512.png',
-  '/bayyaa-logo.jpg'
+  '/pwa-maskable-512x512.png'
 ];
 
 // Offline Fallback SVG for images
@@ -41,7 +44,7 @@ const OFFLINE_PAGE_HTML = `<!DOCTYPE html>
     body {
       margin: 0;
       padding: 24px;
-      background-color: #020617;
+      background-color: #08090D;
       color: #f8fafc;
       font-family: 'Cairo', system-ui, -apple-system, sans-serif;
       text-align: center;
@@ -54,7 +57,7 @@ const OFFLINE_PAGE_HTML = `<!DOCTYPE html>
     }
     .card {
       background: #0f172a;
-      border: 1px solid rgba(245, 158, 11, 0.3);
+      border: 1px solid rgba(245, 158, 11, 0.35);
       border-radius: 24px;
       padding: 32px 24px;
       max-width: 420px;
@@ -101,7 +104,7 @@ const OFFLINE_PAGE_HTML = `<!DOCTYPE html>
     </svg>
     <h2>أنت تعمل حالياً في وضع دون اتصال (Offline)</h2>
     <p>تعذر الاتصال بالشبكة. يمكنك الاستمرار في استخدام البيانات المحفوظة محلياً أو إعادة المحاولة عند استعادة الإنترنت.</p>
-    <button class="btn" onclick="window.location.reload();">إعادة محاولة الاتصال 🔄</button>
+    <button class="btn" onclick="window.location.reload();">إعادة محاولة الاتصال</button>
   </div>
 </body>
 </html>`;
@@ -112,13 +115,8 @@ const OFFLINE_PAGE_HTML = `<!DOCTYPE html>
 let isNetworkDown = false;
 let lastOnlineNotificationTime = 0;
 
-/**
- * Broadcasts network status change to all open browser tabs/windows
- * Specifically signals RETRIGGER_AUTO_SYNC when network is restored
- */
 async function notifyClientsNetworkOnline(reason = 'network_reconnected') {
   const now = Date.now();
-  // Throttle repeated notifications within 2 seconds
   if (now - lastOnlineNotificationTime < 2000) {
     return;
   }
@@ -132,11 +130,10 @@ async function notifyClientsNetworkOnline(reason = 'network_reconnected') {
         status: 'online',
         isOnline: true,
         action: 'RETRIGGER_AUTO_SYNC',
-        reason: reason,
+        reason,
         timestamp: now
       });
     }
-    console.log(`[SW] Broadcasted ONLINE_STATUS_CHANGE (reason: ${reason}) to ${clients.length} clients`);
   } catch (err) {
     console.warn('[SW] Could not notify clients of network status change:', err);
   }
@@ -151,7 +148,7 @@ async function notifyClientsNetworkOffline(reason = 'network_disconnected') {
         status: 'offline',
         isOnline: false,
         action: 'PAUSE_SYNC',
-        reason: reason,
+        reason,
         timestamp: Date.now()
       });
     }
@@ -161,7 +158,7 @@ async function notifyClientsNetworkOffline(reason = 'network_disconnected') {
 }
 
 // ----------------------------------------------------------------------------
-// 1. Install Event: Precache Core Assets
+// 1. Install Event: Precache Core Static Assets
 // ----------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -169,7 +166,7 @@ self.addEventListener('install', (event) => {
       await Promise.all(
         PRECACHE_ASSETS.map((url) =>
           cache.add(url).catch((err) => {
-            console.warn(`[SW] Precache skipped for ${url}:`, err.message || err);
+            console.warn(`[SW] Precache skipped for ${url}:`, err?.message || err);
           })
         )
       );
@@ -178,21 +175,17 @@ self.addEventListener('install', (event) => {
 });
 
 // ----------------------------------------------------------------------------
-// 2. Activate Event: Clean up outdated caches & Claim Clients
+// 2. Activate Event: Clean Up Outdated Caches & Claim Clients
 // ----------------------------------------------------------------------------
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (
-            cacheName !== STATIC_CACHE &&
-            cacheName !== IMAGE_CACHE &&
-            cacheName !== DYNAMIC_CACHE
-          ) {
-            console.log('[SW] Deleting old cache:', cacheName);
+          if (!VALID_CACHES.includes(cacheName)) {
             return caches.delete(cacheName);
           }
+          return Promise.resolve(false);
         })
       );
     }).then(() => self.clients.claim())
@@ -204,33 +197,74 @@ self.addEventListener('activate', (event) => {
 // ----------------------------------------------------------------------------
 self.addEventListener('sync', (event) => {
   isNetworkDown = false;
-  event.waitUntil(
-    notifyClientsNetworkOnline(`background_sync:${event.tag}`)
-  );
+  event.waitUntil(notifyClientsNetworkOnline(`background_sync:${event.tag}`));
 });
 
 self.addEventListener('periodicsync', (event) => {
   isNetworkDown = false;
-  event.waitUntil(
-    notifyClientsNetworkOnline(`periodic_sync:${event.tag}`)
-  );
+  event.waitUntil(notifyClientsNetworkOnline(`periodic_sync:${event.tag}`));
 });
 
 // ----------------------------------------------------------------------------
-// 4. Message Event: Skip waiting or respond to client network pings
+// 4. Message Event: Skip Waiting, Cache Reset, and Connectivity Pings
 // ----------------------------------------------------------------------------
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (!event.data) return;
+
+  if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
-  } else if (event.data && event.data.type === 'CHECK_NETWORK_STATUS') {
+  } else if (event.data.type === 'CHECK_NETWORK_STATUS') {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : !isNetworkDown;
     if (isOnline) {
       notifyClientsNetworkOnline('client_check_ping');
     }
+  } else if (event.data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches.keys().then((names) => Promise.all(names.map((name) => caches.delete(name))))
+    );
   }
 });
 
-// Helper: Check if request is an image or icon
+// ----------------------------------------------------------------------------
+// Request Matchers & Bypass Rules
+// ----------------------------------------------------------------------------
+function shouldBypassCache(url) {
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname.toLowerCase();
+
+  // Never cache live auth, Supabase, Firebase, or Gemini API calls
+  if (
+    host.includes('supabase.co') ||
+    host.includes('supabase.in') ||
+    host.includes('firebaseio.com') ||
+    host.includes('firestore.googleapis.com') ||
+    host.includes('identitytoolkit.googleapis.com') ||
+    host.includes('securetoken.googleapis.com') ||
+    host.includes('generativelanguage.googleapis.com') ||
+    host.includes('www.googleapis.com')
+  ) {
+    return true;
+  }
+
+  // Skip Vite dev / HMR module requests
+  if (
+    path.includes('/@vite/') ||
+    path.includes('/@fs/') ||
+    path.includes('/node_modules/') ||
+    path.includes('/src/') ||
+    path.includes('hot-update')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isGoogleFont(url) {
+  const host = url.hostname.toLowerCase();
+  return host === 'fonts.googleapis.com' || host === 'fonts.gstatic.com';
+}
+
 function isImageOrIcon(request, url) {
   if (request.destination === 'image') return true;
   const path = url.pathname.toLowerCase();
@@ -247,12 +281,12 @@ function isImageOrIcon(request, url) {
   );
 }
 
-// Helper: Check if request is a static asset (CSS, JS, Fonts, Assets folder)
 function isStaticAsset(request, url) {
   if (
     request.destination === 'script' ||
     request.destination === 'style' ||
-    request.destination === 'font'
+    request.destination === 'font' ||
+    request.destination === 'manifest'
   ) {
     return true;
   }
@@ -263,28 +297,26 @@ function isStaticAsset(request, url) {
     path.endsWith('.css') ||
     path.endsWith('.woff2') ||
     path.endsWith('.woff') ||
-    path.endsWith('.ttf')
+    path.endsWith('.ttf') ||
+    path === '/manifest.json'
   );
 }
 
 // ----------------------------------------------------------------------------
-// 5. CacheFirst Strategy: For Static Assets (Images, Icons, CSS, JS)
+// 5. CacheFirst Strategy: For Static Assets, Fonts & Images
 // ----------------------------------------------------------------------------
 async function cacheFirst(request, cacheName, isImage = false) {
   const cache = await caches.open(cacheName);
 
-  // 1. Try Cache First
   const cached = (await cache.match(request)) || (await caches.match(request));
   if (cached) {
     return cached;
   }
 
-  // 2. Fallback to Network
   try {
     const networkResponse = await fetch(request);
     if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
       cache.put(request, networkResponse.clone());
-      // If we previously marked network as down and fetch succeeded, recover!
       if (isNetworkDown) {
         isNetworkDown = false;
         notifyClientsNetworkOnline('static_asset_fetch_recovered');
@@ -292,32 +324,29 @@ async function cacheFirst(request, cacheName, isImage = false) {
     }
     return networkResponse;
   } catch (err) {
-    // 3. Fallback when network is unavailable
     if (isImage) {
       return new Response(OFFLINE_IMAGE_SVG, {
         status: 200,
         headers: { 'Content-Type': 'image/svg+xml' }
       });
     }
-    return cached || new Response('Offline: Resource not available', { status: 503 });
+    return new Response('Offline: Resource not available', { status: 503 });
   }
 }
 
 // ----------------------------------------------------------------------------
-// 6. NetworkFirst Strategy: For Dynamic Routes & Navigation
+// 6. NetworkFirst Strategy: For App Routes & Navigation
 // ----------------------------------------------------------------------------
 async function networkFirst(request, cacheName, isNavigation = false) {
   const cache = await caches.open(cacheName);
 
   try {
-    // 1. Try Network First
     const networkResponse = await fetch(request);
     if (networkResponse && networkResponse.status === 200) {
       cache.put(request, networkResponse.clone());
       if (isNavigation) {
         cache.put('/index.html', networkResponse.clone());
       }
-      // If we previously flagged network failure, broadcast online recovery!
       if (isNetworkDown) {
         isNetworkDown = false;
         notifyClientsNetworkOnline('network_first_fetch_recovered');
@@ -325,7 +354,6 @@ async function networkFirst(request, cacheName, isNavigation = false) {
     }
     return networkResponse;
   } catch (err) {
-    // 2. Network Failed (Offline) - Mark offline and notify clients
     if (!isNetworkDown) {
       isNetworkDown = true;
       notifyClientsNetworkOffline('network_first_fetch_failed');
@@ -341,7 +369,6 @@ async function networkFirst(request, cacheName, isNavigation = false) {
       return cached;
     }
 
-    // 3. Fallback to Offline Page for navigation or JSON for APIs
     if (isNavigation) {
       return new Response(OFFLINE_PAGE_HTML, {
         status: 200,
@@ -369,53 +396,49 @@ async function networkFirst(request, cacheName, isNavigation = false) {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Only handle GET requests with HTTP/HTTPS
+  // Only handle GET requests over HTTP/HTTPS
   if (request.method !== 'GET' || !request.url.startsWith('http')) {
     return;
   }
 
   const url = new URL(request.url);
 
-  // Skip Vite HMR, dev tools, WebSockets, and live Supabase/Firebase Auth & REST APIs
-  if (
-    url.hostname.includes('supabase.co') ||
-    url.hostname.includes('supabase.in') ||
-    url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('firebaseio.com') ||
-    url.pathname.includes('/@vite/') ||
-    url.pathname.includes('/@fs/') ||
-    url.pathname.includes('/node_modules/') ||
-    url.pathname.includes('/src/') ||
-    url.pathname.includes('hot-update') ||
-    url.search.includes('v=')
-  ) {
+  if (shouldBypassCache(url)) {
     return;
   }
 
-  // --- Strategy 1: CacheFirst for Images & Icons ---
+  // Strategy 1: CacheFirst for Google Fonts
+  if (isGoogleFont(url)) {
+    event.respondWith(cacheFirst(request, FONT_CACHE, false));
+    return;
+  }
+
+  // Strategy 2: CacheFirst for Images & Icons
   if (isImageOrIcon(request, url)) {
     event.respondWith(cacheFirst(request, IMAGE_CACHE, true));
     return;
   }
 
-  // --- Strategy 2: CacheFirst for Static Assets (CSS, JS, Fonts) ---
+  // Strategy 3: CacheFirst for Static Assets (JS, CSS, Fonts, Manifest)
   if (isStaticAsset(request, url)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE, false));
     return;
   }
 
-  // --- Strategy 3: NetworkFirst for Dynamic Routes & Navigation ---
+  // Strategy 4: NetworkFirst for SPA Navigation & Document Requests
   if (
     request.mode === 'navigate' ||
     request.destination === 'document' ||
-    url.pathname.startsWith('/traders/') ||
-    url.pathname.startsWith('/products/')
+    url.pathname.startsWith('/traders') ||
+    url.pathname.startsWith('/products') ||
+    url.pathname.startsWith('/dashboard') ||
+    url.pathname.startsWith('/login')
   ) {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE, true));
     return;
   }
 
-  // --- Strategy 4: NetworkFirst for Dynamic API endpoints ---
+  // Strategy 5: NetworkFirst for same-origin API GET requests
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE, false));
     return;
