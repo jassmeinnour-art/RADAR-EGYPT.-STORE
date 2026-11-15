@@ -23,6 +23,7 @@ import {
 import { supabase, Trader, Product } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
+import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 
 
 interface TraderDetailPageProps {
@@ -41,7 +42,8 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
 
   const [trader, setTrader] = useState<Trader | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activePlatformFilter, setActivePlatformFilter] = useState<string>('all');
@@ -67,11 +69,12 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
 
       if (traderError) {
         console.error('Error fetching trader by id:', traderError);
+        setFetchError(true);
+      } else {
+        setFetchError(false);
       }
       setTrader(traderData as Trader | null);
 
-      // 2. Fetch trader's products via exact query requirement:
-      // supabase.from('products').select('*').eq('trader_id', id)
       const { data: prodsData, error: prodsError } = await supabase
         .from('products')
         .select('*')
@@ -79,10 +82,12 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
 
       if (prodsError) {
         console.error('Error fetching trader products:', prodsError);
+        setFetchError(true);
       }
       setProducts(Array.isArray(prodsData) ? (prodsData as Product[]) : []);
     } catch (err) {
       console.error('Failed to load trader detail:', err);
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
@@ -201,28 +206,25 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
     return products.filter(p => p.platform?.toLowerCase() === activePlatformFilter.toLowerCase());
   }, [products, activePlatformFilter]);
 
-  if (isLoading) {
-    return (
-      <div className="w-full py-28 text-center space-y-4 font-['Cairo']" dir="rtl">
-        <RefreshCw className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
-        <p className="text-slate-400 text-sm font-bold">جاري تحميل بيانات التاجر والمنتجات...</p>
-      </div>
-    );
-  }
-
   if (!trader) {
     return (
-      <div className="w-full py-20 text-center space-y-4 font-['Cairo']" dir="rtl">
+      <div className="w-full py-12 text-center space-y-4 font-['Cairo']" dir="rtl">
+        {fetchError && <EmergencyErrorBanner message="تعذر جلب بيانات التاجر من قاعدة البيانات." />}
         <Building2 className="w-14 h-14 text-slate-600 mx-auto" />
-        <h3 className="text-lg font-black text-white">التاجر غير موجود</h3>
+        <h3 className="text-lg font-black text-white">
+          {isLoading ? 'لا توجد بيانات معروضة بعد' : 'لا توجد بيانات لهذا التاجر'}
+        </h3>
         <p className="text-xs text-slate-400">لم يتم العثور على أي تاجر مسجل بهذا المعرف ({id})</p>
-        <button
-          onClick={handleGoBack}
-          className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs inline-flex items-center gap-2"
-        >
-          <ArrowRight className="w-4 h-4" />
-          <span>العودة إلى دليل التجار</span>
-        </button>
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <button
+            onClick={handleGoBack}
+            className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs inline-flex items-center gap-2"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>العودة إلى دليل التجار</span>
+          </button>
+          <EmergencyLoginButton />
+        </div>
       </div>
     );
   }

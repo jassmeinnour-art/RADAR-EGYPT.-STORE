@@ -183,6 +183,21 @@
             window.location.reload();
           }
         }, true);
+        // Clear stale radar-card-size / radar-user localStorage on /login immediately
+        try {
+          if (window.location && window.location.pathname === '/login' && window.localStorage) {
+            var toRemove = [];
+            for (var idx = 0; idx < localStorage.length; idx++) {
+              var k = localStorage.key(idx);
+              if (k && (k.indexOf('radar-card-size') === 0 || k.indexOf('radar-user') === 0 || k === 'merchant_radar_demo_user')) {
+                toRemove.push(k);
+              }
+            }
+            for (var r = 0; r < toRemove.length; r++) {
+              localStorage.removeItem(toRemove[r]);
+            }
+          }
+        } catch(e) {}
       })();
     </script>
     
@@ -214,48 +229,13 @@
     <meta property="og:description" content="منصة ذكية للتجار لتحليل الأسعار والمنافسة - رصد فوري لأسعار المنتجات في السوق المصري" />
     <meta property="og:image" content="https://radaregypt.store/pwa-512x512.png" />
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/pwa-512x512.png" />
-    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   </head>
-  <body>
-    <div id="root">
-      <!-- Fallback Loading Shell: Shown while React bundle loads or if offline / network delayed -->
-      <div id="app-boot-fallback" style="min-height: 100vh; background-color: #020617; color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; direction: rtl;">
-        <div style="width: 200px; height: 200px; border-radius: 40px; background: linear-gradient(135deg, #FF6B00, #d97706); padding: 4px; box-shadow: 0 15px 30px -5px rgba(255, 107, 0, 0.5); margin-bottom: 25px; display: flex; align-items: center; justify-content: center;">
-          <img src="/pwa-192x192.png" alt="رادار التاجر" style="width: 100%; height: 100%; object-fit: cover; border-radius: 17px;" onerror="this.style.display='none';" />
-        </div>
-        <h1 style="font-size: 20px; font-weight: 900; margin: 0 0 8px 0; color: #ffffff;">رادار التاجر الذكي (RADAR EGYPT)</h1>
-        <p style="font-size: 13px; color: #fbbf24; margin: 0 0 24px 0; font-weight: 700;">جارٍ تحميل بياناتك...</p>
-        
-        <!-- Loading Spinner -->
-        <div style="width: 40px; height: 40px; border: 4px solid rgba(255, 255, 255, 0.1); border-top-color: #f59e0b; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
-        <style>
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        </style>
-
-        <!-- Delayed Recovery Action (Visible strictly after 3 seconds max) -->
-        <div id="boot-delayed-action" style="display: none; margin-top: 12px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 16px; max-width: 380px;">
-          <p style="font-size: 12px; color: #cbd5e1; margin: 0 0 14px 0;">استغرق التحميل أكثر من 3 ثوانٍ. يمكنك إعادة تحميل التطبيق أو الذهاب لتسجيل الدخول:</p>
-          <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
-            <button onclick="window.location.reload();" style="background: #f59e0b; color: #020617; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer;">
-              إعادة تحميل التطبيق
-            </button>
-            <button onclick="try{localStorage.removeItem('merchant_radar_demo_user');localStorage.removeItem('merchant_radar_session_email_override');}catch(e){} window.location.assign('/login');" style="background: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: 12px; cursor: pointer;">
-              الذهاب لتسجيل الدخول
-            </button>
-          </div>
-        </div>
-        <script>
-          setTimeout(function() {
-            var delayedBox = document.getElementById('boot-delayed-action');
-            if (delayedBox && document.getElementById('app-boot-fallback')) {
-              delayedBox.style.display = 'block';
-            }
-          }, 3000);
-        </script>
-      </div>
-    </div>
+  <body style="background-color: #08090D; margin: 0;">
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

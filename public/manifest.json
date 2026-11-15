@@ -1,19 +1,18 @@
 {
   "id": "/",
-  "name": "رادار التاجر الذكي | Merchant Radar & Bayyaa",
+  "name": "رادار التاجر الذكي",
   "short_name": "رادار التاجر",
   "description": "منصة ذكية لمتابعة السلع والأسعار والمنافسة وتحليل الأسواق في مصر مع ربط مباشر لمنصة بياع وأمازون ونون",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": [
-    "tabbed",
     "standalone",
     "window-controls-overlay"
   ],
   "orientation": "any",
-  "background_color": "#0F2A4A",
-  "theme_color": "#FF6B00",
+  "background_color": "#08090D",
+  "theme_color": "#0f172a",
   "dir": "rtl",
   "lang": "ar-EG",
   "iarc_rating_id": "e58c67c5-5555-4444-9999-radaregypt",
@@ -67,18 +66,6 @@
     },
     {
       "src": "/pwa-maskable-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "https://www.pwabuilder.com/assets/icons/icon_192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "https://www.pwabuilder.com/assets/icons/icon_512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

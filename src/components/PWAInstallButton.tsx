@@ -68,7 +68,24 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   };
 
   const handleInstallClick = async () => {
-    handleApkDownload();
+    if (isInstallable) {
+      setIsInstalling(true);
+      try {
+        const accepted = await install();
+        if (accepted) {
+          confetti({
+            particleCount: 100,
+            spread: 80,
+            origin: { y: 0.6 }
+          });
+          onShowToast?.('تم تثبيت تطبيق رادار التاجر الذكي بنجاح على جهازك');
+          return;
+        }
+      } finally {
+        setIsInstalling(false);
+      }
+    }
+    setShowInstallGuide(true);
   };
 
 
@@ -300,8 +317,17 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                 <button
                   type="button"
                   onClick={async () => {
-                    await handleInstallClick();
-                    setShowInstallGuide(false);
+                    setIsInstalling(true);
+                    try {
+                      const accepted = await install();
+                      if (accepted) {
+                        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+                        onShowToast?.('تم تثبيت تطبيق رادار التاجر الذكي بنجاح على جهازك');
+                        setShowInstallGuide(false);
+                      }
+                    } finally {
+                      setIsInstalling(false);
+                    }
                   }}
                   className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-sky-600 text-[#08090D] font-black text-xs shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
                 >
@@ -330,6 +356,17 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     <span>اضغط على <strong className="text-sky-300">"تثبيت التطبيق" (Install App)</strong> ليظهر فوراً على هاتفك.</span>
                   </div>
                 </div>
+              )}
+
+              {isAndroid && (
+                <button
+                  type="button"
+                  onClick={handleApkDownload}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تنزيل ملف أندرويد المباشر (APK)</span>
+                </button>
               )}
 
               {isInIframe && !isInstallable && (

@@ -18,6 +18,8 @@ import { FetchProductsModal } from './FetchProductsModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { OptimizedImage } from './OptimizedImage';
+import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -122,7 +124,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const PAGE_SIZE = 20;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<boolean>(false);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
@@ -236,6 +239,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
       if (prodsError) {
         console.error('Error fetching products:', prodsError);
+        setFetchError(true);
+      } else {
+        setFetchError(false);
       }
       const fetchedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
 
@@ -267,6 +273,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       dataCache.set(cacheKey, { products: cleanedProds, total });
     } catch (err) {
       console.error('Failed to load products data:', err);
+      setFetchError(true);
       if (!cached && !append) setProducts([]);
     } finally {
       setIsLoading(false);
@@ -288,8 +295,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       fetchProductsAndTraders(current.trader_id, current.platform);
     };
 
+    const handleRefresh = () => {
+      const current = readQueryParams();
+      fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
+    };
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
 
@@ -558,19 +574,20 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="py-24 text-center space-y-4">
-          <RefreshCw className="w-10 h-10 text-sky-400 animate-spin mx-auto" />
-          <p className="text-slate-400 text-sm font-bold">جاري تحميل قائمة المنتجات المحددة...</p>
-        </div>
-      ) : filteredProducts.length === 0 ? (
+      {fetchError && (
+        <EmergencyErrorBanner message="تعذر جلب المنتجات من قاعدة البيانات — لا توجد بيانات." />
+      )}
+
+      {filteredProducts.length === 0 ? (
         <GlobalEmptyState
           icon={<Package className="w-10 h-10 text-amber-400" />}
-          message={urlTraderId && urlTraderId !== 'all' ? 'لا توجد منتجات لهذا التاجر' : 'كتالوج المنتجات فارغ'}
+          message={fetchError ? 'لا توجد بيانات' : urlTraderId && urlTraderId !== 'all' ? 'لا توجد منتجات لهذا التاجر' : 'كتالوج المنتجات فارغ'}
           description="لم يتم إضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها من رابط المتجر."
           actionLabel={isFiltered ? 'مسح الفلتر وعرض الكل' : 'إضافة منتج جديد'}
           onActionClick={isFiltered ? handleClearAllFilters : () => { ensureTraderOptions(); setIsAddModalOpen(true); }}
-        />
+        >
+          <EmergencyLoginButton />
+        </GlobalEmptyState>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((product) => (

@@ -1,4 +1,5 @@
 import React, { ErrorInfo, ReactNode } from 'react';
+import { EmergencyLoginButton } from './EmergencyLoginButton';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -14,8 +15,6 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  private autoRecoveryTimer: any = null;
-
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -26,7 +25,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    // Auto-recover from dynamic module import or chunk load errors
     if (typeof window !== 'undefined' && error) {
       const errMsg = error.message || String(error);
       if (
@@ -45,62 +43,40 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Silently log and record error in background without interrupting user or halting the UI
-    console.warn(`[ErrorBoundary] Handled exception silently in (${this.props.sectionName || 'app'}):`, error, errorInfo);
-
-    try {
-      if (typeof sessionStorage !== 'undefined') {
-        const silentLog = {
-          section: this.props.sectionName || 'general',
-          message: error?.message || String(error),
-          stack: error?.stack || '',
-          timestamp: new Date().toISOString(),
-        };
-        sessionStorage.setItem('radar_silent_exception_log', JSON.stringify(silentLog));
-      }
-    } catch {
-      // safe fallback
-    }
-
+    console.warn(`[ErrorBoundary] Caught error in (${this.props.sectionName || 'app'}):`, error, errorInfo);
     this.setState({ errorInfo });
-
-    // Immediate background auto-recovery: auto-reset within 50ms to restore interface seamlessly
-    if (this.autoRecoveryTimer) {
-      clearTimeout(this.autoRecoveryTimer);
-    }
-    this.autoRecoveryTimer = setTimeout(() => {
-      if (this.state.hasError) {
-        this.handleReset();
-      }
-    }, 50);
-  }
-
-  public override componentWillUnmount(): void {
-    if (this.autoRecoveryTimer) {
-      clearTimeout(this.autoRecoveryTimer);
-    }
   }
 
   private handleReset = (): void => {
-    if (this.autoRecoveryTimer) {
-      clearTimeout(this.autoRecoveryTimer);
-    }
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
   public override render(): ReactNode {
     if (this.state.hasError) {
-      // If a custom lightweight fallback is explicitly provided, render it
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
-      // Never render the disruptive "نظام الحماية الذكي" screen!
-      // Return a non-blocking invisible placeholder while automatic background recovery runs
-      return null;
+      return (
+        <div className="min-h-[240px] flex items-center justify-center p-6 bg-slate-950 text-slate-100 font-['Cairo']" dir="rtl">
+          <div className="max-w-md w-full p-6 rounded-2xl bg-slate-900 border border-rose-500/40 text-center space-y-4 shadow-xl">
+            <h3 className="text-base font-black text-rose-400">تعذر عرض هذا القسم</h3>
+            <p className="text-xs text-slate-300">لا توجد بيانات متاحة حالياً أو حدث خطأ أثناء العرض.</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={this.handleReset}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer"
+              >
+                إعادة المحاولة
+              </button>
+              <EmergencyLoginButton />
+            </div>
+          </div>
+        </div>
+      );
     }
 
     return this.props.children;
   }
 }
-
