@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="رادار التاجر" />
     
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com https://*.supabase.co wss://*.supabase.co https://*.supabase.in https://api.supabase.co;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://static.cloudflareinsights.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https:; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com https://*.supabase.co wss://*.supabase.co https://*.supabase.in https://api.supabase.co https://vitals.vercel-insights.com; worker-src 'self' blob:;" />
     <script>
       if (window.location.hostname.includes('dev.')) {
         const meta = document.createElement('meta');
@@ -176,13 +176,63 @@
         } catch(e) {}
 
 
-        // AUTO-RELOAD ON CHUNK LOAD FAILURE
+        function showBootErrorFallback(detailMsg) {
+          try {
+            if (window.__RADAR_APP_MOUNTED__) return;
+            var rootEl = document.getElementById('root');
+            if (!rootEl) return;
+            var safeDetail = String(detailMsg || '').replace(/[<>&]/g, '');
+            rootEl.innerHTML =
+              '<div dir="rtl" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#08090D;color:#f8fafc;font-family:Cairo,system-ui,-apple-system,sans-serif;text-align:center;">' +
+                '<div style="max-width:440px;width:100%;background:#0f172a;border:1px solid rgba(245,158,11,0.45);border-radius:20px;padding:28px 22px;box-shadow:0 20px 45px rgba(0,0,0,0.65);">' +
+                  '<div style="font-size:18px;font-weight:900;color:#fbbf24;margin-bottom:10px;">رادار التاجر الذكي</div>' +
+                  '<button type="button" onclick="window.location.reload()" style="width:100%;padding:14px 18px;border-radius:12px;border:none;background:#f59e0b;color:#020617;font-size:15px;font-weight:900;cursor:pointer;margin-bottom:12px;">حدث خطأ في التحميل - دوس هنا لإعادة التحميل</button>' +
+                  '<a href="/login" style="display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid #334155;color:#cbd5e1;text-decoration:none;font-size:13px;font-weight:700;">الانتقال إلى صفحة تسجيل الدخول</a>' +
+                  (safeDetail ? '<div style="margin-top:14px;font-size:11px;color:#94a3b8;direction:ltr;word-break:break-word;">' + safeDetail + '</div>' : '') +
+                '</div>' +
+              '</div>';
+          } catch (e) {}
+        }
+        window.__RADAR_SHOW_BOOT_ERROR__ = showBootErrorFallback;
+
+        // LOOP-SAFE CHUNK & STARTUP SCRIPT ERROR RECOVERY
         window.addEventListener('error', function(e) {
-          if (e && e.message && (e.message.indexOf('Loading chunk') !== -1 || e.message.indexOf('unexpected token <') !== -1)) {
-            console.warn('Chunk load failure detected, forcing reload...');
-            window.location.reload();
+          var msg = (e && e.message) || '';
+          var filename = (e && e.filename) || '';
+          var targetSrc = (e && e.target && e.target.src) || '';
+          var isAppAsset = filename.indexOf('/assets/') !== -1 || targetSrc.indexOf('/assets/') !== -1;
+          var isScriptElError = e && e.target && e.target.tagName === 'SCRIPT' && isAppAsset;
+          var isChunkErr =
+            msg.indexOf('Loading chunk') !== -1 ||
+            msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+            (msg.indexOf('unexpected token <') !== -1 && (isAppAsset || !window.__RADAR_APP_MOUNTED__));
+
+          if (isChunkErr) {
+            try {
+              var lastReload = parseInt(sessionStorage.getItem('radar_boot_chunk_reload') || '0', 10);
+              if (!lastReload || Date.now() - lastReload > 10000) {
+                sessionStorage.setItem('radar_boot_chunk_reload', String(Date.now()));
+                window.location.reload();
+                return;
+              }
+            } catch (storageErr) {}
+            showBootErrorFallback(msg || 'Chunk load failure');
+            return;
+          }
+          if (!window.__RADAR_APP_MOUNTED__ && (isScriptElError || (msg && !isViteWsError(msg)))) {
+            showBootErrorFallback(msg || (isScriptElError ? 'Failed to load application script' : 'Startup error'));
           }
         }, true);
+
+        // Watchdog: never allow an infinite blank black screen if React fails to mount
+        setTimeout(function() {
+          if (!window.__RADAR_APP_MOUNTED__) {
+            var r = document.getElementById('root');
+            if (r && r.childElementCount === 0) {
+              showBootErrorFallback('انتهت مهلة تحميل التطبيق — يرجى إعادة المحاولة');
+            }
+          }
+        }, 4500);
         // Clear stale radar-card-size / radar-user localStorage on /login immediately
         try {
           if (window.location && window.location.pathname === '/login' && window.localStorage) {

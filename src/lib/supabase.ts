@@ -68,22 +68,23 @@ export interface AppNotification {
   created_at: string;
 }
 
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = String(import.meta.env?.VITE_SUPABASE_URL || '').trim();
+const SUPABASE_ANON_KEY = String(import.meta.env?.VITE_SUPABASE_ANON_KEY || '').trim();
 
-export const isSupabaseConfigured = Boolean(
-  SUPABASE_URL && 
-  SUPABASE_ANON_KEY && 
-  !SUPABASE_URL.includes('your-supabase-project') &&
-  !SUPABASE_ANON_KEY.includes('your-supabase-anon-key')
-);
+const hasValidSupabaseUrl =
+  /^https?:\/\/.+/i.test(SUPABASE_URL) && !SUPABASE_URL.includes('your-supabase-project');
+const hasValidSupabaseKey =
+  Boolean(SUPABASE_ANON_KEY) && !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
 
-let activeAuthenticatedEmail: string | null = null;
-let activeAccessToken: string | null = null;
+export let supabaseConfigError: string | null = null;
 
-// Real Supabase JS Client instance if credentials are valid
-export const supabaseClient: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+function createSafeSupabaseClient(): SupabaseClient | null {
+  if (!hasValidSupabaseUrl || !hasValidSupabaseKey) {
+    supabaseConfigError = 'تأكد من إعدادات Supabase (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)';
+    return null;
+  }
+  try {
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -118,8 +119,20 @@ export const supabaseClient: SupabaseClient | null = isSupabaseConfigured
           return fetch(input, { ...init, headers });
         },
       },
-    })
-  : null;
+    });
+  } catch (err: any) {
+    supabaseConfigError = err?.message || 'تأكد من إعدادات Supabase';
+    console.warn('[Supabase Safe Init]:', supabaseConfigError);
+    return null;
+  }
+}
+
+let activeAuthenticatedEmail: string | null = null;
+let activeAccessToken: string | null = null;
+
+// Real Supabase JS Client instance if credentials are valid
+export const supabaseClient: SupabaseClient | null = createSafeSupabaseClient();
+export const isSupabaseConfigured = Boolean(supabaseClient);
 
 const FOUNDER_EMAIL = 'jassmeinnour@gmail.com';
 const DEMO_SKUS = new Set([

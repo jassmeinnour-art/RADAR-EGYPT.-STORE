@@ -4,7 +4,7 @@
 // Full Offline Caching & PWA Lifecycle Support
 // ============================================================================
 
-const CACHE_VERSION = 'v1.4.0';
+const CACHE_VERSION = 'v1.4.1';
 const STATIC_CACHE = `radar-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `radar-images-${CACHE_VERSION}`;
 const FONT_CACHE = `radar-fonts-${CACHE_VERSION}`;

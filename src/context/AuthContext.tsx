@@ -80,6 +80,7 @@ interface AuthContextType {
   isDbConnected: boolean;
   isOwner: boolean;
   loginError: string | null;
+  authInitError: string | null;
   authErrorCode: string | null;
   isUnauthorizedDomain: boolean;
   currentDomain: string;
@@ -233,72 +234,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const [user, setUser] = useState<User | null>(() => {
-    if (isLoginPathname()) {
-      setSupabaseActiveEmail(null);
-      return null;
-    }
-    if (isSupabaseConfigured) {
-      const persisted = readPersistedSupabaseSession();
-      if (persisted?.access_token && persisted?.user) {
-        setSupabaseSession(persisted);
-        const mapped = supabaseUserToAuthUser(persisted.user);
-        setSessionEmailOverride(mapped.email || null);
-        return mapped;
+    try {
+      if (isLoginPathname()) {
+        setSupabaseActiveEmail(null);
+        return null;
       }
-      setSupabaseSession(null);
+      if (isSupabaseConfigured) {
+        const persisted = readPersistedSupabaseSession();
+        if (persisted?.access_token && persisted?.user) {
+          setSupabaseSession(persisted);
+          const mapped = supabaseUserToAuthUser(persisted.user);
+          setSessionEmailOverride(mapped.email || null);
+          return mapped;
+        }
+        setSupabaseSession(null);
+        setSupabaseActiveEmail(null);
+        return null;
+      }
+      const initial = getInitialDemoUser() || auth?.currentUser || null;
+      if (initial) {
+        const initialEmail = initial.email || getSessionEmailOverride() || '';
+        setSupabaseActiveEmail(initialEmail || null);
+      } else {
+        setSupabaseActiveEmail(null);
+      }
+      return initial;
+    } catch {
       setSupabaseActiveEmail(null);
       return null;
     }
-    const initial = getInitialDemoUser() || auth.currentUser;
-    if (initial) {
-      const initialEmail = initial.email || getSessionEmailOverride() || '';
-      setSupabaseActiveEmail(initialEmail || null);
-    } else {
-      setSupabaseActiveEmail(null);
-    }
-    return initial;
   });
   const [profile, setProfile] = useState<UserMerchantProfile | null>(() => {
-    if (isLoginPathname()) return null;
-    if (isSupabaseConfigured) {
-      const persisted = readPersistedSupabaseSession();
-      if (!persisted?.user) return null;
-      const verifiedEmail = String(persisted.user.email || '').trim().toLowerCase();
-      const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+    try {
+      if (isLoginPathname()) return null;
+      if (isSupabaseConfigured) {
+        const persisted = readPersistedSupabaseSession();
+        if (!persisted?.user) return null;
+        const verifiedEmail = String(persisted.user.email || '').trim().toLowerCase();
+        const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+        return {
+          uid: persisted.user.id,
+          displayName: isOwnerAcct
+            ? 'ياسمين نور (مالكة المنظومة 👑)'
+            : persisted.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+          email: verifiedEmail,
+          storeName:
+            persisted.user.user_metadata?.store_name ||
+            (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+          city: 'القاهرة',
+          preferredCurrency: 'EGP',
+          role: isOwnerAcct ? 'super_admin' : 'merchant',
+          sessionCount: 1,
+        };
+      }
+      const initial = getInitialDemoUser() || auth?.currentUser || null;
+      if (!initial) return null;
+      const cached = getCachedUserProfile(initial.uid);
+      if (cached) return cached;
       return {
-        uid: persisted.user.id,
-        displayName: isOwnerAcct
-          ? 'ياسمين نور (مالكة المنظومة 👑)'
-          : persisted.user.user_metadata?.display_name || 'تاجر مصري معتمد',
-        email: verifiedEmail,
-        storeName:
-          persisted.user.user_metadata?.store_name ||
-          (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+        uid: initial.uid,
+        displayName: initial.displayName || 'تاجر مصري معتمد',
+        email: initial.email || getSessionEmailOverride() || '',
+        storeName: (initial as any).storeName || 'متجر التاجر المصري',
         city: 'القاهرة',
         preferredCurrency: 'EGP',
-        role: isOwnerAcct ? 'super_admin' : 'merchant',
         sessionCount: 1,
       };
+    } catch {
+      return null;
     }
-    const initial = getInitialDemoUser() || auth.currentUser;
-    if (!initial) return null;
-    const cached = getCachedUserProfile(initial.uid);
-    if (cached) return cached;
-    return {
-      uid: initial.uid,
-      displayName: initial.displayName || 'تاجر مصري معتمد',
-      email: initial.email || getSessionEmailOverride() || '',
-      storeName: (initial as any).storeName || 'متجر التاجر المصري',
-      city: 'القاهرة',
-      preferredCurrency: 'EGP',
-      sessionCount: 1,
-    };
   });
   const [sessionData, setSessionData] = useState<UserSessionData | null>(null);
   // NEVER block rendering with a full-page loading screen
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [authInitError, setAuthInitError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
   const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState<boolean>(false);
   const [rawFounderMode, setRawFounderMode] = useState<boolean>(() => {
@@ -422,6 +433,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Prevent duplicate concurrent Firestore sync calls or when 5-minute cache is fresh / quota exhausted
     const profileCacheKey = `user_profile_${currentUser.uid}`;
     if (
+      !usersCollection ||
       (activeSyncUidsRef.current.has(currentUser.uid) && !explicitEmailOverride) ||
       isFirestoreQuotaExhausted() ||
       (cached && isFirestoreCacheFresh(profileCacheKey, FIVE_MINUTES_MS) && !explicitEmailOverride)
@@ -608,7 +620,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .then((session) => {
             applySupabaseSession(session);
           })
-          .catch(() => {
+          .catch((err) => {
+            if (isMounted) {
+              setAuthInitError(err?.message || 'تعذر التحقق من جلسة Supabase');
+            }
             applySupabaseSession(null);
           });
       }
@@ -618,7 +633,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           applySupabaseSession(session);
         });
         sbSubscription = data?.subscription || null;
-      } catch {
+      } catch (err: any) {
+        if (isMounted) {
+          setAuthInitError(err?.message || 'تعذر تهيئة جلسة Supabase');
+        }
         setIsLoading(false);
       }
 
@@ -654,6 +672,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let unsubscribe = () => {};
     try {
+      if (!auth) {
+        clearTimeout(splashTimeout);
+        if (isMounted) {
+          setIsLoading(false);
+        }
+        return () => {
+          isMounted = false;
+        };
+      }
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         clearTimeout(splashTimeout);
         if (currentUser) {
@@ -690,12 +717,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, (authError) => {
         clearTimeout(splashTimeout);
         console.warn('Auth state change error (CORS / domain / network):', authError);
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setAuthInitError(authError?.message || 'تعذر الاتصال بخدمة المصادقة');
+          setUser(null);
+          setIsLoading(false);
+        }
       });
-    } catch (err) {
+    } catch (err: any) {
       clearTimeout(splashTimeout);
       console.warn('Failed to initialize Firebase Auth listener:', err);
-      if (isMounted) setIsLoading(false);
+      if (isMounted) {
+        setAuthInitError(err?.message || 'تعذر تهيئة خدمة المصادقة');
+        setUser(null);
+        setIsLoading(false);
+      }
     }
 
     return () => {
@@ -707,7 +742,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Heartbeat session updater: updates lastSeenAt in Firestore users collection
   useEffect(() => {
-    if (!user || user.isAnonymous || !auth.currentUser) return;
+    if (!user || user.isAnonymous || !auth?.currentUser || !usersCollection) return;
 
     const interval = setInterval(async () => {
       try {
@@ -993,7 +1028,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await signOutSupabase();
 
-      if (!isSupabaseConfigured && user && !user.isAnonymous) {
+      if (!isSupabaseConfigured && user && !user.isAnonymous && usersCollection) {
         try {
           const userDocRef = doc(usersCollection, user.uid);
           await updateDoc(userDocRef, {
@@ -1003,11 +1038,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Silent fallback on sign out
         }
       }
-      await fbSignOut(auth).catch(() => {});
+      if (auth) {
+        await fbSignOut(auth).catch(() => {});
+      }
       setUser(null);
       setProfile(null);
       setSessionData(null);
       setLoginError(null);
+      setAuthInitError(null);
       setAuthErrorCode(null);
       setIsUnauthorizedDomain(false);
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
@@ -1026,7 +1064,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (next) setCachedUserProfile(user.uid, next);
       return next;
     });
-    if (isFirestoreQuotaExhausted()) return;
+    if (isFirestoreQuotaExhausted() || !usersCollection) return;
     const path = `users/${user.uid}`;
     try {
       const userDocRef = doc(usersCollection, user.uid);
@@ -1041,7 +1079,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = useCallback(async () => {
-    if (!auth.currentUser) return;
+    if (!auth?.currentUser || !usersCollection) return;
     const uid = auth.currentUser.uid;
     const profileCacheKey = `user_profile_${uid}`;
     const cached = getCachedUserProfile(uid);
@@ -1068,6 +1106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearLoginError = () => {
     setLoginError(null);
+    setAuthInitError(null);
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
   };
@@ -1093,6 +1132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isDbConnected,
         isOwner,
         loginError,
+        authInitError,
         authErrorCode,
         isUnauthorizedDomain,
         currentDomain,
@@ -1125,6 +1165,7 @@ const FALLBACK_AUTH_CONTEXT: AuthContextType = {
   isDbConnected: true,
   isOwner: false,
   loginError: null,
+  authInitError: null,
   authErrorCode: null,
   isUnauthorizedDomain: false,
   currentDomain: typeof window !== 'undefined' ? window.location.hostname : '',

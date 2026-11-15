@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginPage from './components/LoginPage';
 import { EmergencyLoginButton, EmergencyErrorBanner } from './components/EmergencyLoginButton';
 import { PullToRefresh, RADAR_PULL_TO_REFRESH_EVENT } from './components/PullToRefresh';
+import { TabTransitionContainer } from './components/TabTransitionContainer';
 import { dataCache } from './utils/dataCache';
 import { navigate } from './utils/navigation';
 
@@ -150,7 +151,7 @@ export default function App() {
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
-  const { user, isOwner, signOut } = useAuth();
+  const { user, isOwner, authInitError } = useAuth();
 
   const handlePrefetchTab = useCallback((tab: WorkspaceTab) => {
     TAB_PRELOADERS[tab]?.();
@@ -209,7 +210,7 @@ export default function App() {
     if (msg) console.log(msg);
   };
 
-  if (!user) {
+  if (!user || authInitError) {
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.history.replaceState({}, '', '/login');
     }
@@ -391,7 +392,7 @@ export default function App() {
                 <EmergencyErrorBanner message="لا توجد بيانات — تعذر تحميل الصفحة المطلوبة." />
               </div>
             )}
-            <div key={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
+            <TabTransitionContainer tabKey={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
               <ErrorBoundary 
                 sectionName={`tab-${activeWorkspaceTab}`} 
                 fallback={
@@ -407,7 +408,7 @@ export default function App() {
                   {renderActiveTab()}
                 </Suspense>
               </ErrorBoundary>
-            </div>
+            </TabTransitionContainer>
           </main>
         </PullToRefresh>
       </div>

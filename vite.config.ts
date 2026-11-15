@@ -3,10 +3,14 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
+  base: '/',
   plugins: [
     react(),
     tailwindcss()
   ],
+  resolve: {
+    dedupe: ['react', 'react-dom', 'react-is']
+  },
   server: {
     port: 3000,
     host: true
@@ -29,16 +33,26 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'supabase': ['@supabase/supabase-js'],
-          'charts': ['recharts'],
-          'ui-icons': ['lucide-react', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'qrcode.react'],
-          'animations': ['framer-motion', 'canvas-confetti'],
-          'export-docs': ['jspdf', 'jspdf-autotable', 'html2canvas', 'xlsx'],
-          'analytics': ['@vercel/analytics', '@vercel/speed-insights'],
-          'genai': ['@google/genai']
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('/node_modules/firebase/') || id.includes('/node_modules/@firebase/')) {
+            return 'firebase';
+          }
+          if (id.includes('/node_modules/@supabase/')) {
+            return 'supabase';
+          }
+          if (
+            id.includes('/node_modules/jspdf') ||
+            id.includes('/node_modules/html2canvas') ||
+            id.includes('/node_modules/xlsx') ||
+            id.includes('/node_modules/jszip')
+          ) {
+            return 'export-docs';
+          }
+          if (id.includes('/node_modules/@google/genai')) {
+            return 'genai';
+          }
+          return undefined;
         }
       }
     }
