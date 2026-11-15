@@ -15,7 +15,6 @@ import {
   Filter,
   DollarSign,
   Tag,
-  BarChart3,
   Layers,
   ArrowDownRight,
   ArrowUpRight,
@@ -23,20 +22,6 @@ import {
   Building,
   Store,
   RefreshCw
-} from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { ProductData, MerchantOffer, PricePoint } from '../types';
 import { getPriceHistory, PriceHistoryEntry } from '../utils/priceHistoryManager';
 import { auth } from '../firebase';
@@ -313,7 +298,6 @@ export const ProductPriceHistoryAuditModal: React.FC<ProductPriceHistoryAuditMod
         onClick={(e) => e.stopPropagation()}
         id="product-price-history-audit-modal"
       >
-        {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500/20 via-indigo-500/20 to-emerald-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0 shadow-inner">
@@ -395,7 +379,6 @@ export const ProductPriceHistoryAuditModal: React.FC<ProductPriceHistoryAuditMod
           {/* Card 3: Historical Average */}
           <div className="bg-slate-800/60 border border-slate-700/70 rounded-2xl p-3.5 space-y-1">
             <span className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
-              <BarChart3 className="w-3.5 h-3.5 text-sky-400" />
               متوسط السعر التاريخي:
             </span>
             <div className="flex items-baseline gap-1.5">
@@ -440,7 +423,6 @@ export const ProductPriceHistoryAuditModal: React.FC<ProductPriceHistoryAuditMod
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
             <div className="flex items-center gap-2">
               <span className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
-                <BarChart3 className="w-4 h-4" />
               </span>
               <h3 className="text-xs sm:text-sm font-black text-white font-['Alexandria']">
                 الرسم البياني لمسار وتذبذب السعر (Price Fluctuation Curve)
@@ -490,137 +472,27 @@ export const ProductPriceHistoryAuditModal: React.FC<ProductPriceHistoryAuditMod
             </div>
           </div>
 
-          {/* Recharts Area / Line Render */}
-          <div className="h-64 sm:h-72 w-full" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%" minHeight={240}>
-              {chartView === 'area' ? (
-                <AreaChart data={filteredTimeline} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.0} />
-                    </linearGradient>
-                    <linearGradient id="competitorGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis
-                    dataKey="displayDate"
-                    stroke="#94a3b8"
-                    tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                    domain={['auto', 'auto']}
-                    tickFormatter={(val) => `${val}`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderColor: '#334155',
-                      borderRadius: '16px',
-                      color: '#f8fafc',
-                      fontSize: '12px',
-                      direction: 'rtl',
-                      textAlign: 'right',
-                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
-                    }}
-                    formatter={(value: any, name: string) => [
-                      `${Number(value).toLocaleString()} ${currency}`,
-                      name === 'price' ? 'سعر المنتج التاريخي' : 'سعر المنافس الأرخص'
-                    ]}
-                  />
-                  <Legend
-                    formatter={(value) =>
-                      value === 'price' ? 'مسار سعر هذا المنتج' : 'متوسط سعر المنافسين'
-                    }
-                  />
-                  <ReferenceLine
-                    y={analytics.avgPrice}
-                    stroke="#64748b"
-                    strokeDasharray="4 4"
-                    label={{
-                      value: `المتوسط (${analytics.avgPrice})`,
-                      fill: '#94a3b8',
-                      fontSize: 10,
-                      position: 'insideBottomRight'
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#0ea5e9"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#priceGradient)"
-                    dot={{ r: 4, fill: '#0ea5e9', strokeWidth: 2, stroke: '#0f172a' }}
-                    activeDot={{ r: 6, fill: '#38bdf8' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="competitorPrice"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    strokeDasharray="3 3"
-                    fillOpacity={1}
-                    fill="url(#competitorGradient)"
-                  />
-                </AreaChart>
-              ) : (
-                <LineChart data={filteredTimeline} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis
-                    dataKey="displayDate"
-                    stroke="#94a3b8"
-                    tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                    domain={['auto', 'auto']}
-                    tickFormatter={(val) => `${val}`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderColor: '#334155',
-                      borderRadius: '16px',
-                      color: '#f8fafc',
-                      fontSize: '12px',
-                      direction: 'rtl',
-                      textAlign: 'right'
-                    }}
-                    formatter={(value: any, name: string) => [
-                      `${Number(value).toLocaleString()} ${currency}`,
-                      name === 'price' ? 'سعر المنتج التاريخي' : 'سعر المنافس الأرخص'
-                    ]}
-                  />
-                  <Legend
-                    formatter={(value) =>
-                      value === 'price' ? 'مسار سعر هذا المنتج' : 'متوسط سعر المنافسين'
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#0ea5e9"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: '#0ea5e9', strokeWidth: 2, stroke: '#0f172a' }}
-                    activeDot={{ r: 6, fill: '#38bdf8' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="competitorPrice"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    strokeDasharray="3 3"
-                  />
-                </LineChart>
-              )}
-            </ResponsiveContainer>
+          <div className="h-64 sm:h-72 w-full flex flex-col justify-end p-4 bg-slate-950/80 rounded-2xl border border-slate-800" dir="ltr">
+            <div className="flex items-end justify-between gap-1 h-52">
+              {chartData.map((pt, idx) => {
+                const maxP = Math.max(...chartData.map(p => Math.max(p.price || 0, p.competitorPrice || 0)));
+                const val = pt.price || 0;
+                const heightPct = Math.max(15, Math.round((val / (maxP || 1)) * 100));
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                    <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                      <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                        <div>{pt.displayDate}</div>
+                        <div className="text-sky-400 font-bold">{pt.price} {currency}</div>
+                      </div>
+                      <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                    </div>
+                    <div className="w-full rounded-t-sm transition-all bg-sky-500 group-hover:bg-sky-400" style={{ height: `${heightPct}%` }} />
+                    <span className="text-[9px] text-slate-500 font-mono mt-1 truncate">{idx % 3 === 0 ? pt.displayDate : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 

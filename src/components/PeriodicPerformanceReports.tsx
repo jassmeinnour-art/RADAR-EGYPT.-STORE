@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  BarChart3,
   TrendingUp,
   TrendingDown,
   Calendar,
@@ -38,30 +37,12 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Activity,
-  PieChart as PieIcon,
   Bell,
   Package,
   Users
 } from 'lucide-react';
 import { GlobalEmptyState } from './GlobalEmptyState';
 
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { PerformanceDashboard } from './PerformanceDashboard';
 import confetti from 'canvas-confetti';
 import { 
@@ -376,7 +357,6 @@ ${report.aiExecutiveSummary}
          </div>
          
          <GlobalEmptyState
-            icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
             message="لا توجد تقارير متاحة بعد"
             description="يجب إضافة تجار ومنتجات وفواتير أولاً ليتمكن النظام من تحليل البيانات وتوليد التقارير الدورية."
             actionLabel="➕ إضافة تاجر جديد"
@@ -408,7 +388,6 @@ ${report.aiExecutiveSummary}
           <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black border border-emerald-500/30 flex items-center gap-1.5">
-                <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
                 <span>تقارير الأداء الدورية الذكية ورسوم الـ Buy Box</span>
               </span>
 
@@ -564,7 +543,6 @@ ${report.aiExecutiveSummary}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Chart 1: Sales Trends & Net Profit by Platform (Area & Bar Chart - 2 Cols) */}
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div className="space-y-1">
@@ -606,72 +584,37 @@ ${report.aiExecutiveSummary}
             </div>
           </div>
 
-          {/* Recharts Area Chart Container */}
           <div className="h-72 w-full min-w-0 pt-2" dir="ltr">
             {!report.salesTrendData || report.salesTrendData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 لا توجد بيانات مبيعات كافية للرسم البياني حالياً 📊
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250} debounce={50}>
-                {salesChartView === 'sales_volume' ? (
-                  <AreaChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorAmazon" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FF9900" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#FF9900" stopOpacity={0.05}/>
-                      </linearGradient>
-                      <linearGradient id="colorNoon" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FEBE10" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#FEBE10" stopOpacity={0.05}/>
-                      </linearGradient>
-                      <linearGradient id="colorJumia" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F68B1E" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#F68B1E" stopOpacity={0.05}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${((v || 0)/1000).toFixed(0)}k`} />
-                    <Tooltip 
-                      formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                        `${Number(value || 0).toLocaleString()} ${currency}`, 
-                        name === 'amazonSales' ? 'أمازون مصر' : name === 'noonSales' ? 'نون مصر' : name === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'
-                      ]}
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                    />
-                    <Legend 
-                      formatter={(val) => val === 'amazonSales' ? 'أمازون مصر' : val === 'noonSales' ? 'نون مصر' : val === 'jumiaSales' ? 'جوميا مصر' : 'المتجر المباشر'}
-                      wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                    />
-                    <Area type="monotone" dataKey="amazonSales" stroke="#FF9900" fillOpacity={1} fill="url(#colorAmazon)" name="amazonSales" />
-                    <Area type="monotone" dataKey="noonSales" stroke="#FEBE10" fillOpacity={1} fill="url(#colorNoon)" name="noonSales" />
-                    <Area type="monotone" dataKey="jumiaSales" stroke="#F68B1E" fillOpacity={1} fill="url(#colorJumia)" name="jumiaSales" />
-                  </AreaChart>
-                ) : salesChartView === 'net_profit' ? (
-                  <BarChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${((v || 0)/1000).toFixed(0)}k`} />
-                    <Tooltip 
-                      formatter={(value: number | string | Array<number | string> | undefined) => [`${Number(value || 0).toLocaleString()} ${currency}`, 'صافي الربح']}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                    />
-                    <Bar dataKey="netProfit" fill="#10B981" radius={[8, 8, 0, 0]} name="صافي الربح" />
-                  </BarChart>
-                ) : (
-                  <LineChart data={report.salesTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <Tooltip 
-                      formatter={(value: number | string | Array<number | string> | undefined) => [`${value || 0} طلب`, 'عدد الطلبات']}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                    />
-                    <Line type="monotone" dataKey="orders" stroke="#6366F1" strokeWidth={3} dot={{ r: 4, fill: '#6366F1' }} name="عدد الطلبات" />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
+              <div className="flex items-end justify-between gap-2 h-60 p-4 bg-slate-900 rounded-2xl border border-slate-800">
+                {report.salesTrendData.map((item: any, idx: number) => {
+                  const val = salesChartView === 'net_profit' ? (item.netProfit || 0) : salesChartView === 'orders_count' ? (item.ordersCount || 0) : (item.sales || (item.amazonSales || 0) + (item.noonSales || 0));
+                  const maxVal = Math.max(...report.salesTrendData.map((d: any) => salesChartView === 'net_profit' ? (d.netProfit || 1) : salesChartView === 'orders_count' ? (d.ordersCount || 1) : ((d.sales || 0) + (d.amazonSales || 0) + (d.noonSales || 0) || 1)));
+                  const heightPct = Math.max(15, Math.round((val / (maxVal || 1)) * 100));
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                        <div className="bg-slate-950 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                          <div>{item.date || item.day || `يوم ${idx + 1}`}</div>
+                          <div className="text-amber-400 font-bold">{val.toLocaleString()} {salesChartView === 'orders_count' ? 'طلب' : currency}</div>
+                        </div>
+                        <div className="w-2 h-2 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                      </div>
+                      <div
+                        className="w-full rounded-t-sm transition-all bg-amber-500 group-hover:bg-amber-400"
+                        style={{ height: `${heightPct}%` }}
+                      />
+                      <span className="text-[9px] text-slate-400 font-mono mt-1 truncate">
+                        {item.dateLabel || item.day || idx + 1}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
@@ -684,7 +627,6 @@ ${report.aiExecutiveSummary}
           </div>
         </div>
 
-        {/* Chart 2: Buy Box Win Rate per Platform (Radial / Bar Breakdown - 1 Col) */}
         <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-5 flex flex-col justify-between">
           <div className="space-y-1 pb-4 border-b border-slate-100">
             <h3 className="text-base sm:text-lg font-black text-slate-900 font-['Alexandria'] flex items-center gap-2">
@@ -696,7 +638,6 @@ ${report.aiExecutiveSummary}
             </p>
           </div>
 
-          {/* Progress Bars Breakdown for Platforms */}
           <div className="space-y-4 my-auto">
             {report.platformBreakdown.map((platform) => (
               <div key={platform.platformId} className="space-y-1.5">
@@ -848,7 +789,6 @@ ${report.aiExecutiveSummary}
           ))}
         </div>
 
-        {/* Selected Watchlist Item Competitor Historical Trend LineChart */}
         {activeChartWatchlistItem && (
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -873,35 +813,30 @@ ${report.aiExecutiveSummary}
               )}
             </div>
 
-            {/* Historical Line Chart */}
             <div className="h-60 w-full min-w-0 pt-2" dir="ltr">
               {!activeChartWatchlistItem || !activeChartWatchlistItem.competitorPriceHistory || activeChartWatchlistItem.competitorPriceHistory.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-400 text-xs bg-white/50 rounded-xl border border-dashed border-slate-200">
                   لا توجد سجلات أسعار تاريخية متاحة لهذا المنتج حالياً 📈
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220} debounce={50}>
-                  <LineChart data={activeChartWatchlistItem.competitorPriceHistory} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v || 0).toLocaleString()}`} />
-                    <Tooltip 
-                      formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                        `${Number(value || 0).toLocaleString()} ${currency}`, 
-                        name === 'merchantPrice' ? 'سعرك الحالي' : name === 'amazonLowest' ? 'أمازون مصر' : name === 'noonLowest' ? 'نون مصر' : 'جوميا'
-                      ]}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                    />
-                    <Legend 
-                      formatter={(val) => val === 'merchantPrice' ? 'سعرك المعتمد' : val === 'amazonLowest' ? 'أمازون مصر' : val === 'noonLowest' ? 'نون مصر' : 'جوميا'}
-                      wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                    />
-                    <Line type="monotone" dataKey="merchantPrice" stroke="#4F46E5" strokeWidth={3} dot={{ r: 4, fill: '#4F46E5' }} name="merchantPrice" />
-                    <Line type="monotone" dataKey="amazonLowest" stroke="#FF9900" strokeWidth={2} strokeDasharray="4 4" name="amazonLowest" />
-                    <Line type="monotone" dataKey="noonLowest" stroke="#FEBE10" strokeWidth={2} strokeDasharray="4 4" name="noonLowest" />
-                    <Line type="monotone" dataKey="jumiaLowest" stroke="#F68B1E" strokeWidth={2} strokeDasharray="4 4" name="jumiaLowest" />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="flex items-end justify-between gap-2 h-48 p-4 bg-slate-900 rounded-2xl border border-slate-800">
+                  {activeChartWatchlistItem.competitorPriceHistory.map((item: any, idx: number) => {
+                    const price = item.merchantPrice || item.price || 0;
+                    return (
+                      <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                        <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                          <div className="bg-slate-950 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                            <div>{item.date || `يوم ${idx + 1}`}</div>
+                            <div className="text-amber-400 font-bold">{price} {currency}</div>
+                          </div>
+                          <div className="w-2 h-2 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                        </div>
+                        <div className="w-full rounded-t-sm transition-all bg-sky-500 group-hover:bg-sky-400" style={{ height: '60%' }} />
+                        <span className="text-[9px] text-slate-400 font-mono mt-1 truncate">{idx + 1}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -1217,7 +1152,6 @@ ${report.aiExecutiveSummary}
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-xs overflow-y-auto animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[90vh]">
             
-            {/* Modal Action Bar */}
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-emerald-400" />

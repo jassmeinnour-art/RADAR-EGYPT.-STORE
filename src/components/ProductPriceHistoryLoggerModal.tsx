@@ -1,16 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
-import {
   X,
   Plus,
   Clock,
@@ -26,7 +15,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Zap,
-  BarChart2,
   ListOrdered
 } from 'lucide-react';
 import { ProductData, PricePoint } from '../types';
@@ -309,7 +297,6 @@ export const ProductPriceHistoryLoggerModal: React.FC<ProductPriceHistoryLoggerM
           </button>
         </div>
 
-        {/* KPI Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-4 bg-slate-100/60 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-xs shrink-0">
           <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">أدنى سعر مسجل</span>
@@ -340,7 +327,6 @@ export const ProductPriceHistoryLoggerModal: React.FC<ProductPriceHistoryLoggerM
           </div>
         </div>
 
-        {/* Navigation Tabs Bar */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 flex-wrap gap-2">
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
             <button
@@ -351,7 +337,6 @@ export const ProductPriceHistoryLoggerModal: React.FC<ProductPriceHistoryLoggerM
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
               }`}
             >
-              <BarChart2 className="w-3.5 h-3.5" />
               <span>الرسم البياني 📈</span>
             </button>
 
@@ -398,7 +383,6 @@ export const ProductPriceHistoryLoggerModal: React.FC<ProductPriceHistoryLoggerM
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Zap className="w-4 h-4 text-indigo-600" />
-                  <span>مسار تغيرات سعر المنتج عبر الزمن (Trend Line)</span>
                 </h4>
 
                 <div className="flex items-center gap-1 text-xs">
@@ -419,67 +403,26 @@ export const ProductPriceHistoryLoggerModal: React.FC<ProductPriceHistoryLoggerM
                 </div>
               </div>
 
-              {/* Recharts Area */}
-              <div className="h-72 sm:h-80 w-full min-w-0 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-                  <LineChart data={chartTimelineData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} vertical={false} />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                    <YAxis
-                      domain={['auto', 'auto']}
-                      tick={{ fontSize: 11, fill: '#64748b' }}
-                      stroke="#cbd5e1"
-                      tickFormatter={(v) => `${Number(v).toLocaleString()}`}
-                    />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const dataPoint = payload[0]?.payload;
-                          return (
-                            <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl border border-slate-700 text-right text-xs font-['Alexandria']" dir="rtl">
-                              <div className="font-bold text-indigo-300 border-b border-slate-800 pb-1 mb-1.5">{label} - {dataPoint?.merchant}</div>
-                              <div className="font-mono font-bold text-emerald-400 text-sm">
-                                {dataPoint?.price?.toLocaleString()} {currency}
-                              </div>
-                              {dataPoint?.reason && (
-                                <div className="text-[10px] text-slate-300 mt-1">السبب: {dataPoint.reason}</div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend
-                      formatter={(val) => val === 'price' ? 'سعر البيع المرصود' : val}
-                      wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#4F46E5"
-                      strokeWidth={3}
-                      dot={{ r: 4, fill: '#4F46E5', strokeWidth: 2 }}
-                      activeDot={{ r: 7 }}
-                      name="price"
-                    />
-
-                    {product.estimatedWholesaleCost && (
-                      <ReferenceLine
-                        y={product.estimatedWholesaleCost}
-                        stroke="#10B981"
-                        strokeDasharray="4 4"
-                        strokeWidth={2}
-                        label={{
-                          value: `سعر الجملة (${product.estimatedWholesaleCost.toLocaleString()} ${currency})`,
-                          fill: '#059669',
-                          fontSize: 10,
-                          position: 'insideBottomRight'
-                        }}
-                      />
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-72 sm:h-80 w-full min-w-0 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-end" dir="ltr">
+                <div className="flex items-end justify-between gap-2 h-52">
+                  {chartTimelineData.map((pt, idx) => {
+                    const maxP = Math.max(...chartTimelineData.map(p => p.price || 1));
+                    const heightPct = Math.max(15, Math.round(((pt.price || 0) / maxP) * 100));
+                    return (
+                      <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                        <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                          <div className="bg-slate-900 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                            <div>{pt.date}</div>
+                            <div className="text-amber-400 font-bold">{pt.price} {currency}</div>
+                          </div>
+                          <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                        </div>
+                        <div className="w-full rounded-t-sm transition-all bg-indigo-600 group-hover:bg-indigo-500" style={{ height: `${heightPct}%` }} />
+                        <span className="text-[9px] text-slate-400 font-mono mt-1 truncate">{pt.date?.slice(5) || idx + 1}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

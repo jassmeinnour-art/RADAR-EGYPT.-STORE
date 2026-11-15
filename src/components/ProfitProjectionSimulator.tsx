@@ -24,8 +24,6 @@ import {
   Image as ImageIcon,
   Camera,
   Target,
-  BarChart3,
-  PieChart as PieIcon,
   HelpCircle,
   ChevronDown,
   ChevronUp,
@@ -35,21 +33,6 @@ import {
   Tag,
   Info
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import confetti from 'canvas-confetti';
 import { 
   ProductData, 
@@ -65,6 +48,7 @@ import {
   runProfitSimulation 
 } from '../data/profitSimulatorData';
 import { safeOpenUrl } from '../utils/safeWindowOpen';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface ProfitProjectionSimulatorProps {
   products: ProductData[];
@@ -648,13 +632,17 @@ ${simulation.aiInsights.executiveVerdict}
       {/* ========================================================================= */}
       {/* 4. PREDICTIVE RECHARTS GRAPHICAL CHARTS SECTION */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-6">
+      <ErrorBoundary 
+        sectionName="profit-simulation-charts" 
+        sectionTitle="الرسوم البيانية التنبؤية للأرباح والمبيعات"
+        sectionDescription="تعذر رسم محاكاة حركة التدفقات النقدية ومقارنة السيناريوهات التكتيكية"
+      >
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-6">
         
         {/* Chart View Switcher Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div className="space-y-1">
             <h3 className="text-base sm:text-lg font-black text-slate-900 font-['Alexandria'] flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-indigo-600" />
               <span>الرسوم البيانية التنبؤية للأرباح والمبيعات ({timelineMonths} أشهر)</span>
             </h3>
             <p className="text-xs text-slate-500">
@@ -691,135 +679,182 @@ ${simulation.aiInsights.executiveVerdict}
         </div>
 
         {/* ======================================================== */}
-        {/* CHART 1: Monthly Projected Revenue & Net Profit Area Chart */}
+        {/* ======================================================== */}
+        {/* ======================================================== */}
+        {/* Chart View 1: Monthly Revenue & Profit */}
         {/* ======================================================== */}
         {activeChartView === 'monthly_revenue_profit' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>مسار المبيعات التنبؤية (GMV)، تكاليف البضاعة، وصافي الربح الشهري</span>
-              <span className="font-bold text-emerald-600">هامش الربح الصافي المتوسط: {simulation.summary.averageProfitMarginPercent}%</span>
+              <span className="font-bold text-emerald-600">هامش الربح الصافي المتوسط: {simulation.summary?.averageProfitMarginPercent || 25}%</span>
             </div>
 
-            <div className="h-80 w-full min-w-0" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280} debounce={50}>
-                <AreaChart data={simulation.monthlyProjections} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0.05}/>
-                    </linearGradient>
-                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.85}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="monthLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                      `${Number(value || 0).toLocaleString()} ${currency}`, 
-                      name === 'revenueEGP' ? 'إجمالي الإيرادات' : name === 'netProfitEGP' ? 'صافي الربح' : name === 'cogsEGP' ? 'تكلفة البضاعة' : name
-                    ]}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Legend 
-                    formatter={(val) => val === 'revenueEGP' ? 'إجمالي المبيعات (GMV)' : val === 'netProfitEGP' ? 'صافي الأرباح المحققة' : val === 'cogsEGP' ? 'تكلفة الجملة' : val}
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                  />
-                  <Area type="monotone" dataKey="revenueEGP" stroke="#6366F1" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" name="revenueEGP" />
-                  <Area type="monotone" dataKey="netProfitEGP" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" name="netProfitEGP" />
-                  <Line type="monotone" dataKey="cogsEGP" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" name="cogsEGP" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="bg-slate-900/90 rounded-2xl p-4 sm:p-6 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800 text-slate-400">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-xs bg-indigo-500 inline-block"></span>إجمالي المبيعات (GMV)</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-xs bg-emerald-400 inline-block"></span>صافي الربح المحقق</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">العملة: {currency}</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {(simulation.monthlyProjections || []).map((m: any, idx: number) => {
+                  const maxRev = Math.max(...(simulation.monthlyProjections || []).map((p: any) => p.revenueEGP || p.revenue || 1));
+                  const revHeight = Math.max(15, Math.round(((m.revenueEGP || m.revenue || 0) / maxRev) * 100));
+                  const profitHeight = Math.max(10, Math.round(((m.netProfitEGP || m.netProfit || 0) / maxRev) * 100));
+
+                  return (
+                    <div key={idx} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/60 flex flex-col justify-between hover:border-indigo-500/50 transition-all">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+                        <span>{m.monthLabel}</span>
+                        <span className="text-emerald-400 font-mono text-[10px]">+{m.profitMarginPercent}%</span>
+                      </div>
+
+                      <div className="h-32 flex items-end justify-center gap-2 py-2">
+                        {/* Revenue Bar */}
+                        <div className="w-4 sm:w-5 bg-indigo-500/80 hover:bg-indigo-400 rounded-t-md transition-all relative group flex flex-col justify-end" style={{ height: `${revHeight}%` }}>
+                          <span className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-950 text-white text-[9px] px-1.5 py-0.5 rounded-sm whitespace-nowrap z-20 pointer-events-none border border-slate-700 font-mono">
+                            {(m.revenueEGP || m.revenue || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        {/* Net Profit Bar */}
+                        <div className="w-4 sm:w-5 bg-emerald-500/90 hover:bg-emerald-400 rounded-t-md transition-all relative group flex flex-col justify-end" style={{ height: `${profitHeight}%` }}>
+                          <span className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-950 text-emerald-300 text-[9px] px-1.5 py-0.5 rounded-sm whitespace-nowrap z-20 pointer-events-none border border-slate-700 font-mono">
+                            {(m.netProfitEGP || m.netProfit || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-700/50 space-y-1 text-[10px]">
+                        <div className="flex justify-between text-slate-400">
+                          <span>المبيعات:</span>
+                          <span className="font-mono text-slate-200">{((m.revenueEGP || m.revenue || 0) / 1000).toFixed(1)}k</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-400 font-bold">
+                          <span>الربح:</span>
+                          <span className="font-mono">{((m.netProfitEGP || m.netProfit || 0) / 1000).toFixed(1)}k</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* CHART 2: Cumulative Net Profit Comparison Multi-Line Chart */}
+        {/* Chart View 2: Cumulative Comparison */}
         {/* ======================================================== */}
         {activeChartView === 'cumulative_comparison' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>مقارنة الأرباح الصافية التراكمية عبر أشهر المحاكاة بين مختلف الاستراتيجيات</span>
               <span className="font-bold text-indigo-600">استراتيجية الصور الفاخرة تحقق أعلى عائد تراكمي 💎</span>
             </div>
 
-            <div className="h-80 w-full min-w-0" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280} debounce={50}>
-                <LineChart data={simulation.monthlyProjections} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="monthLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                      `${Number(value || 0).toLocaleString()} ${currency}`, 
-                      name === 'premiumCumulativeProfit' ? 'رفع السعر + صور AI' : name === 'undercutCumulativeProfit' ? 'كسر السعر' : name === 'balancedCumulativeProfit' ? 'نمو متوازن' : 'الوضع الحالي'
-                    ]}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Legend 
-                    formatter={(val) => 
-                      val === 'premiumCumulativeProfit' ? '💎 رفع السعر + صور استوديو AI' :
-                      val === 'undercutCumulativeProfit' ? '⚡ كسر السعر والاستحواذ على Buy Box' :
-                      val === 'balancedCumulativeProfit' ? '⚖️ النمو المتوازن وإعلانات المنصة' :
-                      'الوضع الحالي (Status Quo)'
-                    }
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                  />
-                  <Line type="monotone" dataKey="premiumCumulativeProfit" stroke="#6366F1" strokeWidth={3.5} dot={{ r: 4, fill: '#6366F1' }} name="premiumCumulativeProfit" />
-                  <Line type="monotone" dataKey="balancedCumulativeProfit" stroke="#10B981" strokeWidth={2.5} dot={{ r: 3, fill: '#10B981' }} name="balancedCumulativeProfit" />
-                  <Line type="monotone" dataKey="undercutCumulativeProfit" stroke="#EF4444" strokeWidth={2.5} dot={{ r: 3, fill: '#EF4444' }} name="undercutCumulativeProfit" />
-                  <Line type="monotone" dataKey="baselineCumulativeProfit" stroke="#94A3B8" strokeWidth={2} strokeDasharray="5 5" name="baselineCumulativeProfit" />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="bg-slate-900/90 rounded-2xl p-4 sm:p-6 border border-slate-800 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {(simulation.strategyComparisons || []).map((strat: any, sIdx: number) => {
+                  const maxProfit = Math.max(...(simulation.strategyComparisons || []).map((s: any) => s.totalNetProfitEGP || 1));
+                  const pct = Math.max(10, Math.round(((strat.totalNetProfitEGP || 0) / maxProfit) * 100));
+
+                  return (
+                    <div key={sIdx} className="bg-slate-800/70 p-4 rounded-xl border border-slate-700 hover:border-indigo-500/60 transition-all space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{strat.strategyLabel}</span>
+                        <span className="text-xs font-mono font-bold text-emerald-400">ROI: {strat.roiPercent}%</span>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>صافي الربح التراكمي:</span>
+                          <span className="text-white font-mono font-bold">{strat.totalNetProfitEGP.toLocaleString()} {currency}</span>
+                        </div>
+                        <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden p-0.5 border border-slate-800">
+                          <div 
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ 
+                              width: `${pct}%`, 
+                              backgroundColor: strat.color || '#6366F1'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-700/60">
+                        <span>إجمالي المبيعات: <strong className="text-slate-200 font-mono">{strat.totalRevenueEGP.toLocaleString()} {currency}</strong></span>
+                        <span>القطع: <strong className="text-slate-200 font-mono">{strat.unitSalesTotal}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* CHART 3: Sensitivity Matrix Bar Chart (Finding the Sweet Spot) */}
+        {/* Chart View 3: Price Sensitivity Matrix */}
         {/* ======================================================== */}
         {activeChartView === 'price_sensitivity' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>مصفوفة حساسية تغير السعر (-15% إلى +20%) وتأثيرها على مجمل الأرباح الصافية</span>
               <span className="font-bold text-sky-600">نقطة التسعير الذهبية تقع بين (+10% و +12%) مع تحسين الصور</span>
             </div>
 
-            <div className="h-80 w-full min-w-0" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280} debounce={50}>
-                <BarChart data={simulation.sensitivityMatrix} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis 
-                    dataKey="priceDelta" 
-                    tick={{ fontSize: 11, fill: '#64748b' }} 
-                    stroke="#cbd5e1" 
-                    tickFormatter={(v) => v > 0 ? `+${v}%` : `${v}%`}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value: number | string | Array<number | string> | undefined) => [
-                      `${Number(value || 0).toLocaleString()} ${currency}`, 
-                      'صافي الربح المتوقع'
-                    ]}
-                    labelFormatter={(label) => `نسبة تعديل السعر: ${Number(label) > 0 ? `+${label}%` : `${label}%`}`}
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', color: '#fff', border: 'none', fontSize: '12px' }}
-                  />
-                  <Bar 
-                    dataKey="projectedNetProfitEGP" 
-                    fill="#6366F1" 
-                    radius={[8, 8, 0, 0]} 
-                    name="صافي الربح المتوقع"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-slate-900/90 rounded-2xl p-4 sm:p-6 border border-slate-800 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                {(simulation.sensitivityMatrix || []).map((item: any, idx: number) => {
+                  const maxNet = Math.max(...(simulation.sensitivityMatrix || []).map((s: any) => s.projectedNetProfitEGP || 1));
+                  const height = Math.max(15, Math.round((Math.max(0, item.projectedNetProfitEGP) / maxNet) * 100));
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                        item.isOptimal 
+                          ? 'bg-indigo-950/70 border-indigo-500 shadow-md shadow-indigo-500/20 ring-1 ring-indigo-400' 
+                          : 'bg-slate-800/50 border-slate-700/70'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <span className={`text-xs font-mono font-black ${item.priceDelta > 0 ? 'text-emerald-400' : item.priceDelta < 0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                          {item.priceDelta > 0 ? `+${item.priceDelta}%` : `${item.priceDelta}%`}
+                        </span>
+                        {item.isOptimal && (
+                          <span className="block text-[9px] font-bold text-indigo-300 bg-indigo-900/80 px-1 py-0.5 rounded-sm mt-0.5">
+                            نقطة ذهبية 🎯
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="h-28 flex items-end justify-center py-2">
+                        <div 
+                          className={`w-5 rounded-t-md transition-all ${
+                            item.isOptimal ? 'bg-gradient-to-t from-indigo-600 to-indigo-400' : 'bg-slate-600 hover:bg-slate-500'
+                          }`}
+                          style={{ height: `${height}%` }}
+                        />
+                      </div>
+
+                      <div className="text-center text-[10px] space-y-0.5 pt-1 border-t border-slate-700/50">
+                        <div className="font-mono font-bold text-white">{(item.projectedNetProfitEGP / 1000).toFixed(1)}k</div>
+                        <div className="text-slate-400 text-[9px]">هامش {item.marginPercent}%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
       </div>
+      </ErrorBoundary>
 
       {/* ========================================================================= */}
       {/* 5. AI STRATEGIC EXECUTIVE ANALYSIS & ACTIONABLE TOOLS */}
@@ -907,7 +942,6 @@ ${simulation.aiInsights.executiveVerdict}
 
         </div>
 
-        {/* Direct Action Launch Bar */}
         <div className="p-4 bg-white rounded-2xl border border-indigo-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-md">

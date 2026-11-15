@@ -25,6 +25,7 @@ import {
   saveStoredLiveProducts,
   purgeDummyProducts
 } from '../services/livePlatformProductSync';
+import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 interface LivePlatformSyncModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export const LivePlatformSyncModal: React.FC<LivePlatformSyncModalProps> = ({
   const [reportContent, setReportContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const { isMaintenanceMode } = useMaintenanceMode();
 
   // Strictly filter platforms associated with the active merchant to prevent cross-merchant leakage
   const merchantScopedPlatforms = useMemo(() => {
@@ -149,6 +151,11 @@ export const LivePlatformSyncModal: React.FC<LivePlatformSyncModalProps> = ({
 
   // Quick 1-click sync strictly scoped to active merchant
   const handleQuickSyncAll = async () => {
+    if (isMaintenanceMode) {
+      setStatusMessage({ type: 'error', text: MAINTENANCE_MODE_BLOCK_MESSAGE });
+      onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setIsLoading(true);
     setStatusMessage({ type: 'info', text: `جاري المزامنة الحية لقنوات متجر "${activeMerchantName || 'المتجر المحدد'}"...` });
 
@@ -210,6 +217,13 @@ export const LivePlatformSyncModal: React.FC<LivePlatformSyncModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {isMaintenanceMode && (
+          <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 shrink-0">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{MAINTENANCE_MODE_BLOCK_MESSAGE}</span>
+          </div>
+        )}
 
         {/* Sync Mode Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 rounded-2xl my-4 shrink-0 text-xs font-bold">

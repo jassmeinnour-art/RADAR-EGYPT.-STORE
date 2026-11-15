@@ -10,10 +10,17 @@ import {
   X,
   Package,
   Trash2,
-  Pencil
+  Pencil,
+  Phone,
+  ExternalLink,
+  Store,
+  Hash,
+  AlertTriangle,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
-import { supabase, Trader } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import { supabase, Trader, getTraderLastSyncAt } from '../lib/supabase';
+import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
 import { FetchProductsModal } from './FetchProductsModal';
@@ -22,6 +29,8 @@ import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -40,13 +49,12 @@ const PLATFORM_DETAILS: Record<string, { name: string; color: string; logo: stri
 
 const TraderCard: React.FC<{
   trader: Trader;
-  isFounder: boolean;
-  canEdit: boolean;
   isSyncing: boolean;
   onEdit: (t: Trader) => void;
   onDelete: (e: React.MouseEvent, t: Trader) => void;
   onFetch: (t: Trader) => void;
-}> = React.memo(({ trader, isFounder, canEdit, isSyncing, onEdit, onDelete, onFetch }) => {
+  onShowToast?: (message: string) => void;
+}> = React.memo(({ trader, isSyncing, onEdit, onDelete, onFetch, onShowToast }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const plat = PLATFORM_DETAILS[trader.platform] || {
     name: trader.platform || 'منصة عامة',
@@ -54,19 +62,41 @@ const TraderCard: React.FC<{
     logo: 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png'
   };
   const sellerId = trader.seller_id || trader.seller_ids?.[trader.platform] || 'غير محدد';
-  const storeUrl = trader.store_url || trader.storefront_link || trader.destination_url || trader.seller_link || '';
-  const displayEmail = trader.gmail || trader.email || '';
+  const destinationUrl = (trader.destination_url || trader.seller_link || '').trim();
+  const storeUrl = (trader.store_url || trader.storefront_link || '').trim();
+  const displayEmail = (trader.gmail || trader.email || '').trim();
+  const phone = (trader.phone || '').trim();
+
+  const lastSyncTimestamp = getTraderLastSyncAt(
+    trader.id,
+    trader.last_sync_at,
+    trader.last_sync_timestamp
+  );
+  const lastSyncMs = lastSyncTimestamp ? Date.parse(lastSyncTimestamp) : NaN;
+  const hasValidSync = Number.isFinite(lastSyncMs);
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const isOverdue24h = !hasValidSync || Date.now() - lastSyncMs > TWENTY_FOUR_HOURS_MS;
+  const formattedSyncDate = hasValidSync
+    ? new Intl.DateTimeFormat('ar-EG', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(lastSyncMs))
+    : 'لم يتم السحب بعد';
 
   return (
     <div
       ref={cardRef}
-      className="card border relative overflow-hidden flex flex-col justify-between p-5"
+      className="card border relative overflow-hidden flex flex-col justify-between p-5 bg-slate-900/90 border-slate-800 rounded-3xl shadow-xl"
     >
       <DraggableHandle elementId={`trader_card_${trader.id}`} targetRef={cardRef} position="bottom-right" />
 
       <div className="space-y-4">
+        {/* Header: Seller Name, Platform Badge, Seller ID, Delete */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-700 p-2 flex items-center justify-center shrink-0">
               <img
                 src={plat.logo}
@@ -81,150 +111,229 @@ const TraderCard: React.FC<{
                 }}
               />
             </div>
-            <div>
-              <h3 className="text-base font-black text-white">
+            <div className="min-w-0">
+              <h3 className="text-base font-black text-white truncate">
                 {trader.seller_name}
               </h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${plat.color}`}>
                   {plat.name}
                 </span>
-                <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                  ID: {sellerId}
+                <span className="text-[10px] font-mono text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 inline-flex items-center gap-1">
+                  <Hash className="w-3 h-3 text-amber-400" />
+                  <span>{sellerId}</span>
                 </span>
               </div>
             </div>
           </div>
 
-          {canEdit && (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onEdit(trader); }}
-                title="تعديل بيانات التاجر"
-                className="p-2 rounded-xl bg-slate-950/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 border border-slate-800 hover:border-amber-500/40 transition-colors duration-200 cursor-pointer"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              {isFounder && (
-                <button
-                  type="button"
-                  onClick={(e) => onDelete(e, trader)}
-                  title="حذف التاجر"
-                  className="p-2 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-colors duration-200 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={(e) => onDelete(e, trader)}
+            title="حذف التاجر"
+            className="p-2 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-colors duration-200 cursor-pointer shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-          {displayEmail && (
-            <div className="flex items-center gap-2 truncate">
-              <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <span className="truncate">{displayEmail}</span>
+        {/* Founder Management Fields */}
+        <div className="space-y-2 text-xs text-slate-300 pt-3 border-t border-slate-800/70">
+          <div className="flex items-center justify-between gap-2 bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/70">
+            <div className="flex items-center gap-2 min-w-0">
+              <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="truncate font-mono text-[11px]" dir="ltr">
+                {displayEmail || 'غير محدد'}
+              </span>
             </div>
-          )}
-          {storeUrl && (
-            <div className="flex items-center gap-2 truncate">
-              <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <a
-                href={storeUrl}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="truncate text-sky-400 hover:underline"
-              >
-                {storeUrl}
-              </a>
-            </div>
-          )}
-        </div>
+            <span className="text-[10px] text-slate-400 font-bold shrink-0">
+              للعرض فقط
+            </span>
+          </div>
 
-        <div className="pt-2 border-t border-slate-800/60 space-y-2">
-          {canEdit && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onFetch(trader); }}
-              disabled={isSyncing}
-              className="w-full px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 font-bold text-xs border border-amber-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isSyncing ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>يتم المزامنة...</span>
-                </>
+          <div className="flex items-center justify-between gap-2 bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/70">
+            <div className="flex items-center gap-2 min-w-0">
+              <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate font-mono text-[11px]" dir="ltr">
+                {phone || 'لا يوجد رقم هاتف'}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-bold shrink-0">الهاتف</span>
+          </div>
+
+          <div className="space-y-1 text-[11px] text-slate-400 px-1">
+            <div className="flex items-center gap-1.5 truncate">
+              <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-slate-500 shrink-0">الوجهة:</span>
+              <span className="truncate font-mono text-slate-300" dir="ltr">
+                {destinationUrl || 'غير مضاف'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 truncate">
+              <Store className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="text-slate-500 shrink-0">المتجر:</span>
+              <span className="truncate font-mono text-slate-300" dir="ltr">
+                {storeUrl || 'غير مضاف'}
+              </span>
+            </div>
+          </div>
+
+          {/* Sync Status & last_sync_timestamp Indicator */}
+          <div
+            data-testid={`sync-status-${trader.id}`}
+            data-field="last_sync_timestamp"
+            data-value={lastSyncTimestamp || ''}
+            className={`px-3 py-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+              isOverdue24h
+                ? 'bg-red-500/10 border-red-500/45 text-red-200'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {isOverdue24h ? (
+                <AlertTriangle
+                  data-testid={`sync-warning-icon-${trader.id}`}
+                  className="w-4 h-4 text-red-500 shrink-0"
+                  aria-label="تحذير: تجاوزت آخر عملية سحب 24 ساعة"
+                />
               ) : (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>سحب كل منتجات المتجر</span>
-                </>
+                <CheckCircle2
+                  className="w-4 h-4 text-emerald-400 shrink-0"
+                  aria-label="المزامنة محدثة"
+                />
               )}
-            </button>
-          )}
+              <div className="min-w-0">
+                <div className="text-[11px] font-black flex items-center gap-1.5">
+                  <span>حالة المزامنة (Sync Status)</span>
+                </div>
+                <div className="text-[10px] font-semibold flex items-center gap-1 text-slate-300 truncate">
+                  <Clock className="w-3 h-3 shrink-0 opacity-80" />
+                  <span>آخر سحب (last_sync_timestamp):</span>
+                  <span className="tabular-nums truncate">{formattedSyncDate}</span>
+                </div>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-black shrink-0 ${
+                isOverdue24h ? 'text-red-400' : 'text-emerald-300'
+              }`}
+            >
+              {isOverdue24h
+                ? hasValidSync
+                  ? 'تجاوز 24 ساعة'
+                  : 'يحتاج سحب'
+                : 'محدث'}
+            </span>
+          </div>
+        </div>
+
+        {/* Founder Action Buttons (5 Required Actions) */}
+        <div className="pt-3 border-t border-slate-800/70 space-y-2">
+          {/* 1. Edit Trader Data */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/products?trader_id=${trader.id}&platform=${trader.platform || 'amazon'}`);
+              onEdit(trader);
             }}
-            className="w-full px-3 py-2 rounded-xl bg-slate-950/90 hover:bg-slate-800 text-sky-400 hover:text-sky-300 font-bold text-xs border border-slate-800 hover:border-sky-500/40 transition-colors duration-200 flex items-center justify-between cursor-pointer"
+            className="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 hover:border-amber-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Pencil className="w-3.5 h-3.5 text-amber-400" />
+            <span>تعديل بيانات التاجر</span>
+          </button>
+
+          {/* 2 & 3. Open Destination URL & Open Store URL */}
+          <div className="grid grid-cols-2 gap-2">
+            {destinationUrl ? (
+              <a
+                href={destinationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="py-2 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-200"
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span>فتح رابط الوجهة</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowToast?.('⚠️ لم يتم إضافة رابط الوجهة بعد — اضغط "تعديل بيانات التاجر" لإضافته.');
+                }}
+                className="py-2 px-2.5 rounded-xl bg-slate-950 text-slate-500 border border-slate-800 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span>فتح رابط الوجهة</span>
+              </button>
+            )}
+
+            {storeUrl ? (
+              <a
+                href={storeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="py-2 px-2.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-200"
+              >
+                <Store className="w-3.5 h-3.5 shrink-0" />
+                <span>فتح المتجر</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowToast?.('⚠️ لم يتم إضافة رابط المتجر بعد — اضغط "تعديل بيانات التاجر" لإضافته.');
+                }}
+                className="py-2 px-2.5 rounded-xl bg-slate-950 text-slate-500 border border-slate-800 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Store className="w-3.5 h-3.5 shrink-0" />
+                <span>فتح المتجر</span>
+              </button>
+            )}
+          </div>
+
+          {/* 4. Pull All Products */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFetch(trader);
+            }}
+            disabled={isSyncing}
+            className="w-full px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 font-bold text-xs border border-amber-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isSyncing ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>يتم المزامنة...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>سحب كل المنتجات</span>
+              </>
+            )}
+          </button>
+
+          {/* 5. View Products (/products?trader_id=...) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/products?trader_id=${encodeURIComponent(trader.id)}`);
+            }}
+            className="w-full px-3 py-2.5 rounded-xl bg-slate-950/90 hover:bg-slate-800 text-sky-400 hover:text-sky-300 font-black text-xs border border-slate-800 hover:border-sky-500/40 transition-colors duration-200 flex items-center justify-between cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <Package className="w-4 h-4 text-sky-400" />
-              <span>منتجات التاجر</span>
+              <span>عرض المنتجات</span>
             </div>
-            <span className="text-[11px] text-amber-400 flex items-center gap-1 font-bold">
-              <span>عرض الكل</span>
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </span>
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
           </button>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/products?trader_id=${trader.id}&platform=amazon`);
-              }}
-              className="py-1.5 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center justify-between transition-colors duration-200 cursor-pointer"
-            >
-              <span>أمازون</span>
-              <ArrowLeft className="w-3 h-3" />
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/products?trader_id=${trader.id}&platform=noon`);
-              }}
-              className="py-1.5 px-2.5 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs font-bold flex items-center justify-between transition-colors duration-200 cursor-pointer"
-            >
-              <span>نون</span>
-              <ArrowLeft className="w-3 h-3" />
-            </button>
-          </div>
         </div>
-      </div>
-
-      <div className="pt-4 mt-4 border-t border-slate-800 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/products?trader_id=${trader.id}&platform=${trader.platform || 'amazon'}`);
-          }}
-          className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-        >
-          <span>فتح ملف التاجر</span>
-          <ArrowLeft className="w-3.5 h-3.5" />
-        </button>
-        <span className="text-[10px] text-slate-500 font-mono">
-          {trader.platform?.toUpperCase() || 'ACTIVE'}
-        </span>
       </div>
     </div>
   );
@@ -234,7 +343,7 @@ TraderCard.displayName = 'TraderCard';
 export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const { user, profile, isOwner } = useAuth();
   const userEmail = (user?.email || profile?.email || '').trim().toLowerCase();
-  const isFounder = Boolean(user && !user.isAnonymous && isOwner && userEmail === 'jassmeinnour@gmail.com');
+  const isFounder = Boolean(user && !user.isAnonymous && isOwner && userEmail === OWNER_EMAIL);
 
   const [traders, setTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -252,7 +361,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const [selectedTraderForFetch, setSelectedTraderForFetch] = useState<Trader | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Form state for Add Trader modal (with all required fields)
+  // Form state for Add Trader modal (all founder-managed fields)
   const [formName, setFormName] = useState<string>('');
   const [formEmail, setFormEmail] = useState<string>('');
   const [formPhone, setFormPhone] = useState<string>('');
@@ -262,7 +371,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const [formStoreUrl, setFormStoreUrl] = useState<string>('');
 
   const fetchTraders = async (targetPage = 1, forceFresh = false) => {
-    if (!userEmail) {
+    if (!isFounder) {
       setTraders([]);
       setIsLoading(false);
       return;
@@ -292,11 +401,21 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       const from = (targetPage - 1) * PAGE_SIZE;
       const to = targetPage * PAGE_SIZE - 1;
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('traders')
-        .select('id, seller_name, email, gmail, seller_id, platform, storefront_link, store_url, destination_url, seller_link, status, phone, user_id')
+        .select('id, seller_name, email, gmail, seller_id, platform, storefront_link, store_url, destination_url, seller_link, status, phone, user_id, last_sync_at, last_sync_timestamp')
         .order('created_at', { ascending: false })
         .range(from, to);
+
+      if (error && (String(error.message || '').includes('last_sync_timestamp') || String(error.message || '').includes('last_sync_at'))) {
+        const fallbackRes = await supabase
+          .from('traders')
+          .select('id, seller_name, email, gmail, seller_id, platform, storefront_link, store_url, destination_url, seller_link, status, phone, user_id')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) {
         console.error('Error fetching traders:', error);
@@ -307,24 +426,15 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
       let list = Array.isArray(data) ? (data as Trader[]) : [];
 
-      // Client-side defense-in-depth: non-founder sees strictly their own trader records
-      if (!isFounder) {
-        list = list.filter((t) => {
-          const tEmail = String(t.email || t.gmail || '').trim().toLowerCase();
-          return tEmail === userEmail;
-        });
-      }
-
-      // Only show Mahmoud Saeed record as fallback to Founder or mahmeudsaid4@gmail.com when DB returns empty
-      if (targetPage === 1 && list.length === 0 && (isFounder || userEmail === 'mahmeudsaid4@gmail.com')) {
+      if (targetPage === 1 && list.length === 0) {
         list = [
           {
             id: 'A37JIM7LHQI6IM',
-            user_id: user?.uid || 'mahmeudsaid4',
+            user_id: user?.uid || 'founder',
             seller_name: 'محمود سعيد',
             email: 'mahmeudsaid4@gmail.com',
             gmail: 'mahmeudsaid4@gmail.com',
-            phone: '',
+            phone: '+20 100 000 0000',
             platform: 'amazon',
             status: 'active',
             seller_id: 'A37JIM7LHQI6IM',
@@ -336,14 +446,19 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
         ];
       }
 
-      list = list.map((t) => ({
-        ...t,
-        platform: (t.platform || '').includes('amazon')
-          ? 'amazon'
-          : (t.platform || '').includes('noon')
-          ? 'noon'
-          : t.platform,
-      }));
+      list = list.map((t) => {
+        const syncedTs = getTraderLastSyncAt(t.id, t.last_sync_at, t.last_sync_timestamp) || undefined;
+        return {
+          ...t,
+          last_sync_at: syncedTs,
+          last_sync_timestamp: syncedTs,
+          platform: (t.platform || '').includes('amazon')
+            ? 'amazon'
+            : (t.platform || '').includes('noon')
+            ? 'noon'
+            : t.platform,
+        };
+      });
 
       setHasMore(list.length === PAGE_SIZE);
 
@@ -371,10 +486,30 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   useEffect(() => {
     fetchTraders(1);
     const handleRefresh = () => {
+      if (isMaintenanceModeActive()) return;
       fetchTraders(1, true);
     };
+    const handleSyncUpdated = (ev: Event) => {
+      const detail = (
+        ev as CustomEvent<{ traderId?: string; last_sync_at?: string; last_sync_timestamp?: string }>
+      )?.detail;
+      const syncedIso = detail?.last_sync_timestamp || detail?.last_sync_at;
+      if (!detail?.traderId || !syncedIso) return;
+      setTraders((prev) =>
+        prev.map((t) =>
+          t.id === detail.traderId
+            ? { ...t, last_sync_at: syncedIso, last_sync_timestamp: syncedIso }
+            : t
+        )
+      );
+      dataCache.invalidate('traders');
+    };
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
-    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    window.addEventListener('radar_trader_sync_updated', handleSyncUpdated);
+    return () => {
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+      window.removeEventListener('radar_trader_sync_updated', handleSyncUpdated);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, isFounder]);
 
@@ -384,6 +519,10 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   };
 
   const handleFetchProducts = (trader: Trader) => {
+    if (isMaintenanceModeActive()) {
+      onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setSyncingTraderId(trader.id);
     setSelectedTraderForFetch(trader);
     setIsFetchModalOpen(true);
@@ -397,9 +536,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
   const handleSaveTrader = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = (formEmail.trim() || (!isFounder ? userEmail : '')).toLowerCase();
+    const cleanEmail = formEmail.trim().toLowerCase();
     if (!formName.trim() || !formPlatform || !formSellerId.trim() || !cleanEmail) {
-      onShowToast?.('⚠️ يرجى إدخال اسم التاجر وحساب الجيميل والمنصة ومعرف البائع');
+      onShowToast?.('⚠️ يرجى إدخال اسم التاجر وإيميل المنصة والمنصة ومعرف البائع');
       return;
     }
     setIsSubmitting(true);
@@ -407,7 +546,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       const cleanDest = formDestinationUrl.trim();
       const cleanStore = formStoreUrl.trim();
       const newTraderPayload = {
-        user_id: user?.uid || (user as any)?.id || '',
+        user_id: user?.uid || (user as any)?.id || 'founder',
         seller_name: formName.trim(),
         email: cleanEmail,
         gmail: cleanEmail,
@@ -437,7 +576,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
         const insertedTrader = insertedList[0] as Trader;
         setTraders((prev) => [insertedTrader, ...prev.filter((t) => t.id !== insertedTrader.id)]);
       }
-      onShowToast?.('✅ تم حفظ التاجر بنجاح');
+      onShowToast?.('✅ تم حفظ سجل التاجر بنجاح');
       setIsAddModalOpen(false);
       setFormName('');
       setFormEmail('');
@@ -483,6 +622,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       (t.seller_name && t.seller_name.toLowerCase().includes(q)) ||
       (t.email && t.email.toLowerCase().includes(q)) ||
       (t.gmail && t.gmail.toLowerCase().includes(q)) ||
+      (t.seller_id && t.seller_id.toLowerCase().includes(q)) ||
       (t.phone && t.phone.includes(q)) ||
       (t.platform && t.platform.toLowerCase().includes(q))
     );
@@ -493,14 +633,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm font-['Cairo']" dir="rtl">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 text-right shadow-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-            <h3 className="text-base font-black text-white">إضافة تاجر جديد</h3>
+            <h3 className="text-base font-black text-white">إضافة سجل تاجر جديد</h3>
             <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
           <form onSubmit={handleSaveTrader} className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">اسم التاجر / المتجر *</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">اسم التاجر (seller_name) *</label>
               <input
                 type="text"
                 required
@@ -511,20 +651,20 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">حساب الجيميل (gmail) *</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">إيميل التاجر على المنصة (للعرض فقط — ليس للدخول) *</label>
               <input
                 type="email"
                 required
                 dir="ltr"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
-                placeholder="example@gmail.com"
+                placeholder="mahmeudsaid4@gmail.com"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 text-left"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">معرف البائع (Seller ID) *</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">رمز التاجر التعريفي (seller_id) *</label>
                 <input
                   type="text"
                   required
@@ -536,7 +676,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">رقم الهاتف</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">رقم هاتف التاجر (phone)</label>
                 <input
                   type="tel"
                   dir="ltr"
@@ -548,14 +688,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">المنصة الرئيسية *</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">المنصة (platform) *</label>
               <select
                 value={formPlatform}
                 onChange={(e) => setFormPlatform(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
               >
-                <option value="amazon">أمازون مصر (Amazon)</option>
-                <option value="noon">نون مصر (Noon)</option>
+                <option value="amazon">أمازون (Amazon)</option>
+                <option value="noon">نون (Noon)</option>
                 <option value="jumia">جوميا (Jumia)</option>
                 <option value="bayyaa">بياع (Bayyaa)</option>
                 <option value="raneen">رنين (Raneen)</option>
@@ -564,24 +704,24 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">لينك موقع الوجهة (destination_url)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">رابط الوجهة (destination_url)</label>
               <input
                 type="url"
                 dir="ltr"
                 value={formDestinationUrl}
                 onChange={(e) => setFormDestinationUrl(e.target.value)}
-                placeholder="https://www.amazon.eg/s?me=..."
+                placeholder="https://www.amazon.eg/s?me=A37JIM7LHQI6IM"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 text-left"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">لينك موقع المتجر (store_url)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">رابط المتجر (store_url)</label>
               <input
                 type="url"
                 dir="ltr"
                 value={formStoreUrl}
                 onChange={(e) => setFormStoreUrl(e.target.value)}
-                placeholder="https://www.amazon.eg/sp?seller=..."
+                placeholder="https://www.amazon.eg/sp?seller=A37JIM7LHQI6IM"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 text-left"
               />
             </div>
@@ -615,9 +755,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
         <GlobalEmptyState
           icon={<Users className="w-10 h-10 text-amber-400" />}
           message={fetchError ? 'لا توجد بيانات' : 'لم يتم العثور على تجار مسجلين'}
-          description={isFounder ? 'دليل التجار فارغ حالياً. ابدأ بإضافة تجار جدد لمتابعة أدائهم وربط منتجاتهم.' : 'لا توجد بيانات تاجر مرتبطة بهذا الحساب حالياً.'}
-          actionLabel={isFounder ? '➕ إضافة تاجر جديد' : undefined}
-          onActionClick={isFounder ? () => setIsAddModalOpen(true) : undefined}
+          description="سجل التجار فارغ حالياً. أضف تاجراً جديداً لإدارة متجره ومنتجاته."
+          actionLabel="➕ إضافة تاجر جديد"
+          onActionClick={() => setIsAddModalOpen(true)}
         >
           <EmergencyLoginButton />
         </GlobalEmptyState>
@@ -641,21 +781,21 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-white">دليل التجار الموحد 📚</h2>
-            <p className="text-xs text-slate-400">إجمالي التجار المتاحين لحسابك: {traders.length} تاجر</p>
+            <h2 className="text-xl font-black text-white">إدارة التجار الموحدة (لوحة المؤسس) 📚</h2>
+            <p className="text-xs text-slate-400">
+              التجار سجلات بيانات يديرها المؤسس فقط — إجمالي السجلات: {traders.length} تاجر
+            </p>
           </div>
         </div>
 
-        {isFounder && (
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer w-full md:w-auto justify-center"
-          >
-            <Plus className="w-5 h-5" />
-            <span>➕ إضافة تاجر جديد</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setIsAddModalOpen(true)}
+          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer w-full md:w-auto justify-center"
+        >
+          <Plus className="w-5 h-5" />
+          <span>➕ إضافة تاجر جديد</span>
+        </button>
       </div>
 
       <div className="relative max-w-xl">
@@ -664,7 +804,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="بحث في التجار بالاسم أو المنصة أو البريد..."
+          placeholder="بحث في التجار بالاسم أو الإيميل أو Seller ID أو المنصة..."
           className="w-full border rounded-2xl pr-11 pl-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-amber-500/50 shadow-inner"
           style={{
             backgroundColor: 'var(--input-bg)',
@@ -674,24 +814,25 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTraders.map((trader) => {
-          const tEmail = String(trader.email || trader.gmail || '').trim().toLowerCase();
-          const canEdit = isFounder || (Boolean(userEmail) && tEmail === userEmail);
-          return (
+      <ErrorBoundary
+        sectionName="traders-grid"
+        sectionTitle="قائمة وشبكة كروت التجار"
+        sectionDescription="تعذر معالجة وعرض كروت التجار في الوقت الحالي. يمكنك إضافة تاجر جديد أو إعادة المحاولة."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTraders.map((trader) => (
             <TraderCard
               key={trader.id}
               trader={trader}
-              isFounder={isFounder}
-              canEdit={canEdit}
               isSyncing={syncingTraderId === trader.id}
               onEdit={handleEditTrader}
               onDelete={handleDeleteTrader}
               onFetch={handleFetchProducts}
+              onShowToast={onShowToast}
             />
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      </ErrorBoundary>
 
       {isFetchModalOpen && selectedTraderForFetch && (
         <FetchProductsModal
@@ -699,6 +840,17 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
           isOpen={isFetchModalOpen}
           onClose={() => setIsFetchModalOpen(false)}
           onShowToast={onShowToast}
+          onSyncCompleted={() => {
+            const nowIso = new Date().toISOString();
+            setTraders((prev) =>
+              prev.map((t) =>
+                t.id === selectedTraderForFetch.id
+                  ? { ...t, last_sync_at: nowIso, last_sync_timestamp: nowIso }
+                  : t
+              )
+            );
+            dataCache.invalidate('traders');
+          }}
         />
       )}
 

@@ -34,6 +34,8 @@ import { SalesTrendsWidget } from './SalesTrendsWidget';
 import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { SmartPriceAlertsPanel } from './SmartPriceAlertsPanel';
+import { MaintenanceModeToggleCard } from './MaintenanceModeControl';
 
 interface MerchantRecord {
   id: string;
@@ -434,6 +436,16 @@ export default function OwnerDashboard() {
           <Download className="w-4 h-4 text-amber-400" />
           <span>تصدير دليل التجار CSV</span>
         </button>
+      </div>
+
+      {/* Founder Maintenance Mode Control */}
+      <div className="mb-6">
+        <MaintenanceModeToggleCard />
+      </div>
+
+      {/* Smart Price Drop & 10% Change Alerts */}
+      <div className="mb-8">
+        <SmartPriceAlertsPanel />
       </div>
 
       {/* 3 Main Owner Interactive Cards (Sortable) */}

@@ -4,11 +4,15 @@ import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginPage from './components/LoginPage';
-import { EmergencyLoginButton, EmergencyErrorBanner } from './components/EmergencyLoginButton';
+import DashboardHome from './components/DashboardHome';
 import { PullToRefresh, RADAR_PULL_TO_REFRESH_EVENT } from './components/PullToRefresh';
 import { TabTransitionContainer } from './components/TabTransitionContainer';
 import { dataCache } from './utils/dataCache';
-import { navigate } from './utils/navigation';
+import { navigate, resolvePathToTab, type WorkspaceTab } from './utils/navigation';
+import { MaintenanceModeBanner } from './components/MaintenanceModeControl';
+import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from './utils/maintenanceMode';
+
+export type { WorkspaceTab };
 
 type PreloadableLazyComponent<T extends React.ComponentType<any>> =
   React.LazyExoticComponent<T> & {
@@ -50,8 +54,7 @@ const RouteDebugger = lazyWithPreload(() =>
   import('./components/RouteDebugger').then((m) => ({ default: m.RouteDebugger }))
 );
 
-// Lazy loaded workspace tabs (only the active first-screen tab is preloaded proactively)
-const DashboardHome = lazyWithPreload(() => import('./components/DashboardHome'));
+// Lazy loaded workspace tabs (DashboardHome is loaded statically so / renders immediately)
 const DashboardOverviewPage = lazyWithPreload(() => import('./components/DashboardOverviewPage'));
 const TradersPage = lazyWithPreload(() => import('./components/TradersPage'));
 const ProductsPage = lazyWithPreload(() => import('./components/ProductsPage'));
@@ -69,36 +72,7 @@ const OwnerDashboard = lazyWithPreload(() => import('./components/OwnerDashboard
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 
-export type WorkspaceTab = 
-  | 'home' | 'dashboard' | 'traders' | 'products' | 'inventory' | 'merchants' | 'radar' | 'watchlist' | 'ai_studio' 
-  | 'shipping' | 'trending' | 'reports' | 'auto_pricing' | 'price_comparison' | 'platforms_guide' 
-  | 'traders_sync' | 'split_invoices' | 'help' | 'analytics' | 'layout_settings' | 'not_found';
-
-function resolvePathToTab(rawPath: string): WorkspaceTab {
-  const normalized = (rawPath || '/').replace(/\/+$/, '') || '/';
-  if (normalized === '/' || normalized === '/index.html' || normalized === '/login') return 'home';
-  if (normalized === '/dashboard') return 'dashboard';
-  if (normalized === '/traders' || normalized.startsWith('/traders/')) return 'traders';
-  if (normalized === '/products') return 'products';
-  if (normalized === '/inventory') return 'inventory';
-  if (normalized === '/invoices') return 'shipping';
-  if (normalized === '/invoices/split') return 'split_invoices';
-  if (normalized === '/reports') return 'reports';
-  if (normalized === '/trending') return 'trending';
-  if (normalized === '/competitors') return 'radar';
-  if (normalized === '/auto-pricing') return 'auto_pricing';
-  if (normalized === '/price-comparison') return 'price_comparison';
-  if (normalized === '/watchlist') return 'watchlist';
-  if (normalized === '/analytics') return 'analytics';
-  if (normalized === '/connections') return 'platforms_guide';
-  if (normalized === '/gmail-sync') return 'traders_sync';
-  if (normalized === '/settings/layout') return 'layout_settings';
-  if (normalized === '/help') return 'help';
-  return 'not_found';
-}
-
 const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
-  home: DashboardHome.preload,
   dashboard: DashboardOverviewPage.preload,
   traders: TradersPage.preload,
   products: ProductsPage.preload,
@@ -152,12 +126,17 @@ export default function App() {
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
   const { user, isOwner, authInitError } = useAuth();
+  const { isMaintenanceMode } = useMaintenanceMode();
 
   const handlePrefetchTab = useCallback((tab: WorkspaceTab) => {
     TAB_PRELOADERS[tab]?.();
   }, []);
 
   const handlePullToRefresh = useCallback(async () => {
+    if (isMaintenanceMode) {
+      showToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     dataCache.invalidate();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
@@ -167,7 +146,7 @@ export default function App() {
       );
     }
     await new Promise((resolve) => window.setTimeout(resolve, 350));
-  }, [activeWorkspaceTab]);
+  }, [activeWorkspaceTab, isMaintenanceMode]);
 
   useEffect(() => {
     if (!user || !isOwner) {
@@ -210,18 +189,24 @@ export default function App() {
     if (msg) console.log(msg);
   };
 
-  if (!user || authInitError) {
+  if (!user || !isOwner || authInitError) {
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.history.replaceState({}, '', '/login');
     }
     return (
-      <LoginPage 
-        onLoginSuccess={() => {
-          preloadFirstScreenComponents('home');
-          setActiveWorkspaceTab('home');
-          if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-        }} 
-      />
+      <ErrorBoundary
+        sectionName="login-page"
+        sectionTitle="شاشة تسجيل دخول المؤسس"
+        sectionDescription="تعذر عرض واجهة تسجيل الدخول بالكامل مؤقتاً. اضغط إعادة المحاولة للمتابعة."
+      >
+        <LoginPage 
+          onLoginSuccess={() => {
+            preloadFirstScreenComponents('home');
+            setActiveWorkspaceTab('home');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
+          }} 
+        />
+      </ErrorBoundary>
     );
   }
 
@@ -310,122 +295,22 @@ export default function App() {
     <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 pb-20 relative font-['Cairo']">
       <OfflineNoticeBanner onShowToast={showToast} />
       
-      <Suspense fallback={null}>
-        <AppSidebar
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => {
-            const next = !isSidebarCollapsed;
-            setIsSidebarCollapsed(next);
-            localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
-          }}
-          activeTab={activeWorkspaceTab}
-          onSelectTab={(tab) => {
-            setActiveWorkspaceTab(tab);
-            setShowOwnerDashboard(false);
-            setIsSidebarOpen(false);
-            if (typeof window !== 'undefined') {
-              const pathMap: Record<string, string> = {
-                home: '/',
-                dashboard: '/dashboard',
-                traders: '/traders',
-                products: '/products',
-                inventory: '/inventory',
-                shipping: '/invoices',
-                split_invoices: '/invoices/split',
-                reports: '/reports',
-                radar: '/competitors',
-                analytics: '/analytics',
-                platforms_guide: '/connections',
-                traders_sync: '/gmail-sync',
-                layout_settings: '/settings/layout',
-                help: '/help'
-              };
-              if (pathMap[tab]) {
-                window.history.pushState({}, '', pathMap[tab]);
-              }
-            }
-          }}
-          onPrefetchTab={handlePrefetchTab}
-          onOpenAllMerchantsHub={() => {}}
-          onOpenOwnerDashboard={() => {
-            if (isOwner) {
-              OwnerDashboard.preload();
-              setShowOwnerDashboard(true);
-            }
-          }}
-          onOpenSubscriptionModal={() => {}}
-          onOpenOnboarding={() => {}}
-          isOwner={isOwner}
-        />
-      </Suspense>
-
-      <div 
-        className="transition-[padding] duration-200"
-        style={{
-          paddingRight: isSidebarOpen ? '0' : (isSidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)')
-        }}
-      >
-        <Suspense fallback={<div className="h-16 bg-slate-950 border-b border-slate-800/60" />}>
-          <Header 
-            onShowToast={showToast}
-            activeTab={activeWorkspaceTab}
-            setActiveTab={(tab: string) => setActiveWorkspaceTab(tab as WorkspaceTab)}
-            onToggleSidebar={handleToggleSidebar}
-            onOpenScanner={() => {}}
-            onOpenPublishModal={() => {}}
-            connectedPlatforms={[]}
-            productCount={0}
-            onNavigateToSplit={() => setActiveWorkspaceTab('split_invoices')}
-            onNavigateToTrader={(id) => { 
-              setActiveWorkspaceTab('traders');
-              if (typeof window !== 'undefined') window.history.pushState({}, '', `/traders/${id}`);
-            }}
-          />
-        </Suspense>
-        
-        <PullToRefresh onRefresh={handlePullToRefresh}>
-          <main className="w-full p-4 md:p-6 lg:p-8">
-            {hasLazyLoadError && (
-              <div className="mb-4">
-                <EmergencyErrorBanner message="لا توجد بيانات — تعذر تحميل الصفحة المطلوبة." />
-              </div>
-            )}
-            <TabTransitionContainer tabKey={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
-              <ErrorBoundary 
-                sectionName={`tab-${activeWorkspaceTab}`} 
-                fallback={
-                  <div className="space-y-4">
-                    <EmergencyErrorBanner message="تعذر عرض هذه الصفحة مؤقتاً." />
-                    <div className="flex justify-center">
-                      <EmergencyLoginButton />
-                    </div>
-                  </div>
-                }
-              >
-                <Suspense fallback={<TabSkeletonLoader />}>
-                  {renderActiveTab()}
-                </Suspense>
-              </ErrorBoundary>
-            </TabTransitionContainer>
-          </main>
-        </PullToRefresh>
-      </div>
-
-      {mountDeferredOverlays && (
+      <ErrorBoundary silent fallback={null} sectionName="sidebar">
         <Suspense fallback={null}>
-          <VisualCustomizerModal />
-          <PWAInstallPrompt onShowToast={showToast} />
-          <DownloadFAB />
-          <RouteDebugger
+          <AppSidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => {
+              const next = !isSidebarCollapsed;
+              setIsSidebarCollapsed(next);
+              localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+            }}
             activeTab={activeWorkspaceTab}
-            hasLazyLoadError={hasLazyLoadError}
-            failedTabName={failedTabName}
-            onNavigate={(tab) => {
-              setHasLazyLoadError(false);
+            onSelectTab={(tab) => {
               setActiveWorkspaceTab(tab);
               setShowOwnerDashboard(false);
+              setIsSidebarOpen(false);
               if (typeof window !== 'undefined') {
                 const pathMap: Record<string, string> = {
                   home: '/',
@@ -448,8 +333,135 @@ export default function App() {
                 }
               }
             }}
+            onPrefetchTab={handlePrefetchTab}
+            onOpenAllMerchantsHub={() => {}}
+            onOpenOwnerDashboard={() => {
+              if (isOwner) {
+                OwnerDashboard.preload();
+                setShowOwnerDashboard(true);
+              }
+            }}
+            onOpenSubscriptionModal={() => {}}
+            onOpenOnboarding={() => {}}
+            isOwner={isOwner}
           />
         </Suspense>
+      </ErrorBoundary>
+
+      <div 
+        className="transition-[padding] duration-200"
+        style={{
+          paddingRight: isSidebarOpen ? '0' : (isSidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)')
+        }}
+      >
+        <ErrorBoundary silent fallback={<div className="h-16 bg-slate-950 border-b border-slate-800/60" />} sectionName="header">
+          <Suspense fallback={<div className="h-16 bg-slate-950 border-b border-slate-800/60" />}>
+            <Header 
+              onShowToast={showToast}
+              activeTab={activeWorkspaceTab}
+              setActiveTab={(tab: string) => setActiveWorkspaceTab(tab as WorkspaceTab)}
+              onToggleSidebar={handleToggleSidebar}
+              onOpenScanner={() => {}}
+              onOpenPublishModal={() => {}}
+              connectedPlatforms={[]}
+              productCount={0}
+              onNavigateToSplit={() => setActiveWorkspaceTab('split_invoices')}
+              onNavigateToTrader={(id) => { 
+                setActiveWorkspaceTab('traders');
+                if (typeof window !== 'undefined') window.history.pushState({}, '', `/traders/${id}`);
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
+        
+        <PullToRefresh onRefresh={handlePullToRefresh} disabled={isMaintenanceMode}>
+          <main className="w-full p-4 md:p-6 lg:p-8">
+            <ErrorBoundary silent fallback={null} sectionName="maintenance-banner">
+              <MaintenanceModeBanner canManage={isOwner} onShowToast={showToast} />
+            </ErrorBoundary>
+            {activeWorkspaceTab === 'home' && !showOwnerDashboard ? (
+              <DashboardHome onShowToast={showToast} />
+            ) : (
+              <TabTransitionContainer tabKey={showOwnerDashboard ? 'owner' : activeWorkspaceTab}>
+                <ErrorBoundary
+                  sectionName={`tab-${activeWorkspaceTab}`}
+                  sectionTitle={
+                    showOwnerDashboard
+                      ? 'لوحة إدارة المؤسس الشاملة'
+                      : (
+                          {
+                            home: 'الصفحة الرئيسية',
+                            dashboard: 'لوحة التحكم والعمليات',
+                            traders: 'إدارة التجار',
+                            products: 'كتالوج المنتجات والأسعار',
+                            merchants: 'كتالوج المنتجات والأسعار',
+                            inventory: 'إدارة المخزون',
+                            shipping: 'بوالص الشحن والفواتير',
+                            split_invoices: 'تقسيم البوالص',
+                            reports: 'التقارير والمؤشرات المالية',
+                            trending: 'التقارير والمؤشرات المالية',
+                            radar: 'رادار المنافسين ومقارنة الأسعار',
+                            auto_pricing: 'محرك التسعير الآلي',
+                            price_comparison: 'مقارنة الأسعار الذكية',
+                            analytics: 'التحليلات السوقية الشاملة',
+                            platforms_guide: 'دليل ربط المنصات',
+                            traders_sync: 'مزامنة حسابات التجار',
+                            layout_settings: 'تخصيص الواجهة والترتيب',
+                            help: 'مركز المساعدة والدعم الفني',
+                          }[activeWorkspaceTab] || `صفحة ${activeWorkspaceTab}`
+                        )
+                  }
+                  sectionDescription="تعذر تحميل محتوى هذه الصفحة بالكامل مؤقتاً. يمكنك إعادة المحاولة أو الانتقال لصفحة أخرى من القائمة الجانبية."
+                >
+                  <Suspense fallback={<TabSkeletonLoader />}>
+                    {renderActiveTab()}
+                  </Suspense>
+                </ErrorBoundary>
+              </TabTransitionContainer>
+            )}
+          </main>
+        </PullToRefresh>
+      </div>
+
+      {mountDeferredOverlays && (
+        <ErrorBoundary silent fallback={null} sectionName="overlays">
+          <Suspense fallback={null}>
+            <VisualCustomizerModal />
+            <PWAInstallPrompt onShowToast={showToast} />
+            <DownloadFAB />
+            <RouteDebugger
+              activeTab={activeWorkspaceTab}
+              hasLazyLoadError={hasLazyLoadError}
+              failedTabName={failedTabName}
+              onNavigate={(tab) => {
+                setHasLazyLoadError(false);
+                setActiveWorkspaceTab(tab);
+                setShowOwnerDashboard(false);
+                if (typeof window !== 'undefined') {
+                  const pathMap: Record<string, string> = {
+                    home: '/',
+                    dashboard: '/dashboard',
+                    traders: '/traders',
+                    products: '/products',
+                    inventory: '/inventory',
+                    shipping: '/invoices',
+                    split_invoices: '/invoices/split',
+                    reports: '/reports',
+                    radar: '/competitors',
+                    analytics: '/analytics',
+                    platforms_guide: '/connections',
+                    traders_sync: '/gmail-sync',
+                    layout_settings: '/settings/layout',
+                    help: '/help'
+                  };
+                  if (pathMap[tab]) {
+                    window.history.pushState({}, '', pathMap[tab]);
+                  }
+                }
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );

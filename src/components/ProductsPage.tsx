@@ -7,7 +7,8 @@ import {
   Tag,
   Plus,
   X,
-  Globe
+  Globe,
+  BarChart3
 } from 'lucide-react';
 import { supabase, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -20,12 +21,26 @@ import { DraggableHandle } from './DraggableHandle';
 import { OptimizedImage } from './OptimizedImage';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
+import { ProductPriceHistory30DaysChart } from './ProductPriceHistory30DaysChart';
+import { ProductSyncHistory30DaysChart } from './ProductSyncHistory30DaysChart';
+import {
+  ProductPriceHeatmap,
+  ActiveHeatmapSelection,
+  getPriceZoneForAmount,
+} from './ProductPriceHeatmap';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
+import { ErrorBoundary } from './ErrorBoundary';
+import { VirtualProductGrid } from './VirtualProductGrid';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
 }
 
-const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) => void }> = React.memo(({ product, onPlatformChange }) => {
+const ProductCard: React.FC<{
+  product: Product;
+  onPlatformChange: (p: string) => void;
+  onViewDetails: (product: Product) => void;
+}> = React.memo(({ product, onPlatformChange, onViewDetails }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const hasPlatform = Boolean(product.platform && product.platform.trim());
   const platLower = (product.platform || '').toLowerCase();
@@ -45,7 +60,7 @@ const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) =>
   return (
     <div
       ref={cardRef}
-      className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden h-full"
+      className="bg-slate-900 border border-slate-800 hover:border-orange-500/40 transition-colors rounded-3xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden h-full"
     >
       <DraggableHandle elementId={`product_card_${product.id}`} targetRef={cardRef} position="bottom-right" />
 
@@ -65,7 +80,11 @@ const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) =>
           </span>
         </div>
 
-        <div>
+        <div
+          onClick={() => onViewDetails(product)}
+          className="cursor-pointer group"
+          title="اضغط لعرض تفاصيل المنتج والرسم البياني للأسعار"
+        >
           <OptimizedImage
             src={product.image}
             alt={product.title}
@@ -74,7 +93,7 @@ const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) =>
             containerClassName="w-full h-[200px] mb-2"
             maxThumbWidth={360}
           />
-          <h3 className="text-sm font-black text-white whitespace-nowrap overflow-hidden text-ellipsis leading-snug" title={product.title}>
+          <h3 className="text-sm font-black text-white group-hover:text-orange-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-snug" title={product.title}>
             {product.title}
           </h3>
           <div className="flex items-center gap-1.5 mt-2 text-[11px] font-mono text-slate-400">
@@ -100,9 +119,16 @@ const ProductCard: React.FC<{ product: Product; onPlatformChange: (p: string) =>
         </div>
       </div>
 
-      <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-        <span className="font-mono text-slate-400">ID: {String(product.id || '').substring(0, 12)}</span>
-        <span className="text-sky-400 font-bold">نشط في الكتالوج ✓</span>
+      <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between gap-2 text-[10px] text-slate-500">
+        <button
+          type="button"
+          onClick={() => onViewDetails(product)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-300 border border-orange-500/30 font-bold text-[11px] transition-colors cursor-pointer"
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          <span>تحليل السعر (30 يوم)</span>
+        </button>
+        <span className="text-sky-400 font-bold">نشط ✓</span>
       </div>
     </div>
   );
@@ -129,9 +155,20 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
+  const [heatmapFilter, setHeatmapFilter] = useState<ActiveHeatmapSelection | null>(null);
   const [isSyncingInBackground, setIsSyncingInBackground] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [syncStats, setSyncStats] = useState<{ total: number; new: number; updated: number } | null>(null);
+
+  useEffect(() => {
+    if (!selectedProductForDetails) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedProductForDetails(null);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [selectedProductForDetails]);
 
   // New product form
   const [newTitle, setNewTitle] = useState<string>('');
@@ -223,7 +260,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
       let query: any = supabase
         .from('products')
-        .select('id, title, sku, price, stock, platform, image, trader_id, created_at', { count: 'exact' })
+        .select('id, title, sku, price, stock, platform, image, trader_id, buybox_price, competitor_price, created_at', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       if (trader_id && trader_id !== 'all') {
@@ -288,6 +325,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     } catch {}
 
     const { trader_id, platform } = readQueryParams();
+    ensureTraderOptions();
     fetchProductsAndTraders(trader_id, platform);
 
     const handlePopState = () => {
@@ -296,6 +334,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     };
 
     const handleRefresh = () => {
+      if (isMaintenanceModeActive()) return;
       const current = readQueryParams();
       fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
     };
@@ -338,6 +377,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const handleClearAllFilters = () => {
     setUrlTraderId(null);
     setUrlPlatform(null);
+    setHeatmapFilter(null);
+    setSearchQuery('');
     navigate('/products');
     fetchProductsAndTraders(null, null);
   };
@@ -380,16 +421,37 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   };
 
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return products;
+    let list = products;
+
+    if (heatmapFilter) {
+      list = list.filter((p) => {
+        const zone = getPriceZoneForAmount(Number(p.price) || 0);
+        if (zone.id !== heatmapFilter.zoneId) return false;
+        if (heatmapFilter.platformId) {
+          const plat = (p.platform || '').trim().toLowerCase();
+          const normPlat = plat.includes('amazon')
+            ? 'amazon'
+            : plat.includes('noon')
+            ? 'noon'
+            : plat.includes('jumia')
+            ? 'jumia'
+            : plat || 'other';
+          if (normPlat !== heatmapFilter.platformId) return false;
+        }
+        return true;
+      });
+    }
+
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return products.filter((p) => {
+    return list.filter((p) => {
       const titleMatch = p.title && p.title.toLowerCase().includes(q);
       const skuMatch = p.sku && p.sku.toLowerCase().includes(q);
       const platformMatch = p.platform && p.platform.toLowerCase().includes(q);
       const traderMatch = (p as any).traders?.seller_name && (p as any).traders.seller_name.toLowerCase().includes(q);
       return titleMatch || skuMatch || platformMatch || traderMatch;
     });
-  }, [products, searchQuery]);
+  }, [products, searchQuery, heatmapFilter]);
 
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
@@ -413,9 +475,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     ? (urlPlatform === 'amazon' ? 'Amazon' : urlPlatform === 'noon' ? 'Noon' : urlPlatform.toUpperCase())
     : null;
 
-  const isFiltered = Boolean(activeTraderName || activePlatformName);
+  const isFiltered = Boolean(activeTraderName || activePlatformName || heatmapFilter);
 
   const handleOpenFetchAllModal = async () => {
+    if (isMaintenanceModeActive()) {
+      onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setIsSyncingInBackground(true);
     await ensureTraderOptions();
     setIsSyncingInBackground(false);
@@ -574,31 +640,57 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       </div>
 
+      {products.length > 0 && (
+        <ErrorBoundary
+          sectionName="products-price-heatmap"
+          sectionTitle="خريطة النطاقات السعرية الأكثر منافسة"
+          sectionDescription="تعذر معالجة وتصنيف النطاقات السعرية حالياً. باقي منتجات الكتالوج معروضة بالكامل أدناه."
+        >
+          <ProductPriceHeatmap
+            products={products}
+            activeFilter={heatmapFilter}
+            onSelectFilter={setHeatmapFilter}
+          />
+        </ErrorBoundary>
+      )}
+
       {fetchError && (
         <EmergencyErrorBanner message="تعذر جلب المنتجات من قاعدة البيانات — لا توجد بيانات." />
       )}
 
-      {filteredProducts.length === 0 ? (
-        <GlobalEmptyState
-          icon={<Package className="w-10 h-10 text-amber-400" />}
-          message={fetchError ? 'لا توجد بيانات' : urlTraderId && urlTraderId !== 'all' ? 'لا توجد منتجات لهذا التاجر' : 'كتالوج المنتجات فارغ'}
-          description="لم يتم إضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها من رابط المتجر."
-          actionLabel={isFiltered ? 'مسح الفلتر وعرض الكل' : 'إضافة منتج جديد'}
-          onActionClick={isFiltered ? handleClearAllFilters : () => { ensureTraderOptions(); setIsAddModalOpen(true); }}
-        >
-          <EmergencyLoginButton />
-        </GlobalEmptyState>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onPlatformChange={handlePlatformChange}
-            />
-          ))}
-        </div>
-      )}
+      <ErrorBoundary
+        sectionName="products-grid"
+        sectionTitle="قائمة وشبكة كروت المنتجات"
+        sectionDescription="حدث خطأ غير متوقع أثناء معالجة كروت المنتجات. بياناتك محفوظة بأمان في قاعدة البيانات."
+      >
+        {filteredProducts.length === 0 ? (
+          <GlobalEmptyState
+            icon={<Package className="w-10 h-10 text-amber-400" />}
+            message={fetchError ? 'لا توجد بيانات' : urlTraderId && urlTraderId !== 'all' ? 'لا توجد منتجات لهذا التاجر' : 'كتالوج المنتجات فارغ'}
+            description="لم يتم إضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها من رابط المتجر."
+            actionLabel={isFiltered ? 'مسح الفلتر وعرض الكل' : 'إضافة منتج جديد'}
+            onActionClick={isFiltered ? handleClearAllFilters : () => { ensureTraderOptions(); setIsAddModalOpen(true); }}
+          >
+            <EmergencyLoginButton />
+          </GlobalEmptyState>
+        ) : (
+          <VirtualProductGrid
+            items={filteredProducts}
+            keyExtractor={(product) => product.id}
+            estimatedRowHeight={430}
+            rowGap={20}
+            overscanRows={2}
+            maxViewportHeight={780}
+            renderItem={(product) => (
+              <ProductCard
+                product={product}
+                onPlatformChange={handlePlatformChange}
+                onViewDetails={(p) => setSelectedProductForDetails(p)}
+              />
+            )}
+          />
+        )}
+      </ErrorBoundary>
 
       {products.length > 0 && products.length < totalCount && (
         <div className="flex flex-col items-center justify-center gap-3 pt-6">
@@ -735,6 +827,97 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {selectedProductForDetails && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setSelectedProductForDetails(null)}
+          dir="rtl"
+        >
+          <div
+            className="bg-slate-950 border border-slate-800 rounded-3xl max-w-3xl w-full p-5 sm:p-6 text-right shadow-2xl space-y-5 my-auto max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 p-1.5 shrink-0 overflow-hidden">
+                  <OptimizedImage
+                    src={selectedProductForDetails.image}
+                    alt={selectedProductForDetails.title}
+                    width={64}
+                    height={64}
+                    containerClassName="w-full h-full"
+                    maxThumbWidth={128}
+                  />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      {selectedProductForDetails.platform || 'عام'}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      SKU: <strong className="text-sky-300">{selectedProductForDetails.sku}</strong>
+                    </span>
+                    <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                      المخزون: {selectedProductForDetails.stock || 0} قطعة
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-white leading-snug">
+                    {selectedProductForDetails.title}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedProductForDetails(null)}
+                className="p-2 rounded-xl bg-slate-900 hover:bg-rose-600 text-slate-300 hover:text-white border border-slate-800 transition-colors cursor-pointer shrink-0"
+                title="إغلاق"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <ErrorBoundary
+              sectionName="product-price-chart"
+              sectionTitle="مخطط تغيرات السعر التاريخي (30 يوماً)"
+              sectionDescription="تعذر رسم الأعمدة التاريخية للسعر مؤقتاً. بيانات المنتج والتاجر تظل متاحة بشكل كامل."
+            >
+              <ProductPriceHistory30DaysChart
+                traderId={selectedProductForDetails.trader_id}
+                productId={selectedProductForDetails.id}
+                sku={selectedProductForDetails.sku}
+                title={selectedProductForDetails.title}
+                currentPrice={Number(selectedProductForDetails.price || 0)}
+                platform={selectedProductForDetails.platform}
+              />
+            </ErrorBoundary>
+
+            <ErrorBoundary
+              sectionName="product-sync-chart"
+              sectionTitle="سجل مزامنة بيانات المنتج"
+              sectionDescription="تعذر تحميل أوقات وتكرار المزامنة التلقائية لهذا المنتج."
+            >
+              <ProductSyncHistory30DaysChart
+                traderId={selectedProductForDetails.trader_id}
+                productId={selectedProductForDetails.id}
+                sku={selectedProductForDetails.sku}
+                title={selectedProductForDetails.title}
+              />
+            </ErrorBoundary>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setSelectedProductForDetails(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer transition-colors"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
           </div>
         </div>
       )}

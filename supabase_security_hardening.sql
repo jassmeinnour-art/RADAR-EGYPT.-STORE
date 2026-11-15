@@ -1,6 +1,8 @@
 -- ============================================================================
 -- RADAR EGYPT SECURITY HARDENING & RLS POLICIES (radaregypt.store)
--- Founder: jassmeinnour@gmail.com | Real Trader: mahmeudsaid4@gmail.com
+-- Founder-ONLY App: jassmeinnour@gmail.com
+-- Traders (e.g. mahmeudsaid4@gmail.com) are data records managed by the Founder ONLY.
+-- Traders do NOT log in and have NO auth accounts or RLS access.
 -- Execute this script in Supabase SQL Editor.
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -40,7 +42,7 @@ SET
 WHERE LOWER(COALESCE(email, gmail, '')) = 'mahmeudsaid4@gmail.com'
    OR seller_id = 'A37JIM7LHQI6IM';
 
--- 3. Drop ALL existing open / "Allow all" policies across protected tables
+-- 3. Drop ALL existing policies (including any legacy open or trader_* policies)
 DO $$
 DECLARE
   pol RECORD;
@@ -85,7 +87,8 @@ ALTER TABLE public.split_invoices FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 
--- 5. Founder (jassmeinnour@gmail.com) FULL ACCESS on all tables
+-- 5. Founder-ONLY (jassmeinnour@gmail.com) FULL ACCESS on all tables
+-- No trader_* policies: traders do not log in or hold Supabase Auth accounts.
 CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
   WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
@@ -117,41 +120,3 @@ CREATE POLICY "founder_all_split_invoices" ON public.split_invoices FOR ALL TO a
 CREATE POLICY "founder_all_notifications" ON public.notifications FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
   WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
-
--- 6. Trader strict row-level isolation (READ / UPDATE own data ONLY)
-CREATE POLICY "trader_select_own" ON public.traders FOR SELECT TO authenticated
-  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
-
-CREATE POLICY "trader_update_own" ON public.traders FOR UPDATE TO authenticated
-  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')))
-  WITH CHECK (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
-
-CREATE POLICY "trader_products_select_own" ON public.products FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_products_insert_own" ON public.products FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_products_update_own" ON public.products FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoices_select_own" ON public.invoices FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoices_update_own" ON public.invoices FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoice_items_select_own" ON public.invoice_items FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.invoices i JOIN public.traders t ON t.id = i.trader_id
-    WHERE i.id = invoice_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))
-  ));
-
-CREATE POLICY "trader_inventory_sync_own" ON public.inventory_sync FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_notifications_own" ON public.notifications FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));

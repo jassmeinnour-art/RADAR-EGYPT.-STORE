@@ -79,3 +79,118 @@ header img {
 .notifications-dropdown .notifications-scroll-area {
   overflow-y: auto !important;
 }
+
+/* ===== Luxury Control Room Login Animations ===== */
+@keyframes radarGradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes radarSweepSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radarOrbFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -26px, 0) scale(1.06);
+  }
+}
+
+@keyframes radarParticleDrift {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.75;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate3d(-24px, -90px, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes radarBlipPing {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.15;
+  }
+  35% {
+    transform: scale(1.25);
+    opacity: 0.95;
+  }
+  70% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+}
+
+@keyframes radarTickerScroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.radar-animated-gradient {
+  background-size: 240% 240%;
+  animation: radarGradientShift 8s ease-in-out infinite;
+}
+
+.radar-sweep-spin {
+  animation: radarSweepSpin 4s linear infinite;
+}
+
+.radar-ring-slow-spin {
+  animation: radarSweepSpin 28s linear infinite reverse;
+}
+
+.radar-orb-float {
+  animation: radarOrbFloat 9s ease-in-out infinite;
+}
+
+.radar-particle {
+  animation: radarParticleDrift 9s linear infinite;
+}
+
+.radar-blip {
+  animation: radarBlipPing 3.2s ease-in-out infinite;
+}
+
+.radar-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: radarTickerScroll 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-animated-gradient,
+  .radar-sweep-spin,
+  .radar-ring-slow-spin,
+  .radar-orb-float,
+  .radar-particle,
+  .radar-blip,
+  .radar-ticker-track {
+    animation: none !important;
+  }
+}

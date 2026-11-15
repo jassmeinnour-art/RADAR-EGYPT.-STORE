@@ -6,6 +6,7 @@ import {
   CURRENT_APP_VERSION,
   APP_VERSION_STORAGE_KEY,
 } from '../pwaRegister';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 export { CURRENT_APP_VERSION, APP_VERSION_STORAGE_KEY };
 
@@ -84,6 +85,10 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
 
   // Check server version & stored version
   const checkServerVersion = useCallback(async (isManual = false): Promise<boolean> => {
+    if (isMaintenanceModeActive()) {
+      if (isManual) onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return false;
+    }
     try {
       let data: any = null;
 
@@ -178,6 +183,10 @@ export function useAppUpdate(onShowToast?: (msg: string) => void): AppUpdateStat
 
   // Comprehensive check for updates
   const checkForUpdates = useCallback(async (isManual = false): Promise<boolean> => {
+    if (isMaintenanceModeActive()) {
+      if (isManual) onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return false;
+    }
     setIsChecking(true);
     let found = false;
 

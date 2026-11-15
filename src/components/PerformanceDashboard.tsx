@@ -7,7 +7,6 @@ import {
   Percent,
   Calendar,
   Sparkles,
-  BarChart3,
   Activity,
   ArrowUpRight,
   ArrowDownRight,
@@ -16,21 +15,6 @@ import {
   Layers,
   Award
 } from 'lucide-react';
-import {
-  ComposedChart,
-  AreaChart,
-  BarChart,
-  Bar,
-  Area,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { MarketTrendsAnalysis } from './MarketTrendsAnalysis';
 
 interface PerformanceDashboardProps {
@@ -238,7 +222,6 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
             <h3 className="text-base font-black text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-indigo-400" />
               <span>الرسم البياني التفاعلي لحركة المبيعات والأرباح</span>
             </h3>
             <p className="text-xs text-slate-400">
@@ -280,97 +263,47 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           </div>
         </div>
 
-        {/* Recharts Container */}
-        <div className="h-80 sm:h-96 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            {activeChartView === 'overview' ? (
-              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dayLabel" stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis yAxisId="left" stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tick={{ fontSize: 11, fill: '#f59e0b' }} domain={[0, 50]} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#020617',
-                    borderColor: '#334155',
-                    borderRadius: '16px',
-                    color: '#f8fafc',
-                    fontFamily: 'Cairo, sans-serif',
-                    fontSize: '12px',
-                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)',
-                  }}
-                  formatter={(value: any, name: any) => {
-                    if (name === 'المبيعات اليومية') return [`${Number(value).toLocaleString()} ${currency}`, name];
-                    if (name === 'صافي الربح') return [`+${Number(value).toLocaleString()} ${currency}`, name];
-                    if (name === 'هامش الربح %') return [`${value}%`, name];
-                    return [value, name];
-                  }}
-                />
-                <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontFamily: 'Cairo' }} />
-                <Area yAxisId="left" type="monotone" dataKey="revenueEGP" name="المبيعات اليومية" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRev)" />
-                <Area yAxisId="left" type="monotone" dataKey="netProfitEGP" name="صافي الربح" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" />
-                <Line yAxisId="right" type="monotone" dataKey="profitMarginPercent" name="هامش الربح %" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3, fill: '#f59e0b' }} />
-              </ComposedChart>
-            ) : activeChartView === 'profit_margin' ? (
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorMargin" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.6} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dayLabel" stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis stroke="#f59e0b" tick={{ fontSize: 11, fill: '#f59e0b' }} domain={[10, 45]} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#020617',
-                    borderColor: '#f59e0b',
-                    borderRadius: '16px',
-                    color: '#f8fafc',
-                    fontFamily: 'Cairo, sans-serif',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any) => [`${value}%`, 'هامش الربح الصافي']}
-                />
-                <Area type="monotone" dataKey="profitMarginPercent" name="هامش الربح %" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorMargin)" />
-              </AreaChart>
-            ) : (
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dayLabel" stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis stroke="#38bdf8" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#020617',
-                    borderColor: '#38bdf8',
-                    borderRadius: '16px',
-                    color: '#f8fafc',
-                    fontFamily: 'Cairo, sans-serif',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any, name: any) => {
-                    if (name === 'عدد الطلبات') return [`${value} طلب`, name];
-                    if (name === 'نمو المبيعات %') return [`+${value}%`, name];
-                    return [value, name];
-                  }}
-                />
-                <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontFamily: 'Cairo' }} />
-                <Bar dataKey="ordersCount" name="عدد الطلبات" fill="#38bdf8" radius={[6, 6, 0, 0]} />
-                <Line type="monotone" dataKey="salesGrowthPercent" name="نمو المبيعات %" stroke="#10b981" strokeWidth={3} />
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+        {/* Pure Tailwind CSS Chart Container (No Recharts) */}
+        <div className="h-80 sm:h-96 w-full pt-4 flex flex-col justify-end bg-slate-950/80 p-4 rounded-2xl border border-slate-800" dir="ltr">
+          <div className="flex items-end justify-between gap-1 h-64">
+            {chartData.map((pt, idx) => {
+              const maxRev = Math.max(...chartData.map(d => activeChartView === 'overview' ? d.revenueEGP : activeChartView === 'profit_margin' ? d.profitMarginPercent : d.ordersCount));
+              const currentVal = activeChartView === 'overview' ? pt.revenueEGP : activeChartView === 'profit_margin' ? pt.profitMarginPercent : pt.ordersCount;
+              const heightPct = Math.max(15, Math.round((currentVal / (maxRev || 1)) * 100));
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                      <div>{pt.dateStr}</div>
+                      <div className="text-amber-400 font-bold">
+                        {activeChartView === 'overview' ? `${pt.revenueEGP.toLocaleString()} ${currency}` : activeChartView === 'profit_margin' ? `${pt.profitMarginPercent}%` : `${pt.ordersCount} طلب`}
+                      </div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                  </div>
+
+                  {/* Vertical Bar */}
+                  <div
+                    className={`w-full rounded-t-sm transition-all duration-300 ${
+                      activeChartView === 'overview' ? 'bg-indigo-500 group-hover:bg-indigo-400' : activeChartView === 'profit_margin' ? 'bg-amber-500 group-hover:bg-amber-400' : 'bg-emerald-500 group-hover:bg-emerald-400'
+                    }`}
+                    style={{ height: `${Math.min(100, heightPct)}%` }}
+                  />
+                  <span className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                    {idx % 5 === 0 ? pt.dayLabel : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 font-mono">
+            <span>بداية الفترة</span>
+            <span className="text-amber-400 font-bold">
+              {activeChartView === 'overview' ? 'إجمالي الإيرادات اليومية' : activeChartView === 'profit_margin' ? 'هامش الربح الصافي %' : 'حجم الطلبات'}
+            </span>
+            <span>اليوم</span>
+          </div>
         </div>
 
         <p className="text-[11px] text-slate-400 text-center leading-relaxed border-t border-slate-800/80 pt-3">

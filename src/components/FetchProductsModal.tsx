@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCw, Globe, Mail, Store, Key, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { supabase, Trader, multiTenantDb, isDemoOrOrphanProduct } from '../lib/supabase';
+import { supabase, Trader, multiTenantDb, isDemoOrOrphanProduct, recordTraderLastSyncAt } from '../lib/supabase';
 import { dataCache } from '../utils/dataCache';
+import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 interface FetchProductsModalProps {
   trader: Trader;
@@ -25,6 +26,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     trader.seller_link ||
     (trader.seller_id ? `https://www.amazon.eg/s?me=${trader.seller_id}` : '');
 
+  const { isMaintenanceMode } = useMaintenanceMode();
   const [storeUrlInput, setStoreUrlInput] = useState<string>(defaultStoreUrl);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchStats, setFetchStats] = useState<{ total: number; new: number; updated: number } | null>(null);
@@ -49,6 +51,11 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   const traderGmail = trader.gmail || trader.email || '';
 
   const handleStartFetch = async () => {
+    if (isMaintenanceMode) {
+      setFetchError(MAINTENANCE_MODE_BLOCK_MESSAGE);
+      onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setIsFetching(true);
     setFetchError(null);
     setFetchStats(null);
@@ -119,6 +126,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       });
 
       await multiTenantDb.saveScrapedProducts(trader.id, validProducts);
+      await recordTraderLastSyncAt(trader.id);
       dataCache.invalidate('products_');
 
       const stats = {
@@ -208,6 +216,13 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
             />
           </div>
 
+          {isMaintenanceMode && (
+            <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl flex items-start gap-2 text-rose-200">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span className="leading-relaxed font-bold">{MAINTENANCE_MODE_BLOCK_MESSAGE}</span>
+            </div>
+          )}
+
           {fetchError && (
             <div className="p-3 bg-amber-950/50 border border-amber-500/40 rounded-xl flex items-start gap-2 text-amber-200">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -230,7 +245,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
           <button
             type="button"
             onClick={handleStartFetch}
-            disabled={isFetching}
+            disabled={isFetching || isMaintenanceMode}
             className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isFetching ? (
@@ -238,6 +253,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>يتم المزامنة وسحب المنتجات...</span>
               </>
+            ) : isMaintenanceMode ? (
+              <span>السحب موقوف (وضع الصيانة مفعل)</span>
             ) : (
               <span>ابدأ السحب</span>
             )}

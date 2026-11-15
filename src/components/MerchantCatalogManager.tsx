@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { extractImageFingerprint, calculateImageSimilarity, ImageFingerprint } from '../utils/imageMatcher';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { 
   MerchantCatalogProduct, 
   MerchantCatalogPricingStatus, 
@@ -1031,6 +1032,12 @@ export const MerchantCatalogManager: React.FC<MerchantCatalogManagerProps> = ({
 
   // Execute Automated Repricer across all enabled products for the current merchant
   const handleRunAutomatedRepricer = async () => {
+    if (isMaintenanceModeActive()) {
+      if (onShowToast) {
+        onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      }
+      return;
+    }
     if (!currentMerchant) return;
     setIsRunningAutoRepricer(true);
     try {

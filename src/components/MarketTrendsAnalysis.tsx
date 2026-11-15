@@ -8,20 +8,8 @@ import {
   Package,
   ArrowLeft,
   Target,
-  BarChart2,
   Calendar,
 } from 'lucide-react';
-import {
-  ComposedChart,
-  Line,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { supabase, Product, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { getPriceHistory, PriceHistoryEntry } from '../utils/priceHistoryManager';
@@ -63,7 +51,7 @@ interface ProductTrendForecast {
   series: HistoricalPoint[];
 }
 
-function computeLinearRegressionSlope(values: number[]): number {
+function linearRegression(values: number[]): number {
   const n = values.length;
   if (n < 2) return 0;
   let sumX = 0;
@@ -238,7 +226,6 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
             : 0;
 
         // Regression slope per recorded step
-        const slopePerStep = computeLinearRegressionSlope(priceValues);
         const horizonSteps = horizonDays === 7 ? 1 : horizonDays === 14 ? 2 : 4;
 
         // Factor in market pressure from competitor_price or buybox_price if recorded
@@ -351,7 +338,6 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
-              <BarChart2 className="w-5 h-5" />
             </div>
             <h3 className="text-lg sm:text-xl font-black text-white">
               تحليل اتجاهات السوق وتوقعات الأسعار للمرحلة القادمة
@@ -511,62 +497,38 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
                   </span>
                 </div>
 
-                <div className="h-64 w-full" dir="ltr">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={activeForecast.series} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="trendForecastFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="label" stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                      <YAxis stroke="#64748b" tick={{ fontSize: 11, fill: '#94a3b8' }} domain={['auto', 'auto']} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#020617',
-                          borderColor: '#334155',
-                          borderRadius: '14px',
-                          color: '#f8fafc',
-                          fontFamily: 'Cairo, sans-serif',
-                          fontSize: '12px',
-                        }}
-                        formatter={(value: any, name: any) => [`${Number(value).toLocaleString()} ${currency}`, name]}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'Cairo' }} />
-                      <Line
-                        type="monotone"
-                        dataKey="actualPrice"
-                        name="السعر التاريخي الفعلي"
-                        stroke="#38bdf8"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#38bdf8' }}
-                        connectNulls
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="forecastPrice"
-                        name="التوقع للمرحلة القادمة"
-                        stroke="#f59e0b"
-                        strokeDasharray="6 4"
-                        strokeWidth={3}
-                        fill="url(#trendForecastFill)"
-                        dot={{ r: 4, fill: '#f59e0b' }}
-                        connectNulls
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="competitorPrice"
-                        name="سعر المنافس المرجعي"
-                        stroke="#94a3b8"
-                        strokeDasharray="3 3"
-                        strokeWidth={2}
-                        dot={false}
-                        connectNulls
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                <div className="h-64 w-full flex flex-col justify-end p-4 bg-slate-950/80 rounded-2xl border border-slate-800" dir="ltr">
+                  <div className="flex items-end justify-between gap-1 h-44">
+                    {activeForecast.series.map((pt, idx) => {
+                      const maxP = Math.max(...activeForecast.series.map(s => Math.max(s.actualPrice || 0, s.forecastPrice || 0, s.competitorPrice || 0)));
+                      const val = pt.actualPrice || pt.forecastPrice || 0;
+                      const heightPct = Math.max(15, Math.round((val / (maxP || 1)) * 100));
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                          <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                            <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                              <div>{pt.dateStr}</div>
+                              <div className="text-amber-400 font-bold">{val} {currency}</div>
+                            </div>
+                            <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                          </div>
+                          <div
+                            className={`w-full rounded-t-sm transition-all duration-300 ${
+                              pt.isForecast ? 'bg-amber-500 group-hover:bg-amber-400' : 'bg-sky-500 group-hover:bg-sky-400'
+                            }`}
+                            style={{ height: `${Math.min(100, heightPct)}%` }}
+                          />
+                          <span className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                            {idx % 4 === 0 ? pt.dateStr.slice(5) : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 font-mono">
+                    <span className="text-sky-400">■ السعر الفعلي</span>
+                    <span className="text-amber-400">■ السعر المتوقع</span>
+                  </div>
                 </div>
               </div>
 

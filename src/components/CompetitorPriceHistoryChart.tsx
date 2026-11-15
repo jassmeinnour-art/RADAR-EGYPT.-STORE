@@ -1,17 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import {
   TrendingDown,
   TrendingUp,
@@ -78,8 +66,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
   const [showNoon, setShowNoon] = useState(true);
   const [showJumia, setShowJumia] = useState(true);
   const [showBtech, setShowBtech] = useState(true);
-  const [showWholesaleLine, setShowWholesaleLine] = useState(true);
-  const [showWinningTargetLine, setShowWinningTargetLine] = useState(true);
 
   // Manual price observation modal
   const [isAddObservationOpen, setIsAddObservationOpen] = useState(false);
@@ -588,9 +574,7 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
 
         {/* Wholesale Baseline Toggle */}
         <button
-          onClick={() => setShowWholesaleLine(!showWholesaleLine)}
           className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
-            showWholesaleLine
               ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs'
               : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
           }`}
@@ -602,9 +586,7 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
         {/* Winning Target Toggle */}
         {winningPrice && (
           <button
-            onClick={() => setShowWinningTargetLine(!showWinningTargetLine)}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
-              showWinningTargetLine
                 ? 'bg-indigo-50 border-indigo-400 text-indigo-800 shadow-2xs'
                 : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
             }`}
@@ -617,26 +599,20 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
 
       {/* MAIN INTERACTIVE RECHARTS AREA */}
       <div className="h-80 sm:h-96 w-full min-w-0 pt-3 pb-1" dir="ltr">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280} debounce={50}>
           {displayMode === 'multi_line' ? (
-            <LineChart
               data={filteredData}
               margin={{ top: 15, right: 20, left: 10, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis
                 dataKey="dateLabel"
                 tick={{ fontSize: 11, fill: '#64748b' }}
                 stroke="#cbd5e1"
               />
-              <YAxis
                 domain={['auto', 'auto']}
                 tick={{ fontSize: 11, fill: '#64748b' }}
                 stroke="#cbd5e1"
                 tickFormatter={(v) => `${Number(v).toLocaleString()}`}
               />
               
-              <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     const dataPoint = payload[0]?.payload as HistoricalPriceDataPoint;
@@ -697,7 +673,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                             <span className="font-bold font-mono">{dataPoint.lowestPrice.toLocaleString()} {currency}</span>
                           </div>
 
-                          {showWholesaleLine && (
                             <div className="flex items-center justify-between text-slate-400 text-[10px]">
                               <span>تكلفة الجملة:</span>
                               <span className="font-mono">{dataPoint.wholesaleCost.toLocaleString()} {currency}</span>
@@ -711,7 +686,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                 }}
               />
 
-              <Legend
                 formatter={(val) => {
                   if (val === 'amazon') return 'أمازون مصر';
                   if (val === 'noon') return 'نون مصر';
@@ -725,7 +699,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
 
               {/* Competitor lines */}
               {showAmazon && (
-                <Line
                   type="monotone"
                   dataKey="amazon"
                   stroke="#FF9900"
@@ -737,7 +710,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
               )}
 
               {showNoon && (
-                <Line
                   type="monotone"
                   dataKey="noon"
                   stroke="#38bdf8"
@@ -749,7 +721,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
               )}
 
               {showJumia && (
-                <Line
                   type="monotone"
                   dataKey="jumia"
                   stroke="#F97316"
@@ -761,7 +732,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
               )}
 
               {showBtech && (
-                <Line
                   type="monotone"
                   dataKey="btech"
                   stroke="#3B82F6"
@@ -772,9 +742,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                 />
               )}
 
-              {/* Wholesale Baseline Reference Line */}
-              {showWholesaleLine && product.estimatedWholesaleCost && (
-                <ReferenceLine
                   y={product.estimatedWholesaleCost}
                   stroke="#10B981"
                   strokeDasharray="4 4"
@@ -788,9 +755,6 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                 />
               )}
 
-              {/* Winning Target Reference Line */}
-              {showWinningTargetLine && winningPrice && (
-                <ReferenceLine
                   y={winningPrice}
                   stroke="#6366F1"
                   strokeWidth={2}
@@ -803,9 +767,7 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                   }}
                 />
               )}
-            </LineChart>
           ) : (
-            <AreaChart
               data={filteredData}
               margin={{ top: 15, right: 20, left: 10, bottom: 5 }}
             >
@@ -819,40 +781,28 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
                   <stop offset="95%" stopColor="#10B981" stopOpacity={0.02}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
-              <YAxis
                 domain={['auto', 'auto']}
                 tick={{ fontSize: 11, fill: '#64748b' }}
                 stroke="#cbd5e1"
                 tickFormatter={(v) => `${Number(v).toLocaleString()}`}
               />
-              <Tooltip
                 contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', color: '#fff', border: 'none', fontSize: '12px' }}
                 formatter={(val: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
                   `${Number(val || 0).toLocaleString()} ${currency}`,
                   name === 'highestPrice' ? 'أعلى سعر بالسوق' : name === 'lowestPrice' ? 'أدنى سعر للمنافسين' : 'متوسط السوق العام'
                 ]}
               />
-              <Legend
                 formatter={(val) => val === 'highestPrice' ? 'أعلى سعر بالسوق' : val === 'lowestPrice' ? 'أدنى سعر للمنافسين' : 'متوسط السوق'}
                 wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
               />
-              <Area type="monotone" dataKey="highestPrice" stroke="#CBD5E1" strokeDasharray="3 3" fill="none" name="highestPrice" />
-              <Area type="monotone" dataKey="marketAverage" stroke="#6366F1" strokeWidth={2} fill="url(#colorPriceBand)" name="marketAverage" />
-              <Area type="monotone" dataKey="lowestPrice" stroke="#10B981" strokeWidth={2.5} fill="url(#colorLowestPrice)" name="lowestPrice" />
               
-              {showWholesaleLine && product.estimatedWholesaleCost && (
-                <ReferenceLine
                   y={product.estimatedWholesaleCost}
                   stroke="#059669"
                   strokeDasharray="4 4"
                   strokeWidth={2}
                 />
               )}
-            </AreaChart>
           )}
-        </ResponsiveContainer>
       </div>
 
       {/* Behavior Insights & Intelligence Card (تحليل سلوك التسعير الذكي) */}

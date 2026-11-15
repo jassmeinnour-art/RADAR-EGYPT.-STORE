@@ -1,21 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-} from 'recharts';
-import {
   TrendingUp,
-  BarChart3,
   Layers,
   DollarSign,
   Package,
@@ -126,7 +111,6 @@ export default function AnalyticsPage() {
           <EmergencyErrorBanner message="تعذر جلب بيانات التحليلات من قاعدة البيانات." />
         )}
         <GlobalEmptyState
-          icon={<BarChart3 className="w-10 h-10 text-amber-400" />}
           message={fetchError ? 'لا توجد بيانات' : '📊 لا توجد تحليلات متاحة'}
           description="دليل التجار والمنتجات فارغ حالياً. أضف تجاراً ومنتجات وفواتير أولاً لتتمكن المنظومة من تتبع الأسعار وتوليد الرسوم البيانية."
           actionLabel="➕ إضافة تاجر جديد"
@@ -218,16 +202,6 @@ export default function AnalyticsPage() {
           <p style={smallText}>لا توجد بيانات للرسم - أضف فواتير أولاً</p>
         ) : (
           <div style={{ height: 280 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="name" stroke="#94A3B8" />
-                <YAxis stroke="#94A3B8" />
-                <Tooltip contentStyle={{ background: '#1E293B', border: '1px solid #334155', color: '#fff' }} />
-                <Legend />
-                <Area type="monotone" dataKey="sales" stroke="#F97316" fill="#F97316" fillOpacity={0.3} name="المبيعات" />
-              </AreaChart>
-            </ResponsiveContainer>
           </div>
         )}
       </div>
