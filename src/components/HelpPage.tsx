@@ -1354,7 +1354,7 @@ export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour, onOp
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    إدارة التجار (مثل التاجر محمود سعيد `mahmeudsaid4@gmail.com` مع Seller ID `A37JIM7LHQI6IM`) في مكان واحد. كل تاجر معزول تماماً ومخزن في قاعدة بيانات Supabase المشفرة، مع تقييد صلاحيات المؤسس لـ <strong className="text-amber-400">jassmeinnour@gmail.com</strong> فقط لضمان الخصوصية التامة.
+                    إدارة سجلات التجار (مثل التاجر محمود سعيد `mahmeudsaid4@gmail.com` مع Seller ID `A37JIM7LHQI6IM`) في مكان واحد. التجار سجلات بيانات يديرها المؤسس فقط ولا يوجد لهم تسجيل دخول أو حسابات في التطبيق، مع حصر الدخول وصلاحيات Supabase RLS على حساب المؤسس <strong className="text-amber-400">jassmeinnour@gmail.com</strong> فقط.
                   </p>
                 </div>
 

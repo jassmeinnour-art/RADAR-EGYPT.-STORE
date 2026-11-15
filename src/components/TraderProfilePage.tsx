@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { multiTenantDb, Trader, Product } from '../lib/supabase';
 import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 interface TraderProfilePageProps {
   traderId: string;
@@ -127,6 +128,10 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
   };
 
   const handleScrapeStorefront = async () => {
+    if (isMaintenanceModeActive()) {
+      if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     const targetUrl = editFormData.storefront_link || editFormData.seller_link || trader?.storefront_link || trader?.seller_link;
     if (!targetUrl) {
       if (onShowToast) onShowToast('⚠️ يرجى إدخال رابط المتجر أو رابط البائع أولاً في تبويب البيانات الأساسية');
@@ -158,6 +163,10 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
   };
 
   const handleSyncInvoices = async () => {
+    if (isMaintenanceModeActive()) {
+      if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setIsSyncingInvoices(true);
     if (onShowToast) onShowToast('⏳ جاري سحب بوالص الشحن والفواتير من المنصة والجيميل...');
     try {

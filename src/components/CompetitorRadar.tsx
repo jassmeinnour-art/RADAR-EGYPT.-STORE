@@ -19,7 +19,6 @@ import {
   Bell,
   Camera,
   Image as ImageIcon,
-  BarChart3,
   Archive,
   FileSpreadsheet,
   Clock,
@@ -38,16 +37,6 @@ import {
 } from 'lucide-react';
 import { GlobalEmptyState } from './GlobalEmptyState';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { ProductData, MerchantOffer, ProductPricingPlan } from '../types';
 import { isFurnitureOrBedding } from '../utils/competitorCSVManager';
 import { ProfitMarginCalculator } from './ProfitMarginCalculator';
@@ -69,7 +58,6 @@ import {
 import { exportSingleProductFullAuditCSV } from '../utils/csvProductManager';
 import { ExportReportsButton } from './ExportReportsButton';
 import { exportSingleProductCompetitorsToSpreadsheet } from '../utils/competitorPriceExport';
-import { ToolbarTooltip } from './ToolbarTooltip';
 import { useTheme } from '../context/ThemeContext';
 import { useAudioNotifications } from '../context/AudioNotificationContext';
 import { 
@@ -564,7 +552,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <ToolbarTooltip
                   title="إشعار واتساب وتعديل السعر التلقائي"
                   description="إرسال تنبيه واتساب فوري وتعديل السعر التلقائي (Auto-Reprice) بنقرة واحدة لأرخص منافس في السوق"
                   badge="Auto-Reprice"
@@ -585,9 +572,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <MessageCircle className="w-4 h-4 text-emerald-200" />
                     <span>📱 إشعار واتساب وتعديل السعر (Auto-Reprice)</span>
                   </button>
-                </ToolbarTooltip>
 
-                <ToolbarTooltip
                   title="تفعيل قفل صمام الأمان فوراً"
                   description="قفل وتثبيت السعر عند الحد الأدنى الآمن لمنع أي تآكل في الأرباح وحماية رأس المال"
                   badge="صمام الأمان"
@@ -604,9 +589,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Lock className="w-4 h-4" />
                     <span>🔒 تفعيل قفل صمام الأمان فوراً</span>
                   </button>
-                </ToolbarTooltip>
 
-                <ToolbarTooltip
                   title="ضبط عند الحد الآمن"
                   description={`رفع السعر المقترح تلقائياً إلى الحد الأدنى المحمي (${proximity.effectiveFloorPrice.toLocaleString()} ${currency}) لتجنب الخسارة`}
                   icon={Zap}
@@ -622,9 +605,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Zap className="w-4 h-4 text-sky-400 fill-sky-400" />
                     <span>ضبط عند الحد الآمن ({proximity.effectiveFloorPrice.toLocaleString()} {currency})</span>
                   </button>
-                </ToolbarTooltip>
 
-                <ToolbarTooltip
                   title="وحدة Guardrails المدمجة"
                   description="الوصول المباشر لقواعد صمام الأمان وحدود الأسعار العليا والدنيا لجميع المنصات"
                   icon={ShieldCheck}
@@ -646,7 +627,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <ShieldCheck className="w-4 h-4 text-indigo-200" />
                     <span>فتح وحدة Guardrails المدمجة ⚙️</span>
                   </button>
-                </ToolbarTooltip>
               </div>
             </div>
 
@@ -744,10 +724,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
             </div>
 
-            {/* Cleanly Aligned Horizontal Action Bar with Modern Lucide Icons & Tooltips */}
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
               {onOpenBestSellersModal && (
-                <ToolbarTooltip
                   title="أفضل المنتجات مبيعاً (Best Sellers)"
                   description="عرض قائمة المنتجات الأكثر رواجاً ومبيعاً على المنصات وإضافتها للمتابعة بضغطة زر"
                   badge="Best Sellers 🔥"
@@ -764,10 +742,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Flame className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>أفضل المنتجات مبيعاً (Best Sellers) 🔥</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
-              <ToolbarTooltip
                 title="تاريخ وسلوك الأسعار"
                 description="النزول مباشرة للرسم البياني التفاعلي لتتبع مسار وتغيرات أسعار المنافسين عبر الزمن"
                 icon={Clock}
@@ -785,14 +761,11 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Clock className="w-4 h-4 text-sky-400 shrink-0" />
                   <span>تاريخ وسلوك الأسعار 📉</span>
                 </button>
-              </ToolbarTooltip>
 
               {onOpenSalesDashboard && (
-                <ToolbarTooltip
                   title="لوحة تحكم أداء المبيعات"
                   description="تحليل حجم وإيرادات المبيعات ومقارنتها بتذبذبات أسعار المنافسين في السوق المصري"
                   badge="تحليلات"
-                  icon={BarChart3}
                   theme="emerald"
                   side="top"
                 >
@@ -801,14 +774,11 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     onClick={onOpenSalesDashboard}
                     className="h-10 px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 text-xs font-bold flex items-center gap-2 justify-center transition-all cursor-pointer shadow-sm"
                   >
-                    <BarChart3 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>لوحة أداء المبيعات 📈</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
               {onOpenProfitSimulator && (
-                <ToolbarTooltip
                   title="محاكي الربح المستقبلي"
                   description="نمذجة تنبؤية متقدمة لهامش الربح المتوقع وسيناريوهات التسعير البديلة"
                   badge="ذكاء تسعيري"
@@ -824,10 +794,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <TrendingUp className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span>محاكي الربح المستقبلي 💎</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
-              <ToolbarTooltip
                 title="تحليل صورة المنافس بالذكاء الاصطناعي"
                 description="رفع أو لصق رابط صورة منتج منافس لتحليلها بـ AI وتلقي توصيات مخصصة لتطوير صورك"
                 badge="AI Visual 📸"
@@ -849,10 +817,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Camera className="w-4 h-4 text-purple-400 shrink-0" />
                   <span>تحليل صورة المنافس (AI) 📸</span>
                 </button>
-              </ToolbarTooltip>
 
               {onOpenPeriodicReports && (
-                <ToolbarTooltip
                   title="تقارير الأداء والـ Buy Box"
                   description="عرض إحصائيات الاستحواذ على الـ Buy Box وتحميل التقارير الدورية التفصيلية"
                   icon={FileSpreadsheet}
@@ -867,11 +833,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <FileSpreadsheet className="w-4 h-4 text-purple-400 shrink-0" />
                     <span>تقارير الأداء والـ Buy Box 📊</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
               {onOpenBulkReprice && (
-                <ToolbarTooltip
                   title="التحديث الجماعي للأسعار"
                   description="إعادة تسعير مئات المنتجات دفعة واحدة واستيراد وتصدير جداول CSV"
                   badge="Bulk Reprice"
@@ -887,11 +851,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <SlidersHorizontal className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>التحديث الجماعي (CSV) 🚀</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
               {onOpenStudio && (
-                <ToolbarTooltip
                   title="استوديو التصوير والزوايا"
                   description="فحص وتحسين جودة صور المنتج الترويجية وتوليد زوايا احترافية للمتاجر"
                   icon={Camera}
@@ -906,10 +868,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Camera className="w-4 h-4 text-teal-400 shrink-0" />
                     <span>استوديو الكاميرا والزوايا 📸</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
-              <ToolbarTooltip
                 title={activeIsWatchlisted ? "إزالة من قائمة المتابعة" : "إضافة لقائمة المتابعة (Web Notifications)"}
                 description="تثبيت الصنف في قائمة الرقابة اللحظية لتلقي التنبيهات الفورية عبر المتصفح عند تغير الأسعار"
                 badge={activeIsWatchlisted ? "مراقب ✓" : undefined}
@@ -926,10 +886,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Bookmark className={`w-4 h-4 ${activeIsWatchlisted ? 'text-amber-400 fill-amber-400' : 'text-slate-400'} shrink-0`} />
                   <span>{activeIsWatchlisted ? 'في قائمة المتابعة ✓' : 'حفظ بالمتابعة'}</span>
                 </button>
-              </ToolbarTooltip>
 
               {/* Dedicated Product Price History & Changes Audit Button */}
-              <ToolbarTooltip
                 title="سجل تغيرات الأسعار (Historical Audit)"
                 description="عرض التاريخ الكامل لتغيرات سعر هذا المنتج وأسعار المنافسين مع تحليلات التذبذب ونقاط القرار"
                 badge="سجل الأسعار 📊"
@@ -946,9 +904,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <History className="w-4 h-4 text-sky-400 shrink-0" />
                   <span>سجل تغيرات الأسعار 📊</span>
                 </button>
-              </ToolbarTooltip>
 
-              <ToolbarTooltip
                 title="تنبيهات واتساب والتسعير التلقائي"
                 description="إرسال تقرير فوري عبر واتساب للتاجر مع تطبيق التسعير التنافسي المباشر بنقرة واحدة"
                 badge="Auto-Reprice ⚡"
@@ -969,10 +925,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <MessageCircle className="w-4 h-4 text-emerald-100 shrink-0" />
                   <span>تنبيهات واتساب والتسعير التلقائي ⚡</span>
                 </button>
-              </ToolbarTooltip>
 
               {onOpenAlertModal && (
-                <ToolbarTooltip
                   title="ضبط تنبيهات الأسعار"
                   description="تعيين إشعارات مخصصة عند انخفاض أو صعود سعر أي منافس عن حد معين"
                   icon={Bell}
@@ -987,11 +941,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Bell className="w-4 h-4 text-sky-400 shrink-0" />
                     <span>تنبيهات السعر</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
               {onArchiveProduct && (
-                <ToolbarTooltip
                   title="أرشفة الصنف"
                   description="نقل المنتج إلى الأرشيف وعزله عن العمليات النشطة (يدعم السحب والإفلات)"
                   icon={Archive}
@@ -1015,16 +967,13 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Archive className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>أرشفة الصنف 🗄️</span>
                   </button>
-                </ToolbarTooltip>
               )}
             </div>
           </div>
 
-          {/* Pricing Intelligence Hero Grid with Interactive Tooltips */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             {/* Box 1: Current Lowest Market Price */}
-            <ToolbarTooltip
               title="أرخص سعر منافس بالسوق"
               description={`أقل سعر رصده الرادار حالياً لدى متجر (${lowestOffer?.merchantName || 'المنافس'}) بمدة شحن (${lowestOffer?.deliveryTime || 'فورية'})`}
               badge="أرخص سعر"
@@ -1048,10 +997,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   لدى: <strong className="text-white">{lowestOffer?.merchantName}</strong> ({lowestOffer?.deliveryTime})
                 </div>
               </div>
-            </ToolbarTooltip>
 
             {/* Box 2: Wholesale Cost Reference */}
-            <ToolbarTooltip
               title="مرجع تكلفة الجملة الفعلية"
               description="سعر شراء الجملة التقديري من كبار موردي شارع عبد العزيز والبستان بناءً على كميات 3-5 قطع كاش"
               badge="سعر الجملة"
@@ -1075,10 +1022,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   أقل كمية طلب: <strong className="text-white">3-5 قطع كاش</strong>
                 </div>
               </div>
-            </ToolbarTooltip>
 
             {/* Box 3: Your Winning Undercut Price (التسعير الذكي لتاجرنا) */}
-            <ToolbarTooltip
               title="سعر البيع الرابح المقترح"
               description={`سعر ذكي يخفض السعر عن أرخص منافس ويضمن تحقيق صافي ربح (+${profitMargin.toLocaleString()} ${currency}) مع صمام أمان (${proximity.effectiveFloorPrice.toLocaleString()} ${currency})`}
               badge={proximity.isBreached ? "خطر!" : proximity.isApproachingFloor ? "تحذير" : "فوز مضمون 🏆"}
@@ -1133,7 +1078,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <span className="font-bold">الحد الأدنى: {proximity.effectiveFloorPrice.toLocaleString()} {currency}</span>
                 </div>
               </div>
-            </ToolbarTooltip>
 
           </div>
 
@@ -1193,7 +1137,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               {/* 1-Click Reprice & Apply Button - Modern High Contrast Emerald */}
-              <ToolbarTooltip
                 title="اعتماد السعر الرابح فوراً"
                 description={`تطبيق السعر المقترح (${winningPrice.toLocaleString()} ${currency}) مع خصم (${selectedDiscount}%) ونشره مباشرة وتحديث منصات البيع`}
                 badge="1-Click Apply"
@@ -1209,11 +1152,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <span>اعتماد السعر ({winningPrice.toLocaleString()} {currency}) وتجهيز النشر</span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
                 </button>
-              </ToolbarTooltip>
 
               {/* Generate Shipping Waybill Button for Active Product */}
               {onOpenGenerateWaybillModal && product && (
-                <ToolbarTooltip
                   title="توليد بوليصة شحن فورية"
                   description="إنشاء بوليصة شحن وتصدير بيانات الشحنة لشركات التوصيل مع ربط الباركود والمخزون"
                   badge="بوليصة شحن"
@@ -1229,7 +1170,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Truck className="w-4 h-4 text-sky-400 shrink-0" />
                     <span>توليد بوليصة شحن 🚚</span>
                   </button>
-                </ToolbarTooltip>
               )}
             </div>
 
@@ -1310,7 +1250,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             {(proximity.isApproachingFloor || proximity.isBreached) && (
-              <ToolbarTooltip
                 title="قفل وحماية الحد الأدنى"
                 description="تثبيت صمام الأمان فوراً عند السعر المحمي لمنع بيع المنتج بخسارة"
                 badge="قفل فوري"
@@ -1326,9 +1265,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Lock className="w-3.5 h-3.5" />
                   <span>قفل وحماية الحد الأدنى</span>
                 </button>
-              </ToolbarTooltip>
             )}
-            <ToolbarTooltip
               title={isGuardrailsManagerExpanded ? "طي وحدة صمام الأمان" : "تعديل حدود الحماية الكاملة"}
               description="ضبط الحد الأدنى والأقصى وقواعد التسعير الأوتوماتيكي وحماية الأرباح"
               icon={SlidersHorizontal}
@@ -1353,7 +1290,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </>
                 )}
               </button>
-            </ToolbarTooltip>
           </div>
         </div>
 
@@ -1448,7 +1384,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <BarChart3 className="w-4 h-4" />
               </span>
               <h3 className="text-lg font-black text-white font-['Alexandria']">
                 جدول مقارنة المنافسين المباشر (Direct Competitor Live Table)
@@ -1463,7 +1398,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/80 rounded-lg border border-slate-800">
             <div className="flex flex-wrap items-center gap-1.5">
               {onOpenChannelCompetitorImport && (
-                <ToolbarTooltip
                   title="استيراد منافسين (CSV)"
                   description="استيراد قائمة منافسين جديدة عبر ملف CSV لقناة بيع محددة ودمجهم بالرادار فوراً"
                   badge="CSV Import"
@@ -1480,7 +1414,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <Upload className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                     <span>استيراد منافسين (CSV) 📥</span>
                   </button>
-                </ToolbarTooltip>
               )}
 
               {/* Export Reports Button (Excel .xlsx / CSV via xlsx) */}
@@ -1494,7 +1427,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               />
 
               {/* Theme Colors Switcher Button */}
-              <ToolbarTooltip
                 title="تخصيص ألوان الرادار"
                 description="تخصيص الألوان الرئيسية لرادار الأسعار ولوحة التحكم بما يناسب متجرك"
                 icon={Palette}
@@ -1517,10 +1449,8 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Palette className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                   <span>ألوان الرادار</span>
                 </button>
-              </ToolbarTooltip>
 
               {/* Competitor Audio Notifications Button */}
-              <ToolbarTooltip
                 title="نغمات وتنبيهات المنافسين"
                 description="تخصيص التنبيهات الصوتية الحية لتغيرات حالة المنافسين والـ Buy Box"
                 badge="أصوات حية 🔊"
@@ -1540,7 +1470,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <Volume2 className="w-3.5 h-3.5 text-purple-700 shrink-0" />
                   <span>نغمات المنافسين 🔊</span>
                 </button>
-              </ToolbarTooltip>
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto scroller-sm">
@@ -1780,7 +1709,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                       {/* Column 6: Action */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <ToolbarTooltip
                             title="واتساب وإعادة تسعير"
                             description={`إرسال تنبيه واتساب فوري وتعديل السعر أوتوماتيكياً لمنافسة متجر (${offer.merchantName})`}
                             icon={MessageCircle}
@@ -1798,9 +1726,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                               <span>واتساب وتعديل</span>
                             </button>
-                          </ToolbarTooltip>
 
-                          <ToolbarTooltip
                             title="سجل تغيرات الأسعار"
                             description={`عرض سجل تغيرات السعر التاريخية لمنتج (${product.title}) وأسعار (${offer.merchantName}) لاتخاذ القرار`}
                             icon={History}
@@ -1816,12 +1742,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <History className="w-3.5 h-3.5 text-indigo-400" />
                               <span>سجل الأسعار 📊</span>
                             </button>
-                          </ToolbarTooltip>
 
-                          <ToolbarTooltip
                             title="مقارنة تاريخ السعر"
                             description={`مقارنة مسار تغير سعر (${offer.merchantName}) مقابل سعرك خلال الأسبوع المنصرم`}
-                            icon={BarChart3}
                             theme="sky"
                             side="top"
                           >
@@ -1831,12 +1754,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               id={`btn-quick-compare-${offer.id}`}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 text-xs font-bold transition-all border border-sky-500/40 cursor-pointer shadow-2xs"
                             >
-                              <BarChart3 className="w-3.5 h-3.5 text-sky-400" />
                               <span>مقارنة سريعة</span>
                             </button>
-                          </ToolbarTooltip>
 
-                          <ToolbarTooltip
                             title="تحليل صورة هذا المنافس بالـ AI"
                             description={`تحليل صوره وعروض متجر (${offer.merchantName}) بالـ AI واستخراج فرص للتفوق عليه`}
                             icon={Camera}
@@ -1859,9 +1779,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <Camera className="w-3.5 h-3.5 text-purple-400" />
                               <span>تحليل الصورة (AI)</span>
                             </button>
-                          </ToolbarTooltip>
 
-                          <ToolbarTooltip
                             title="زيارة صفحة المنافس"
                             description={`الانتقال المباشر لمتجر (${offer.merchantName}) للتحقق من شروط العرض وتوافر المخزون`}
                             icon={ExternalLink}
@@ -1877,7 +1795,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <span>فتح بالمتجر</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
-                          </ToolbarTooltip>
                         </div>
                       </td>
                     </tr>
@@ -2081,7 +1998,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </div>
               </div>
 
-              {/* 7-Day Line Chart */}
               <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-1.5">
@@ -2101,21 +2017,15 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </div>
 
                 <div className="h-60 w-full" dir="ltr">
-                  <ResponsiveContainer width="100%" height={240} minWidth={1} minHeight={220}>
-                    <LineChart data={weeklyData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis
                         dataKey="dayLabel"
                         stroke="#94a3b8"
                         tick={{ fill: '#cbd5e1', fontSize: 11 }}
                       />
-                      <YAxis
                         stroke="#94a3b8"
                         tick={{ fill: '#cbd5e1', fontSize: 11 }}
                         domain={['auto', 'auto']}
                         tickFormatter={(val) => `${val}`}
                       />
-                      <Tooltip
                         contentStyle={{
                           backgroundColor: '#0f172a',
                           borderColor: '#334155',
@@ -2130,12 +2040,10 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                           name === 'competitorPrice' ? `سعر ${quickCompareOffer.merchantName}` : 'سعرك'
                         ]}
                       />
-                      <Legend
                         formatter={(value) =>
                           value === 'competitorPrice' ? `سعر ${quickCompareOffer.merchantName}` : 'سعرك الحالي'
                         }
                       />
-                      <ReferenceLine
                         y={floorPrice}
                         stroke="#f43f5e"
                         strokeDasharray="4 4"
@@ -2146,7 +2054,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                           position: 'insideBottomLeft'
                         }}
                       />
-                      <Line
                         type="monotone"
                         dataKey="competitorPrice"
                         stroke="#38bdf8"
@@ -2154,7 +2061,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                         dot={{ r: 4, fill: '#38bdf8', strokeWidth: 2, stroke: '#0f172a' }}
                         activeDot={{ r: 6 }}
                       />
-                      <Line
                         type="monotone"
                         dataKey="merchantPrice"
                         stroke="#10b981"
@@ -2162,8 +2068,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                         dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#0f172a' }}
                         activeDot={{ r: 6 }}
                       />
-                    </LineChart>
-                  </ResponsiveContainer>
                 </div>
               </div>
 

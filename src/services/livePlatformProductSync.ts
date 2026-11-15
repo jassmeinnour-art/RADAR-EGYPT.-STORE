@@ -1,6 +1,7 @@
 import { ProductData, MerchantOffer, ConnectedMerchantPlatform } from '../types';
 import { logApiSyncFailure } from './apiErrorLoggingService';
 import { saveLiveProductsToCloud, fetchLiveProductsFromCloud } from './firestoreSync';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 export const LIVE_PRODUCTS_STORAGE_KEY = 'merchant_radar_live_products_v2';
 export const LIVE_SYNC_LOGS_KEY = 'merchant_radar_sync_logs_v1';
@@ -931,6 +932,15 @@ export async function syncLiveProductsFromAmazonStore(
   storeUrlOrMerchantId: string,
   options: SyncStoreOptions = {}
 ): Promise<{ success: boolean; syncedCount: number; products: ProductData[]; message: string }> {
+  if (isMaintenanceModeActive()) {
+    return {
+      success: false,
+      syncedCount: 0,
+      products: loadStoredLiveProducts(),
+      message: MAINTENANCE_MODE_BLOCK_MESSAGE,
+    };
+  }
+
   // Extract ASINs if present in the URL or text
   const extractedAsins = extractAsinsFromInput(storeUrlOrMerchantId);
   
@@ -1079,6 +1089,15 @@ export async function syncLiveProductsFromAsinList(
   asinsText: string,
   options: SyncStoreOptions = {}
 ): Promise<{ success: boolean; syncedCount: number; products: ProductData[]; message: string }> {
+  if (isMaintenanceModeActive()) {
+    return {
+      success: false,
+      syncedCount: 0,
+      products: loadStoredLiveProducts(),
+      message: MAINTENANCE_MODE_BLOCK_MESSAGE,
+    };
+  }
+
   const asins = extractAsinsFromInput(asinsText);
   if (asins.length === 0) {
     return {
@@ -1199,6 +1218,14 @@ export async function syncLiveProductsFromAsinList(
 export async function syncLiveProductsFromActiveListingsReport(
   fileContent: string
 ): Promise<{ success: boolean; syncedCount: number; products: ProductData[]; message: string }> {
+  if (isMaintenanceModeActive()) {
+    return {
+      success: false,
+      syncedCount: 0,
+      products: [],
+      message: MAINTENANCE_MODE_BLOCK_MESSAGE
+    };
+  }
   if (!fileContent || fileContent.trim().length === 0) {
     return {
       success: false,
@@ -1357,8 +1384,17 @@ export async function syncLiveProductsFromActiveListingsReport(
 export async function syncLiveProductsFromConnectedPlatforms(
   platforms: ConnectedMerchantPlatform[]
 ): Promise<{ success: boolean; syncedCount: number; products: ProductData[]; message: string }> {
-  const activePlatforms = (platforms || []).filter(p => p.isConnected);
   const currentStored = loadStoredLiveProducts();
+  if (isMaintenanceModeActive()) {
+    return {
+      success: false,
+      syncedCount: 0,
+      products: currentStored,
+      message: MAINTENANCE_MODE_BLOCK_MESSAGE,
+    };
+  }
+
+  const activePlatforms = (platforms || []).filter(p => p.isConnected);
 
   if (activePlatforms.length === 0) {
     return {

@@ -21,6 +21,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
+import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 
 export interface ConnectedTrader {
   id: string;
@@ -118,6 +119,7 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
   useEffect(() => {
     fetchTradersData();
     const handleRefresh = () => {
+      if (isMaintenanceModeActive()) return;
       fetchTradersData();
     };
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
@@ -177,6 +179,10 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
 
   // Handle Manual Sync
   const handleTriggerSync = async (traderId?: string) => {
+    if (isMaintenanceModeActive()) {
+      if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
     setIsSyncing(true);
     try {
       const res = await fetch('/api/sync-inventory', {

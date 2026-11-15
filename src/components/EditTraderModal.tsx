@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, RefreshCw, FileSpreadsheet } from 'lucide-react';
-import { supabase, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
+import { supabase, Trader, isDemoOrOrphanProduct, recordTraderLastSyncAt } from '../lib/supabase';
 import { dataCache } from '../utils/dataCache';
 import { FetchProductsModal } from './FetchProductsModal';
+import { evaluatePulledProductsForPriceAlerts } from '../utils/smartPriceAlerts';
 
 interface EditTraderModalProps {
   trader: Trader;
@@ -181,7 +182,13 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
       const { error } = await supabase.from('products').insert(mappedProducts);
       if (error) throw error;
 
+      evaluatePulledProductsForPriceAlerts(trader.id, mappedProducts, {
+        traderName: form.seller_name || trader.seller_name,
+      });
+
       dataCache.invalidate('products_');
+      const nowIso = await recordTraderLastSyncAt(trader.id);
+      onUpdate({ ...trader, last_sync_at: nowIso, last_sync_timestamp: nowIso });
       const syncStats = { total: mappedProducts.length, new: mappedProducts.length, updated: 0 };
       try {
         localStorage.setItem('radar_last_sync_stats', JSON.stringify(syncStats));
@@ -209,7 +216,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
 
           <form onSubmit={handleSave} className="space-y-3 text-right">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">اسم التاجر</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">اسم التاجر (seller_name)</label>
               <input
                 type="text"
                 required
@@ -221,7 +228,9 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">حساب الجيميل (gmail)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                إيميل التاجر على المنصة (للعرض فقط — ليس للدخول)
+              </label>
               <input
                 type="email"
                 required
@@ -229,13 +238,13 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
                 value={gmailValue}
                 onChange={(e) => setForm({ ...form, email: e.target.value, gmail: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 text-left"
-                placeholder="example@gmail.com"
+                placeholder="mahmeudsaid4@gmail.com"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">رمز التاجر (seller_id)</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">رمز التاجر التعريفي (seller_id)</label>
                 <input
                   type="text"
                   dir="ltr"
@@ -246,7 +255,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">الهاتف</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1">رقم هاتف التاجر (phone)</label>
                 <input
                   type="text"
                   dir="ltr"
@@ -259,7 +268,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">لينك الوجهة (destination_url)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">رابط الوجهة (destination_url)</label>
               <input
                 type="url"
                 dir="ltr"
@@ -271,7 +280,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">لينك المتجر (store_url)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">رابط المتجر (store_url)</label>
               <input
                 type="url"
                 dir="ltr"

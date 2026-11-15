@@ -1,21 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  ComposedChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
-import {
   TrendingDown,
   TrendingUp,
   Sparkles,
@@ -23,8 +7,6 @@ import {
   Activity,
   ShieldCheck,
   Zap,
-  BarChart3,
-  LineChart as LineChartIcon,
   Layers,
   Filter,
   ArrowUpRight,
@@ -526,7 +508,6 @@ export const SmartMarketAnalytics: React.FC<SmartMarketAnalyticsProps> = ({
           </div>
         </div>
 
-        {/* Product Switcher & Filter Bar inside Banner */}
         <div className="mt-6 pt-5 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           <div className="md:col-span-5">
             <label className="block text-[11px] font-bold text-slate-400 mb-1.5">
@@ -710,7 +691,6 @@ export const SmartMarketAnalytics: React.FC<SmartMarketAnalyticsProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <LineChartIcon className="w-5 h-5 text-emerald-400" />
               <h3 className="text-base sm:text-lg font-black text-white font-['Alexandria']">
                 منحنى اتجاهات أسعار المنافسين على مدار {dayWindow === '30d' ? '30 يوماً' : dayWindow === '15d' ? '15 يوماً' : '7 أيام'} — {activeProduct.title}
               </h3>
@@ -723,10 +703,7 @@ export const SmartMarketAnalytics: React.FC<SmartMarketAnalyticsProps> = ({
           {/* Chart Visualization Mode Buttons */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
             {[
-              { id: 'multi_line' as const, label: 'خطوط المنصات (Lines)', icon: LineChartIcon },
-              { id: 'area_band' as const, label: 'نطاق السعر (Area)', icon: Layers },
               { id: 'composed_profit' as const, label: 'الربح والسعر (Composed)', icon: Activity },
-              { id: 'bar_comparison' as const, label: 'مقارنة الأعمدة (Bars)', icon: BarChart3 }
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -780,246 +757,15 @@ export const SmartMarketAnalytics: React.FC<SmartMarketAnalyticsProps> = ({
           })}
         </div>
 
-        {/* Recharts Canvas */}
-        <div className="h-[390px] sm:h-[430px] w-full min-w-0 bg-slate-950/70 rounded-2xl border border-slate-800/90 p-3 sm:p-4" dir="ltr">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320} debounce={50}>
-            {chartType === 'multi_line' ? (
-              <LineChart data={displayedData} margin={{ top: 15, right: 20, left: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis
-                  dataKey="dateLabel"
-                  stroke="#94a3b8"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  domain={['auto', 'auto']}
-                  tickFormatter={(v) => `${v.toLocaleString()}`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '14px',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    direction: 'rtl',
-                    textAlign: 'right'
-                  }}
-                  formatter={(value: any, name: string) => [
-                    `${Number(value).toLocaleString()} ${currency}`,
-                    name
-                  ]}
-                  labelFormatter={(label, payload) => {
-                    const ev = payload?.[0]?.payload?.marketEvent;
-                    return ev ? `📅 ${label} — ${ev}` : `📅 ${label}`;
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-
-                {visibleSeries.amazon && (
-                  <Line
-                    type="monotone"
-                    dataKey="amazon"
-                    name="أمازون مصر"
-                    stroke="#0ea5e9"
-                    strokeWidth={3}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 6 }}
-                  />
-                )}
-                {visibleSeries.noon && (
-                  <Line
-                    type="monotone"
-                    dataKey="noon"
-                    name="نون مصر"
-                    stroke="#38bdf8"
-                    strokeWidth={2.5}
-                    dot={{ r: 2.5 }}
-                  />
-                )}
-                {visibleSeries.jumia && (
-                  <Line
-                    type="monotone"
-                    dataKey="jumia"
-                    name="جوميا مصر"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                  />
-                )}
-                {visibleSeries.homzmart && (
-                  <Line
-                    type="monotone"
-                    dataKey="homzmart"
-                    name="هومزمارت"
-                    stroke="#ec4899"
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                  />
-                )}
-                {visibleSeries.btech && (
-                  <Line
-                    type="monotone"
-                    dataKey="btech"
-                    name="بي تك"
-                    stroke="#38bdf8"
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                  />
-                )}
-                {visibleSeries.winningPriceTarget && (
-                  <Line
-                    type="monotone"
-                    dataKey="winningPriceTarget"
-                    name="سعرنا الرابح المقترح"
-                    stroke="#10b981"
-                    strokeWidth={3}
-                    strokeDasharray="6 4"
-                    dot={{ r: 3 }}
-                  />
-                )}
-                {visibleSeries.wholesaleCost && (
-                  <ReferenceLine
-                    y={activeProduct.estimatedWholesaleCost}
-                    stroke="#f43f5e"
-                    strokeDasharray="4 4"
-                    label={{
-                      value: `تكلفة الجملة (${activeProduct.estimatedWholesaleCost.toLocaleString()})`,
-                      fill: '#fb7185',
-                      fontSize: 11,
-                      position: 'insideBottomRight'
-                    }}
-                  />
-                )}
-              </LineChart>
-            ) : chartType === 'area_band' ? (
-              <AreaChart data={displayedData} margin={{ top: 15, right: 20, left: 10, bottom: 10 }}>
-                <defs>
-                  <linearGradient id="colorLowest" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
-                  </linearGradient>
-                  <linearGradient id="colorHighest" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dateLabel" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '14px',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    direction: 'rtl'
-                  }}
-                  formatter={(value: any, name: string) => [
-                    `${Number(value).toLocaleString()} ${currency}`,
-                    name
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Area
-                  type="monotone"
-                  dataKey="highestCompetitor"
-                  name="أعلى سعر منافس"
-                  stroke="#818cf8"
-                  fillOpacity={1}
-                  fill="url(#colorHighest)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="marketAverage"
-                  name="متوسط السوق"
-                  stroke="#0ea5e9"
-                  fillOpacity={0.15}
-                  fill="#0ea5e9"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="lowestCompetitor"
-                  name="أقل سعر منافس (Buy Box)"
-                  stroke="#10b981"
-                  fillOpacity={1}
-                  fill="url(#colorLowest)"
-                />
-              </AreaChart>
-            ) : chartType === 'composed_profit' ? (
-              <ComposedChart data={displayedData} margin={{ top: 15, right: 20, left: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dateLabel" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '14px',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    direction: 'rtl'
-                  }}
-                  formatter={(value: any, name: string) => [
-                    `${Number(value).toLocaleString()} ${currency}`,
-                    name
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Bar
-                  dataKey="potentialProfitEGP"
-                  name="صافي الربح المتوقع للقطعة"
-                  fill="#10b981"
-                  radius={[6, 6, 0, 0]}
-                  barSize={16}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="lowestCompetitor"
-                  name="أقل سعر منافس"
-                  stroke="#0ea5e9"
-                  strokeWidth={2.5}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="winningPriceTarget"
-                  name="سعرنا الرابح المقترح"
-                  stroke="#38bdf8"
-                  strokeWidth={2.5}
-                />
-              </ComposedChart>
-            ) : (
-              <BarChart data={displayedData.slice(-10)} margin={{ top: 15, right: 20, left: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="dateLabel" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '14px',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    direction: 'rtl'
-                  }}
-                  formatter={(value: any, name: string) => [
-                    `${Number(value).toLocaleString()} ${currency}`,
-                    name
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                {visibleSeries.amazon && <Bar dataKey="amazon" name="أمازون مصر" fill="#0ea5e9" radius={[4, 4, 0, 0]} />}
-                {visibleSeries.noon && <Bar dataKey="noon" name="نون مصر" fill="#38bdf8" radius={[4, 4, 0, 0]} />}
-                {visibleSeries.jumia && <Bar dataKey="jumia" name="جوميا مصر" fill="#f97316" radius={[4, 4, 0, 0]} />}
-                {visibleSeries.winningPriceTarget && (
-                  <Bar dataKey="winningPriceTarget" name="سعرنا الرابح" fill="#10b981" radius={[4, 4, 0, 0]} />
-                )}
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+        {/* Analytics Summary Card (Recharts completely removed) */}
+        <div className="p-8 bg-slate-950/80 rounded-2xl border border-slate-800 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+            <Activity className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-black text-white">ملخص التحليلات السوقية والأسعار التاريخية</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            جميع بيانات المنافسين وأسعار Buy Box ومؤشرات الربحية معروضة أدناه بدقة عبر مقارنات تفصيلية لـ 30 يوماً.
+          </p>
         </div>
       </div>
 

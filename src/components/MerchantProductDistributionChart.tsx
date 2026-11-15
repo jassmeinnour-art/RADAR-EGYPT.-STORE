@@ -1,16 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell
-} from 'recharts';
 import { 
-  BarChart3, 
   Store, 
   Package, 
   CheckCircle2, 
@@ -23,7 +13,6 @@ import {
 } from 'lucide-react';
 import { RemoteMerchantClient } from '../types';
 import { MerchantMetadataStats } from './MerchantAdvancedFilterPanel';
-import { SafeResponsiveContainer } from './SafeResponsiveContainer';
 
 interface MerchantProductDistributionChartProps {
   allMerchants: RemoteMerchantClient[];
@@ -148,8 +137,6 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
     }).sort((a, b) => b.productsCount - a.productsCount);
   }, [allMerchants, merchantStatsMap, activeMerchantId]);
 
-  // Custom Tooltip for Aggregate Comparison
-  const CustomAggregateTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const data = payload[0].payload;
 
@@ -183,8 +170,6 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
     );
   };
 
-  // Custom Tooltip for Per-Merchant View
-  const CustomMerchantTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const data = payload[0].payload;
 
@@ -222,7 +207,6 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
-            <BarChart3 className="w-6 h-6 text-indigo-400" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -234,7 +218,6 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              مخطط بياني تحليلي (Recharts Bar Chart) يقارن حجم المخزون والمنتجات المدارة بين المتاجر المتصلة والمتاجر المعطلة
             </p>
           </div>
         </div>
@@ -372,131 +355,58 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
         </div>
       </div>
 
-      {/* Main Recharts Bar Chart Area */}
-      <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 sm:p-5 pt-6">
-        <SafeResponsiveContainer minHeight={320} height={320}>
+      <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 sm:p-5 pt-6 flex flex-col justify-end" dir="ltr">
+        <div className="flex items-end justify-between gap-3 h-64">
           {chartViewMode === 'aggregate' ? (
-            <BarChart
-              data={aggregateData.chartPoints}
-              margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} vertical={false} />
-              <XAxis 
-                dataKey="category" 
-                stroke="#94a3b8" 
-                tick={{ fill: '#e2e8f0', fontSize: 13, fontWeight: 'bold' }}
-              />
-              <YAxis 
-                stroke="#94a3b8" 
-                tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                domain={[0, 'auto']}
-              />
-              <Tooltip content={<CustomAggregateTooltip />} />
-              <Legend 
-                wrapperStyle={{ paddingTop: 12, color: '#e2e8f0', fontSize: 12 }}
-              />
-
-              {metricType === 'detailed_metrics' ? (
-                <>
-                  <Bar 
-                    dataKey="totalProducts" 
-                    name="إجمالي المنتجات" 
-                    fill="#3b82f6" 
-                    radius={[8, 8, 0, 0]}
-                    maxBarSize={55}
-                  />
-                  <Bar 
-                    dataKey="inStockProducts" 
-                    name="متوفر بالمخزون" 
-                    fill="#10b981" 
-                    radius={[8, 8, 0, 0]}
-                    maxBarSize={55}
-                  />
-                  <Bar 
-                    dataKey="buyBoxProducts" 
-                    name="متصدر Buy Box 🏆" 
-                    fill="#f59e0b" 
-                    radius={[8, 8, 0, 0]}
-                    maxBarSize={55}
-                  />
-                </>
-              ) : (
-                <Bar 
-                  dataKey="totalProducts" 
-                  name="إجمالي المنتجات" 
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={80}
-                >
-                  {aggregateData.chartPoints.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.statusKey === 'active' ? '#10b981' : '#f43f5e'} 
-                    />
-                  ))}
-                </Bar>
-              )}
-            </BarChart>
-          ) : (
-            <BarChart
-              data={perMerchantData}
-              margin={{ top: 20, right: 15, left: 10, bottom: 25 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} vertical={false} />
-              <XAxis 
-                dataKey="shortName" 
-                stroke="#94a3b8" 
-                interval={0}
-                tick={{ fill: '#e2e8f0', fontSize: 11 }}
-                angle={-25}
-                textAnchor="end"
-              />
-              <YAxis 
-                stroke="#94a3b8" 
-                tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                domain={[0, 'auto']}
-              />
-              <Tooltip content={<CustomMerchantTooltip />} />
-              <Legend 
-                content={() => (
-                  <div className="flex items-center justify-center gap-6 pt-3 text-xs">
-                    <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                      <span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" />
-                      <span>متجر نشط 🟢</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 text-rose-400 font-bold">
-                      <span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" />
-                      <span>متجر معطل ⚪</span>
-                    </span>
+            aggregateData.chartPoints.map((entry, idx) => {
+              const maxP = Math.max(...aggregateData.chartPoints.map(p => p.totalProducts || 1));
+              const heightPct = Math.max(15, Math.round(((entry.totalProducts || 0) / maxP) * 100));
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                      <div>{entry.category}</div>
+                      <div className="text-amber-400 font-bold">{entry.totalProducts} منتج</div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
                   </div>
-                )}
-              />
-              <Bar 
-                dataKey="productsCount" 
-                name="عدد المنتجات" 
-                radius={[6, 6, 0, 0]}
-                maxBarSize={45}
-                onClick={(entry: any) => {
-                  if (entry && entry.id && onSelectMerchant) {
-                    onSelectMerchant(entry.id);
-                  }
-                }}
-              >
-                {perMerchantData.map((entry) => (
-                  <Cell 
-                    key={`cell-${entry.id}`} 
-                    fill={entry.isPlatformActive ? '#10b981' : '#f43f5e'}
-                    stroke={entry.isSelected ? '#fbbf24' : 'transparent'}
-                    strokeWidth={entry.isSelected ? 2 : 0}
-                    className="cursor-pointer hover:opacity-85 transition-opacity"
+                  <div
+                    className={`w-full rounded-t-md transition-all ${entry.statusKey === 'active' ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-rose-500 group-hover:bg-rose-400'}`}
+                    style={{ height: `${heightPct}%` }}
                   />
-                ))}
-              </Bar>
-            </BarChart>
+                  <span className="text-[11px] text-slate-300 font-bold mt-2 truncate text-center w-full">{entry.category}</span>
+                </div>
+              );
+            })
+          ) : (
+            perMerchantData.map((entry, idx) => {
+              const maxP = Math.max(...perMerchantData.map(p => p.productsCount || 1));
+              const heightPct = Math.max(15, Math.round(((entry.productsCount || 0) / maxP) * 100));
+              return (
+                <div
+                  key={idx}
+                  onClick={() => onSelectMerchant && onSelectMerchant(entry.id)}
+                  className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                >
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                      <div>{entry.merchantName}</div>
+                      <div className="text-sky-400 font-bold">{entry.productsCount} منتج</div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                  </div>
+                  <div
+                    className={`w-full rounded-t-md transition-all ${entry.isPlatformActive ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-rose-500 group-hover:bg-rose-400'}`}
+                    style={{ height: `${heightPct}%` }}
+                  />
+                  <span className="text-[10px] text-slate-400 font-mono mt-1 truncate text-center w-full">{entry.shortName}</span>
+                </div>
+              );
+            })
           )}
-        </SafeResponsiveContainer>
+        </div>
       </div>
 
-      {/* Legend & Guide Notice */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400 bg-slate-950/60 rounded-2xl p-3 border border-slate-800">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 text-slate-300">

@@ -25,23 +25,6 @@ import {
   Flame,
   Check
 } from 'lucide-react';
-import {
-  ComposedChart,
-  LineChart,
-  BarChart,
-  AreaChart,
-  Area,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine,
-  ReferenceArea
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { ConnectedMerchantPlatform } from '../types';
 import {
   DailyPlatformSyncDataPoint,
@@ -239,8 +222,6 @@ export const PlatformSync30DayChart: React.FC<PlatformSync30DayChartProps> = ({
     }
   };
 
-  // Custom Chart Tooltip
-  const CustomSyncTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const dataPoint: DailyPlatformSyncDataPoint = payload[0]?.payload;
       if (!dataPoint) return null;
@@ -394,7 +375,6 @@ export const PlatformSync30DayChart: React.FC<PlatformSync30DayChartProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn" id="platform-sync-30d-evolution-section">
-      {/* Top Banner & Control Bar */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-emerald-500 via-indigo-600 to-rose-500" />
         
@@ -633,7 +613,6 @@ export const PlatformSync30DayChart: React.FC<PlatformSync30DayChartProps> = ({
           </div>
         </div>
 
-        {/* Visual Legend & Downtime Notice Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/60 text-xs">
           <div className="flex flex-wrap items-center gap-4 text-slate-600">
             <span className="font-bold text-slate-800 flex items-center gap-1.5">
@@ -659,207 +638,49 @@ export const PlatformSync30DayChart: React.FC<PlatformSync30DayChartProps> = ({
           </div>
         </div>
 
-        {/* Primary Chart Container */}
-        <div className="h-[360px] w-full min-w-0 pt-2">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300} debounce={50}>
-            {chartMetricView === 'success_rate' ? (
-              <ComposedChart data={displayDataset} margin={{ top: 20, right: 20, bottom: 25, left: 10 }}>
-                <defs>
-                  <linearGradient id="syncSuccessGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
+        {/* Pure Tailwind CSS Sync Performance Chart (No Recharts) */}
+        <div className="h-80 w-full flex flex-col justify-end p-4 bg-slate-950/80 rounded-2xl border border-slate-800" dir="ltr">
+          <div className="flex items-end justify-between gap-1 h-60">
+            {displayDataset.map((pt, idx) => {
+              const val = chartMetricView === 'success_rate' ? pt.successRate : chartMetricView === 'downtime_errors' ? pt.downtimeMinutes : pt.avgLatencyMs;
+              const maxVal = chartMetricView === 'success_rate' ? 100 : chartMetricView === 'downtime_errors' ? 60 : 2000;
+              const heightPct = Math.max(15, Math.round((val / maxVal) * 100));
+              return (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedDayPoint(pt)}
+                  className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                >
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                      <div>{pt.date}</div>
+                      <div className="text-amber-400 font-bold">
+                        {chartMetricView === 'success_rate' ? `${pt.successRate}% نجاح` : chartMetricView === 'downtime_errors' ? `${pt.downtimeMinutes} دقيقة توقف` : `${pt.avgLatencyMs}ms استجابة`}
+                      </div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                  </div>
 
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis
-                  dataKey="dateLabel"
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  interval={onlyDowntimeDays ? 0 : 2}
-                  angle={-25}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  yAxisId="left"
-                  domain={[65, 100]}
-                  tick={{ fontSize: 11, fill: '#059669' }}
-                  tickFormatter={(val) => `${val}%`}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  domain={[0, 25]}
-                  tick={{ fontSize: 11, fill: '#e11d48' }}
-                  tickFormatter={(val) => `${val} خطأ`}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-
-                <Tooltip content={<CustomSyncTooltip />} />
-
-                {/* Highlight Downtime Reference Areas */}
-                {downtimeDaysList.map(item => (
-                  <ReferenceArea
-                    key={`downtime-ref-${item.date}`}
-                    x1={item.dateLabel}
-                    x2={item.dateLabel}
-                    yAxisId="left"
-                    fill="#fee2e2"
-                    fillOpacity={0.5}
-                    stroke="#fca5a5"
-                    strokeDasharray="2 2"
+                  <div
+                    className={`w-full rounded-t-sm transition-all duration-300 ${
+                      pt.isDowntimeDay ? 'bg-rose-500 group-hover:bg-rose-400' : chartMetricView === 'success_rate' ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-sky-500 group-hover:bg-sky-400'
+                    }`}
+                    style={{ height: `${Math.min(100, heightPct)}%` }}
                   />
-                ))}
-
-                {/* 95% SLA Target Line */}
-                <ReferenceLine
-                  y={95}
-                  yAxisId="left"
-                  stroke="#6366f1"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: 'الحد الأدنى المستهدف لـ SLA (95%)',
-                    fill: '#4f46e5',
-                    fontSize: 10,
-                    position: 'insideTopLeft'
-                  }}
-                />
-
-                {/* Bar for failed syncs / errors */}
-                <Bar
-                  yAxisId="right"
-                  dataKey="failedSyncs"
-                  name="failedSyncs"
-                  fill="#f43f5e"
-                  radius={[6, 6, 0, 0]}
-                  barSize={14}
-                />
-
-                {/* Area and Line for Success Rate */}
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="successRate"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  fill="url(#syncSuccessGradient)"
-                  dot={renderCustomizedDot}
-                  activeDot={{ r: 7, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
-                />
-              </ComposedChart>
-            ) : chartMetricView === 'downtime_errors' ? (
-              <ComposedChart data={displayDataset} margin={{ top: 20, right: 20, bottom: 25, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis
-                  dataKey="dateLabel"
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  interval={onlyDowntimeDays ? 0 : 2}
-                  angle={-25}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  yAxisId="left"
-                  domain={[0, 60]}
-                  tick={{ fontSize: 11, fill: '#e11d48' }}
-                  tickFormatter={(val) => `${val} دقيقة`}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  domain={[0, 25]}
-                  tick={{ fontSize: 11, fill: '#0284c7' }}
-                  tickFormatter={(val) => `${val} دورة`}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomSyncTooltip />} />
-
-                <Legend
-                  verticalAlign="top"
-                  height={36}
-                  formatter={(val) => {
-                    if (val === 'downtimeMinutes') return <span className="text-xs font-bold text-rose-700">مدة التوقف والانقطاع (بالدقائق)</span>;
-                    if (val === 'failedSyncs') return <span className="text-xs font-bold text-sky-600">عدد دورات التزامن الفاشلة</span>;
-                    return val;
-                  }}
-                />
-
-                <Bar
-                  yAxisId="left"
-                  dataKey="downtimeMinutes"
-                  name="downtimeMinutes"
-                  fill="#e11d48"
-                  radius={[6, 6, 0, 0]}
-                  barSize={18}
-                />
-
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="failedSyncs"
-                  name="failedSyncs"
-                  stroke="#0284c7"
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: '#0284c7' }}
-                />
-              </ComposedChart>
-            ) : (
-              <AreaChart data={displayDataset} margin={{ top: 20, right: 20, bottom: 25, left: 10 }}>
-                <defs>
-                  <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis
-                  dataKey="dateLabel"
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  interval={onlyDowntimeDays ? 0 : 2}
-                  angle={-25}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  domain={[100, 2200]}
-                  tick={{ fontSize: 11, fill: '#0284c7' }}
-                  tickFormatter={(val) => `${val}ms`}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomSyncTooltip />} />
-
-                {/* 500ms SLA Baseline */}
-                <ReferenceLine
-                  y={500}
-                  stroke="#0284c7"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: 'المعدل القياسي الطبيعي (500ms)',
-                    fill: '#0284c7',
-                    fontSize: 10,
-                    position: 'insideTopLeft'
-                  }}
-                />
-
-                <Area
-                  type="monotone"
-                  dataKey="avgLatencyMs"
-                  name="avgLatencyMs"
-                  stroke="#0284c7"
-                  strokeWidth={2.5}
-                  fill="url(#latencyGradient)"
-                  dot={renderCustomizedDot}
-                />
-              </AreaChart>
-            )}
-          </ResponsiveContainer>
+                  <span className="text-[9px] text-slate-500 font-mono mt-1 truncate">
+                    {idx % 3 === 0 ? pt.dateLabel : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 font-mono">
+            <span>قبل 30 يوم</span>
+            <span className="text-amber-400 font-bold">
+              {chartMetricView === 'success_rate' ? 'معدل نجاح التزامن (%)' : chartMetricView === 'downtime_errors' ? 'دقائق التوقف (Downtime)' : 'سرعة الاستجابة (Latency ms)'}
+            </span>
+            <span>اليوم</span>
+          </div>
         </div>
       </div>
 

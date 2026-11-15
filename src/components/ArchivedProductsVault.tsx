@@ -13,7 +13,6 @@ import {
   Layers,
   Download,
   Eye,
-  BarChart3,
   ExternalLink,
   ShieldAlert,
   DollarSign,
@@ -35,15 +34,6 @@ import {
   Store
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { ProductData } from '../types';
 
 interface ArchivedProductsVaultProps {
@@ -354,7 +344,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
   return (
     <div className="space-y-6 text-right font-['Cairo']">
       
-      {/* Vault Tabs Navigation Bar: Archive vs Trash Bin */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-2 px-4 pt-3 overflow-x-auto">
         <button
           onClick={() => setVaultTab('archive')}
@@ -459,7 +448,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
           <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80">
             <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold">
               <span>سجل نقاط الأسعار المحفوظة</span>
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-indigo-950 mt-1">
               {totalPreservedPricePoints} <span className="text-xs font-normal text-slate-500">نقطة رصد</span>
@@ -492,7 +480,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
         </div>
       </div>
 
-      {/* Filter and Control Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs space-y-4">
         
         {/* Top Filter Row: Search, Category, View switcher */}
@@ -635,7 +622,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
 
       </div>
 
-      {/* Main Content Area: Zero State or Grid / Table */}
       {filteredProducts.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/90 shadow-xs space-y-3">
           <div className="w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 mx-auto">
@@ -774,14 +760,12 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-500 font-medium block">تاريخ الأسعار المحفوظ</span>
                     <span className="font-bold text-indigo-700 text-xs sm:text-sm flex items-center justify-center gap-1">
-                      <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
                       <span>{pricePointsCount} نقاط رصد</span>
                     </span>
                   </div>
 
                 </div>
 
-                {/* Bottom Actions Bar */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   
                   {/* View Full History Button */}
@@ -790,7 +774,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                     className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                     title="استعراض المخطط التاريخي لحركة السعر وعروض المنافسين"
                   >
-                    <BarChart3 className="w-3.5 h-3.5" />
                     <span>سجل الأسعار التاريخي</span>
                   </button>
 
@@ -948,7 +931,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                           onClick={() => setInspectedProduct(product)}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 cursor-pointer"
                         >
-                          <BarChart3 className="w-3 h-3" />
                           <span>{pricePointsCount} نقاط رصد</span>
                         </button>
                       </td>
@@ -1134,7 +1116,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400">
-                  <BarChart3 className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -1194,7 +1175,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-indigo-600" />
                     <span>مسار تحركات الأسعار عبر الزمن (سجل كامل بدون حذف)</span>
                   </h4>
                   <span className="text-[11px] text-slate-500">
@@ -1204,8 +1184,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
 
                 <div className="bg-slate-50/90 rounded-2xl p-3 sm:p-4 border border-slate-200 h-64 min-w-0">
                   {inspectedProduct.priceHistory && inspectedProduct.priceHistory.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220} debounce={50}>
-                      <LineChart
                         data={inspectedProduct.priceHistory.map(p => ({
                           date: p.date,
                           price: p.price,
@@ -1214,14 +1192,10 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                         }))}
                         margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748B' }} />
-                        <YAxis
                           domain={['dataMin - 100', 'dataMax + 100']}
                           tick={{ fontSize: 10, fill: '#64748B' }}
                           tickFormatter={(val) => `${val}`}
                         />
-                        <Tooltip
                           content={({ active, payload, label }) => {
                             if (active && payload && payload.length) {
                               const data = payload[0].payload;
@@ -1243,8 +1217,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                             return null;
                           }}
                         />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                        <Line
                           type="monotone"
                           dataKey="price"
                           name="سعر السوق المسجل"
@@ -1253,7 +1225,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                           dot={{ fill: '#4F46E5', r: 4 }}
                           activeDot={{ r: 6 }}
                         />
-                        <Line
                           type="stepAfter"
                           dataKey="wholesale"
                           name="تكلفة الجملة (الأساس)"
@@ -1262,8 +1233,6 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                           strokeDasharray="4 4"
                           dot={false}
                         />
-                      </LineChart>
-                    </ResponsiveContainer>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400 text-xs">
                       لا توجد نقاط مسجلة بسجل الأسعار لهذا المنتج

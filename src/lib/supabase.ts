@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
+import { evaluatePulledProductsForPriceAlerts } from '../utils/smartPriceAlerts';
+import { isMaintenanceModeActive } from '../utils/maintenanceMode';
 
 export interface Trader {
   id: string;
@@ -26,6 +28,7 @@ export interface Trader {
   invoices_count?: number;
   is_connected?: boolean;
   last_sync_at?: string;
+  last_sync_timestamp?: string;
 }
 
 export interface Product {
@@ -252,11 +255,6 @@ export function getSupabaseActiveEmail(): string | null {
   if (activeAuthenticatedEmail) return activeAuthenticatedEmail;
   if (typeof window !== 'undefined' && !isSupabaseConfigured) {
     try {
-      const demoRaw = localStorage.getItem('merchant_radar_demo_user');
-      if (demoRaw) {
-        const parsed = JSON.parse(demoRaw);
-        if (parsed?.email) return String(parsed.email).trim().toLowerCase();
-      }
       const override = localStorage.getItem('merchant_radar_session_email_override');
       if (override) return override.trim().toLowerCase();
     } catch {
@@ -303,6 +301,82 @@ function getTradersStorageKey(userId: string): string {
 
 function getProductsStorageKey(traderId: string): string {
   return `radar_multi_tenant_products_${traderId}`;
+}
+
+export const TRADER_LAST_SYNC_MAP_KEY = 'radar_trader_last_sync_map';
+
+export function getTraderLastSyncAt(
+  traderId: string,
+  recordLastSyncAt?: string | null,
+  recordLastSyncTimestamp?: string | null
+): string | null {
+  const candidates: number[] = [];
+
+  const pushIfValid = (raw?: string | null) => {
+    if (!raw) return;
+    const ms = Date.parse(raw);
+    if (Number.isFinite(ms)) candidates.push(ms);
+  };
+
+  pushIfValid(recordLastSyncTimestamp);
+  pushIfValid(recordLastSyncAt);
+
+  try {
+    const mapRaw = localStorage.getItem(TRADER_LAST_SYNC_MAP_KEY);
+    if (mapRaw) {
+      const parsed = JSON.parse(mapRaw);
+      if (parsed && typeof parsed === 'object') {
+        pushIfValid(parsed[traderId]);
+      }
+    }
+  } catch {}
+
+  try {
+    const prodsRaw = localStorage.getItem(getProductsStorageKey(traderId));
+    if (prodsRaw) {
+      const prods = JSON.parse(prodsRaw);
+      if (Array.isArray(prods)) {
+        for (const p of prods) {
+          pushIfValid(p?.updated_at || p?.created_at);
+        }
+      }
+    }
+  } catch {}
+
+  if (candidates.length === 0) return null;
+  const newest = Math.max(...candidates);
+  return new Date(newest).toISOString();
+}
+
+export async function recordTraderLastSyncAt(traderId: string, isoTimestamp?: string): Promise<string> {
+  const nowIso = isoTimestamp || new Date().toISOString();
+  if (!traderId) return nowIso;
+
+  try {
+    const mapRaw = localStorage.getItem(TRADER_LAST_SYNC_MAP_KEY);
+    const map: Record<string, string> = mapRaw ? JSON.parse(mapRaw) : {};
+    map[traderId] = nowIso;
+    localStorage.setItem(TRADER_LAST_SYNC_MAP_KEY, JSON.stringify(map));
+  } catch {}
+
+  try {
+    await multiTenantDb.updateTrader(traderId, {
+      last_sync_at: nowIso,
+      last_sync_timestamp: nowIso,
+    });
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('radar_trader_sync_updated', {
+          detail: { traderId, last_sync_at: nowIso, last_sync_timestamp: nowIso },
+        })
+      );
+    }
+  } catch {}
+
+  return nowIso;
 }
 
 /**
@@ -543,6 +617,7 @@ export const multiTenantDb = {
    * Save scraped storefront products to trader's catalog
    */
   async saveScrapedProducts(traderId: string, scraped: any[]): Promise<Product[]> {
+    if (isMaintenanceModeActive()) return [];
     if (!traderId || !Array.isArray(scraped) || scraped.length === 0) return [];
 
     const newProducts: Product[] = scraped.map(s => ({
@@ -558,16 +633,26 @@ export const multiTenantDb = {
       updated_at: new Date().toISOString()
     }));
 
+    // Evaluate pulled prices against historical snapshots and alert thresholds
+    evaluatePulledProductsForPriceAlerts(traderId, newProducts);
+
     // Save to local storage
     try {
       const key = getProductsStorageKey(traderId);
       const raw = localStorage.getItem(key);
       const list: Product[] = raw ? JSON.parse(raw) : [];
-      // merge without duplicating same sku/title
+      // merge and update existing prices by sku/title
       for (const np of newProducts) {
-        const exists = list.some(item => item.sku === np.sku || item.title === np.title);
-        if (!exists) {
+        const existingIdx = list.findIndex(item => item.sku === np.sku || item.title === np.title);
+        if (existingIdx === -1) {
           list.unshift(np);
+        } else {
+          list[existingIdx] = {
+            ...list[existingIdx],
+            price: np.price,
+            stock: np.stock,
+            updated_at: np.updated_at,
+          };
         }
       }
       localStorage.setItem(key, JSON.stringify(list));
@@ -582,6 +667,8 @@ export const multiTenantDb = {
         console.warn('[MultiTenant Products Insert Warning]:', err);
       }
     }
+
+    await recordTraderLastSyncAt(traderId);
 
     return newProducts;
   },
@@ -904,6 +991,10 @@ export const multiTenantDb = {
    * Trigger sync for a specific trader via /api/traders/:id/sync (Real API sync, no mock generation)
    */
   async syncTrader(traderId: string): Promise<{ success: boolean; count: number; products: Product[] }> {
+    if (isMaintenanceModeActive()) {
+      const existing = await this.getProductsByTrader(traderId);
+      return { success: false, count: existing.length, products: existing };
+    }
     try {
       const res = await fetch(`/api/traders/${encodeURIComponent(traderId)}/sync`, {
         method: 'POST',
@@ -913,7 +1004,9 @@ export const multiTenantDb = {
         const json = await res.json();
         if (json.success) {
           const fresh = json.products || [];
+          evaluatePulledProductsForPriceAlerts(traderId, fresh);
           localStorage.setItem(getProductsStorageKey(traderId), JSON.stringify(fresh));
+          await recordTraderLastSyncAt(traderId, json.last_sync_at);
           return { success: true, count: fresh.length, products: fresh };
         }
       }
@@ -1001,8 +1094,8 @@ class SupabaseQueryBuilder {
       }
     }
     const activeEmail = getSupabaseActiveEmail();
-    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
-      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
+      return { data: null, error: { message: 'Unauthorized: founder access only' } };
     }
 
     const rawArr = Array.isArray(records) ? records : [records];
@@ -1080,9 +1173,12 @@ class SupabaseQueryBuilder {
       }
     }
     const activeEmail = getSupabaseActiveEmail();
-    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
-      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
+      return { data: null, error: { message: 'Unauthorized: founder access only' } };
     }
+
+    const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+    let remoteResult: any = null;
 
     if (supabaseClient) {
       try {
@@ -1093,22 +1189,21 @@ class SupabaseQueryBuilder {
         }
         const res = await builder.select();
         if (!res.error && res.data && res.data.length > 0) {
-          return { data: this.isSingle ? res.data[0] : res.data, error: null };
-        }
-        if (res.error) {
+          remoteResult = this.isSingle ? res.data[0] : res.data;
+        } else if (res.error) {
           return { data: null, error: res.error };
         }
       } catch {}
     }
 
-    // Also update localStorage fallback so edits remain consistent
-    const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
-    let updatedRow: any = this.updatePayload;
+    // Persist/sync edits in localStorage fallback so edits remain consistent even before DB seeding
+    let updatedRow: any = remoteResult && !Array.isArray(remoteResult) ? remoteResult : { id: eqId, ...this.updatePayload };
     if (this.tableName === 'traders' && eqId) {
       try {
+        let foundInStorage = false;
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
             const raw = localStorage.getItem(k);
             if (!raw) continue;
             const list = JSON.parse(raw);
@@ -1116,12 +1211,10 @@ class SupabaseQueryBuilder {
             let modified = false;
             const nextList = list.map((t: any) => {
               if (t && String(t.id) === String(eqId)) {
-                const ownerEmail = String(t.email || t.gmail || '').trim().toLowerCase();
-                if (activeEmail === FOUNDER_EMAIL || ownerEmail === activeEmail) {
-                  modified = true;
-                  updatedRow = { ...t, ...this.updatePayload };
-                  return updatedRow;
-                }
+                foundInStorage = true;
+                modified = true;
+                updatedRow = { ...t, ...this.updatePayload };
+                return updatedRow;
               }
               return t;
             });
@@ -1130,9 +1223,25 @@ class SupabaseQueryBuilder {
             }
           }
         }
+        if (!foundInStorage) {
+          const defaultKey = 'radar_multi_tenant_traders_default';
+          const rawDef = localStorage.getItem(defaultKey);
+          const defList: any[] = rawDef ? JSON.parse(rawDef) : [];
+          updatedRow = {
+            id: String(eqId),
+            user_id: 'founder',
+            ...this.updatePayload,
+          };
+          const filtered = Array.isArray(defList) ? defList.filter((t: any) => String(t?.id) !== String(eqId)) : [];
+          filtered.unshift(updatedRow);
+          localStorage.setItem(defaultKey, JSON.stringify(filtered));
+        }
       } catch {}
     }
 
+    if (remoteResult) {
+      return { data: remoteResult, error: null };
+    }
     return { data: this.isSingle ? updatedRow : [updatedRow], error: null };
   }
 
@@ -1144,8 +1253,8 @@ class SupabaseQueryBuilder {
       }
     }
     const activeEmail = getSupabaseActiveEmail();
-    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
-      return { data: null, error: { message: 'Unauthorized: authentication required' } };
+    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
+      return { data: null, error: { message: 'Unauthorized: founder access only' } };
     }
 
     if (supabaseClient) {
@@ -1174,7 +1283,7 @@ class SupabaseQueryBuilder {
       if (this.tableName === 'traders' && eqId) {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && (k.startsWith('radar_multi_tenant_traders_') || k.includes('traders'))) {
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
             try {
               const raw = localStorage.getItem(k);
               if (raw) {
@@ -1186,6 +1295,14 @@ class SupabaseQueryBuilder {
             } catch {}
           }
         }
+        try {
+          const delRaw = localStorage.getItem('radar_deleted_traders');
+          const delArr: string[] = delRaw ? JSON.parse(delRaw) : [];
+          if (!delArr.includes(String(eqId))) {
+            delArr.push(String(eqId));
+            localStorage.setItem('radar_deleted_traders', JSON.stringify(delArr));
+          }
+        } catch {}
       }
 
       if (this.tableName === 'products' && targetTraderId) {
@@ -1242,46 +1359,14 @@ class SupabaseQueryBuilder {
 
     const activeEmail = getSupabaseActiveEmail();
 
-    // Enforce authentication for all protected tables
-    if (PROTECTED_TABLES.has(this.tableName) && !activeEmail) {
+    // Enforce Founder-only authentication for all protected tables
+    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
       return {
         data: this.isSingle ? null : [],
-        error: { message: 'Unauthorized: authentication required' },
+        error: { message: 'Unauthorized: founder authentication required' },
         count: 0,
       };
     }
-
-    const isFounder = activeEmail === FOUNDER_EMAIL;
-
-    // Resolve allowed trader IDs for non-founder isolation
-    const getAllowedTraderIds = (): Set<string> => {
-      const allowed = new Set<string>();
-      if (activeEmail === 'mahmeudsaid4@gmail.com') {
-        allowed.add('A37JIM7LHQI6IM');
-      }
-      if (typeof localStorage !== 'undefined') {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
-            try {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  parsed.forEach((t: any) => {
-                    const tEmail = String(t?.email || t?.gmail || '').trim().toLowerCase();
-                    if (t?.id && tEmail && tEmail === activeEmail) {
-                      allowed.add(String(t.id));
-                    }
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
-      }
-      return allowed;
-    };
 
     // 1. Try real Supabase if configured
     if (supabaseClient) {
@@ -1312,20 +1397,8 @@ class SupabaseQueryBuilder {
         const res = await Promise.race([query, queryTimeout]);
         if (!res.error && res.data !== null && res.data !== undefined) {
           let safeData = res.data;
-          // Defense-in-depth client-side filtering (purge demo SKUs & enforce trader row isolation)
-          if (Array.isArray(safeData)) {
-            if (this.tableName === 'products') {
-              safeData = safeData.filter((p: any) => !isDemoOrOrphanProduct(p));
-              if (!isFounder) {
-                const allowedIds = getAllowedTraderIds();
-                safeData = safeData.filter((p: any) => allowedIds.has(String(p.trader_id)));
-              }
-            } else if (this.tableName === 'traders' && !isFounder) {
-              safeData = safeData.filter((t: any) => {
-                const tEmail = String(t?.email || t?.gmail || '').trim().toLowerCase();
-                return tEmail === activeEmail;
-              });
-            }
+          if (Array.isArray(safeData) && this.tableName === 'products') {
+            safeData = safeData.filter((p: any) => !isDemoOrOrphanProduct(p));
           }
           return {
             data: safeData,
@@ -1333,39 +1406,64 @@ class SupabaseQueryBuilder {
             count: typeof res.count === 'number' ? (Array.isArray(safeData) ? Math.min(res.count, safeData.length || res.count) : res.count) : undefined,
           };
         }
-        // If RLS denied (401/403/42501), return empty cleanly instead of leaking local fallback
         if (res.error) {
-          const msg = String(res.error?.message || '').toLowerCase();
-          if (
-            res.error?.code === '42501' ||
-            res.error?.code === 'PGRST301' ||
-            msg.includes('jwt') ||
-            msg.includes('permission') ||
-            msg.includes('unauthorized')
-          ) {
-            return {
-              data: this.isSingle ? null : [],
-              error: res.error,
-              count: 0,
-            };
-          }
+          console.warn(`[Supabase Query error on ${this.tableName}]:`, res.error);
+          return {
+            data: this.isSingle ? null : [],
+            error: res.error,
+            count: 0,
+          };
         }
       } catch (err) {
-        console.warn(`[Supabase Query error on ${this.tableName}, falling back to local storage]:`, err);
+        console.warn(`[Supabase Query exception on ${this.tableName}]:`, err);
+        return {
+          data: this.isSingle ? null : [],
+          error: err,
+          count: 0,
+        };
       }
     }
 
-    // 2. Fallback to local dataset (strictly isolated & purged of demo data)
+    // 2. Fallback to local dataset for Founder (strictly purged of demo products)
     let dataset: any[] = [];
     if (this.tableName === 'traders') {
       try {
         const seenIds = new Set<string>();
+        let deletedSet = new Set<string>();
+        try {
+          const delRaw = localStorage.getItem('radar_deleted_traders');
+          if (delRaw) {
+            const parsedDel = JSON.parse(delRaw);
+            if (Array.isArray(parsedDel)) deletedSet = new Set(parsedDel.map(String));
+          }
+        } catch {}
 
-        // Only expose Mahmoud Saeed real trader record to Founder or Mahmoud Saeed himself
-        if (isFounder || activeEmail === 'mahmeudsaid4@gmail.com') {
+        // Read saved/edited local trader records FIRST so founder edits override defaults
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(t => {
+                    if (!t || !t.id || seenIds.has(t.id) || deletedSet.has(String(t.id))) return;
+                    if (String(t.id).includes('star-steel')) return;
+                    seenIds.add(t.id);
+                    dataset.push(t);
+                  });
+                }
+              }
+            } catch {}
+          }
+        }
+
+        // Seed Mahmoud Saeed managed trader record if not yet in storage or deleted
+        if (!seenIds.has('A37JIM7LHQI6IM') && !deletedSet.has('A37JIM7LHQI6IM')) {
           const mahmeudSaeed: Trader = {
             id: 'A37JIM7LHQI6IM',
-            user_id: 'mahmeudsaid4',
+            user_id: 'founder',
             seller_name: 'محمود سعيد',
             email: 'mahmeudsaid4@gmail.com',
             gmail: 'mahmeudsaid4@gmail.com',
@@ -1382,34 +1480,10 @@ class SupabaseQueryBuilder {
           dataset.push(mahmeudSaeed);
           seenIds.add(mahmeudSaeed.id);
         }
-
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
-            try {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  parsed.forEach(t => {
-                    if (!t || !t.id || seenIds.has(t.id)) return;
-                    const tEmail = String(t.email || t.gmail || '').trim().toLowerCase();
-                    if (!tEmail || String(t.id).includes('star-steel')) return;
-                    if (!isFounder && tEmail !== activeEmail) return;
-                    seenIds.add(t.id);
-                    dataset.push(t);
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
       } catch {}
     } else if (this.tableName === 'products') {
       try {
         const seenIds = new Set<string>();
-        const allowedIds = !isFounder ? getAllowedTraderIds() : null;
-
         const keys = Object.keys(localStorage);
         for (const k of keys) {
           if (k.startsWith('radar_multi_tenant_products_')) {
@@ -1424,7 +1498,6 @@ class SupabaseQueryBuilder {
                   }
                   cleanList.forEach(p => {
                     if (!p || !p.id || seenIds.has(p.id)) return;
-                    if (allowedIds && !allowedIds.has(String(p.trader_id))) return;
                     seenIds.add(p.id);
                     dataset.push(p);
                   });
@@ -1438,6 +1511,22 @@ class SupabaseQueryBuilder {
       if (this.selectFields.includes('traders')) {
         const traderMap = new Map<string, any>();
         traderMap.set('A37JIM7LHQI6IM', { seller_name: 'محمود سعيد' });
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((t: any) => {
+                    if (t?.id && t?.seller_name) traderMap.set(t.id, { seller_name: t.seller_name });
+                  });
+                }
+              }
+            }
+          }
+        } catch {}
         dataset = dataset.map(p => {
           const trd = traderMap.get(p.trader_id);
           return {
@@ -1454,12 +1543,7 @@ class SupabaseQueryBuilder {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            const allowedIds = !isFounder ? getAllowedTraderIds() : null;
-            dataset = parsed.filter((item: any) => {
-              if (isDemoOrOrphanProduct(item)) return false;
-              if (allowedIds && !allowedIds.has(String(item.trader_id))) return false;
-              return true;
-            });
+            dataset = parsed.filter((item: any) => !isDemoOrOrphanProduct(item));
           }
         }
       } catch {}
@@ -1542,7 +1626,9 @@ export const supabase = {
  */
 export const SUPABASE_RLS_SQL = `-- ============================================================================
 -- RADAR EGYPT SECURITY HARDENING & RLS POLICIES (radaregypt.store)
--- Founder: jassmeinnour@gmail.com | Real Trader: mahmeudsaid4@gmail.com
+-- Founder-ONLY App: jassmeinnour@gmail.com
+-- Traders (e.g. mahmeudsaid4@gmail.com) are data records managed by the Founder ONLY.
+-- Traders do NOT log in and have NO auth accounts or RLS access.
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -1570,7 +1656,7 @@ DELETE FROM public.traders
 WHERE LOWER(COALESCE(email, gmail, '')) <> 'mahmeudsaid4@gmail.com'
   AND COALESCE(seller_id, '') <> 'A37JIM7LHQI6IM';
 
--- 3. Drop ALL existing open / "Allow all" policies across protected tables
+-- 3. Drop ALL existing open / legacy / trader_* policies across protected tables
 DO $$
 DECLARE
   pol RECORD;
@@ -1615,7 +1701,8 @@ ALTER TABLE public.split_invoices FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 
--- 5. Founder (jassmeinnour@gmail.com) FULL ACCESS on all tables
+-- 5. Founder-ONLY (jassmeinnour@gmail.com) FULL ACCESS on all tables
+-- No trader_* policies exist: traders are managed data records with no login.
 CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
   WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
@@ -1647,44 +1734,6 @@ CREATE POLICY "founder_all_split_invoices" ON public.split_invoices FOR ALL TO a
 CREATE POLICY "founder_all_notifications" ON public.notifications FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
   WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
-
--- 6. Trader strict row-level isolation (READ / UPDATE own data ONLY)
-CREATE POLICY "trader_select_own" ON public.traders FOR SELECT TO authenticated
-  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
-
-CREATE POLICY "trader_update_own" ON public.traders FOR UPDATE TO authenticated
-  USING (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')))
-  WITH CHECK (LOWER(COALESCE(email, gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')));
-
-CREATE POLICY "trader_products_select_own" ON public.products FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_products_insert_own" ON public.products FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_products_update_own" ON public.products FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoices_select_own" ON public.invoices FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoices_update_own" ON public.invoices FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_invoice_items_select_own" ON public.invoice_items FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.invoices i JOIN public.traders t ON t.id = i.trader_id
-    WHERE i.id = invoice_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))
-  ));
-
-CREATE POLICY "trader_inventory_sync_own" ON public.inventory_sync FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
-
-CREATE POLICY "trader_notifications_own" ON public.notifications FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.traders t WHERE t.id = trader_id AND LOWER(COALESCE(t.email, t.gmail)) = LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email'))));
 `;
 
 // Self-executing cleaner: purge legacy 'Star Steel' or 'star-steel' orphaned items from local storage

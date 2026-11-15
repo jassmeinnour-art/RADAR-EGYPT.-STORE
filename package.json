@@ -19,6 +19,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "~2.4.0",
+    "@sentry/react": "^11.12.0",
     "@supabase/supabase-js": "^2.118.0",
     "@types/compression": "^1.8.1",
     "@vercel/analytics": "^2.0.1",
@@ -34,6 +35,7 @@
     "google-auth-library": "^9.15.1",
     "html2canvas": "^1.4.1",
     "jimp": "0.22.12",
+    "jsdom": "^31.0.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "jszip": "^3.10.2",
@@ -43,7 +45,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-is": "^19.1.0",
-    "recharts": "^3.10.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

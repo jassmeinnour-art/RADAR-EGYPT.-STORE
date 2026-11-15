@@ -277,12 +277,7 @@ export const Header: React.FC<HeaderProps> = ({
     user, 
     profile, 
     sessionData,
-    isLoading: isAuthLoading, 
-    isDbConnected, 
     isOwner,
-    signInWithGoogle, 
-    signInAsGuest,
-    signInDemoMerchant,
     signOut, 
     updateStoreProfile, 
     loginError, 
@@ -1094,23 +1089,6 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                      {isOwner && (
-                        <button
-                          type="button"
-                          id="btn-usermenu-switch-to-merchant"
-                          onClick={async () => {
-                            setShowUserMenu(false);
-                            await signInDemoMerchant();
-                            onShowToast?.('تم التبديل لمنظور تاجر عادي (تم إخفاء وضع المؤسس بالكامل)');
-                          }}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                          title="معاينة المنظومة كتاجر عادي"
-                        >
-                          <Users className="w-3.5 h-3.5 text-slate-600" />
-                          <span>معاينة منظور تاجر آخر</span>
-                        </button>
-                      )}
-
                       <button
                         onClick={() => {
                           setShowUserMenu(false);
@@ -1127,27 +1105,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             ) : (
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => signInWithGoogle()}
-                  disabled={isAuthLoading}
-                  id="btn-header-google-login"
-                  className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold font-['Alexandria'] flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer active:scale-95 disabled:opacity-60 select-none shrink-0"
-                  title="تسجيل الدخول وربط قاعدة البيانات السحابية لحفظ بيانات المتجر والتسعير"
-                >
-                  <Cloud className="w-4 h-4 text-blue-100 shrink-0" />
-                  <span className="hidden sm:inline">تسجيل الدخول</span>
-                  <span className="sm:hidden">دخول</span>
-                </button>
-
-                <button
-                  onClick={() => signInAsGuest()}
-                  disabled={isAuthLoading}
-                  id="btn-header-guest-login"
-                  className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold font-['Alexandria'] flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 disabled:opacity-60 select-none shrink-0 border border-slate-200"
-                  title="دخول سريع كتاجر ضيف بدون حساب Google لتجربة المنظومة"
-                >
-                  <span>ضيف</span>
-                </button>
+                <EmergencyLoginButton className="h-10 px-3.5" label="دخول المؤسس" />
               </div>
             )}
           </div>

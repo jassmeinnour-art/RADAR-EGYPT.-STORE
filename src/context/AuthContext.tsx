@@ -2,12 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { 
   User, 
   onAuthStateChanged, 
-  signInWithPopup, 
-  signInAnonymously,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  updateProfile,
   signOut as fbSignOut 
 } from 'firebase/auth';
 import { 
@@ -22,7 +18,6 @@ import {
   auth, 
   usersCollection, 
   analyticsCollection, 
-  googleProvider, 
   testDbConnection,
   handleFirestoreError, 
   OperationType,
@@ -41,7 +36,6 @@ import {
   setSupabaseSession,
   getActiveSupabaseSession,
   signInWithSupabasePassword,
-  signUpWithSupabasePassword,
   signOutSupabase,
 } from '../lib/supabase';
 import { dataCache } from '../utils/dataCache';
@@ -85,13 +79,8 @@ interface AuthContextType {
   isUnauthorizedDomain: boolean;
   currentDomain: string;
   domainInfo: ReturnType<typeof getFirebaseDomainInfo>;
-  signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, displayName?: string, storeName?: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
-  signInAsGuest: () => Promise<void>;
-  signInDemoMerchant: (displayName?: string, storeName?: string) => Promise<void>;
-  signInAsOwner: () => Promise<void>;
   signOut: () => Promise<void>;
   isFounderMode: boolean;
   toggleFounderMode: () => void;
@@ -110,7 +99,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
 export const FOUNDER_EMAIL = 'jassmeinnour@gmail.com';
-const DEMO_USER_STORAGE_KEY = 'merchant_radar_demo_user';
 const SESSION_EMAIL_OVERRIDE_KEY = 'merchant_radar_session_email_override';
 const PROFILE_CACHE_KEY_PREFIX = 'merchant_radar_profile_v2_';
 
@@ -201,14 +189,17 @@ function isLoginPathname(): boolean {
   return typeof window !== 'undefined' && window.location.pathname === '/login';
 }
 
+function isFounderEmail(email?: string | null): boolean {
+  return String(email || '').trim().toLowerCase() === OWNER_EMAIL;
+}
+
 function supabaseUserToAuthUser(sbUser: any): User {
   const email = (sbUser?.email || '').trim().toLowerCase();
-  const isOwner = email === OWNER_EMAIL;
   const metaName = sbUser?.user_metadata?.display_name || sbUser?.user_metadata?.full_name;
   return {
     uid: sbUser?.id || `sb_${Date.now()}`,
     email: email || null,
-    displayName: metaName || (isOwner ? 'ياسمين نور (مالكة المنظومة 👑)' : 'تاجر مصري معتمد'),
+    displayName: metaName || 'ياسمين نور — المؤسس',
     photoURL: sbUser?.user_metadata?.avatar_url || '',
     isAnonymous: false,
     emailVerified: Boolean(sbUser?.email_confirmed_at || true),
@@ -217,21 +208,8 @@ function supabaseUserToAuthUser(sbUser: any): User {
   } as unknown as User;
 }
 
-function getInitialDemoUser(): User | null {
-  if (isSupabaseConfigured || isLoginPathname()) return null;
-  try {
-    const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as User;
-  } catch {
-    // safe
-  }
-  return null;
-}
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  if (isLoginPathname()) {
-    clearStaleRadarStorageKeys();
-  }
+  clearStaleRadarStorageKeys();
 
   const [user, setUser] = useState<User | null>(() => {
     try {
@@ -241,7 +219,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (isSupabaseConfigured) {
         const persisted = readPersistedSupabaseSession();
-        if (persisted?.access_token && persisted?.user) {
+        const persistedEmail = String(persisted?.user?.email || '').trim().toLowerCase();
+        if (persisted?.access_token && persisted?.user && isFounderEmail(persistedEmail)) {
           setSupabaseSession(persisted);
           const mapped = supabaseUserToAuthUser(persisted.user);
           setSessionEmailOverride(mapped.email || null);
@@ -251,14 +230,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSupabaseActiveEmail(null);
         return null;
       }
-      const initial = getInitialDemoUser() || auth?.currentUser || null;
-      if (initial) {
-        const initialEmail = initial.email || getSessionEmailOverride() || '';
-        setSupabaseActiveEmail(initialEmail || null);
-      } else {
-        setSupabaseActiveEmail(null);
+      const initial = auth?.currentUser || null;
+      const initialEmail = String(initial?.email || getSessionEmailOverride() || '').trim().toLowerCase();
+      if (initial && !initial.isAnonymous && isFounderEmail(initialEmail)) {
+        setSupabaseActiveEmail(initialEmail);
+        return initial;
       }
-      return initial;
+      setSupabaseActiveEmail(null);
+      return null;
     } catch {
       setSupabaseActiveEmail(null);
       return null;
@@ -269,35 +248,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isLoginPathname()) return null;
       if (isSupabaseConfigured) {
         const persisted = readPersistedSupabaseSession();
-        if (!persisted?.user) return null;
-        const verifiedEmail = String(persisted.user.email || '').trim().toLowerCase();
-        const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+        const verifiedEmail = String(persisted?.user?.email || '').trim().toLowerCase();
+        if (!persisted?.user || !isFounderEmail(verifiedEmail)) return null;
         return {
           uid: persisted.user.id,
-          displayName: isOwnerAcct
-            ? 'ياسمين نور (مالكة المنظومة 👑)'
-            : persisted.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+          displayName: 'ياسمين نور — المؤسس',
           email: verifiedEmail,
-          storeName:
-            persisted.user.user_metadata?.store_name ||
-            (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+          storeName: persisted.user.user_metadata?.store_name || 'الإدارة العامة — رادار التاجر مصر',
           city: 'القاهرة',
           preferredCurrency: 'EGP',
-          role: isOwnerAcct ? 'super_admin' : 'merchant',
+          role: 'super_admin',
           sessionCount: 1,
         };
       }
-      const initial = getInitialDemoUser() || auth?.currentUser || null;
-      if (!initial) return null;
+      const initial = auth?.currentUser || null;
+      const initialEmail = String(initial?.email || getSessionEmailOverride() || '').trim().toLowerCase();
+      if (!initial || initial.isAnonymous || !isFounderEmail(initialEmail)) return null;
       const cached = getCachedUserProfile(initial.uid);
-      if (cached) return cached;
+      if (cached) return { ...cached, role: 'super_admin', email: OWNER_EMAIL };
       return {
         uid: initial.uid,
-        displayName: initial.displayName || 'تاجر مصري معتمد',
-        email: initial.email || getSessionEmailOverride() || '',
-        storeName: (initial as any).storeName || 'متجر التاجر المصري',
+        displayName: 'ياسمين نور — المؤسس',
+        email: OWNER_EMAIL,
+        storeName: 'الإدارة العامة — رادار التاجر مصر',
         city: 'القاهرة',
         preferredCurrency: 'EGP',
+        role: 'super_admin',
         sessionCount: 1,
       };
     } catch {
@@ -573,26 +549,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const applySupabaseSession = (session: any) => {
         if (!isMounted) return;
-        if (session?.user && session?.access_token) {
+        const verifiedEmail = String(session?.user?.email || '').trim().toLowerCase();
+        if (session?.user && session?.access_token && isFounderEmail(verifiedEmail)) {
           setSupabaseSession(session);
           const mappedUser = supabaseUserToAuthUser(session.user);
-          const verifiedEmail = (session.user.email || '').trim().toLowerCase();
-          setSessionEmailOverride(verifiedEmail || null);
+          setSessionEmailOverride(verifiedEmail);
           setUser(mappedUser);
-          const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
           const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
           setProfile({
             uid: mappedUser.uid,
-            displayName: isOwnerAcct
-              ? 'ياسمين نور (مالكة المنظومة 👑)'
-              : session.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+            displayName: 'ياسمين نور — المؤسس',
             email: verifiedEmail,
-            storeName:
-              session.user.user_metadata?.store_name ||
-              (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+            storeName: session.user.user_metadata?.store_name || 'الإدارة العامة — رادار التاجر مصر',
             city: 'القاهرة',
             preferredCurrency: 'EGP',
-            role: isOwnerAcct ? 'super_admin' : 'merchant',
+            role: 'super_admin',
             sessionCount: 1,
           });
           setSessionData({
@@ -604,6 +575,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isOnline: true,
           });
         } else {
+          if (session?.user && !isFounderEmail(verifiedEmail)) {
+            signOutSupabase().catch(() => {});
+            setLoginError('الدخول مقتصر على حساب المؤسس فقط (jassmeinnour@gmail.com).');
+          }
           setSupabaseSession(null);
           setSupabaseActiveEmail(null);
           setSessionEmailOverride(null);
@@ -621,9 +596,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             applySupabaseSession(session);
           })
           .catch((err) => {
-            if (isMounted) {
-              setAuthInitError(err?.message || 'تعذر التحقق من جلسة Supabase');
-            }
+            console.warn('[AuthContext] Session check warning:', err?.message || err);
             applySupabaseSession(null);
           });
       }
@@ -634,9 +607,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         sbSubscription = data?.subscription || null;
       } catch (err: any) {
-        if (isMounted) {
-          setAuthInitError(err?.message || 'تعذر تهيئة جلسة Supabase');
-        }
+        console.warn('[AuthContext] Supabase auth listener warning:', err?.message || err);
         setIsLoading(false);
       }
 
@@ -655,14 +626,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .catch(() => {
         if (isMounted) setIsDbConnected(false);
       });
-
-    let savedDemoUser: any = null;
-    try {
-      const raw = localStorage.getItem(DEMO_USER_STORAGE_KEY);
-      if (raw) savedDemoUser = JSON.parse(raw);
-    } catch {
-      // safe
-    }
 
     const splashTimeout = setTimeout(() => {
       if (isMounted) {
@@ -683,32 +646,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         clearTimeout(splashTimeout);
-        if (currentUser) {
+        const fbEmail = String(currentUser?.email || '').trim().toLowerCase();
+        if (currentUser && !currentUser.isAnonymous && isFounderEmail(fbEmail)) {
           setUser(currentUser);
-          try { localStorage.removeItem(DEMO_USER_STORAGE_KEY); } catch {}
           syncUserSession(currentUser);
-        } else if (savedDemoUser) {
-          setUser(savedDemoUser as User);
-          const demoEmail = savedDemoUser.email || 'demo.merchant@radar.eg';
-          setSupabaseActiveEmail(demoEmail);
-          setProfile({
-            uid: savedDemoUser.uid,
-            displayName: savedDemoUser.displayName || 'تاجر تجريبي',
-            email: demoEmail,
-            storeName: savedDemoUser.storeName || 'متجر التاجر التجريبي (القاهرة)',
-            city: 'القاهرة',
-            preferredCurrency: 'EGP',
-            sessionCount: 1
-          });
-          setSessionData({
-            sessionId: `sess_demo_${Date.now()}`,
-            lastLoginAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-            lastSeenAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-            sessionCount: 1,
-            isOnline: true,
-          });
         } else {
+          if (currentUser && !isFounderEmail(fbEmail)) {
+            fbSignOut(auth).catch(() => {});
+          }
           setSupabaseActiveEmail(null);
+          setSessionEmailOverride(null);
           setUser(null);
           setProfile(null);
           setSessionData(null);
@@ -718,7 +665,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(splashTimeout);
         console.warn('Auth state change error (CORS / domain / network):', authError);
         if (isMounted) {
-          setAuthInitError(authError?.message || 'تعذر الاتصال بخدمة المصادقة');
           setUser(null);
           setIsLoading(false);
         }
@@ -727,7 +673,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(splashTimeout);
       console.warn('Failed to initialize Firebase Auth listener:', err);
       if (isMounted) {
-        setAuthInitError(err?.message || 'تعذر تهيئة خدمة المصادقة');
         setUser(null);
         setIsLoading(false);
       }
@@ -763,39 +708,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [user]);
 
-  // 1. Google Sign-In with popup
-  const signInWithGoogle = async () => {
-    setLoginError(null);
-    setAuthErrorCode(null);
-    setIsUnauthorizedDomain(false);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user) {
-        if (result.user.email) {
-          setSessionEmailOverride(result.user.email);
-        }
-        setUser(result.user);
-        syncUserSession(result.user, undefined, result.user.email || undefined);
-      }
-    } catch (error: unknown) {
-      handleAuthError(error, 'حدث خطأ أثناء تسجيل الدخول عبر Google.');
-      throw error;
-    }
-  };
-
-  // Owner login strictly requires verified password or Google OAuth (no passwordless backdoor)
-  const signInAsOwner = async () => {
-    const msg = 'دخول مالكة المنصة يتطلب التحقق عبر البريد الإلكتروني وكلمة المرور أو حساب Google الموثق.';
-    setLoginError(msg);
-    throw new Error(msg);
-  };
-
-  // 2. Email & Password Sign-In (Supabase Auth primary when configured)
+  // Founder-only Email & Password Sign-In (jassmeinnour@gmail.com ONLY)
   const signInWithEmail = async (email: string, pass: string) => {
     setLoginError(null);
     setAuthErrorCode(null);
     setIsUnauthorizedDomain(false);
     const cleanEmail = email.trim().toLowerCase();
+
+    if (!isFounderEmail(cleanEmail)) {
+      const msg = 'الدخول مقتصر على حساب المؤسس فقط (jassmeinnour@gmail.com) — التجار سجلات بيانات يديرها المؤسس.';
+      setSessionEmailOverride(null);
+      setSupabaseSession(null);
+      setSupabaseActiveEmail(null);
+      setLoginError(msg);
+      throw new Error(msg);
+    }
 
     if (isSupabaseConfigured && supabaseClient) {
       try {
@@ -807,9 +734,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoginError(msg);
           throw new Error(msg);
         }
-        setSupabaseSession(data.session);
         const verifiedEmail = (data.user.email || cleanEmail).trim().toLowerCase();
-        const isOwnerAcct = verifiedEmail === OWNER_EMAIL;
+        if (!isFounderEmail(verifiedEmail)) {
+          await signOutSupabase();
+          const msg = 'الدخول مقتصر على حساب المؤسس فقط (jassmeinnour@gmail.com).';
+          setLoginError(msg);
+          throw new Error(msg);
+        }
+        setSupabaseSession(data.session);
         const mappedUser = supabaseUserToAuthUser(data.user);
         setSessionEmailOverride(verifiedEmail);
         setSupabaseActiveEmail(verifiedEmail);
@@ -817,16 +749,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const shortTimestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
         setProfile({
           uid: mappedUser.uid,
-          displayName: isOwnerAcct
-            ? 'ياسمين نور (مالكة المنظومة 👑)'
-            : data.user.user_metadata?.display_name || 'تاجر مصري معتمد',
+          displayName: 'ياسمين نور — المؤسس',
           email: verifiedEmail,
-          storeName:
-            data.user.user_metadata?.store_name ||
-            (isOwnerAcct ? 'الإدارة العامة — رادار التاجر مصر' : 'متجر التاجر المصري'),
+          storeName: data.user.user_metadata?.store_name || 'الإدارة العامة — رادار التاجر مصر',
           city: 'القاهرة',
           preferredCurrency: 'EGP',
-          role: isOwnerAcct ? 'super_admin' : 'merchant',
+          role: 'super_admin',
           sessionCount: 1,
         });
         setSessionData({
@@ -849,6 +777,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       if (res.user) {
         const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
+        if (!isFounderEmail(verifiedEmail)) {
+          await fbSignOut(auth).catch(() => {});
+          const msg = 'الدخول مقتصر على حساب المؤسس فقط (jassmeinnour@gmail.com).';
+          setLoginError(msg);
+          throw new Error(msg);
+        }
         setSessionEmailOverride(verifiedEmail);
         setSupabaseActiveEmail(verifiedEmail);
         setUser(res.user);
@@ -861,161 +795,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 3. Email & Password Sign-Up
-  const signUpWithEmail = async (email: string, pass: string, displayName?: string, storeName?: string) => {
-    setLoginError(null);
-    setAuthErrorCode(null);
-    setIsUnauthorizedDomain(false);
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (isSupabaseConfigured && supabaseClient) {
-      const { data, error } = await signUpWithSupabasePassword(cleanEmail, pass, {
-        display_name: displayName?.trim() || '',
-        store_name: storeName?.trim() || '',
-      });
-      if (error) {
-        const rawMsg = String(error.message || '').toLowerCase();
-        let friendly = 'تعذر إنشاء حساب التاجر بالبريد الإلكتروني.';
-        if (rawMsg.includes('already registered') || rawMsg.includes('already exists')) {
-          friendly = 'هذا البريد الإلكتروني مسجل بالفعل. يرجى التبديل لتبويب تسجيل الدخول.';
-        } else if (rawMsg.includes('password')) {
-          friendly = 'كلمة المرور ضعيفة. يجب أن تتكون من 6 خانات على الأقل.';
-        } else if (rawMsg.includes('email')) {
-          friendly = 'صيغة البريد الإلكتروني غير صالحة.';
-        }
-        setLoginError(friendly);
-        throw new Error(friendly);
-      }
-      if (data?.session && data?.user) {
-        setSupabaseSession(data.session);
-        const verifiedEmail = (data.user.email || cleanEmail).trim().toLowerCase();
-        setSessionEmailOverride(verifiedEmail);
-        setSupabaseActiveEmail(verifiedEmail);
-        setUser(supabaseUserToAuthUser(data.user));
-        return;
-      }
-      if (data?.user && !data?.session) {
-        const confirmMsg = 'تم إنشاء الحساب بنجاح! يرجى تأكيد البريد الإلكتروني ثم تسجيل الدخول.';
-        setLoginError(confirmMsg);
-        throw new Error(confirmMsg);
-      }
-    }
-
-    try {
-      const res = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
-      if (res.user) {
-        if (displayName) {
-          try {
-            await updateProfile(res.user, { displayName: displayName.trim() });
-          } catch {
-            // non-blocking
-          }
-        }
-        const verifiedEmail = (res.user.email || cleanEmail).trim().toLowerCase();
-        setSessionEmailOverride(verifiedEmail);
-        setSupabaseActiveEmail(verifiedEmail);
-        setUser(res.user);
-        syncUserSession(res.user, storeName, verifiedEmail);
-      }
-    } catch (error: unknown) {
-      setSessionEmailOverride(null);
-      handleAuthError(error, 'تعذر إنشاء حساب التاجر بالبريد الإلكتروني.');
-      throw error;
-    }
-  };
-
-  // 4. Password Reset
+  // Password Reset (Founder only)
   const sendPasswordReset = async (email: string) => {
     setLoginError(null);
     setAuthErrorCode(null);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isFounderEmail(cleanEmail)) {
+      const msg = 'استعادة كلمة المرور متاحة لحساب المؤسس فقط (jassmeinnour@gmail.com).';
+      setLoginError(msg);
+      throw new Error(msg);
+    }
     try {
       if (isSupabaseConfigured && supabaseClient) {
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim());
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail);
         if (error) throw error;
         return;
       }
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(auth, cleanEmail);
     } catch (error: unknown) {
       handleAuthError(error, 'تعذر إرسال رابط إعادة تعيين كلمة المرور.');
       throw error;
     }
   };
 
-  // 5. Demo Merchant Instant Access (Blocked when live RLS Supabase Auth is enforced)
-  const signInDemoMerchant = async (displayName?: string, storeName?: string) => {
-    if (isSupabaseConfigured) {
-      const msg = 'نظام الأمان (RLS) مفعل حالياً — يرجى تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.';
-      setLoginError(msg);
-      throw new Error(msg);
-    }
-    setLoginError(null);
-    setAuthErrorCode(null);
-    setIsUnauthorizedDomain(false);
-    setSessionEmailOverride('demo.merchant@radar.eg');
-    setSupabaseActiveEmail('demo.merchant@radar.eg');
-    try {
-      localStorage.removeItem('isFounderMode');
-      localStorage.removeItem('radar_founder_mode');
-      localStorage.removeItem('founder_mode_active');
-    } catch {}
-    setRawFounderMode(false);
-
-    try {
-      if (auth.currentUser) {
-        setUser(auth.currentUser);
-        await syncUserSession(auth.currentUser, storeName || 'متجر العتبة للتجارة الرقمية', 'demo.merchant@radar.eg');
-        return;
-      }
-      // First try real Firebase anonymous auth
-      const res = await signInAnonymously(auth);
-      if (res.user) {
-        await syncUserSession(res.user, storeName || 'متجر العتبة للتجارة الرقمية', 'demo.merchant@radar.eg');
-        return;
-      }
-    } catch (firebaseErr: unknown) {
-      console.info('Firebase anonymous login disabled or restricted, creating verified local demo merchant session:', firebaseErr);
-    }
-
-    // High-resilience fallback: instant demo merchant profile
-    const demoUser = {
-      uid: `demo_merchant_${Date.now().toString(36)}`,
-      displayName: displayName || 'تاجر مصري معتمد (تجريبي)',
-      email: 'demo.merchant@radar.eg',
-      photoURL: '',
-      isAnonymous: true,
-      emailVerified: true,
-    } as unknown as User;
-
-    try {
-      localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(demoUser));
-    } catch {}
-
-    setUser(demoUser);
-    setProfile({
-      uid: demoUser.uid,
-      displayName: demoUser.displayName || 'تاجر مصري معتمد',
-      email: demoUser.email || 'demo.merchant@radar.eg',
-      storeName: storeName || 'متجر التاجر المصري الحديث (القاهرة)',
-      city: 'القاهرة',
-      preferredCurrency: 'EGP',
-      sessionCount: 1,
-    });
-    setSessionData({
-      sessionId: `sess_demo_${Date.now()}`,
-      lastLoginAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      lastSeenAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      sessionCount: 1,
-      deviceInfo: typeof navigator !== 'undefined' ? (navigator.platform || 'متصفح الويب') : 'متصفح الويب',
-      isOnline: true,
-    });
-  };
-
-  const signInAsGuest = () => signInDemoMerchant();
-
   const signOut = async () => {
     try {
       try {
-        localStorage.removeItem(DEMO_USER_STORAGE_KEY);
+        localStorage.removeItem('merchant_radar_demo_user');
         localStorage.removeItem('isFounderMode');
         localStorage.removeItem('radar_founder_mode');
         localStorage.removeItem('founder_mode_active');
@@ -1137,13 +943,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isUnauthorizedDomain,
         currentDomain,
         domainInfo,
-        signInWithGoogle,
         signInWithEmail,
-        signUpWithEmail,
         sendPasswordReset,
-        signInAsGuest,
-        signInDemoMerchant,
-        signInAsOwner,
         signOut,
         updateStoreProfile,
         refreshProfile,
@@ -1170,13 +971,8 @@ const FALLBACK_AUTH_CONTEXT: AuthContextType = {
   isUnauthorizedDomain: false,
   currentDomain: typeof window !== 'undefined' ? window.location.hostname : '',
   domainInfo: getFirebaseDomainInfo(),
-  signInWithGoogle: async () => {},
   signInWithEmail: async () => {},
-  signUpWithEmail: async () => {},
   sendPasswordReset: async () => {},
-  signInAsGuest: async () => {},
-  signInDemoMerchant: async () => {},
-  signInAsOwner: async () => {},
   signOut: async () => {},
   updateStoreProfile: async () => {},
   refreshProfile: async () => {},

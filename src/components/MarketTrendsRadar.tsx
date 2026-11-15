@@ -1,16 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid, 
-  Legend, 
-  LineChart, 
-  Line 
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -19,7 +8,6 @@ import {
   Sparkles, 
   ShoppingBag, 
   Layers, 
-  BarChart3, 
   CheckCircle2, 
   Clock, 
   ArrowUpRight, 
@@ -161,7 +149,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
           </div>
         </div>
 
-        {/* Top Summary Metrics Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-6 border-t border-indigo-800/50">
           <div className="bg-slate-850/80 bg-slate-800/50 backdrop-blur rounded-xl p-3.5 border border-slate-700/60">
             <span className="text-xs text-slate-400 block mb-1">المنتجات المتابعة</span>
@@ -264,7 +251,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3 text-xs text-gray-600">
                 <span className="font-semibold flex items-center gap-1.5">
-                  <BarChart3 className="w-4 h-4 text-indigo-600" />
                   منحنى الطلب الأسبوعي ومعدل أسعار المنافسين
                 </span>
                 <span className="text-[11px] text-gray-400">
@@ -273,8 +259,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
               </div>
 
               <div className="h-72 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260} debounce={50}>
-                  <AreaChart data={currentAnalysis.historicalPoints} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="demandGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
@@ -285,11 +269,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="weekLabel" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip 
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
                       formatter={(value: any, name: string) => {
                         if (name === 'demandScore') return [`${value}/100`, 'مؤشر الطلب'];
@@ -300,7 +279,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                       }}
                       labelFormatter={(label) => `الفترة: ${label}`}
                     />
-                    <Legend 
                       verticalAlign="top" 
                       height={36}
                       formatter={(value) => {
@@ -310,7 +288,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                         return value;
                       }}
                     />
-                    <Area 
                       yAxisId="left" 
                       type="monotone" 
                       dataKey="demandScore" 
@@ -319,7 +296,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                       fillOpacity={1} 
                       fill="url(#demandGradient)" 
                     />
-                    <Area 
                       yAxisId="left" 
                       type="monotone" 
                       dataKey="searchInterestScore" 
@@ -329,7 +305,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                       fillOpacity={1} 
                       fill="url(#searchGradient)" 
                     />
-                    <Line 
                       yAxisId="right" 
                       type="monotone" 
                       dataKey="averagePriceEGP" 
@@ -337,8 +312,6 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                       strokeWidth={2} 
                       dot={{ r: 3, fill: '#0ea5e9' }} 
                     />
-                  </AreaChart>
-                </ResponsiveContainer>
               </div>
             </div>
 

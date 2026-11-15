@@ -55,11 +55,11 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
           <X className="w-5 h-5 text-slate-500" />
         </button>
         
-        <h2 className="text-xl font-black text-slate-900 mb-6">إعدادات الملف الشخصي للمتجر</h2>
+        <h2 className="text-xl font-black text-slate-900 mb-6">إعدادات حساب المؤسس</h2>
         
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">اسم التاجر</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">اسم المؤسس الظاهر</label>
             <div className="relative">
               <User className="absolute right-3 top-2.5 w-4 h-4 text-slate-400" />
               <input 

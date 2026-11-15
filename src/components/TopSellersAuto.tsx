@@ -1,6 +1,7 @@
 // ميزة الترشيح التلقائي للمنتجات الأكثر مبيعاً - تعمل تلقائياً On Launch
 import { useState, useEffect } from 'react';
 import { TrendingUp, Loader2, Bell } from 'lucide-react';
+import { isMaintenanceModeActive } from '../utils/maintenanceMode';
 
 export interface TopSellerProduct {
   id: string;
@@ -21,6 +22,10 @@ export default function TopSellersAuto() {
 
   useEffect(() => {
     const fetchTopSellersAutomatically = async () => {
+      if (isMaintenanceModeActive()) {
+        setIsAutoFiltering(false);
+        return;
+      }
       setIsAutoFiltering(true);
       try {
         // بيانات تجريبية - استبدليها ب API الحقيقي لنون وامازون وزون

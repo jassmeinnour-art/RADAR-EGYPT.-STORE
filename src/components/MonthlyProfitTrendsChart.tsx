@@ -1,21 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-  ComposedChart,
-  Area,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import {
   TrendingUp,
   TrendingDown,
   DollarSign,
   Calendar,
-  BarChart3,
   Percent,
   Layers,
   Sparkles,
@@ -23,7 +11,6 @@ import {
   ShieldCheck,
   RefreshCw,
 } from 'lucide-react';
-import { SafeResponsiveContainer } from './SafeResponsiveContainer';
 
 export interface MonthlyProfitDataPoint {
   month: string;
@@ -123,7 +110,6 @@ export const MonthlyProfitTrendsChart: React.FC<MonthlyProfitTrendsChartProps> =
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-              <BarChart3 className="w-3.5 h-3.5" />
               <span>تحليل الأرباح الشهرية التراكمية (Recharts)</span>
             </span>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -276,142 +262,38 @@ export const MonthlyProfitTrendsChart: React.FC<MonthlyProfitTrendsChartProps> =
         </div>
       </div>
 
-      {/* Recharts Canvas Section */}
-      <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 relative">
-        <SafeResponsiveContainer minHeight={320} height={340}>
-          <ComposedChart
-            data={displayedData}
-            margin={{ top: 15, right: 15, bottom: 5, left: 15 }}
-          >
-            <defs>
-              <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-              </linearGradient>
-              <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-              </linearGradient>
-            </defs>
-
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-
-            <XAxis
-              dataKey="monthShort"
-              stroke="#64748b"
-              tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
-              tickLine={false}
-              axisLine={{ stroke: '#334155' }}
-            />
-
-            <YAxis
-              stroke="#64748b"
-              tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
-              tickLine={false}
-              axisLine={{ stroke: '#334155' }}
-              tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
-            />
-
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
-                  const pData = payload[0].payload as MonthlyProfitDataPoint;
-                  return (
-                    <div className="bg-slate-900 border-2 border-slate-700 p-3.5 rounded-2xl shadow-2xl text-right font-['Cairo'] text-xs min-w-[200px] space-y-2">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                        <span className="font-black text-white text-sm">{pData.month}</span>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">
-                          {pData.ordersCount} طلب
-                        </span>
-                      </div>
-
-                      <div className="space-y-1 font-mono text-xs">
-                        <div className="flex items-center justify-between text-indigo-300">
-                          <span className="font-sans font-bold text-slate-300">إجمالي المبيعات:</span>
-                          <span className="font-black">{pData.revenue.toLocaleString()} {currency}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span className="font-sans font-bold text-slate-300">التكاليف والرسوم:</span>
-                          <span>{pData.costs.toLocaleString()} {currency}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-emerald-400 font-bold border-t border-slate-800 pt-1">
-                          <span className="font-sans text-white">صافي الربح:</span>
-                          <span className="font-black text-sm">+{pData.netProfit.toLocaleString()} {currency}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-amber-400 text-[11px]">
-                          <span className="font-sans font-bold text-slate-300">هامش الربح:</span>
-                          <span className="font-bold">{pData.marginPercent}%</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                          <span className="font-sans">الهدف الشهري:</span>
-                          <span>{pData.targetProfit.toLocaleString()} {currency}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-
-            <Legend
-              wrapperStyle={{ paddingTop: 10, fontSize: 12, fontWeight: 700 }}
-              formatter={(value) => {
-                const map: Record<string, string> = {
-                  revenue: 'إجمالي المبيعات (Revenue)',
-                  costs: 'التكاليف والمصاريف (Costs)',
-                  netProfit: 'صافي الربح (Net Profit)',
-                  targetProfit: 'الهدف التقديري (Target)',
-                };
-                return <span className="text-slate-300 font-bold">{map[value] || value}</span>;
-              }}
-            />
-
-            {(chartViewMode === 'combined' || chartViewMode === 'revenue_vs_cost') && (
-              <Bar
-                dataKey="revenue"
-                name="revenue"
-                fill="#6366f1"
-                radius={[6, 6, 0, 0]}
-                barSize={20}
-              />
-            )}
-
-            {chartViewMode === 'revenue_vs_cost' && (
-              <Bar
-                dataKey="costs"
-                name="costs"
-                fill="#f43f5e"
-                radius={[6, 6, 0, 0]}
-                barSize={20}
-              />
-            )}
-
-            {(chartViewMode === 'combined' || chartViewMode === 'profit_only') && (
-              <Area
-                type="monotone"
-                dataKey="netProfit"
-                name="netProfit"
-                stroke="#10b981"
-                strokeWidth={3}
-                fill="url(#profitGrad)"
-              />
-            )}
-
-            <Line
-              type="monotone"
-              dataKey="targetProfit"
-              name="targetProfit"
-              stroke="#eab308"
-              strokeWidth={2}
-              strokeDasharray="4 4"
-              dot={false}
-            />
-          </ComposedChart>
-        </SafeResponsiveContainer>
+      {/* Pure Tailwind CSS Monthly Trends Chart (No Recharts) */}
+      <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 relative" dir="ltr">
+        <div className="flex items-end justify-between gap-2 h-64">
+          {displayedData.map((pData, idx) => {
+            const maxVal = Math.max(...displayedData.map(d => Math.max(d.revenue, d.netProfit, d.costs)));
+            const currentVal = chartViewMode === 'profit_only' ? pData.netProfit : pData.revenue;
+            const heightPct = Math.max(15, Math.round((currentVal / (maxVal || 1)) * 100));
+            return (
+              <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                  <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                    <div>{pData.month}</div>
+                    <div className="text-emerald-400 font-bold">ربح: {pData.netProfit.toLocaleString()} {currency}</div>
+                    <div className="text-indigo-400">مبيعات: {pData.revenue.toLocaleString()} {currency}</div>
+                  </div>
+                  <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                </div>
+                <div
+                  className={`w-full rounded-t-md transition-all duration-300 ${
+                    chartViewMode === 'profit_only' ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-indigo-500 group-hover:bg-indigo-400'
+                  }`}
+                  style={{ height: `${heightPct}%` }}
+                />
+                <span className="text-[10px] text-slate-400 font-mono mt-2 truncate text-center w-full">
+                  {pData.monthShort}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Helpful Legend & Context Note */}
       <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />

@@ -29,6 +29,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ProductData } from '../types';
 import { ProductPriceHistoryLoggerModal } from './ProductPriceHistoryLoggerModal';
 import { ProductQRCodeModal } from './ProductQRCodeModal';
+import { ProductPriceHistory30DaysChart } from './ProductPriceHistory30DaysChart';
+import { ProductSyncHistory30DaysChart } from './ProductSyncHistory30DaysChart';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface ActiveProductDetailsDrawerProps {
   isOpen: boolean;
@@ -117,9 +120,6 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
             merchant: 'أمازون مصر (Amazon.eg)'
           }
         ];
-
-  const maxHistoryPrice = Math.max(...priceHistoryItems.map((p) => p.price), product.highestPrice || 1);
-  const minHistoryPrice = Math.min(...priceHistoryItems.map((p) => p.price), product.currentLowestPrice || 1);
 
   // Build detailed specifications (use existing specs or fallback rich specifications)
   const productSpecs =
@@ -539,47 +539,38 @@ export const ActiveProductDetailsDrawer: React.FC<ActiveProductDetailsDrawerProp
                       </div>
                     </div>
 
-                    {/* Visual Bar Chart of Historical Prices */}
-                    <div className="pt-2 pb-1">
-                      <div className="grid grid-cols-6 gap-2 items-end h-32 p-3 rounded-xl bg-slate-950 border border-slate-800/90">
-                        {priceHistoryItems.slice(0, 6).map((point, idx) => {
-                          const heightPct =
-                            maxHistoryPrice > minHistoryPrice
-                              ? Math.max(
-                                  25,
-                                  Math.round(
-                                    ((point.price - minHistoryPrice * 0.85) /
-                                      (maxHistoryPrice - minHistoryPrice * 0.85)) *
-                                      100
-                                  )
-                                )
-                              : 70;
-                          const isLowest = point.price <= product.currentLowestPrice;
-                          return (
-                            <div
-                              key={idx}
-                              className="flex flex-col items-center justify-end h-full gap-1 group"
-                            >
-                              <span className="text-[9px] font-mono font-bold text-slate-300">
-                                {point.price.toLocaleString()}
-                              </span>
-                              <div
-                                className={`w-full max-w-[34px] rounded-t-lg transition-all ${
-                                  isLowest
-                                    ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-md shadow-emerald-500/20'
-                                    : 'bg-gradient-to-t from-indigo-700 to-indigo-400 opacity-85 group-hover:opacity-100'
-                                }`}
-                                style={{ height: `${Math.min(100, heightPct)}%` }}
-                                title={`${point.date}: ${point.price.toLocaleString()} ${currency} (${point.merchant})`}
-                              />
-                              <span className="text-[9px] text-slate-400 font-mono truncate max-w-full">
-                                {point.date.split(' ')[0].slice(5)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    {/* 30-Day Historical Price Chart */}
+                    <ErrorBoundary
+                      sectionName="drawer-price-history"
+                      sectionTitle="رسم تطور الأسعار التاريخي"
+                      sectionDescription="تعذر حساب أو عرض أعمدة السعر التاريخي لهذا المنتج. باقي تفاصيل المنتج تعمل بشكل سليم."
+                      compact
+                    >
+                      <ProductPriceHistory30DaysChart
+                        productId={product.id}
+                        sku={product.sku}
+                        title={product.title}
+                        currentPrice={product.currentLowestPrice}
+                        currency={currency}
+                        priceHistory={priceHistoryItems}
+                        wholesaleCost={product.estimatedWholesaleCost}
+                      />
+                    </ErrorBoundary>
+
+                    {/* 30-Day Sync History */}
+                    <ErrorBoundary
+                      sectionName="drawer-sync-history"
+                      sectionTitle="سجل مزامنة بيانات المنتج"
+                      sectionDescription="تعذر استعراض سجل المزامنة وحداثة البيانات."
+                      compact
+                    >
+                      <ProductSyncHistory30DaysChart
+                        traderId={product.merchantId}
+                        productId={product.id}
+                        sku={product.sku}
+                        title={product.title}
+                      />
+                    </ErrorBoundary>
                   </div>
 
                   {/* Detailed Chronological Price Log */}

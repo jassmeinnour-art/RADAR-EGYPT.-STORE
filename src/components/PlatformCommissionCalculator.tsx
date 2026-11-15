@@ -24,17 +24,6 @@ import {
   ExternalLink,
   Store
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell
-} from 'recharts';
-import { SafeResponsiveContainer as ResponsiveContainer } from './SafeResponsiveContainer';
 import confetti from 'canvas-confetti';
 import {
   ProductData,
@@ -243,8 +232,6 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
     }));
   }, [calculationSummary]);
 
-  // Custom Chart Tooltip
-  const CustomChartTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0]?.payload;
       return (
@@ -323,7 +310,6 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
           </div>
         </div>
 
-        {/* Product & Category Selector Bar */}
         <div className="mt-6 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Select Product */}
           <div>
@@ -449,7 +435,6 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
           </div>
         </div>
 
-        {/* Egyptian Ecommerce Localization Bar: VAT 14%, Customs, Payment Gateway & Local Shipping (Bosta, Aramex, MNT-Halan, J&T Express) */}
         <div className="mt-4 p-4 rounded-2xl bg-[#08090D] border border-sky-500/35 text-white space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-500/20 pb-2.5">
             <div className="flex items-center gap-2">
@@ -701,7 +686,6 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
         })}
       </div>
 
-      {/* Visual Bar Chart: Platform Cost vs Fees vs Net Profit */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -718,38 +702,27 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
           </span>
         </div>
 
-        {/* Recharts Container */}
-        <div className="h-[320px] w-full min-w-0 pt-4" dir="ltr">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280} debounce={50}>
-            <BarChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis 
-                dataKey="nameAr" 
-                tick={{ fontSize: 11, fill: '#475569', fontWeight: 'bold' }} 
-                axisLine={{ stroke: '#cbd5e1' }}
-                tickLine={false}
-              />
-              <YAxis 
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                axisLine={{ stroke: '#cbd5e1' }}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomChartTooltip />} />
-              <Legend 
-                verticalAlign="top" 
-                height={36} 
-                formatter={(value) => {
-                  if (value === 'netProfit') return <span className="text-xs font-bold text-emerald-700">صافي الربح الفعلي للتاجر</span>;
-                  if (value === 'platformFees') return <span className="text-xs font-bold text-rose-600">خصومات المنصة (عمولة + شحن + VAT)</span>;
-                  if (value === 'wholesaleCost') return <span className="text-xs font-bold text-slate-500">تكلفة البضاعة بالجملة</span>;
-                  return value;
-                }} 
-              />
-              <Bar dataKey="wholesaleCost" name="wholesaleCost" stackId="a" fill="#cbd5e1" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="platformFees" name="platformFees" stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="netProfit" name="netProfit" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* Pure CSS Platform Breakdown Comparison */}
+        <div className="h-[320px] w-full min-w-0 pt-4 flex flex-col justify-end p-4 bg-slate-900 rounded-2xl border border-slate-800" dir="ltr">
+          <div className="flex items-end justify-between gap-3 h-56">
+            {comparisonData.map((item, idx) => {
+              const maxP = Math.max(...comparisonData.map(c => c.sellingPrice || 1));
+              const heightPct = Math.max(15, Math.round(((item.netPayout || 0) / maxP) * 100));
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-950 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
+                      <div>{item.platformName}</div>
+                      <div className="text-emerald-400 font-bold">صافي: {item.netPayout.toLocaleString()} {currency}</div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                  </div>
+                  <div className="w-full rounded-t-md transition-all bg-emerald-500 group-hover:bg-emerald-400" style={{ height: `${heightPct}%` }} />
+                  <span className="text-[10px] text-slate-300 font-bold mt-2 truncate text-center w-full">{item.platformName}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
