@@ -70,27 +70,41 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   }
 }
 
+const isVercelHost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname.endsWith('.vercel.app') || window.location.hostname.includes('vercel'));
+
 const root = document.getElementById('root')
 if (root) {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <ErrorBoundary sectionName="رادار التاجر الذكي">
-        <AuthProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <AsyncOperationsProvider>
-                <AudioNotificationProvider>
-                  <VisualCustomizerProvider>
-                    <App />
-                    <Analytics />
-                    <SpeedInsights />
-                  </VisualCustomizerProvider>
-                </AudioNotificationProvider>
-              </AsyncOperationsProvider>
-            </LanguageProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </ErrorBoundary>
-    </React.StrictMode>
-  )
+  try {
+    (window as any).__RADAR_APP_MOUNTED__ = true;
+    ReactDOM.createRoot(root).render(
+      <React.StrictMode>
+        <ErrorBoundary sectionName="رادار التاجر الذكي" fallbackToLogin>
+          <AuthProvider>
+            <ThemeProvider>
+              <LanguageProvider>
+                <AsyncOperationsProvider>
+                  <AudioNotificationProvider>
+                    <VisualCustomizerProvider>
+                      <App />
+                      {isVercelHost && (
+                        <ErrorBoundary silent fallback={null} sectionName="analytics">
+                          <Analytics />
+                          <SpeedInsights />
+                        </ErrorBoundary>
+                      )}
+                    </VisualCustomizerProvider>
+                  </AudioNotificationProvider>
+                </AsyncOperationsProvider>
+              </LanguageProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </ErrorBoundary>
+      </React.StrictMode>
+    )
+  } catch (err: any) {
+    (window as any).__RADAR_APP_MOUNTED__ = false;
+    (window as any).__RADAR_SHOW_BOOT_ERROR__?.(err?.message || 'Root mount failed');
+  }
 }

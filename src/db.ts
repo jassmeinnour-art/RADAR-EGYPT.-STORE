@@ -17,11 +17,20 @@ import {
 
 export { app, db, auth, googleProvider, firebaseConfig, getFirebaseDomainInfo };
 
+function safeCollection(name: string): CollectionReference<DocumentData> {
+  try {
+    if (!db) return null as unknown as CollectionReference<DocumentData>;
+    return collection(db, name);
+  } catch {
+    return null as unknown as CollectionReference<DocumentData>;
+  }
+}
+
 // Reusable collection references for primary collections
-export const productsCollection = collection(db, 'products');
-export const usersCollection = collection(db, 'users');
-export const analyticsCollection = collection(db, 'analytics');
-export const ownerDebugLogsCollection = collection(db, 'owner_debug_logs');
+export const productsCollection = safeCollection('products');
+export const usersCollection = safeCollection('users');
+export const analyticsCollection = safeCollection('analytics');
+export const ownerDebugLogsCollection = safeCollection('owner_debug_logs');
 
 // Grouped collections map for convenient access
 export const collections = {
@@ -33,7 +42,7 @@ export const collections = {
 
 // Generic typed collection accessor
 export function getCollection<T = DocumentData>(collectionName: string): CollectionReference<T> {
-  return collection(db, collectionName) as CollectionReference<T>;
+  return safeCollection(collectionName) as CollectionReference<T>;
 }
 
 // Connectivity test helper delegating to shared testFirestoreConnection

@@ -131,14 +131,19 @@ export const firebaseConfig = {
     'ai-studio-merchantradaregy-bc6bc8e4-cba5-4805-bec5-93ce581ab6cf'
 };
 
-// Initialize Firebase App safely as a singleton instance
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
-// Initialize Authentication & Firestore with explicit custom databaseId per skill specification
-export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+// Initialize Firebase App safely as a singleton instance (never crash module graph on restricted browsers)
+export let app: ReturnType<typeof initializeApp> = null as any;
+export let auth: ReturnType<typeof getAuth> = null as any;
+export let db: ReturnType<typeof getFirestore> = null as any;
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+try {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+  googleProvider.setCustomParameters({ prompt: 'select_account' });
+} catch (err) {
+  console.warn('[Firebase Safe Init]: Continuing without active Firebase instance:', err);
+}
 
 // ============================================================================
 // Firestore Quota Circuit Breaker & 5-Minute Caching Layer

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { clearStaleRadarCache } from './EmergencyLoginButton';
 
 const PWAInstallPrompt = lazy(() => import('./PWAInstallPrompt'));
@@ -23,7 +24,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const { signInWithEmail, signUpWithEmail, clearLoginError } = useAuth();
+  const { signInWithEmail, signUpWithEmail, clearLoginError, authInitError } = useAuth();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState<string>('');
@@ -150,11 +151,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </button>
         </div>
 
+        {/* Missing Supabase Env Vars Non-Blocking Warning */}
+        {!isSupabaseConfigured && (
+          <div
+            role="status"
+            className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/50 text-amber-200 text-xs font-bold flex items-start gap-2.5 text-right"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-black text-amber-300">تأكد من إعدادات Supabase</div>
+              <div className="text-[11px] text-amber-200/80 mt-0.5 leading-relaxed">
+                متغيرات البيئة <span dir="ltr">VITE_SUPABASE_URL</span> و{' '}
+                <span dir="ltr">VITE_SUPABASE_ANON_KEY</span> غير مضبوطة حالياً.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Red Error Alert */}
-        {errorMsg && (
+        {(errorMsg || authInitError) && (
           <div className="p-3.5 rounded-xl bg-rose-950/90 border-2 border-rose-500 text-rose-100 text-xs font-bold flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{errorMsg}</span>
+            <span>{errorMsg || authInitError}</span>
           </div>
         )}
 

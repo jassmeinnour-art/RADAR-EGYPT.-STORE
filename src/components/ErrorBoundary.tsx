@@ -1,9 +1,11 @@
 import React, { ErrorInfo, ReactNode } from 'react';
 import { EmergencyLoginButton } from './EmergencyLoginButton';
+import LoginPage from './LoginPage';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
+  fallbackToLogin?: boolean;
   sectionName?: string;
   silent?: boolean;
 }
@@ -32,10 +34,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         errMsg.includes('Loading chunk') ||
         errMsg.includes('dynamically imported module')
       ) {
-        const lastReload = sessionStorage.getItem('chunk_error_reload');
-        if (!lastReload || Date.now() - parseInt(lastReload, 10) > 8000) {
-          sessionStorage.setItem('chunk_error_reload', Date.now().toString());
-          window.location.reload();
+        try {
+          const lastReload = sessionStorage.getItem('chunk_error_reload');
+          if (!lastReload || Date.now() - parseInt(lastReload, 10) > 10000) {
+            sessionStorage.setItem('chunk_error_reload', Date.now().toString());
+            window.location.reload();
+          }
+        } catch {
+          // safe
         }
       }
     }
@@ -53,8 +59,42 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   public override render(): ReactNode {
     if (this.state.hasError) {
+      if (this.props.silent) {
+        return this.props.fallback ?? null;
+      }
+
       if (this.props.fallback) {
         return this.props.fallback;
+      }
+
+      if (this.props.fallbackToLogin) {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          try {
+            window.history.replaceState({}, '', '/login');
+          } catch {
+            // safe
+          }
+        }
+        return (
+          <div className="min-h-screen bg-[#08090D] text-slate-100" dir="rtl">
+            <div className="bg-amber-500/15 border-b border-amber-500/40 px-4 py-2.5 text-center flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-amber-200">
+              <span>حدث خطأ غير متوقع — تم توجيهك لصفحة تسجيل الدخول بأمان.</span>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-black cursor-pointer"
+              >
+                حدث خطأ في التحميل - دوس هنا لإعادة التحميل
+              </button>
+            </div>
+            <LoginPage
+              onLoginSuccess={() => {
+                this.setState({ hasError: false, error: null, errorInfo: null });
+                if (typeof window !== 'undefined') window.location.assign('/');
+              }}
+            />
+          </div>
+        );
       }
 
       return (
@@ -63,6 +103,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             <h3 className="text-base font-black text-rose-400">تعذر عرض هذا القسم</h3>
             <p className="text-xs text-slate-300">لا توجد بيانات متاحة حالياً أو حدث خطأ أثناء العرض.</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer"
+              >
+                حدث خطأ في التحميل - دوس هنا لإعادة التحميل
+              </button>
               <button
                 type="button"
                 onClick={this.handleReset}

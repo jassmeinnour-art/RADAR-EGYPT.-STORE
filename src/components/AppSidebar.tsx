@@ -33,6 +33,7 @@ import {
   Mail,
   Link2
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { WorkspaceTab } from '../App';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 import { FounderModeWrapper } from './FounderModeWrapper';
@@ -497,17 +498,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 {(isCategoryOpen || isCollapsed) && (
                   <div className="p-1 space-y-0.5 bg-slate-900/90">
                     {category.items.map((item) => (
-                      <button
+                      <motion.button
                         key={item.id}
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.12 }}
                         onClick={() => handleItemClick(item.action)}
                         onMouseEnter={() => {
+                          if (item.preloadTab) onPrefetchTab?.(item.preloadTab);
+                        }}
+                        onTouchStart={() => {
                           if (item.preloadTab) onPrefetchTab?.(item.preloadTab);
                         }}
                         onFocus={() => {
                           if (item.preloadTab) onPrefetchTab?.(item.preloadTab);
                         }}
                         title={isCollapsed ? item.label : undefined}
-                        className={`w-full text-right px-2.5 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-between cursor-pointer ${
+                        className={`w-full min-h-[44px] lg:min-h-[38px] text-right px-2.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-between cursor-pointer ${
                           item.isActive
                             ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                             : 'text-slate-200 hover:bg-slate-800/90 hover:text-white'
@@ -528,7 +535,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                             {item.badge}
                           </span>
                         )}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 )}
