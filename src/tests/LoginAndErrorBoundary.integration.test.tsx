@@ -10,6 +10,13 @@ import App, { OWNER_EMAIL } from '../App';
 const mockSignInWithEmail = vi.fn();
 const mockClearLoginError = vi.fn();
 const mockSignOut = vi.fn();
+const mockClearPasswordRecovery = vi.fn();
+
+const mockUpdateUser = vi.fn();
+const mockResetPasswordForEmail = vi.fn();
+const mockGetSession = vi.fn();
+const mockSetSession = vi.fn();
+let authStateChangeCallback: ((event: string, session: any) => void) | null = null;
 
 const mockAuthState: {
   user: any;
@@ -17,12 +24,14 @@ const mockAuthState: {
   isOwner: boolean;
   isLoading: boolean;
   authInitError: string | null;
+  isPasswordRecovery: boolean;
 } = {
   user: null,
   profile: null,
   isOwner: false,
   isLoading: false,
   authInitError: null,
+  isPasswordRecovery: false,
 };
 
 vi.mock('../context/AuthContext', () => ({
@@ -49,6 +58,8 @@ vi.mock('../context/AuthContext', () => ({
     updateStoreProfile: vi.fn(),
     refreshProfile: vi.fn(),
     clearLoginError: mockClearLoginError,
+    isPasswordRecovery: mockAuthState.isPasswordRecovery,
+    clearPasswordRecovery: mockClearPasswordRecovery,
   }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -107,8 +118,19 @@ vi.mock('../context/VisualCustomizerContext', () => ({
 }));
 
 vi.mock('../lib/supabase', () => ({
-  isSupabaseConfigured: false,
-  supabaseClient: null,
+  isSupabaseConfigured: true,
+  supabaseClient: {
+    auth: {
+      onAuthStateChange: vi.fn((cb: (event: string, session: any) => void) => {
+        authStateChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      }),
+      updateUser: (...args: any[]) => mockUpdateUser(...args),
+      resetPasswordForEmail: (...args: any[]) => mockResetPasswordForEmail(...args),
+      getSession: (...args: any[]) => mockGetSession(...args),
+      setSession: (...args: any[]) => mockSetSession(...args),
+    },
+  },
   supabase: {
     from: () => ({
       select: () => ({
@@ -147,6 +169,12 @@ describe('Integration Tests: Login Flow, Core App Components & ErrorBoundary Res
     mockAuthState.isOwner = false;
     mockAuthState.isLoading = false;
     mockAuthState.authInitError = null;
+    mockAuthState.isPasswordRecovery = false;
+    authStateChangeCallback = null;
+    mockUpdateUser.mockReset();
+    mockResetPasswordForEmail.mockReset();
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSetSession.mockResolvedValue({ data: { session: null }, error: null });
   });
 
   describe('1. Login Flow Integration (LoginPage inside ErrorBoundary)', () => {
@@ -248,6 +276,117 @@ describe('Integration Tests: Login Flow, Core App Components & ErrorBoundary Res
 
       expect(await screen.findByText('الإيميل أو كلمة المرور غلط')).toBeInTheDocument();
     });
+
+    it('detects type=recovery in URL hash immediately and displays Reset Password form instead of login', () => {
+      window.history.replaceState({}, '', '/login#access_token=tok123&type=recovery');
+
+      render(
+        <ErrorBoundary sectionName="login-test" sectionTitle="صفحة تسجيل الدخول">
+          <LoginPage />
+        </ErrorBoundary>
+      );
+
+      expect(screen.getByText('إعادة تعيين كلمة المرور')).toBeInTheDocument();
+      expect(screen.getByText(`اكتبي كلمة مرور جديدة لحساب ${OWNER_EMAIL}`)).toBeInTheDocument();
+      expect(screen.getByLabelText('كلمة المرور الجديدة')).toBeInTheDocument();
+      expect(screen.getByLabelText('تأكيد كلمة المرور')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /حفظ كلمة المرور الجديدة/ })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /دخول/ })).not.toBeInTheDocument();
+    });
+
+    it('detects type=recovery in URL search and /reset-password route immediately', () => {
+      window.history.replaceState({}, '', '/login?type=recovery');
+      const { unmount } = render(<LoginPage />);
+      expect(screen.getByText('إعادة تعيين كلمة المرور')).toBeInTheDocument();
+      unmount();
+
+      window.history.replaceState({}, '', '/reset-password');
+      render(<LoginPage />);
+      expect(screen.getByText('إعادة تعيين كلمة المرور')).toBeInTheDocument();
+    });
+
+    it('switches to Reset Password form when Supabase onAuthStateChange emits PASSWORD_RECOVERY', async () => {
+      window.history.replaceState({}, '', '/login');
+      render(<LoginPage />);
+
+      expect(screen.getByRole('button', { name: /دخول/ })).toBeInTheDocument();
+      expect(authStateChangeCallback).toBeTruthy();
+
+      authStateChangeCallback?.('PASSWORD_RECOVERY', null);
+
+      expect(await screen.findByText('إعادة تعيين كلمة المرور')).toBeInTheDocument();
+    });
+
+    it('validates password mismatch and updates password via supabase.auth.updateUser cleanly', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      window.history.replaceState({}, '', '/login#type=recovery');
+      mockUpdateUser.mockResolvedValueOnce({ data: { user: { email: OWNER_EMAIL } }, error: null });
+
+      render(<LoginPage />);
+
+      const newPassInput = screen.getByLabelText('كلمة المرور الجديدة');
+      const confirmPassInput = screen.getByLabelText('تأكيد كلمة المرور');
+      const saveBtn = screen.getByRole('button', { name: /حفظ كلمة المرور الجديدة/ });
+
+      fireEvent.change(newPassInput, { target: { value: 'NewSecret123!' } });
+      fireEvent.change(confirmPassInput, { target: { value: 'Different123!' } });
+
+      expect(screen.getByText('كلمتا المرور غير متطابقتين')).toBeInTheDocument();
+
+      fireEvent.change(confirmPassInput, { target: { value: 'NewSecret123!' } });
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'NewSecret123!' });
+      });
+
+      expect(await screen.findByText('تم تغيير كلمة المرور بنجاح - سجلي دخول الآن')).toBeInTheDocument();
+      expect(window.location.hash).toBe('');
+
+      await vi.advanceTimersByTimeAsync(2100);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /دخول/ })).toBeInTheDocument();
+        expect(screen.getByLabelText('البريد الإلكتروني للمؤسس')).toHaveValue(OWNER_EMAIL);
+      });
+      vi.useRealTimers();
+    });
+
+    it('displays Supabase real error.message if updateUser fails', async () => {
+      window.history.replaceState({}, '', '/login#type=recovery');
+      mockUpdateUser.mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: 'New password should be different from the old password.' },
+      });
+
+      render(<LoginPage />);
+
+      fireEvent.change(screen.getByLabelText('كلمة المرور الجديدة'), { target: { value: 'SameOld123!' } });
+      fireEvent.change(screen.getByLabelText('تأكيد كلمة المرور'), { target: { value: 'SameOld123!' } });
+      fireEvent.click(screen.getByRole('button', { name: /حفظ كلمة المرور الجديدة/ }));
+
+      expect(
+        await screen.findByText('New password should be different from the old password.')
+      ).toBeInTheDocument();
+    });
+
+    it('sends reset password email via forgot password button with redirectTo radaregypt.store/login', async () => {
+      window.history.replaceState({}, '', '/login');
+      mockResetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: null });
+
+      render(<LoginPage />);
+
+      const forgotBtn = screen.getByRole('button', { name: 'نسيت كلمة المرور؟' });
+      fireEvent.click(forgotBtn);
+
+      await waitFor(() => {
+        expect(mockResetPasswordForEmail).toHaveBeenCalledWith(OWNER_EMAIL, {
+          redirectTo: 'https://radaregypt.store/login',
+        });
+      });
+
+      expect(await screen.findByText('تم إرسال لينك إعادة التعيين لإيميلك')).toBeInTheDocument();
+    });
   });
 
   describe('2. App Core Components Loading Inside ErrorBoundary', () => {
@@ -263,6 +402,23 @@ describe('Integration Tests: Login Flow, Core App Components & ErrorBoundary Res
       expect(window.location.pathname).toBe('/login');
       expect(screen.getByLabelText('البريد الإلكتروني للمؤسس')).toBeInTheDocument();
       expect(screen.queryByText(/تعذر تحميل شاشة تسجيل دخول المؤسس/)).not.toBeInTheDocument();
+    });
+
+    it('keeps Reset Password form mounted inside App even if Supabase sets temporary recovery session on /reset-password', () => {
+      mockAuthState.user = { uid: 'founder-1', email: OWNER_EMAIL, isAnonymous: false };
+      mockAuthState.profile = { uid: 'founder-1', email: OWNER_EMAIL, role: 'super_admin' };
+      mockAuthState.isOwner = true;
+      mockAuthState.isPasswordRecovery = true;
+      window.history.replaceState({}, '', '/reset-password#access_token=abc&type=recovery');
+
+      render(
+        <ErrorBoundary sectionName="root-app" sectionTitle="تطبيق رادار مصر">
+          <App />
+        </ErrorBoundary>
+      );
+
+      expect(screen.getByText('إعادة تعيين كلمة المرور')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /حفظ كلمة المرور الجديدة/ })).toBeInTheDocument();
     });
 
     it('mounts authenticated founder home workspace (DashboardHome + Shell) cleanly with zero ErrorBoundary fallbacks', async () => {

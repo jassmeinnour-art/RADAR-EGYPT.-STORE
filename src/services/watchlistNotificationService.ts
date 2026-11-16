@@ -1,4 +1,22 @@
-import { ProductData, WatchlistItem } from '../types';
+import { ProductData, WatchlistItem, WatchlistProductPriceAlertConfig } from '../types';
+import {
+  loadAutoPricingRules,
+  evaluateAutoPricingRule,
+} from '../data/autoPricingEngineData';
+import { AutoPricingProductItem } from '../types/autoPricing';
+import { multiTenantDb } from '../lib/supabase';
+import {
+  getAccountNotificationChannelPrefs,
+  saveAccountNotificationChannelPrefs,
+  requestBrowserPermissionOnFirstAlertActivation,
+} from './notificationChannelPreferences';
+import { dispatchBackgroundWhatsAppAlert } from './whatsappService';
+
+export {
+  getAccountNotificationChannelPrefs,
+  saveAccountNotificationChannelPrefs,
+  requestBrowserPermissionOnFirstAlertActivation,
+};
 
 export interface WatchlistPriceNotificationLog {
   id: string;
@@ -300,6 +318,70 @@ export function updateWatchlistTargetPrice(productId: string, targetAlertPrice: 
 }
 
 /**
+ * Updates per-product Price Alert configuration (selected competitor, linked auto-pricing rule, channels)
+ */
+export function updateWatchlistProductPriceAlertConfig(
+  productId: string,
+  partialConfig: Partial<WatchlistProductPriceAlertConfig>
+): WatchlistItem[] {
+  const current = getStoredWatchlist();
+  const rules = loadAutoPricingRules();
+  const defaultRuleId = rules.find((r) => r.isActive)?.id || rules[0]?.id;
+
+  const updated = current.map((item) => {
+    if (item.productId !== productId) return item;
+    const prevConfig: WatchlistProductPriceAlertConfig = item.priceAlertConfig || {
+      enabled: Boolean(item.priceAlertEnabled),
+      targetCompetitorName: 'any',
+      linkedRuleId: defaultRuleId,
+      notifyChannels: { inApp: true, browserPush: true, sound: true },
+    };
+
+    const nextEnabled =
+      partialConfig.enabled !== undefined ? partialConfig.enabled : prevConfig.enabled;
+
+    const nextConfig: WatchlistProductPriceAlertConfig = {
+      ...prevConfig,
+      ...partialConfig,
+      enabled: nextEnabled,
+      targetCompetitorName:
+        partialConfig.targetCompetitorName ?? prevConfig.targetCompetitorName ?? 'any',
+      linkedRuleId: partialConfig.linkedRuleId ?? prevConfig.linkedRuleId ?? defaultRuleId,
+      notifyChannels: {
+        inApp: true,
+        browserPush: true,
+        sound: true,
+        ...(prevConfig.notifyChannels || {}),
+        ...(partialConfig.notifyChannels || {}),
+      },
+    };
+
+    return {
+      ...item,
+      priceAlertEnabled: nextEnabled,
+      priceAlertConfig: nextConfig,
+    };
+  });
+
+  saveStoredWatchlist(updated);
+  return updated;
+}
+
+/**
+ * Toggles "تنبيهات السعر" on or off for a specific product in the Watchlist
+ */
+export function toggleWatchlistPriceAlert(
+  productId: string,
+  enabled: boolean,
+  partialConfig?: Partial<WatchlistProductPriceAlertConfig>
+): WatchlistItem[] {
+  return updateWatchlistProductPriceAlertConfig(productId, {
+    ...partialConfig,
+    enabled,
+  });
+}
+
+/**
  * Retrieve stored notification logs
  */
 export function getWatchlistNotificationLogs(): WatchlistPriceNotificationLog[] {
@@ -394,7 +476,8 @@ export async function sendNativeWebNotification(options: {
   }
 
   const prefs = getWatchlistNotificationPreferences();
-  if (!prefs.webNotificationsEnabled) {
+  const accountChannels = getAccountNotificationChannelPrefs();
+  if (!prefs.webNotificationsEnabled || !accountChannels.browserNotificationsEnabled) {
     return false;
   }
 
@@ -447,6 +530,388 @@ export async function sendNativeWebNotification(options: {
   return false;
 }
 
+export interface PricingEngineAlertEvaluationResult {
+  triggered: boolean;
+  notified: boolean;
+  reason: string;
+  oldPrice: number;
+  newPrice: number;
+  recommendedPrice?: number;
+  ruleTitle?: string;
+  actionTakenAr?: string;
+  channelsDispatched?: {
+    inApp: boolean;
+    browserPush: boolean;
+    whatsapp: boolean;
+  };
+}
+
+/**
+ * Evaluates a competitor price change for a Watchlist product against the active
+ * Auto-Pricing Engine rule & selected competitor, sending an instant notification when triggered.
+ */
+export async function evaluateCompetitorPriceAgainstPricingEngine(params: {
+  item: WatchlistItem;
+  newPrice: number;
+  competitorName: string;
+  platformName?: string;
+  currency?: string;
+}): Promise<PricingEngineAlertEvaluationResult> {
+  const {
+    item,
+    newPrice,
+    competitorName,
+    platformName = 'السوق المصري',
+    currency = 'ج.م',
+  } = params;
+
+  const oldPrice = item.lastCheckedPrice || item.product?.currentLowestPrice || newPrice;
+  const config = item.priceAlertConfig;
+  const isEnabled = config ? config.enabled : Boolean(item.priceAlertEnabled);
+
+  if (!isEnabled) {
+    return {
+      triggered: false,
+      notified: false,
+      reason: 'تنبيهات السعر غير مفعّلة لهذا المنتج',
+      oldPrice,
+      newPrice,
+    };
+  }
+
+  // Filter by specific competitor if selected by the merchant
+  const targetCompetitor = (config?.targetCompetitorName || 'any').trim();
+  if (
+    targetCompetitor &&
+    targetCompetitor !== 'any' &&
+    competitorName.trim().toLowerCase() !== targetCompetitor.toLowerCase() &&
+    !competitorName.toLowerCase().includes(targetCompetitor.toLowerCase()) &&
+    !targetCompetitor.toLowerCase().includes(competitorName.toLowerCase())
+  ) {
+    return {
+      triggered: false,
+      notified: false,
+      reason: `التغير حدث لدى [${competitorName}] وليس المنافس المحدد [${targetCompetitor}]`,
+      oldPrice,
+      newPrice,
+    };
+  }
+
+  if (oldPrice === newPrice) {
+    return {
+      triggered: false,
+      notified: false,
+      reason: 'لم يتغير سعر المنافس عن آخر قراءة',
+      oldPrice,
+      newPrice,
+    };
+  }
+
+  const diff = oldPrice - newPrice;
+  const isDrop = diff > 0;
+  const percentChange = oldPrice > 0 ? Number(((Math.abs(diff) / oldPrice) * 100).toFixed(1)) : 0;
+
+  // Load linked rule from Auto-Pricing Engine settings
+  const rules = loadAutoPricingRules();
+  const activeRule =
+    (config?.linkedRuleId && rules.find((r) => r.id === config.linkedRuleId)) ||
+    rules.find((r) => r.isActive) ||
+    rules[0];
+
+  const myCurrentPrice =
+    item.product?.suggestedRetailPrice || oldPrice || newPrice;
+  const costPrice =
+    item.product?.estimatedWholesaleCost || Math.round(oldPrice * 0.75);
+
+  const autoPricingProduct: AutoPricingProductItem = {
+    productId: item.productId,
+    title: item.product?.title || 'منتج مراقب',
+    category: item.product?.category || 'عام',
+    sku: item.product?.sku || item.productId,
+    imageUrl: item.product?.imageUrl,
+    costPrice,
+    currentPrice: myCurrentPrice,
+    lowestCompetitorPrice: newPrice,
+    lowestCompetitorName: competitorName,
+    lowestCompetitorPlatform: platformName,
+    competitorInStock: item.competitorStockStatus !== 'competitor_stockout_opportunity',
+    assignedRuleId: activeRule?.id || 'default',
+    autoPricingEnabled: true,
+    customFloorPrice: item.product?.estimatedWholesaleCost
+      ? Math.round(item.product.estimatedWholesaleCost * 1.05)
+      : undefined,
+    lastRepricedAt: new Date().toISOString(),
+    lastRepriceStatus: 'optimal',
+    todayRepriceCount: 0,
+  };
+
+  const ruleEval = activeRule
+    ? evaluateAutoPricingRule(autoPricingProduct, activeRule)
+    : null;
+
+  const customThreshold = config?.customChangePercentThreshold;
+  const rulePercentThreshold = activeRule?.conditionValue || 0;
+  const crossedTargetPrice =
+    typeof item.targetAlertPrice === 'number' &&
+    item.targetAlertPrice > 0 &&
+    newPrice <= item.targetAlertPrice;
+  const exceededRuleDelta =
+    activeRule?.conditionType === 'competitor_price_changed_by_percent' &&
+    percentChange >= (rulePercentThreshold || 1);
+  const exceededCustomPercent =
+    typeof customThreshold === 'number' &&
+    customThreshold > 0 &&
+    percentChange >= customThreshold;
+
+  const shouldTrigger = Boolean(
+    ruleEval?.isTriggered || crossedTargetPrice || exceededRuleDelta || exceededCustomPercent
+  );
+
+  const nowIso = new Date().toISOString();
+
+  if (!shouldTrigger) {
+    const reasonText =
+      ruleEval?.triggerReasonAr ||
+      `التغير (${percentChange}%) لم يستوفِ شرط قاعدة التسعير المحددة`;
+    const updatedIdle = getStoredWatchlist().map((w) =>
+      w.productId === item.productId
+        ? {
+            ...w,
+            lastCheckedPrice: newPrice,
+            priceAlertConfig: {
+              ...(w.priceAlertConfig || { enabled: true }),
+              lastEvaluatedAt: nowIso,
+              lastEvaluationReason: reasonText,
+            },
+          }
+        : w
+    );
+    saveStoredWatchlist(updatedIdle);
+    return {
+      triggered: false,
+      notified: false,
+      reason: reasonText,
+      oldPrice,
+      newPrice,
+      ruleTitle: activeRule?.title || activeRule?.name,
+    };
+  }
+
+  const ruleTitle = activeRule?.title || activeRule?.name || 'محرك التسعير الآلي';
+  const computeFallbackRecommendedPrice = (): number => {
+    if (ruleEval?.isTriggered) return ruleEval.finalPrice;
+    if (!activeRule) return newPrice;
+    if (activeRule.actionType === 'undercut_fixed') {
+      return Math.max(activeRule.guardrails?.minFloorPriceEGP || 1, newPrice - (activeRule.actionValue || 0));
+    }
+    if (activeRule.actionType === 'undercut_percent') {
+      return Math.max(activeRule.guardrails?.minFloorPriceEGP || 1, Math.round(newPrice * (1 - (activeRule.actionValue || 0) / 100)));
+    }
+    if (activeRule.actionType === 'competitor_plus_fixed' || activeRule.actionType === 'set_competitor_plus_offset') {
+      return newPrice + (activeRule.actionValue || 0);
+    }
+    if (activeRule.actionType === 'match_competitor') {
+      return newPrice;
+    }
+    return ruleEval?.finalPrice || newPrice;
+  };
+  const recommendedPrice = computeFallbackRecommendedPrice();
+  const actionSummary =
+    (ruleEval?.isTriggered ? ruleEval.actionTakenAr : undefined) ||
+    `السعر المقترح حسب محرك التسعير: ${recommendedPrice.toLocaleString()} ${currency}`;
+
+  // Update WatchlistItem with new competitor price + pricing engine evaluation metadata
+  const currentList = getStoredWatchlist();
+  const updatedList = currentList.map((w) => {
+    if (w.productId === item.productId) {
+      return {
+        ...w,
+        lastCheckedPrice: newPrice,
+        lastPriceChangedAt: nowIso,
+        lastPriceChangeSource: competitorName,
+        priceTrend: isDrop ? ('down' as const) : ('up' as const),
+        priceChangePercent: percentChange,
+        priceAlertEnabled: true,
+        priceAlertConfig: {
+          ...(w.priceAlertConfig || { enabled: true }),
+          enabled: true,
+          lastEvaluatedAt: nowIso,
+          lastAlertTriggeredAt: nowIso,
+          lastRecommendedPrice: recommendedPrice,
+          lastEvaluationReason: ruleEval?.triggerReasonAr || actionSummary,
+        },
+      };
+    }
+    return w;
+  });
+  saveStoredWatchlist(updatedList);
+
+  // Record log entry
+  recordWatchlistNotificationLog({
+    productId: item.productId,
+    productTitle: item.product.title,
+    productImage: item.product.imageUrl,
+    oldPrice,
+    newPrice,
+    priceDiff: Math.abs(diff),
+    percentChange,
+    trend: isDrop ? 'down' : 'up',
+    competitorName,
+    platformName,
+    currency,
+  });
+
+  const directionArrow = isDrop ? '📉 انخفاض' : '📈 ارتفاع';
+  const instantMessage = `${directionArrow} سعر [${item.product.title}] لدى المنافس (${competitorName}) من ${oldPrice.toLocaleString()} إلى ${newPrice.toLocaleString()} ${currency} (${isDrop ? '-' : '+'}${percentChange}%) • قاعدة "${ruleTitle}" تقترح تسعيرك عند ${recommendedPrice.toLocaleString()} ${currency}`;
+
+  // Persist in-app & Supabase notification so Header bell updates immediately
+  const shouldNotifyInApp = config?.notifyChannels?.inApp !== false;
+  if (shouldNotifyInApp) {
+    try {
+      await multiTenantDb.addNotification({
+        type: 'price_alert',
+        severity: 'urgent',
+        message: instantMessage,
+      });
+    } catch {
+      // safe non-blocking
+    }
+  }
+
+  // Account-level WhatsApp vs Browser notification channel preferences
+  const channelPrefs = getAccountNotificationChannelPrefs();
+  const shouldDispatchBrowserPush =
+    channelPrefs.browserNotificationsEnabled && config?.notifyChannels?.browserPush !== false;
+  const shouldDispatchWhatsApp = channelPrefs.whatsappEnabled;
+
+  // Dispatch WhatsApp Alert if enabled in Account Settings
+  let whatsappDispatched = false;
+  if (shouldDispatchWhatsApp) {
+    try {
+      const waRes = await dispatchBackgroundWhatsAppAlert({
+        productTitle: item.product.title,
+        sku: item.product.sku,
+        platformName,
+        competitorName,
+        competitorNewPrice: newPrice,
+        targetPrice: item.targetAlertPrice || oldPrice,
+        currentMerchantPrice: myCurrentPrice,
+        currency,
+        productId: item.productId,
+        recommendedPrice,
+        overridePhone: channelPrefs.whatsappPhone,
+      });
+      whatsappDispatched = waRes.dispatched;
+    } catch {
+      // non-blocking
+    }
+  }
+
+  // Native Web Notification if permitted & enabled in both product config & Account Settings
+  let pushDispatched = false;
+  if (shouldDispatchBrowserPush) {
+    const title = isDrop
+      ? `📉 تنبيه سعر فوري: ${item.product.title.slice(0, 36)}`
+      : `📈 تنبيه سعر فوري: ${item.product.title.slice(0, 36)}`;
+    pushDispatched = await sendNativeWebNotification({
+      title,
+      body: instantMessage,
+      icon: item.product.imageUrl || '/pwa-192x192.png',
+      tag: `wl-price-${item.productId}`,
+      url: '#watchlist',
+      data: {
+        productId: item.productId,
+        oldPrice,
+        newPrice,
+        recommendedPrice,
+        competitorName,
+      },
+    });
+  }
+
+  // Emit live window event for instant UI feedback & toast
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('merchant_watchlist_price_changed', {
+        detail: {
+          productId: item.productId,
+          productTitle: item.product.title,
+          oldPrice,
+          newPrice,
+          diff,
+          isDrop,
+          percentChange,
+          competitorName,
+          platformName,
+          ruleTitle,
+          recommendedPrice,
+          actionTakenAr: actionSummary,
+          message: instantMessage,
+          channelsDispatched: {
+            inApp: shouldNotifyInApp,
+            browserPush: pushDispatched,
+            whatsapp: whatsappDispatched,
+          },
+        },
+      })
+    );
+  }
+
+  return {
+    triggered: true,
+    notified: true,
+    reason: instantMessage,
+    oldPrice,
+    newPrice,
+    recommendedPrice,
+    ruleTitle,
+    actionTakenAr: actionSummary || (pushDispatched ? 'تم الإشعار' : ''),
+    channelsDispatched: {
+      inApp: shouldNotifyInApp,
+      browserPush: pushDispatched,
+      whatsapp: whatsappDispatched,
+    },
+  };
+}
+
+/**
+ * Convenience wrapper to test or process a competitor price update for a product ID in Watchlist
+ */
+export async function triggerCompetitorPriceCheckForWatchlistItem(
+  productId: string,
+  newCompetitorPrice: number,
+  competitorName?: string,
+  platformName?: string
+): Promise<PricingEngineAlertEvaluationResult> {
+  const list = getStoredWatchlist();
+  const item = list.find((w) => w.productId === productId);
+  if (!item) {
+    return {
+      triggered: false,
+      notified: false,
+      reason: 'المنتج غير موجود في قائمة المتابعة',
+      oldPrice: 0,
+      newPrice: newCompetitorPrice,
+    };
+  }
+
+  const resolvedCompetitor =
+    competitorName ||
+    (item.priceAlertConfig?.targetCompetitorName &&
+    item.priceAlertConfig.targetCompetitorName !== 'any'
+      ? item.priceAlertConfig.targetCompetitorName
+      : item.lastPriceChangeSource ||
+        item.product?.merchantOffers?.[0]?.merchantName ||
+        'أمازون مصر (Amazon.eg)');
+
+  return evaluateCompetitorPriceAgainstPricingEngine({
+    item,
+    newPrice: newCompetitorPrice,
+    competitorName: resolvedCompetitor,
+    platformName: platformName || 'السوق المصري',
+  });
+}
+
 /**
  * Central function to detect price change on a watched product,
  * record the log, update the watchlist, and trigger the Web Notification API!
@@ -459,6 +924,19 @@ export async function notifyWatchlistPriceChange(params: {
   currency?: string;
 }): Promise<boolean> {
   const { item, newPrice, competitorName, platformName, currency = 'ج.م' } = params;
+
+  // If product has explicit per-product price alert configuration enabled, route through pricing engine evaluator
+  if (item.priceAlertEnabled || item.priceAlertConfig?.enabled) {
+    const evalRes = await evaluateCompetitorPriceAgainstPricingEngine({
+      item,
+      newPrice,
+      competitorName,
+      platformName,
+      currency,
+    });
+    return evalRes.notified;
+  }
+
   const oldPrice = item.lastCheckedPrice || item.product?.currentLowestPrice || newPrice;
 
   // If no actual price difference, skip
@@ -517,6 +995,14 @@ export async function notifyWatchlistPriceChange(params: {
     ? `خفّض المنافس [${competitorName}] على ${platformName} السعر من ${oldPrice.toLocaleString()} إلى ${newPrice.toLocaleString()} ${currency} (-${percentChange}%). اضغط لمراجعة التسعير الرابح وحماية صمام الأمان!`
     : `رفع المنافس [${competitorName}] على ${platformName} السعر إلى ${newPrice.toLocaleString()} ${currency} (+${percentChange}%). فرصة لرفع هامش ربحك فوراً!`;
 
+  try {
+    await multiTenantDb.addNotification({
+      type: 'price_alert',
+      severity: 'urgent',
+      message: `${title} — ${body}`,
+    });
+  } catch {}
+
   // Dispatch custom in-app event for toast and reactive UI components
   window.dispatchEvent(
     new CustomEvent('merchant_watchlist_price_changed', {
@@ -530,24 +1016,51 @@ export async function notifyWatchlistPriceChange(params: {
         percentChange,
         competitorName,
         platformName,
+        message: body,
       },
     })
   );
 
-  // Trigger Native Web Notification API
-  const dispatched = await sendNativeWebNotification({
-    title,
-    body,
-    icon: item.product.imageUrl || '/pwa-192x192.png',
-    tag: `wl-price-${item.productId}`,
-    url: '#radar',
-    data: {
-      productId: item.productId,
-      oldPrice,
-      newPrice,
-      competitorName,
-    },
-  });
+  const channelPrefs = getAccountNotificationChannelPrefs();
+
+  // Trigger WhatsApp alert if enabled in Account Settings
+  let whatsappDispatched = false;
+  if (channelPrefs.whatsappEnabled) {
+    try {
+      const waRes = await dispatchBackgroundWhatsAppAlert({
+        productTitle: item.product.title,
+        sku: item.product.sku,
+        platformName,
+        competitorName,
+        competitorNewPrice: newPrice,
+        targetPrice: item.targetAlertPrice || oldPrice,
+        currentMerchantPrice: item.product?.suggestedRetailPrice || oldPrice,
+        currency,
+        productId: item.productId,
+        overridePhone: channelPrefs.whatsappPhone,
+      });
+      whatsappDispatched = waRes.dispatched;
+    } catch {
+      // non-blocking
+    }
+  }
+
+  // Trigger Native Web Notification API if enabled in Account Settings
+  const dispatched = channelPrefs.browserNotificationsEnabled
+    ? await sendNativeWebNotification({
+        title,
+        body,
+        icon: item.product.imageUrl || '/pwa-192x192.png',
+        tag: `wl-price-${item.productId}`,
+        url: '#radar',
+        data: {
+          productId: item.productId,
+          oldPrice,
+          newPrice,
+          competitorName,
+        },
+      })
+    : false;
 
   // Trigger Firebase Cloud Function email alert if enabled
   if (prefs.emailAlertsEnabled && prefs.emailAddress) {
@@ -569,7 +1082,7 @@ export async function notifyWatchlistPriceChange(params: {
     }
   }
 
-  return dispatched;
+  return dispatched || whatsappDispatched;
 }
 
 /**

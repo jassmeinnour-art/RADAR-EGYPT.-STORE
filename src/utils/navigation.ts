@@ -24,6 +24,7 @@ export type WorkspaceTab =
   | 'help'
   | 'analytics'
   | 'layout_settings'
+  | 'account_settings'
   | 'not_found';
 
 export const TAB_TO_PATH_MAP: Partial<Record<WorkspaceTab, string>> = {
@@ -45,6 +46,7 @@ export const TAB_TO_PATH_MAP: Partial<Record<WorkspaceTab, string>> = {
   platforms_guide: '/connections',
   traders_sync: '/gmail-sync',
   layout_settings: '/settings/layout',
+  account_settings: '/settings',
   help: '/help',
 };
 
@@ -69,6 +71,7 @@ export function resolvePathToTab(rawPath: string): WorkspaceTab {
   if (normalized === '/connections') return 'platforms_guide';
   if (normalized === '/gmail-sync') return 'traders_sync';
   if (normalized === '/settings/layout') return 'layout_settings';
+  if (normalized === '/settings' || normalized === '/account-settings') return 'account_settings';
   if (normalized === '/help') return 'help';
   return 'not_found';
 }

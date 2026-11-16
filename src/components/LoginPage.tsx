@@ -16,9 +16,10 @@ import {
   Sun,
   Moon,
   Radio,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured, supabaseClient } from '../lib/supabase';
 import { clearStaleRadarCache } from './EmergencyLoginButton';
 
 const PWAInstallPrompt = lazy(() => import('./PWAInstallPrompt'));
@@ -139,15 +140,46 @@ const RADAR_BLIPS = [
 ];
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const { signInWithEmail, clearLoginError, authInitError } = useAuth();
+  const {
+    signInWithEmail,
+    clearLoginError,
+    authInitError,
+    isPasswordRecovery,
+    clearPasswordRecovery,
+    signOut,
+  } = useAuth();
 
   const [email, setEmail] = useState<string>(OWNER_EMAIL);
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [isDayMode, setIsDayMode] = useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Recovery / Reset Password state
+  const detectRecoveryFromUrl = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const path = window.location.pathname || '';
+    return (
+      hash.includes('type=recovery') ||
+      hash.includes('access_token') ||
+      search.includes('type=recovery') ||
+      path === '/reset-password'
+    );
+  };
+
+  const [isRecoveryMode, setIsRecoveryMode] = useState<boolean>(() => {
+    return detectRecoveryFromUrl() || Boolean(isPasswordRecovery);
+  });
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [recoverySuccessMsg, setRecoverySuccessMsg] = useState<string | null>(null);
+  const [isForgotSent, setIsForgotSent] = useState<boolean>(false);
 
   // Animated counters (count smoothly from 0 on mount)
   const [productsCount, setProductsCount] = useState<number>(0);
@@ -159,6 +191,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     clearStaleRadarCache();
   }, []);
 
+  // Immediate check on mount + hash/search/popstate + Supabase PASSWORD_RECOVERY event listener
+  useEffect(() => {
+    if (detectRecoveryFromUrl() || isPasswordRecovery) {
+      setIsRecoveryMode(true);
+    }
+
+    const handleUrlChange = () => {
+      if (detectRecoveryFromUrl()) {
+        setIsRecoveryMode(true);
+      }
+    };
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+
+    let subscription: { unsubscribe: () => void } | null = null;
+    if (supabaseClient?.auth?.onAuthStateChange) {
+      const { data } = supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsRecoveryMode(true);
+        }
+      });
+      subscription = data?.subscription || null;
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+      subscription?.unsubscribe();
+    };
+  }, [isPasswordRecovery]);
+
   useEffect(() => {
     let rafId = 0;
     const durationMs = 1400;
@@ -166,7 +229,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     const step = (now: number) => {
       const progress = Math.min(1, (now - startTime) / durationMs);
-      // Cubic ease-out
       const eased = 1 - Math.pow(1 - progress, 3);
       setProductsCount(Math.round(500 * eased));
       setTradersCount(Math.round(24 * eased));
@@ -216,6 +278,98 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const message =
         err instanceof Error ? err.message : 'الإيميل أو كلمة المرور غير صحيحة';
       setErrorMsg(message || 'الإيميل أو كلمة المرور غير صحيحة');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setRecoverySuccessMsg(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setErrorMsg('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('كلمتا المرور غير متطابقتين');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (!supabaseClient) throw new Error('Supabase غير متصل');
+
+      // If access_token & refresh_token exist in URL hash and session isn't hydrated yet, hydrate it
+      if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        if (accessToken && refreshToken) {
+          const { data: sessData } = await supabaseClient.auth.getSession();
+          if (!sessData?.session) {
+            await supabaseClient.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+          }
+        }
+      }
+
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+      if (error) {
+        setErrorMsg(error.message);
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', '/login');
+      }
+      setRecoverySuccessMsg('تم تغيير كلمة المرور بنجاح - سجلي دخول الآن');
+
+      setTimeout(async () => {
+        try {
+          await signOut();
+        } catch {
+          // safe
+        }
+        clearPasswordRecovery();
+        setIsRecoveryMode(false);
+        setNewPassword('');
+        setConfirmPassword('');
+        setRecoverySuccessMsg(null);
+        setEmail(OWNER_EMAIL);
+      }, 2000);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'فشل في تحديث كلمة المرور');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setErrorMsg(null);
+    setIsForgotSent(false);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || cleanEmail !== OWNER_EMAIL) {
+      setErrorMsg('يرجى كتابة بريد المؤسس الصحيح (jassmeinnour@gmail.com) أولاً');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (!supabaseClient) throw new Error('Supabase غير متصل');
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: 'https://radaregypt.store/login',
+      });
+      if (error) throw error;
+
+      setIsForgotSent(true);
+      setErrorMsg(null);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'تعذر إرسال رابط استعادة كلمة المرور');
     } finally {
       setIsSubmitting(false);
     }
@@ -502,96 +656,232 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 </div>
               )}
 
-              {/* Founder Login Form */}
-              <form onSubmit={handleSubmit} className="space-y-4 text-right" noValidate>
-                <div>
-                  <label
-                    htmlFor="login-email"
-                    className={`block text-xs font-bold mb-1.5 ${
-                      isDayMode ? 'text-slate-700' : 'text-slate-300'
-                    }`}
-                  >
-                    البريد الإلكتروني للمؤسس
-                  </label>
-                  <div className="relative group">
-                    <input
-                      id="login-email"
-                      type="email"
-                      required
-                      dir="ltr"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={OWNER_EMAIL}
-                      className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-3.5 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 focus:shadow-[0_0_20px_rgba(249,115,22,0.28)] ${
-                        isDayMode
-                          ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
-                          : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
-                      }`}
-                    />
-                    <Mail className="w-4 h-4 text-orange-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 group-focus-within:scale-110" />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="login-password"
-                    className={`block text-xs font-bold mb-1.5 ${
-                      isDayMode ? 'text-slate-700' : 'text-slate-300'
-                    }`}
-                  >
-                    كلمة المرور
-                  </label>
-                  <div className="relative group">
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      dir="ltr"
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-11 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 focus:shadow-[0_0_20px_rgba(249,115,22,0.28)] ${
-                        isDayMode
-                          ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
-                          : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
-                      }`}
-                    />
-                    <Lock className="w-4 h-4 text-orange-400/90 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 group-focus-within:scale-110" />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className={`absolute left-2.5 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer transition-colors ${
-                        isDayMode
-                          ? 'text-slate-500 hover:text-orange-600'
-                          : 'text-slate-400 hover:text-orange-400'
-                      }`}
-                      aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="group w-full min-h-[54px] py-3.5 px-6 rounded-xl bg-gradient-to-l from-orange-500 via-amber-500 to-yellow-500 hover:from-orange-400 hover:via-amber-400 hover:to-yellow-400 text-slate-950 font-black text-base shadow-[0_12px_32px_-6px_rgba(249,115,22,0.55)] hover:shadow-[0_16px_42px_-4px_rgba(249,115,22,0.75)] hover:scale-[1.02] active:scale-[0.99] flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-60 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 whitespace-nowrap"
+              {/* Recovery Success Banner */}
+              {recoverySuccessMsg && (
+                <div
+                  role="status"
+                  className="p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-500/70 text-emerald-100 text-xs font-bold flex items-center gap-2.5 text-right"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>جاري التحقق...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>دخول</span>
-                      <ArrowLeft className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1.5" />
-                    </>
-                  )}
-                </button>
-              </form>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{recoverySuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Forgot Password Sent Banner */}
+              {isForgotSent && !isRecoveryMode && (
+                <div
+                  role="status"
+                  className="p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-500/70 text-emerald-100 text-xs font-bold flex items-center gap-2.5 text-right"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>تم إرسال لينك إعادة التعيين لإيميلك</span>
+                </div>
+              )}
+
+              {/* Conditional Form: Recovery Mode vs Login Mode */}
+              {isRecoveryMode ? (
+                <form onSubmit={handleUpdatePassword} className="space-y-4 text-right" noValidate>
+                  <div className="space-y-1 mb-2">
+                    <h2 className={`text-lg font-black ${isDayMode ? 'text-slate-900' : 'text-white'}`}>
+                      إعادة تعيين كلمة المرور
+                    </h2>
+                    <p className={`text-xs font-semibold ${isDayMode ? 'text-slate-600' : 'text-orange-300'}`}>
+                      اكتبي كلمة مرور جديدة لحساب {OWNER_EMAIL}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="new-password"
+                      className={`block text-xs font-bold mb-1.5 ${isDayMode ? 'text-slate-700' : 'text-slate-300'}`}
+                    >
+                      كلمة المرور الجديدة
+                    </label>
+                    <div className="relative group">
+                      <input
+                        id="new-password"
+                        type={showNewPassword ? 'text' : 'password'}
+                        required
+                        dir="ltr"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-11 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 ${
+                          isDayMode
+                            ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
+                        }`}
+                      />
+                      <Lock className="w-4 h-4 text-orange-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword((prev) => !prev)}
+                        className={`absolute left-2.5 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg cursor-pointer ${
+                          isDayMode ? 'text-slate-500 hover:text-orange-600' : 'text-slate-400 hover:text-orange-400'
+                        }`}
+                        aria-label={showNewPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="confirm-password"
+                      className={`block text-xs font-bold mb-1.5 ${isDayMode ? 'text-slate-700' : 'text-slate-300'}`}
+                    >
+                      تأكيد كلمة المرور
+                    </label>
+                    <div className="relative group">
+                      <input
+                        id="confirm-password"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        dir="ltr"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-11 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 ${
+                          isDayMode
+                            ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
+                        }`}
+                      />
+                      <Lock className="w-4 h-4 text-orange-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        className={`absolute left-2.5 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg cursor-pointer ${
+                          isDayMode ? 'text-slate-500 hover:text-orange-600' : 'text-slate-400 hover:text-orange-400'
+                        }`}
+                        aria-label={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {confirmPassword && newPassword !== confirmPassword && (
+                      <p className="text-xs text-rose-400 font-bold mt-1.5">
+                        كلمتا المرور غير متطابقتين
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="group w-full min-h-[54px] py-3.5 px-6 rounded-xl bg-gradient-to-l from-orange-500 via-amber-500 to-yellow-500 hover:from-orange-400 hover:via-amber-400 hover:to-yellow-400 text-slate-950 font-black text-base shadow-[0_12px_32px_-6px_rgba(249,115,22,0.55)] hover:shadow-[0_16px_42px_-4px_rgba(249,115,22,0.75)] hover:scale-[1.02] active:scale-[0.99] flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-60 cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>جاري حفظ كلمة المرور...</span>
+                      </>
+                    ) : (
+                      <span>حفظ كلمة المرور الجديدة</span>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4 text-right" noValidate>
+                  <div>
+                    <label
+                      htmlFor="login-email"
+                      className={`block text-xs font-bold mb-1.5 ${
+                        isDayMode ? 'text-slate-700' : 'text-slate-300'
+                      }`}
+                    >
+                      البريد الإلكتروني للمؤسس
+                    </label>
+                    <div className="relative group">
+                      <input
+                        id="login-email"
+                        type="email"
+                        required
+                        dir="ltr"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={OWNER_EMAIL}
+                        className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-3.5 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 focus:shadow-[0_0_20px_rgba(249,115,22,0.28)] ${
+                          isDayMode
+                            ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
+                        }`}
+                      />
+                      <Mail className="w-4 h-4 text-orange-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 group-focus-within:scale-110" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label
+                        htmlFor="login-password"
+                        className={`block text-xs font-bold ${
+                          isDayMode ? 'text-slate-700' : 'text-slate-300'
+                        }`}
+                      >
+                        كلمة المرور
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        className="text-[11px] font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer transition-colors"
+                      >
+                        نسيت كلمة المرور؟
+                      </button>
+                    </div>
+                    <div className="relative group">
+                      <input
+                        id="login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        dir="ltr"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className={`w-full min-h-[48px] rounded-xl py-3 pr-11 pl-11 text-sm text-left transition-all duration-200 focus:outline-none hover:border-orange-500/60 focus:border-orange-500 focus:shadow-[0_0_20px_rgba(249,115,22,0.28)] ${
+                          isDayMode
+                            ? 'bg-white/95 border border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950/85 border border-white/15 text-white placeholder-slate-500'
+                        }`}
+                      />
+                      <Lock className="w-4 h-4 text-orange-400/90 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 group-focus-within:scale-110" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className={`absolute left-2.5 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer transition-colors ${
+                          isDayMode
+                            ? 'text-slate-500 hover:text-orange-600'
+                            : 'text-slate-400 hover:text-orange-400'
+                        }`}
+                        aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="group w-full min-h-[54px] py-3.5 px-6 rounded-xl bg-gradient-to-l from-orange-500 via-amber-500 to-yellow-500 hover:from-orange-400 hover:via-amber-400 hover:to-yellow-400 text-slate-950 font-black text-base shadow-[0_12px_32px_-6px_rgba(249,115,22,0.55)] hover:shadow-[0_16px_42px_-4px_rgba(249,115,22,0.75)] hover:scale-[1.02] active:scale-[0.99] flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-60 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 whitespace-nowrap"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>جاري التحقق...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>دخول</span>
+                        <ArrowLeft className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1.5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
               {/* Founder Exclusivity Note */}
               <div className="pt-1 text-center space-y-2.5">

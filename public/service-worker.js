@@ -87,18 +87,110 @@ self.addEventListener('periodicsync', event => {
   }
 });
 
+// Helper function for reading/replaying IndexedDB offline queue when headless
+const SW_OFFLINE_DB_NAME = 'RADAR_EGYPT_OFFLINE_DB';
+const SW_OFFLINE_QUEUE_KEY = 'offline_pending_actions_v1';
+const SW_SYNC_CONFIG_KEY = 'sw_sync_config_v1';
+
+function openOfflineDBFromWorker() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB unavailable'));
+      return;
+    }
+    const req = indexedDB.open(SW_OFFLINE_DB_NAME, 1);
+    req.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      ['tasks', 'merchants', 'catalog', 'orders', 'radar_cache', 'app_state'].forEach((store) => {
+        if (!db.objectStoreNames.contains(store)) {
+          db.createObjectStore(store, { keyPath: 'id' });
+        }
+      });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function readAppStateFromWorker(key) {
+  const db = await openOfflineDBFromWorker();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('app_state', 'readonly');
+      const req = tx.objectStore('app_state').get(key);
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function writeAppStateFromWorker(key, value) {
+  const db = await openOfflineDBFromWorker();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('app_state', 'readwrite');
+      const req = tx.objectStore('app_state').put({
+        id: key,
+        value,
+        updatedAt: new Date().toISOString(),
+      });
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
 // Helper function for pushing local merchant data to database during background sync
-async function pushLocalDataToDatabase() {
+async function pushLocalDataToDatabase(tag = 'database-sync') {
   try {
-    const clientsList = await self.clients.matchAll();
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     clientsList.forEach(client => {
-      client.postMessage({ type: 'DATABASE_SYNC_STARTED', timestamp: Date.now() });
+      client.postMessage({ type: 'DATABASE_SYNC_STARTED', tag, timestamp: Date.now() });
+      client.postMessage({ type: 'BACKGROUND_SYNC_STARTED', tag, timestamp: Date.now() });
+      client.postMessage({ type: 'BACKGROUND_SYNC_TRIGGERED', tag, isOnline: true, timestamp: Date.now() });
     });
-    
+
+    if (clientsList.length === 0) {
+      const queue = await readAppStateFromWorker(SW_OFFLINE_QUEUE_KEY);
+      const config = await readAppStateFromWorker(SW_SYNC_CONFIG_KEY);
+      if (Array.isArray(queue) && queue.length > 0 && config?.url && config?.anonKey) {
+        const chronological = [...queue].reverse();
+        const remaining = [];
+        for (const action of chronological) {
+          if (action?.type === 'add_product' && action.payload) {
+            const { id: _id, isPendingSync: _flag, ...insertPayload } = action.payload;
+            const res = await fetch(`${config.url.replace(/\/$/, '')}/rest/v1/products`, {
+              method: 'POST',
+              headers: {
+                apikey: config.anonKey,
+                Authorization: `Bearer ${config.accessToken || config.anonKey}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=minimal',
+              },
+              body: JSON.stringify(insertPayload),
+            });
+            if (!res.ok) {
+              remaining.unshift({ ...action, status: 'failed', retryCount: (action.retryCount || 0) + 1 });
+            }
+          } else {
+            remaining.unshift(action);
+          }
+        }
+        await writeAppStateFromWorker(SW_OFFLINE_QUEUE_KEY, remaining);
+        if (remaining.length > 0 && remaining.length === queue.length) {
+          throw new Error('Background sync headless replay failed');
+        }
+      }
+    }
+
     const response = await fetch('/manifest.json');
     if (response.ok) {
       clientsList.forEach(client => {
-        client.postMessage({ type: 'DATABASE_SYNC_SUCCESS', timestamp: Date.now() });
+        client.postMessage({ type: 'DATABASE_SYNC_SUCCESS', tag, timestamp: Date.now() });
       });
     }
   } catch (error) {
@@ -110,20 +202,29 @@ async function pushLocalDataToDatabase() {
 // One-shot Background Sync Event Handler
 self.addEventListener('sync', event => {
   if (
+    event.tag === 'sync-offline-actions' ||
     event.tag === 'database-sync' ||
     event.tag === 'sync-merchant-data' ||
     event.tag === 'radar-price-sync' ||
     event.tag === 'sync-messages' ||
     event.tag === 'sync-data'
   ) {
-    event.waitUntil(pushLocalDataToDatabase());
+    event.waitUntil(pushLocalDataToDatabase(event.tag));
   }
 });
 
-// Message Listener for Skip Waiting
+// Message Listener for Skip Waiting & Background Sync Registration
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (!event.data) return;
+  if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  } else if (event.data.type === 'QUEUE_OFFLINE_ACTION') {
+    const tag = event.data.tag || 'sync-offline-actions';
+    if (self.registration && 'sync' in self.registration) {
+      event.waitUntil(
+        self.registration.sync.register(tag).catch(() => {})
+      );
+    }
   }
 });
 

@@ -193,11 +193,162 @@ self.addEventListener('activate', (event) => {
 });
 
 // ----------------------------------------------------------------------------
-// 3. Background Sync & Periodic Sync: Native Reconnection Triggers
+// 3. Background Sync & Periodic Sync: IndexedDB Queue Replay & Client Triggers
 // ----------------------------------------------------------------------------
+const OFFLINE_DB_NAME = 'RADAR_EGYPT_OFFLINE_DB';
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_QUEUE_KEY = 'offline_pending_actions_v1';
+const SW_SYNC_CONFIG_KEY = 'sw_sync_config_v1';
+
+function openRadarOfflineDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB unavailable in Service Worker'));
+      return;
+    }
+    const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      ['tasks', 'merchants', 'catalog', 'orders', 'radar_cache', 'app_state'].forEach((store) => {
+        if (!db.objectStoreNames.contains(store)) {
+          db.createObjectStore(store, { keyPath: 'id' });
+        }
+      });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readAppStateRecordFromSW(key) {
+  const db = await openRadarOfflineDB();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('app_state', 'readonly');
+      const req = tx.objectStore('app_state').get(key);
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function writeAppStateRecordFromSW(key, value) {
+  const db = await openRadarOfflineDB();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('app_state', 'readwrite');
+      const req = tx.objectStore('app_state').put({
+        id: key,
+        value,
+        updatedAt: new Date().toISOString(),
+      });
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function broadcastToClients(payload) {
+  try {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsList) {
+      client.postMessage(payload);
+    }
+    return clientsList;
+  } catch {
+    return [];
+  }
+}
+
+async function replayOfflineQueueHeadless(tag) {
+  const queue = await readAppStateRecordFromSW(OFFLINE_QUEUE_KEY);
+  if (!Array.isArray(queue) || queue.length === 0) {
+    return { synced: 0, failed: 0, remaining: 0 };
+  }
+
+  const config = await readAppStateRecordFromSW(SW_SYNC_CONFIG_KEY);
+  if (!config || !config.url || !config.anonKey) {
+    throw new Error('Missing Supabase sync configuration for headless SW replay');
+  }
+
+  const chronological = [...queue].reverse();
+  const remaining = [];
+  let synced = 0;
+  let failed = 0;
+
+  for (const action of chronological) {
+    if (action && action.type === 'add_product' && action.payload) {
+      const { id: _localId, isPendingSync: _flag, ...insertPayload } = action.payload;
+      const endpoint = `${config.url.replace(/\/$/, '')}/rest/v1/products`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.accessToken || config.anonKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(insertPayload),
+      });
+      if (!res.ok) {
+        failed += 1;
+        remaining.unshift({
+          ...action,
+          status: 'failed',
+          retryCount: (action.retryCount || 0) + 1,
+          errorMessage: `HTTP ${res.status}`,
+        });
+      } else {
+        synced += 1;
+      }
+    } else {
+      remaining.unshift(action);
+    }
+  }
+
+  await writeAppStateRecordFromSW(OFFLINE_QUEUE_KEY, remaining);
+  if (failed > 0 && synced === 0) {
+    throw new Error(`Background Sync failed for ${failed} action(s) under tag "${tag}"`);
+  }
+  return { synced, failed, remaining: remaining.length };
+}
+
+async function handleBackgroundSyncEvent(tag = 'sync-offline-actions') {
+  await broadcastToClients({
+    type: 'BACKGROUND_SYNC_STARTED',
+    tag,
+    timestamp: Date.now(),
+  });
+
+  await notifyClientsNetworkOnline(`background_sync:${tag}`);
+
+  const clientsList = await broadcastToClients({
+    type: 'BACKGROUND_SYNC_TRIGGERED',
+    tag,
+    isOnline: true,
+    timestamp: Date.now(),
+  });
+
+  // If no open tabs are available to execute foreground replay, execute headless directly from IndexedDB
+  if (!clientsList || clientsList.length === 0) {
+    const summary = await replayOfflineQueueHeadless(tag);
+    await broadcastToClients({
+      type: 'BACKGROUND_SYNC_COMPLETED',
+      tag,
+      ...summary,
+      timestamp: Date.now(),
+    });
+  }
+}
+
 self.addEventListener('sync', (event) => {
   isNetworkDown = false;
-  event.waitUntil(notifyClientsNetworkOnline(`background_sync:${event.tag}`));
+  const tag = event.tag || 'sync-offline-actions';
+  event.waitUntil(handleBackgroundSyncEvent(tag));
 });
 
 self.addEventListener('periodicsync', (event) => {
@@ -206,13 +357,22 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 // ----------------------------------------------------------------------------
-// 4. Message Event: Skip Waiting, Cache Reset, and Connectivity Pings
+// 4. Message Event: Skip Waiting, Cache Reset, Queue Registration, and Connectivity Pings
 // ----------------------------------------------------------------------------
 self.addEventListener('message', (event) => {
   if (!event.data) return;
 
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  } else if (event.data.type === 'QUEUE_OFFLINE_ACTION') {
+    const tag = event.data.tag || 'sync-offline-actions';
+    if (self.registration && 'sync' in self.registration) {
+      event.waitUntil(
+        self.registration.sync.register(tag).catch((err) => {
+          console.warn('[SW] sync.register skipped:', err);
+        })
+      );
+    }
   } else if (event.data.type === 'CHECK_NETWORK_STATUS') {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : !isNetworkDown;
     if (isOnline) {

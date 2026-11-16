@@ -8,7 +8,8 @@ import {
   Plus,
   X,
   Globe,
-  BarChart3
+  BarChart3,
+  Sliders
 } from 'lucide-react';
 import { supabase, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,13 @@ import {
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { ErrorBoundary } from './ErrorBoundary';
 import { VirtualProductGrid } from './VirtualProductGrid';
+import { AutoPricingSettingsModal } from './AutoPricingSettingsModal';
+import {
+  cacheProductsLocally,
+  getLocallySavedProducts,
+  queueOfflineAction,
+  RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT,
+} from '../utils/offlineActionQueue';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -160,6 +168,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isSyncingInBackground, setIsSyncingInBackground] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [syncStats, setSyncStats] = useState<{ total: number; new: number; updated: number } | null>(null);
+  const [isAutoPricingSettingsOpen, setIsAutoPricingSettingsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!selectedProductForDetails) return;
@@ -293,6 +302,24 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             : p.platform,
         }));
 
+      if (cleanedProds.length > 0 && !prodsError) {
+        void cacheProductsLocally(cleanedProds);
+      }
+
+      if (prodsError && typeof navigator !== 'undefined' && !navigator.onLine) {
+        const localSaved = await getLocallySavedProducts();
+        const filteredLocal = localSaved.filter((p) => {
+          if (isDemoOrOrphanProduct(p)) return false;
+          if (trader_id && trader_id !== 'all' && p.trader_id !== trader_id) return false;
+          if (platform && platform !== 'all' && p.platform !== platform) return false;
+          return true;
+        });
+        setProducts(filteredLocal);
+        setTotalCount(filteredLocal.length);
+        setFetchError(false);
+        return;
+      }
+
       const total = typeof count === 'number' ? count : cleanedProds.length;
 
       if (append) {
@@ -310,8 +337,21 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       dataCache.set(cacheKey, { products: cleanedProds, total });
     } catch (err) {
       console.error('Failed to load products data:', err);
-      setFetchError(true);
-      if (!cached && !append) setProducts([]);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const localSaved = await getLocallySavedProducts();
+        const filteredLocal = localSaved.filter((p) => {
+          if (isDemoOrOrphanProduct(p)) return false;
+          if (trader_id && trader_id !== 'all' && p.trader_id !== trader_id) return false;
+          if (platform && platform !== 'all' && p.platform !== platform) return false;
+          return true;
+        });
+        setProducts(filteredLocal);
+        setTotalCount(filteredLocal.length);
+        setFetchError(false);
+      } else {
+        setFetchError(true);
+        if (!cached && !append) setProducts([]);
+      }
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -339,11 +379,18 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
     };
 
+    const handleOfflineProductsSynced = () => {
+      const current = readQueryParams();
+      fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
+    };
+
     window.addEventListener('popstate', handlePopState);
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    window.addEventListener(RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT as any, handleOfflineProductsSynced);
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+      window.removeEventListener(RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT as any, handleOfflineProductsSynced);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
@@ -385,22 +432,48 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetTrader = newTraderId || (urlTraderId && urlTraderId !== 'all' ? urlTraderId : traderOptions[0]?.id || '');
+    const isOfflineNow = typeof navigator !== 'undefined' && !navigator.onLine;
+    const targetTrader =
+      newTraderId ||
+      (urlTraderId && urlTraderId !== 'all'
+        ? urlTraderId
+        : traderOptions[0]?.id || (isOfflineNow ? 'offline_local_merchant' : ''));
     if (!newTitle.trim() || !newSku.trim() || !newPrice || !targetTrader) {
       onShowToast?.('⚠️ يرجى تعبئة كافة الحقول واختيار التاجر المالك');
       return;
     }
+
+    const prodRecord = {
+      title: newTitle.trim(),
+      sku: newSku.trim().toUpperCase(),
+      price: parseFloat(newPrice) || 0,
+      stock: parseInt(newStock, 10) || 0,
+      platform: newPlatform,
+      trader_id: targetTrader,
+      created_at: new Date().toISOString(),
+    };
+
     setIsSubmitting(true);
     try {
-      const prodRecord = {
-        title: newTitle.trim(),
-        sku: newSku.trim().toUpperCase(),
-        price: parseFloat(newPrice) || 0,
-        stock: parseInt(newStock, 10) || 0,
-        platform: newPlatform,
-        trader_id: targetTrader,
-        created_at: new Date().toISOString(),
-      };
+      if (isOfflineNow) {
+        const { action } = await queueOfflineAction({
+          type: 'add_product',
+          label: `إضافة منتج: ${prodRecord.title}`,
+          payload: prodRecord,
+        });
+
+        setProducts((prev) => [{ ...prodRecord, id: action.id } as Product, ...prev]);
+        setTotalCount((prev) => prev + 1);
+        setIsAddModalOpen(false);
+        setNewTitle('');
+        setNewSku('');
+        setNewPrice('');
+        setNewStock('15');
+        onShowToast?.(
+          `📦 تم حفظ المنتج "${prodRecord.title}" محلياً وسيتم مزامنته تلقائياً عند عودة الاتصال`
+        );
+        return;
+      }
 
       const { error } = await supabase.from('products').insert([prodRecord]);
       if (error) throw error;
@@ -414,7 +487,25 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       setNewStock('15');
       fetchProductsAndTraders(urlTraderId, urlPlatform, 1, true);
     } catch (err: any) {
-      onShowToast?.(`❌ فشل حفظ المنتج: ${err.message || 'حدث خطأ'}`);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const { action } = await queueOfflineAction({
+          type: 'add_product',
+          label: `إضافة منتج: ${prodRecord.title}`,
+          payload: prodRecord,
+        });
+        setProducts((prev) => [{ ...prodRecord, id: action.id } as Product, ...prev]);
+        setTotalCount((prev) => prev + 1);
+        setIsAddModalOpen(false);
+        setNewTitle('');
+        setNewSku('');
+        setNewPrice('');
+        setNewStock('15');
+        onShowToast?.(
+          `📦 تم حفظ المنتج "${prodRecord.title}" محلياً وسيتم مزامنته تلقائياً عند عودة الاتصال`
+        );
+      } else {
+        onShowToast?.(`❌ فشل حفظ المنتج: ${err.message || 'حدث خطأ'}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -505,6 +596,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => setIsAutoPricingSettingsOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-orange-500/20 transition-colors duration-200 cursor-pointer justify-center"
+          >
+            <Sliders className="w-4 h-4" />
+            <span>إعدادات التسعير الآلي ⚙️</span>
+          </button>
           <button
             type="button"
             onClick={handleOpenFetchAllModal}
@@ -719,6 +818,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             setSyncStats(stats);
             fetchProductsAndTraders(urlTraderId, urlPlatform, 1, true);
           }}
+        />
+      )}
+
+      {isAutoPricingSettingsOpen && (
+        <AutoPricingSettingsModal
+          isOpen={isAutoPricingSettingsOpen}
+          onClose={() => setIsAutoPricingSettingsOpen(false)}
+          onShowToast={onShowToast}
         />
       )}
 

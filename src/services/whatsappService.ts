@@ -380,6 +380,105 @@ export async function dispatchPriceDropAlertToWhatsApp(params: {
   return result;
 }
 
+export interface BackgroundWhatsAppDispatchResult {
+  dispatched: boolean;
+  method: 'cloud_api' | 'ultramsg' | 'prepared_link' | 'disabled';
+  messageText: string;
+  recipientsCount: number;
+}
+
+/**
+ * Automated background WhatsApp dispatcher for watchlist price alerts.
+ * Sends via configured Cloud API / UltraMsg API automatically or logs a prepared WhatsApp link
+ * without triggering browser popup blockers via window.open.
+ */
+export async function dispatchBackgroundWhatsAppAlert(params: {
+  productTitle: string;
+  sku?: string;
+  platformName: string;
+  competitorName: string;
+  competitorNewPrice: number;
+  targetPrice: number;
+  currentMerchantPrice: number;
+  currency?: string;
+  productId?: string;
+  recommendedPrice?: number;
+  overridePhone?: string;
+}): Promise<BackgroundWhatsAppDispatchResult> {
+  const config = getWhatsAppServiceConfig();
+  if (!config.isEnabled) {
+    return {
+      dispatched: false,
+      method: 'disabled',
+      messageText: '',
+      recipientsCount: 0,
+    };
+  }
+
+  const messageText = generateCompetitorPriceDropMessage(params);
+  const phones = new Set<string>();
+  if (params.overridePhone) {
+    const normalized = normalizeWhatsAppNumber(params.overridePhone);
+    if (normalized) phones.add(normalized);
+  }
+  config.recipients
+    .filter((r) => r.isActive && r.phone)
+    .forEach((r) => {
+      const normalized = normalizeWhatsAppNumber(r.phone);
+      if (normalized) phones.add(normalized);
+    });
+
+  const targetPhones = Array.from(phones);
+  if (targetPhones.length === 0) {
+    return {
+      dispatched: false,
+      method: 'disabled',
+      messageText,
+      recipientsCount: 0,
+    };
+  }
+
+  const hasApiProvider =
+    (config.provider === 'cloud_api' && Boolean(config.cloudApiToken && config.cloudApiPhoneId)) ||
+    (config.provider === 'ultramsg' && Boolean(config.ultramsgInstanceId && config.ultramsgToken));
+
+  let method: BackgroundWhatsAppDispatchResult['method'] = 'prepared_link';
+  let sentCount = 0;
+
+  if (hasApiProvider) {
+    method = config.provider === 'cloud_api' ? 'cloud_api' : 'ultramsg';
+    for (const phone of targetPhones) {
+      try {
+        const ok = await sendWhatsAppMessageToPhone(phone, messageText, config);
+        if (ok) sentCount++;
+      } catch {
+        // non-blocking
+      }
+    }
+  }
+
+  const logEntry: WhatsAppAlertDispatchResult = {
+    success: hasApiProvider ? sentCount > 0 : true,
+    sentCount: hasApiProvider ? sentCount : targetPhones.length,
+    recipientsSent: targetPhones,
+    message: messageText,
+    timestamp: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+  };
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DISPATCH_LOGS);
+    const existing = raw ? JSON.parse(raw) : [];
+    localStorage.setItem(STORAGE_KEY_DISPATCH_LOGS, JSON.stringify([logEntry, ...existing].slice(0, 30)));
+  } catch {}
+
+  return {
+    dispatched: true,
+    method,
+    messageText,
+    recipientsCount: targetPhones.length,
+  };
+}
+
 /**
  * Send a quick test alert to verify an individual number
  */

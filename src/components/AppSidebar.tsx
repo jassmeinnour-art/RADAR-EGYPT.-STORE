@@ -31,7 +31,8 @@ import {
   Package,
   Menu,
   Mail,
-  Link2
+  Link2,
+  Bookmark
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { WorkspaceTab } from '../App';
@@ -264,6 +265,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           }
         },
         {
+          id: 'watchlist_tab',
+          label: 'قائمة المتابعة 📌',
+          icon: <Bookmark className="w-4 h-4 text-sky-300" />,
+          preloadTab: 'watchlist',
+          isActive: activeTab === 'watchlist',
+          action: () => {
+            onSelectTab('watchlist');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/watchlist');
+          }
+        },
+        {
           id: 'analytics_tab',
           label: 'تحليل الأسعار 📈',
           icon: <BarChart3 className="w-4 h-4 text-teal-300" />,
@@ -327,12 +339,13 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           : []),
         {
           id: 'settings_tab',
-          label: 'الإعدادات ⚙️',
-          icon: <Settings className="w-4 h-4 text-slate-300" />,
-          preloadTab: 'layout_settings',
+          label: 'إعدادات الحساب ⚙️',
+          icon: <Settings className="w-4 h-4 text-sky-300" />,
+          preloadTab: 'account_settings',
+          isActive: activeTab === 'account_settings',
           action: () => {
-            onSelectTab('layout_settings');
-            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings/layout');
+            onSelectTab('account_settings');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings');
           }
         },
         {

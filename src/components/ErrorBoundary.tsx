@@ -1,5 +1,4 @@
 import React, { ErrorInfo, ReactNode } from 'react';
-import * as Sentry from '@sentry/react';
 import {
   AlertTriangle,
   RefreshCw,
@@ -67,20 +66,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.warn(`[ErrorBoundary] Caught error in (${this.props.sectionName || this.props.sectionTitle || 'section'}):`, error, errorInfo);
-    try {
-      Sentry.captureException(error, {
-        tags: {
-          section: this.props.sectionName || 'unknown',
-          boundary: 'ErrorBoundary',
-        },
-        extra: {
-          sectionTitle: this.props.sectionTitle,
-          componentStack: errorInfo.componentStack,
-        },
-      });
-    } catch {
-      // Sentry reporting is best-effort and must never break fallback rendering
-    }
     this.setState({ errorInfo });
   }
 

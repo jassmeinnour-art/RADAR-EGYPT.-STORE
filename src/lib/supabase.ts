@@ -64,7 +64,7 @@ export interface SplitInvoice {
 export interface AppNotification {
   id: string;
   trader_id?: string;
-  type: 'out_of_stock' | 'new_invoice' | 'low_stock' | 'info' | string;
+  type: 'out_of_stock' | 'new_invoice' | 'low_stock' | 'price_alert' | 'info' | string;
   message: string;
   severity?: 'normal' | 'high' | 'urgent' | string;
   is_read: boolean;
@@ -169,6 +169,18 @@ export function setSupabaseSession(session: Session | null): void {
       // safe
     }
   }
+}
+
+export function getSupabaseSyncConfig(): {
+  url: string;
+  anonKey: string;
+  accessToken: string | null;
+} {
+  return {
+    url: SUPABASE_URL,
+    anonKey: SUPABASE_ANON_KEY,
+    accessToken: activeAccessToken,
+  };
 }
 
 // Keep activeAccessToken & activeAuthenticatedEmail synced whenever Supabase refreshes or updates session
@@ -766,29 +778,70 @@ export const multiTenantDb = {
    * Notifications Management
    */
   async getNotifications(traderId?: string): Promise<AppNotification[]> {
+    const mergedMap = new Map<string, AppNotification>();
+
+    // 1. Read local instant notifications (e.g., watchlist price alerts, stock alerts)
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('radar_notifications');
+        if (raw) {
+          const localList: AppNotification[] = JSON.parse(raw);
+          if (Array.isArray(localList)) {
+            localList.forEach((n) => {
+              if (n && n.id && (!traderId || n.trader_id === traderId)) {
+                mergedMap.set(n.id, n);
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+
     if (supabaseClient) {
       const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
-      if (!session?.access_token) return [];
-      try {
-        let query = supabaseClient.from('invoices').select('id, trader_id, invoice_number, total_amount, created_at');
-        if (traderId) query = query.eq('trader_id', traderId);
-        const { data, error } = await query.order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-          return data.map((inv: any) => ({
-            id: `notif-inv-${inv.id}`,
-            trader_id: inv.trader_id,
-            type: 'new_invoice',
-            message: `وصلت فاتورة جديدة #${inv.invoice_number || inv.id} بقيمة ${inv.total_amount || 0} ج.م`,
-            severity: 'normal',
-            is_read: false,
-            created_at: inv.created_at || new Date().toISOString()
-          }));
+      if (session?.access_token) {
+        try {
+          let notifQuery = supabaseClient.from('notifications').select('*');
+          if (traderId) notifQuery = notifQuery.eq('trader_id', traderId);
+          const { data: notifRows, error: notifErr } = await notifQuery.order('created_at', { ascending: false }).limit(50);
+          if (!notifErr && Array.isArray(notifRows)) {
+            notifRows.forEach((n: any) => {
+              if (n && n.id) {
+                mergedMap.set(n.id, n as AppNotification);
+              }
+            });
+          }
+        } catch {}
+
+        try {
+          let query = supabaseClient.from('invoices').select('id, trader_id, invoice_number, total_amount, created_at');
+          if (traderId) query = query.eq('trader_id', traderId);
+          const { data, error } = await query.order('created_at', { ascending: false });
+          if (!error && data && data.length > 0) {
+            data.forEach((inv: any) => {
+              const invId = `notif-inv-${inv.id}`;
+              if (!mergedMap.has(invId)) {
+                mergedMap.set(invId, {
+                  id: invId,
+                  trader_id: inv.trader_id,
+                  type: 'new_invoice',
+                  message: `وصلت فاتورة جديدة #${inv.invoice_number || inv.id} بقيمة ${inv.total_amount || 0} ج.م`,
+                  severity: 'normal',
+                  is_read: false,
+                  created_at: inv.created_at || new Date().toISOString(),
+                });
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('[Supabase getNotifications error]:', err);
         }
-      } catch (err) {
-        console.warn('[Supabase getNotifications error]:', err);
       }
     }
-    return [];
+
+    return Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
   },
 
   async addNotification(notif: Omit<AppNotification, 'id' | 'created_at' | 'is_read'>): Promise<AppNotification> {

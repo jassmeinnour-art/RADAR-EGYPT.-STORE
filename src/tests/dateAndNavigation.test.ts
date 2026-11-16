@@ -124,6 +124,8 @@ describe('Path Resolvers & Navigation Utilities (navigation.ts)', () => {
       expect(resolvePathToTab('/connections')).toBe('platforms_guide');
       expect(resolvePathToTab('/gmail-sync')).toBe('traders_sync');
       expect(resolvePathToTab('/settings/layout')).toBe('layout_settings');
+      expect(resolvePathToTab('/settings')).toBe('account_settings');
+      expect(resolvePathToTab('/account-settings')).toBe('account_settings');
       expect(resolvePathToTab('/help')).toBe('help');
     });
 
