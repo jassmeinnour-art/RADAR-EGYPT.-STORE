@@ -1074,6 +1074,27 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
 
                       <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          setActiveTab('account_settings');
+                          if (typeof window !== 'undefined') {
+                            window.history.pushState({}, '', '/settings');
+                          }
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="w-full text-right px-2.5 py-2 rounded-xl hover:bg-sky-50 text-sky-900 flex items-center justify-between cursor-pointer font-bold text-xs transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Bell className="w-3.5 h-3.5 text-sky-600" />
+                          <span>إعدادات الحساب وقنوات التنبيه</span>
+                        </span>
+                        <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded-full">
+                          واتساب / المتصفح
+                        </span>
+                      </button>
+
+                      <button
                         onClick={() => {
                           setShowUserMenu(false);
                           setIsEditProfileModalOpen(true);

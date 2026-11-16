@@ -87,6 +87,8 @@ interface AuthContextType {
   updateStoreProfile: (updates: Partial<UserMerchantProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearLoginError: () => void;
+  isPasswordRecovery: boolean;
+  clearPasswordRecovery: () => void;
 }
 
 // Firebase Auth Error interface for type safety
@@ -186,7 +188,23 @@ function readPersistedSupabaseSession(): any | null {
 }
 
 function isLoginPathname(): boolean {
-  return typeof window !== 'undefined' && window.location.pathname === '/login';
+  return (
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/login' || window.location.pathname === '/reset-password')
+  );
+}
+
+function hasRecoveryUrlParams(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  const path = window.location.pathname || '';
+  return (
+    hash.includes('type=recovery') ||
+    hash.includes('access_token=') ||
+    search.includes('type=recovery') ||
+    path === '/reset-password'
+  );
 }
 
 function isFounderEmail(email?: string | null): boolean {
@@ -295,6 +313,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   });
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => hasRecoveryUrlParams());
+
+  const clearPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(false);
+  }, []);
 
   const toggleFounderMode = useCallback(() => {
     setRawFounderMode(prev => {
@@ -602,7 +625,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+        const { data } = supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            if (isMounted) setIsPasswordRecovery(true);
+          }
           applySupabaseSession(session);
         });
         sbSubscription = data?.subscription || null;
@@ -807,7 +833,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try {
       if (isSupabaseConfigured && supabaseClient) {
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail);
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: 'https://radaregypt.store/login',
+        });
         if (error) throw error;
         return;
       }
@@ -951,6 +979,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearLoginError,
         isFounderMode,
         toggleFounderMode,
+        isPasswordRecovery,
+        clearPasswordRecovery,
       }}
     >
       {children}
@@ -979,6 +1009,8 @@ const FALLBACK_AUTH_CONTEXT: AuthContextType = {
   clearLoginError: () => {},
   isFounderMode: false,
   toggleFounderMode: () => {},
+  isPasswordRecovery: false,
+  clearPasswordRecovery: () => {},
 };
 
 export const useAuth = (): AuthContextType => {

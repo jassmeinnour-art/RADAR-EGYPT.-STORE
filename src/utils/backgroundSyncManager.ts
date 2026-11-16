@@ -114,8 +114,10 @@ export async function registerBackgroundSyncSafely(
         };
       }
     } else {
-      // Offline on Safari/Firefox: Queue fallback to execute when online event fires
-      pendingFallbackQueue.push({ tag, action: fallbackFn });
+      // Offline on Safari/Firefox: Queue fallback to execute once when online event fires
+      if (!pendingFallbackQueue.some((item) => item.tag === tag)) {
+        pendingFallbackQueue.push({ tag, action: fallbackFn });
+      }
       return {
         supported: false,
         registered: true,

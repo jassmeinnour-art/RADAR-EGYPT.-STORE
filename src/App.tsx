@@ -67,7 +67,9 @@ const AnalyticsPage = lazyWithPreload(() => import('./components/AnalyticsPage')
 const PlatformsOnboardingGuide = lazyWithPreload(() => import('./components/PlatformsOnboardingGuide'));
 const TraderStoreSyncManager = lazyWithPreload(() => import('./components/TraderStoreSyncManager'));
 const LayoutSettingsPage = lazyWithPreload(() => import('./components/LayoutSettingsPage'));
+const AccountSettingsPage = lazyWithPreload(() => import('./components/AccountSettingsPage'));
 const HelpPage = lazyWithPreload(() => import('./components/HelpPage'));
+const WatchlistManager = lazyWithPreload(() => import('./components/WatchlistManager'));
 const OwnerDashboard = lazyWithPreload(() => import('./components/OwnerDashboard'));
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -85,10 +87,12 @@ const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
   radar: PriceComparisonEngine.preload,
   auto_pricing: PriceComparisonEngine.preload,
   price_comparison: PriceComparisonEngine.preload,
+  watchlist: WatchlistManager.preload,
   analytics: AnalyticsPage.preload,
   platforms_guide: PlatformsOnboardingGuide.preload,
   traders_sync: TraderStoreSyncManager.preload,
   layout_settings: LayoutSettingsPage.preload,
+  account_settings: AccountSettingsPage.preload,
   help: HelpPage.preload,
   not_found: NotFoundPage.preload,
 };
@@ -125,7 +129,7 @@ export default function App() {
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
   
-  const { user, isOwner, authInitError } = useAuth();
+  const { user, isOwner, authInitError, isPasswordRecovery } = useAuth();
   const { isMaintenanceMode } = useMaintenanceMode();
 
   const handlePrefetchTab = useCallback((tab: WorkspaceTab) => {
@@ -185,12 +189,43 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const showToast = (msg: string) => {
-    if (msg) console.log(msg);
-  };
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  if (!user || !isOwner || authInitError) {
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+  const showToast = useCallback((msg: string) => {
+    if (!msg) return;
+    setToastMessage(msg);
+  }, []);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = window.setTimeout(() => setToastMessage(null), 5500);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
+  useEffect(() => {
+    const handleWatchlistAlert = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail?.message) {
+        showToast(detail.message);
+      }
+    };
+    window.addEventListener('merchant_watchlist_price_changed', handleWatchlistAlert);
+    return () => window.removeEventListener('merchant_watchlist_price_changed', handleWatchlistAlert);
+  }, [showToast]);
+
+  const isResetPath =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/reset-password' ||
+      window.location.hash.includes('type=recovery') ||
+      window.location.hash.includes('access_token=') ||
+      window.location.search.includes('type=recovery'));
+
+  if (!user || !isOwner || authInitError || isPasswordRecovery || isResetPath) {
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login' &&
+      !isResetPath
+    ) {
       window.history.replaceState({}, '', '/login');
     }
     return (
@@ -230,10 +265,20 @@ export default function App() {
       radar: <PriceComparisonEngine onShowToast={showToast} />,
       auto_pricing: <PriceComparisonEngine onShowToast={showToast} />,
       price_comparison: <PriceComparisonEngine onShowToast={showToast} />,
+      watchlist: (
+        <WatchlistManager
+          onShowToast={showToast}
+          onSelectProduct={() => {
+            setActiveWorkspaceTab('radar');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/competitors');
+          }}
+        />
+      ),
       analytics: <AnalyticsPage />,
       platforms_guide: <PlatformsOnboardingGuide />,
       traders_sync: <TraderStoreSyncManager onShowToast={showToast} />,
       layout_settings: <LayoutSettingsPage />,
+      account_settings: <AccountSettingsPage onShowToast={showToast} />,
       help: (
         <HelpPage 
           onNavigateToPlatformsGuide={() => {
@@ -322,10 +367,12 @@ export default function App() {
                   split_invoices: '/invoices/split',
                   reports: '/reports',
                   radar: '/competitors',
+                  watchlist: '/watchlist',
                   analytics: '/analytics',
                   platforms_guide: '/connections',
                   traders_sync: '/gmail-sync',
                   layout_settings: '/settings/layout',
+                  account_settings: '/settings',
                   help: '/help'
                 };
                 if (pathMap[tab]) {
@@ -403,10 +450,12 @@ export default function App() {
                             radar: 'رادار المنافسين ومقارنة الأسعار',
                             auto_pricing: 'محرك التسعير الآلي',
                             price_comparison: 'مقارنة الأسعار الذكية',
+                            watchlist: 'قائمة المتابعة وتنبيهات الأسعار',
                             analytics: 'التحليلات السوقية الشاملة',
                             platforms_guide: 'دليل ربط المنصات',
                             traders_sync: 'مزامنة حسابات التجار',
                             layout_settings: 'تخصيص الواجهة والترتيب',
+                            account_settings: 'إعدادات الحساب والتنبيهات',
                             help: 'مركز المساعدة والدعم الفني',
                           }[activeWorkspaceTab] || `صفحة ${activeWorkspaceTab}`
                         )
@@ -448,10 +497,12 @@ export default function App() {
                     split_invoices: '/invoices/split',
                     reports: '/reports',
                     radar: '/competitors',
+                    watchlist: '/watchlist',
                     analytics: '/analytics',
                     platforms_guide: '/connections',
                     traders_sync: '/gmail-sync',
                     layout_settings: '/settings/layout',
+                    account_settings: '/settings',
                     help: '/help'
                   };
                   if (pathMap[tab]) {
@@ -462,6 +513,26 @@ export default function App() {
             />
           </Suspense>
         </ErrorBoundary>
+      )}
+
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 left-5 z-[200] max-w-md bg-slate-900 text-white border border-indigo-500/60 shadow-2xl rounded-2xl px-4 py-3 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-3"
+        >
+          <span className="text-xs sm:text-sm font-bold leading-relaxed flex-1">
+            {toastMessage}
+          </span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            aria-label="إغلاق الإشعار"
+            className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

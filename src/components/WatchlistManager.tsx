@@ -35,21 +35,32 @@ import {
   AlertTriangle,
   ChevronDown,
   LayoutGrid,
-  List
+  List,
+  BellOff,
+  Settings,
+  Play
 } from 'lucide-react';
-import { ProductData, WatchlistItem } from '../types';
+import { ProductData, WatchlistItem, WatchlistProductPriceAlertConfig } from '../types';
 import { AddWatchlistManualModal } from './AddWatchlistManualModal';
 import { 
   getWebNotificationPermission, 
   requestWebNotificationPermission, 
   simulateWatchlistPriceChange,
-  isWebNotificationSupported,
   getStoredWatchlist,
   saveStoredWatchlist,
   removeFromWatchlist as removeStoredItem,
-  addToWatchlist as addStoredItem
+  addToWatchlist as addStoredItem,
+  updateWatchlistTargetPrice as updateStoredTargetPrice,
+  toggleWatchlistPriceAlert,
+  updateWatchlistProductPriceAlertConfig,
+  triggerCompetitorPriceCheckForWatchlistItem,
+  requestBrowserPermissionOnFirstAlertActivation,
+  PricingEngineAlertEvaluationResult
 } from '../services/watchlistNotificationService';
 import { WatchlistNotificationModal } from './WatchlistNotificationModal';
+import { AutoPricingSettingsModal } from './AutoPricingSettingsModal';
+import { loadAutoPricingRules } from '../data/autoPricingEngineData';
+import { AutoPricingRule } from '../types/autoPricing';
 
 export interface WatchlistManagerProps {
   watchlist?: WatchlistItem[];
@@ -118,10 +129,30 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   };
   const onRemoveFromWatchlist = handleRemoveItem;
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState<'all' | 'price_drop' | 'stockout_opportunity'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'price_drop' | 'stockout_opportunity' | 'alerts_active'>('all');
   const [layoutViewMode, setLayoutViewMode] = useState<'cards' | 'list'>('cards');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+
+  // Auto-Pricing Engine rules & per-product Price Alerts state
+  const [autoPricingRules, setAutoPricingRules] = useState<AutoPricingRule[]>(() => loadAutoPricingRules());
+  const [isAutoPricingModalOpen, setIsAutoPricingModalOpen] = useState(false);
+  const [expandedAlertConfigId, setExpandedAlertConfigId] = useState<string | null>(null);
+  const [testPriceInputs, setTestPriceInputs] = useState<Record<string, string>>({});
+  const [testingAlertProductId, setTestingAlertProductId] = useState<string | null>(null);
+  const [evalFeedbackByProduct, setEvalFeedbackByProduct] = useState<Record<string, PricingEngineAlertEvaluationResult>>({});
+
+  useEffect(() => {
+    const syncRules = () => {
+      setAutoPricingRules(loadAutoPricingRules());
+    };
+    window.addEventListener('auto_pricing_rules_updated', syncRules);
+    window.addEventListener('storage', syncRules);
+    return () => {
+      window.removeEventListener('auto_pricing_rules_updated', syncRules);
+      window.removeEventListener('storage', syncRules);
+    };
+  }, []);
 
   // Web Notifications API state
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
@@ -168,6 +199,9 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
       if (filterCategory === 'stockout_opportunity') {
         return item.competitorStockStatus === 'competitor_stockout_opportunity';
       }
+      if (filterCategory === 'alerts_active') {
+        return Boolean(item.priceAlertEnabled || item.priceAlertConfig?.enabled);
+      }
       return true;
     });
   }, [watchlist, searchQuery, filterCategory]);
@@ -181,6 +215,7 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   const totalTracked = watchlist.length;
   const priceDropsCount = watchlist.filter(item => item.priceTrend === 'down').length;
   const stockOpportunities = watchlist.filter(item => item.competitorStockStatus === 'competitor_stockout_opportunity').length;
+  const activePriceAlertsCount = watchlist.filter(item => Boolean(item.priceAlertEnabled || item.priceAlertConfig?.enabled)).length;
   const totalPotentialProfit = watchlist.reduce((acc, item) => {
     const lowest = item.product?.currentLowestPrice || 0;
     const wholesale = item.product?.estimatedWholesaleCost || 0;
@@ -282,14 +317,26 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
 
   // Apply Bulk Updates
   const handleApplyBulkUpdates = () => {
-    if (!onBulkUpdateTargetAlertPrices || selectedItems.length === 0) return;
+    if (selectedItems.length === 0) return;
 
     const updates = selectedItems.map(item => ({
       productId: item.productId,
       targetAlertPrice: computeCalculatedTargetPrice(item)
     }));
 
-    onBulkUpdateTargetAlertPrices(updates, syncActiveAlerts);
+    if (onBulkUpdateTargetAlertPrices) {
+      onBulkUpdateTargetAlertPrices(updates, syncActiveAlerts);
+    } else {
+      const updateMap = new Map(updates.map(u => [u.productId, u.targetAlertPrice]));
+      const nextList = getStoredWatchlist().map(item =>
+        updateMap.has(item.productId)
+          ? { ...item, targetAlertPrice: updateMap.get(item.productId) }
+          : item
+      );
+      saveStoredWatchlist(nextList);
+      setInternalWatchlist(nextList);
+      onShowToast?.(`تم تحديث السعر المستهدف لـ ${updates.length} منتج بنجاح`);
+    }
     setIsBulkModalOpen(false);
     setSelectedProductIds([]);
     setCustomPriceOverrides({});
@@ -303,6 +350,11 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
 
   const handleSaveNote = (productId: string) => {
     onAddNote(productId, tempNote);
+    const nextList = getStoredWatchlist().map(w =>
+      w.productId === productId ? { ...w, merchantNotes: tempNote } : w
+    );
+    saveStoredWatchlist(nextList);
+    setInternalWatchlist(nextList);
     setEditingNoteId(null);
   };
 
@@ -314,10 +366,351 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   };
 
   const handleSaveSingleTargetPrice = (productId: string) => {
-    if (onUpdateTargetAlertPrice && singleTargetPriceInput > 0) {
-      onUpdateTargetAlertPrice(productId, singleTargetPriceInput);
+    if (singleTargetPriceInput > 0) {
+      if (onUpdateTargetAlertPrice) {
+        onUpdateTargetAlertPrice(productId, singleTargetPriceInput);
+      }
+      const next = updateStoredTargetPrice(productId, singleTargetPriceInput);
+      setInternalWatchlist(next);
+      onShowToast?.(`تم تحديث السعر المستهدف للمنتج إلى ${singleTargetPriceInput.toLocaleString()} ${currency}`);
     }
     setEditingTargetPriceId(null);
+  };
+
+  // Per-Product Price Alert Handlers (Linked with Auto-Pricing Engine)
+  const getCompetitorOptions = (item: WatchlistItem): string[] => {
+    const names = new Set<string>();
+    (item.product?.merchantOffers || []).forEach((offer) => {
+      if (offer.merchantName) names.add(offer.merchantName);
+    });
+    if (item.lastPriceChangeSource) names.add(item.lastPriceChangeSource);
+    if (item.priceAlertConfig?.targetCompetitorName && item.priceAlertConfig.targetCompetitorName !== 'any') {
+      names.add(item.priceAlertConfig.targetCompetitorName);
+    }
+    ['أمازون مصر (Amazon.eg)', 'نون مصر (Noon Express)', 'جوميا مصر (Jumia Mall)'].forEach((m) =>
+      names.add(m)
+    );
+    return Array.from(names);
+  };
+
+  const handleToggleProductPriceAlert = async (item: WatchlistItem) => {
+    const currentEnabled = Boolean(item.priceAlertConfig ? item.priceAlertConfig.enabled : item.priceAlertEnabled);
+    const nextEnabled = !currentEnabled;
+    const defaultRuleId =
+      item.priceAlertConfig?.linkedRuleId ||
+      autoPricingRules.find((r) => r.isActive)?.id ||
+      autoPricingRules[0]?.id;
+    const updated = toggleWatchlistPriceAlert(item.productId, nextEnabled, {
+      targetCompetitorName: item.priceAlertConfig?.targetCompetitorName || 'any',
+      linkedRuleId: defaultRuleId,
+    });
+    setInternalWatchlist(updated);
+    if (nextEnabled) {
+      setExpandedAlertConfigId(item.productId);
+      onShowToast?.(`🔔 تم تفعيل تنبيهات السعر لـ "${item.product.title}" وربطه بمحرك التسعير الآلي`);
+      const permResult = await requestBrowserPermissionOnFirstAlertActivation();
+      setWebNotifPermission(getWebNotificationPermission());
+      if (permResult.prompted) {
+        if (permResult.granted) {
+          onShowToast?.('🔔 تم تفعيل إذن إشعارات المتصفح الفورية لتنبيهات السعر بنجاح');
+        } else if (permResult.error) {
+          onShowToast?.(permResult.error);
+        }
+      }
+    } else {
+      onShowToast?.(`🔕 تم إيقاف تنبيهات السعر لـ "${item.product.title}"`);
+    }
+  };
+
+  const handleUpdateProductAlertConfig = (
+    productId: string,
+    partial: Partial<WatchlistProductPriceAlertConfig>,
+    toastMsg?: string
+  ) => {
+    const updated = updateWatchlistProductPriceAlertConfig(productId, partial);
+    setInternalWatchlist(updated);
+    if (toastMsg) {
+      onShowToast?.(toastMsg);
+    }
+  };
+
+  const handleRunCompetitorPriceCheck = async (item: WatchlistItem) => {
+    const basePrice = item.lastCheckedPrice || item.product?.currentLowestPrice || 1000;
+    const rawVal = testPriceInputs[item.productId];
+    const simulatedDropDefault = Math.max(50, Math.round(basePrice * 0.94));
+    const parsedPrice = rawVal !== undefined && rawVal !== '' ? Number(rawVal) : simulatedDropDefault;
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      onShowToast?.('يرجى إدخال سعر منافس صحيح أكبر من صفر');
+      return;
+    }
+
+    const chosenCompetitor =
+      item.priceAlertConfig?.targetCompetitorName && item.priceAlertConfig.targetCompetitorName !== 'any'
+        ? item.priceAlertConfig.targetCompetitorName
+        : item.product?.merchantOffers?.[0]?.merchantName || 'أمازون مصر (Amazon.eg)';
+
+    setTestingAlertProductId(item.productId);
+    try {
+      const result = await triggerCompetitorPriceCheckForWatchlistItem(
+        item.productId,
+        parsedPrice,
+        chosenCompetitor,
+        'السوق المصري'
+      );
+      setInternalWatchlist(getStoredWatchlist());
+      setEvalFeedbackByProduct((prev) => ({ ...prev, [item.productId]: result }));
+      onShowToast?.(result.reason);
+    } finally {
+      setTestingAlertProductId(null);
+    }
+  };
+
+  const renderProductPriceAlertPanel = (item: WatchlistItem) => {
+    const config = item.priceAlertConfig;
+    const isEnabled = Boolean(config ? config.enabled : item.priceAlertEnabled);
+    const competitors = getCompetitorOptions(item);
+    const selectedCompetitor = config?.targetCompetitorName || 'any';
+    const selectedRuleId =
+      config?.linkedRuleId || autoPricingRules.find((r) => r.isActive)?.id || autoPricingRules[0]?.id || '';
+    const activeRule = autoPricingRules.find((r) => r.id === selectedRuleId);
+    const basePrice = item.lastCheckedPrice || item.product?.currentLowestPrice || 1000;
+    const defaultTestPrice = Math.max(50, Math.round(basePrice * 0.94));
+    const testPriceVal =
+      testPriceInputs[item.productId] !== undefined
+        ? testPriceInputs[item.productId]
+        : String(defaultTestPrice);
+    const evalFeedback = evalFeedbackByProduct[item.productId];
+    const isTestingThis = testingAlertProductId === item.productId;
+
+    return (
+      <div
+        className={`rounded-xl border p-3.5 space-y-3 text-xs transition-all ${
+          isEnabled
+            ? 'bg-indigo-50/60 border-indigo-200'
+            : 'bg-slate-50 border-slate-200'
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-indigo-600" />
+            <span className="font-black text-slate-900">
+              إعدادات تنبيه السعر الفوري (مرتبط بمحرك التسعير الآلي)
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsAutoPricingModalOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            <span>تعديل قواعد التسعير</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          {/* Competitor Selector */}
+          <div className="space-y-1">
+            <label
+              htmlFor={`competitor-select-${item.productId}`}
+              className="block text-[11px] font-bold text-slate-700"
+            >
+              المنافس المحدد للمراقبة:
+            </label>
+            <select
+              id={`competitor-select-${item.productId}`}
+              value={selectedCompetitor}
+              onChange={(e) =>
+                handleUpdateProductAlertConfig(
+                  item.productId,
+                  { targetCompetitorName: e.target.value, enabled: true },
+                  e.target.value === 'any'
+                    ? 'تم ضبط المراقبة على أي منافس بالسوق'
+                    : `تم تحديد المنافس (${e.target.value}) للتنبيه الفوري`
+                )
+              }
+              className="w-full h-9 px-2.5 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-800 focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="any">أي منافس (أرخص سعر بالسوق)</option>
+              {competitors.map((comp) => (
+                <option key={comp} value={comp}>
+                  {comp}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Linked Auto-Pricing Engine Rule */}
+          <div className="space-y-1">
+            <label
+              htmlFor={`rule-select-${item.productId}`}
+              className="block text-[11px] font-bold text-slate-700"
+            >
+              قاعدة محرك التسعير المطبقة:
+            </label>
+            <select
+              id={`rule-select-${item.productId}`}
+              value={selectedRuleId}
+              onChange={(e) =>
+                handleUpdateProductAlertConfig(
+                  item.productId,
+                  { linkedRuleId: e.target.value, enabled: true },
+                  'تم ربط تنبيه السعر بقاعدة محرك التسعير المحددة'
+                )
+              }
+              className="w-full h-9 px-2.5 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-800 focus:border-indigo-500 focus:outline-none"
+            >
+              {autoPricingRules.map((rule) => (
+                <option key={rule.id} value={rule.id}>
+                  {rule.title || rule.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Optional Custom % Threshold */}
+          <div className="space-y-1">
+            <label
+              htmlFor={`threshold-input-${item.productId}`}
+              className="block text-[11px] font-bold text-slate-700"
+            >
+              عتبة التغير المخصصة % (اختياري):
+            </label>
+            <input
+              id={`threshold-input-${item.productId}`}
+              type="number"
+              min={0}
+              max={90}
+              placeholder="حسب قاعدة المحرك"
+              value={config?.customChangePercentThreshold ?? ''}
+              onChange={(e) => {
+                const v = e.target.value === '' ? undefined : Number(e.target.value);
+                handleUpdateProductAlertConfig(item.productId, {
+                  customChangePercentThreshold: v,
+                });
+              }}
+              className="w-full h-9 px-2.5 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-800 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Rule Summary + Notification Channels */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white/80 border border-slate-200/80 rounded-lg p-2.5">
+          <div className="text-[11px] text-slate-600 space-y-0.5">
+            {activeRule && (
+              <div className="font-bold text-indigo-900">
+                القاعدة النشطة: {activeRule.title || activeRule.name}
+              </div>
+            )}
+            {config?.lastRecommendedPrice && (
+              <div className="text-emerald-700 font-bold">
+                آخر سعر مقترح من المحرك: {config.lastRecommendedPrice.toLocaleString()} {currency}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-700">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config?.notifyChannels?.inApp !== false}
+                onChange={(e) =>
+                  handleUpdateProductAlertConfig(item.productId, {
+                    notifyChannels: {
+                      inApp: e.target.checked,
+                      browserPush: config?.notifyChannels?.browserPush !== false,
+                      sound: config?.notifyChannels?.sound !== false,
+                    },
+                  })
+                }
+                className="w-3.5 h-3.5 rounded text-indigo-600"
+              />
+              <span>إشعار فوري بالتطبيق</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config?.notifyChannels?.browserPush !== false}
+                onChange={async (e) => {
+                  const checked = e.target.checked;
+                  handleUpdateProductAlertConfig(item.productId, {
+                    notifyChannels: {
+                      inApp: config?.notifyChannels?.inApp !== false,
+                      browserPush: checked,
+                      sound: config?.notifyChannels?.sound !== false,
+                    },
+                  });
+                  if (checked) {
+                    const permResult = await requestBrowserPermissionOnFirstAlertActivation({
+                      forceIfDefault: true,
+                    });
+                    setWebNotifPermission(getWebNotificationPermission());
+                    if (permResult.prompted && permResult.error) {
+                      onShowToast?.(permResult.error);
+                    }
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded text-indigo-600"
+              />
+              <span>إشعار المتصفح</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Instant Price-Change Verification / Simulation Strip */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-indigo-200/60">
+          <div className="flex items-center gap-1.5 flex-1">
+            <label
+              htmlFor={`test-price-${item.productId}`}
+              className="text-[11px] font-bold text-slate-700 shrink-0"
+            >
+              رصد سعر منافس جديد ({currency}):
+            </label>
+            <input
+              id={`test-price-${item.productId}`}
+              type="number"
+              min={1}
+              value={testPriceVal}
+              onChange={(e) =>
+                setTestPriceInputs((prev) => ({ ...prev, [item.productId]: e.target.value }))
+              }
+              className="w-28 h-8 px-2 text-xs font-bold bg-white border border-indigo-300 rounded-lg text-slate-900 focus:outline-none"
+            />
+          </div>
+
+          <button
+            type="button"
+            disabled={!isEnabled || isTestingThis}
+            onClick={() => handleRunCompetitorPriceCheck(item)}
+            className={`h-8 px-3 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              isEnabled
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Play className="w-3 h-3" />
+            <span>{isTestingThis ? 'جاري التقييم...' : 'فحص وإرسال إشعار فوري ⚡'}</span>
+          </button>
+        </div>
+
+        {evalFeedback && (
+          <div
+            className={`p-2 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 ${
+              evalFeedback.triggered
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            {evalFeedback.triggered ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            )}
+            <span>{evalFeedback.reason}</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const isAllFilteredSelected = filteredWatchlist.length > 0 && selectedProductIds.length === filteredWatchlist.length;
@@ -537,6 +930,18 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
             >
               <Zap className="w-3.5 h-3.5" />
               <span>فرص نفاذ المخزون ({stockOpportunities})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterCategory('alerts_active')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                filterCategory === 'alerts_active'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>تنبيهات السعر المفعّلة ({activePriceAlertsCount})</span>
             </button>
 
             {/* View Mode Switcher: Cards vs List */}
@@ -915,6 +1320,80 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                   )}
                 </div>
 
+                {/* Per-Product Price Alerts Strip (تنبيهات السعر + محرك التسعير الآلي) */}
+                {(() => {
+                  const isAlertEnabled = Boolean(
+                    item.priceAlertConfig ? item.priceAlertConfig.enabled : item.priceAlertEnabled
+                  );
+                  const isConfigOpen = expandedAlertConfigId === item.productId;
+                  const compLabel =
+                    item.priceAlertConfig?.targetCompetitorName &&
+                    item.priceAlertConfig.targetCompetitorName !== 'any'
+                      ? item.priceAlertConfig.targetCompetitorName
+                      : 'أي منافس بالسوق';
+                  const linkedRule = autoPricingRules.find(
+                    (r) => r.id === item.priceAlertConfig?.linkedRuleId
+                  );
+
+                  return (
+                    <div className="space-y-2">
+                      <div
+                        className={`rounded-xl border px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs transition-all ${
+                          isAlertEnabled
+                            ? 'bg-emerald-50/70 border-emerald-200'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isAlertEnabled}
+                            aria-label={`تنبيهات السعر لـ ${product.title}`}
+                            onClick={() => handleToggleProductPriceAlert(item)}
+                            className={`h-7 px-3 rounded-lg font-black text-[11px] flex items-center gap-1.5 transition cursor-pointer ${
+                              isAlertEnabled
+                                ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
+                                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                            }`}
+                          >
+                            {isAlertEnabled ? (
+                              <Bell className="w-3.5 h-3.5" />
+                            ) : (
+                              <BellOff className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                            <span>{isAlertEnabled ? 'تنبيهات السعر: مفعّل' : 'تفعيل تنبيهات السعر'}</span>
+                          </button>
+
+                          {isAlertEnabled && (
+                            <div className="text-[11px] text-emerald-900 font-bold truncate">
+                              <span>المنافس: {compLabel}</span>
+                              {linkedRule && (
+                                <span className="text-indigo-700 mr-2">
+                                  • {linkedRule.title || linkedRule.name}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedAlertConfigId(isConfigOpen ? null : item.productId)
+                          }
+                          className="h-7 px-2.5 rounded-lg bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <Settings className="w-3 h-3" />
+                          <span>{isConfigOpen ? 'إخفاء الإعدادات' : 'إعدادات التنبيه والمحرك'}</span>
+                        </button>
+                      </div>
+
+                      {isConfigOpen && renderProductPriceAlertPanel(item)}
+                    </div>
+                  );
+                })()}
+
                 {/* Action Toolbar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex items-center gap-2">
@@ -983,6 +1462,7 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                   <th className="py-3 px-3">أقل سعر منافس</th>
                   <th className="py-3 px-3">سعر الجملة وهامش الربح</th>
                   <th className="py-3 px-3">السعر المستهدف للتنبيه</th>
+                  <th className="py-3 px-3">تنبيهات السعر</th>
                   <th className="py-3 px-3">الملاحظات</th>
                   <th className="py-3 px-3 text-center">الإجراءات</th>
                 </tr>
@@ -997,14 +1477,18 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                   const isEditingNote = editingNoteId === item.productId;
                   const isEditingTargetPrice = editingTargetPriceId === item.productId;
                   const isSelected = selectedProductIds.includes(item.productId);
+                  const isAlertEnabled = Boolean(
+                    item.priceAlertConfig ? item.priceAlertConfig.enabled : item.priceAlertEnabled
+                  );
+                  const isConfigOpen = expandedAlertConfigId === item.productId;
 
                   const targetAlertPrice = item.targetAlertPrice || Math.round(lowestPrice * 0.95);
                   const targetDiffAmount = targetAlertPrice - lowestPrice;
                   const targetDiffPercent = Math.round((targetDiffAmount / lowestPrice) * 100);
 
                   return (
+                    <React.Fragment key={item.productId}>
                     <tr
-                      key={item.productId}
                       className={`hover:bg-slate-50/80 transition-colors ${
                         isSelected ? 'bg-indigo-50/40 border-r-4 border-indigo-600' : ''
                       }`}
@@ -1131,6 +1615,33 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                         )}
                       </td>
 
+                      {/* Price Alerts Toggle & Settings Trigger */}
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-1 items-start">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isAlertEnabled}
+                            onClick={() => handleToggleProductPriceAlert(item)}
+                            className={`px-2 py-1 rounded-md text-[10px] font-black inline-flex items-center gap-1 cursor-pointer ${
+                              isAlertEnabled
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}
+                          >
+                            {isAlertEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
+                            <span>{isAlertEnabled ? 'مفعّل' : 'متوقف'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedAlertConfigId(isConfigOpen ? null : item.productId)}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          >
+                            {isConfigOpen ? 'إغلاق الإعدادات' : 'تخصيص المحرك'}
+                          </button>
+                        </div>
+                      </td>
+
                       {/* Notes */}
                       <td className="py-3 px-3">
                         {isEditingNote ? (
@@ -1186,6 +1697,14 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                         </div>
                       </td>
                     </tr>
+                    {isConfigOpen && (
+                      <tr className="bg-indigo-50/30">
+                        <td colSpan={9} className="p-3">
+                          {renderProductPriceAlertPanel(item)}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -1642,6 +2161,10 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
         onAdd={(newItem) => {
           if (onAddManualProduct) {
             onAddManualProduct(newItem);
+          } else {
+            const updated = addStoredItem(newItem.product, newItem.targetAlertPrice, newItem.merchantNotes);
+            setInternalWatchlist(updated);
+            onShowToast?.(`تمت إضافة "${newItem.product.title}" إلى قائمة المتابعة بنجاح`);
           }
         }}
         currency={currency}
@@ -1657,6 +2180,13 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
             onSelectProduct(found.product);
           }
         }}
+        onShowToast={onShowToast}
+      />
+
+      {/* Auto-Pricing Engine Rules Modal */}
+      <AutoPricingSettingsModal
+        isOpen={isAutoPricingModalOpen}
+        onClose={() => setIsAutoPricingModalOpen(false)}
         onShowToast={onShowToast}
       />
 

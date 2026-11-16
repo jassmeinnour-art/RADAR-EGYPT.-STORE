@@ -201,13 +201,16 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
               notifications.map((notif) => {
                 const isOutOfStock = notif.type === 'out_of_stock';
                 const isNewInvoice = notif.type === 'new_invoice';
+                const isPriceAlert = notif.type === 'price_alert';
 
                 return (
                   <div
                     key={notif.id}
                     className={`p-3 rounded-2xl border transition-all ${
                       !notif.is_read
-                        ? 'bg-slate-950 border-amber-500/40 shadow-sm'
+                        ? isPriceAlert
+                          ? 'bg-indigo-950/60 border-indigo-400/50 shadow-sm'
+                          : 'bg-slate-950 border-amber-500/40 shadow-sm'
                         : 'bg-slate-950/50 border-slate-800/80'
                     }`}
                   >
@@ -217,12 +220,16 @@ export const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({
                           ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
                           : isNewInvoice 
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                          : isPriceAlert
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
                           : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                       }`}>
                         {isOutOfStock ? (
                           <AlertTriangle className="w-4 h-4" />
                         ) : isNewInvoice ? (
                           <FileText className="w-4 h-4" />
+                        ) : isPriceAlert ? (
+                          <Bell className="w-4 h-4" />
                         ) : (
                           <Package className="w-4 h-4" />
                         )}

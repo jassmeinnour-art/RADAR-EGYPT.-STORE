@@ -23,6 +23,7 @@ import {
   SMART_PRICE_ALERTS_UPDATED_EVENT,
 } from '../utils/smartPriceAlerts';
 import { navigate } from '../utils/navigation';
+import { requestBrowserPermissionOnFirstAlertActivation } from '../services/notificationChannelPreferences';
 
 interface SmartPriceAlertsPanelProps {
   compact?: boolean;
@@ -60,7 +61,7 @@ export const SmartPriceAlertsPanel: React.FC<SmartPriceAlertsPanelProps> = ({
   const unreadCount = alerts.filter((a) => !a.isRead).length;
   const visibleAlerts = compact ? alerts.slice(0, 4) : alerts.slice(0, 20);
 
-  const handleSaveAndScan = (e: React.FormEvent) => {
+  const handleSaveAndScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedPercent = Math.max(1, Math.min(100, parseFloat(percentInput) || 10));
     const parsedMinPrice = Math.max(0, parseFloat(minPriceInput) || 0);
@@ -81,6 +82,13 @@ export const SmartPriceAlertsPanel: React.FC<SmartPriceAlertsPanelProps> = ({
       onShowToast?.('✅ تم تحديث إعدادات التنبيه وفحص المنتجات المسحوبة.');
     }
     setShowSettings(false);
+
+    const permRes = await requestBrowserPermissionOnFirstAlertActivation();
+    if (permRes.prompted && permRes.granted) {
+      onShowToast?.('🔔 تم تفعيل إشعارات المتصفح الفورية لتنبيهات الأسعار بنجاح');
+    } else if (permRes.prompted && permRes.error) {
+      onShowToast?.(permRes.error);
+    }
   };
 
   const handleScanNow = () => {

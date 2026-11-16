@@ -55,6 +55,7 @@ import {
   sendWhatsAppMessageToPhone,
   dispatchPriceDropAlertToWhatsApp
 } from '../services/whatsappService';
+import { requestBrowserPermissionOnFirstAlertActivation } from '../services/notificationChannelPreferences';
 
 interface PriceAlertManagerProps {
   alerts: PriceAlert[];
@@ -311,7 +312,7 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
     return classification.type === logTypeFilter;
   });
 
-  const handleCreateAlert = (e: React.FormEvent) => {
+  const handleCreateAlert = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const newAlert: PriceAlert = {
@@ -339,6 +340,15 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
       spread: 50,
       origin: { y: 0.6 }
     });
+
+    const permRes = await requestBrowserPermissionOnFirstAlertActivation();
+    if (permRes.prompted) {
+      if (permRes.granted) {
+        onShowToast?.('🔔 تم منح إذن إشعارات المتصفح الفورية بنجاح');
+      } else if (permRes.error) {
+        onShowToast?.(permRes.error);
+      }
+    }
   };
 
   const handleRunSimulator = (product: ProductData, phone: string = '01012345678') => {
@@ -1777,7 +1787,18 @@ export const PriceAlertManager: React.FC<PriceAlertManagerProps> = ({
                         </button>
 
                         <button
-                          onClick={() => onToggleAlert(alert.id)}
+                          onClick={async () => {
+                            const activating = !alert.isActive;
+                            onToggleAlert(alert.id);
+                            if (activating) {
+                              const permRes = await requestBrowserPermissionOnFirstAlertActivation();
+                              if (permRes.prompted && permRes.granted) {
+                                onShowToast?.('🔔 تم منح إذن إشعارات المتصفح الفورية بنجاح');
+                              } else if (permRes.prompted && permRes.error) {
+                                onShowToast?.(permRes.error);
+                              }
+                            }
+                          }}
                           className={`h-8 px-2.5 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all border ${
                             alert.isActive 
                               ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs' 

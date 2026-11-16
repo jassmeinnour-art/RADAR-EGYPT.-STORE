@@ -420,6 +420,22 @@ export interface PublishResult {
   message: string;
 }
 
+export interface WatchlistProductPriceAlertConfig {
+  enabled: boolean;
+  targetCompetitorName?: string;
+  linkedRuleId?: string;
+  customChangePercentThreshold?: number;
+  notifyChannels?: {
+    inApp: boolean;
+    browserPush: boolean;
+    sound: boolean;
+  };
+  lastEvaluatedAt?: string;
+  lastAlertTriggeredAt?: string;
+  lastRecommendedPrice?: number;
+  lastEvaluationReason?: string;
+}
+
 // Watchlist & Stock Tracker Item
 export interface WatchlistItem {
   productId: string;
@@ -432,6 +448,8 @@ export interface WatchlistItem {
   priceChangePercent: number;
   competitorStockStatus: 'normal' | 'low_stock' | 'competitor_stockout_opportunity';
   targetAlertPrice?: number;
+  priceAlertEnabled?: boolean;
+  priceAlertConfig?: WatchlistProductPriceAlertConfig;
   merchantNotes?: string;
   note?: string;
   notes?: string;

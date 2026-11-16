@@ -24,12 +24,16 @@ interface DBRecord<T = any> {
   updatedAt: string;
 }
 
+export function isIndexedDBSupported(): boolean {
+  return typeof window !== 'undefined' && 'indexedDB' in window && Boolean(window.indexedDB);
+}
+
 /**
  * Initializes and upgrades IndexedDB schema safely with feature detection
  */
 export function openOfflineDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !('indexedDB' in window)) {
+    if (!isIndexedDBSupported()) {
       reject(new Error('IndexedDB is not supported in this environment.'));
       return;
     }
@@ -61,6 +65,7 @@ export function openOfflineDB(): Promise<IDBDatabase> {
  * Saves a single record to IndexedDB
  */
 export async function saveRecordToDB<T>(storeName: StoreName, id: string, value: T): Promise<boolean> {
+  if (!isIndexedDBSupported()) return false;
   try {
     const db = await openOfflineDB();
     return new Promise((resolve) => {
@@ -91,6 +96,7 @@ export async function saveRecordToDB<T>(storeName: StoreName, id: string, value:
  * Retrieves a single record from IndexedDB
  */
 export async function getRecordFromDB<T>(storeName: StoreName, id: string): Promise<T | null> {
+  if (!isIndexedDBSupported()) return null;
   try {
     const db = await openOfflineDB();
     return new Promise((resolve) => {
@@ -121,6 +127,7 @@ export async function saveAllRecordsToDB<T extends { id: string }>(
   storeName: StoreName,
   items: T[]
 ): Promise<boolean> {
+  if (!isIndexedDBSupported()) return false;
   try {
     const db = await openOfflineDB();
     return new Promise((resolve) => {
@@ -152,6 +159,7 @@ export async function saveAllRecordsToDB<T extends { id: string }>(
  * Retrieves all items from an IndexedDB object store
  */
 export async function getAllRecordsFromDB<T>(storeName: StoreName): Promise<T[]> {
+  if (!isIndexedDBSupported()) return [];
   try {
     const db = await openOfflineDB();
     return new Promise((resolve) => {

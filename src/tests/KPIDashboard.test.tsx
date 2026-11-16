@@ -7,12 +7,13 @@ import * as AsyncOps from '../context/AsyncOperationsContext';
 
 // Mock Contexts
 vi.mock('../context/AuthContext', () => ({
+  OWNER_EMAIL: 'jassmeinnour@gmail.com',
   useAuth: () => ({
-    user: { email: 'test@example.com', uid: '123' },
+    user: { email: 'jassmeinnour@gmail.com', uid: '123' },
     profile: { storeName: 'Test Store' },
     isLoading: false,
     isAuthenticated: true,
-    isOwner: false,
+    isOwner: true,
     sessionData: { lastLoginAt: '12:00' },
   }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -100,17 +101,17 @@ vi.mock('lucide-react', async () => {
 });
 
 // Mock lazy components
-vi.mock('./components/OnboardingTour', () => ({ OnboardingTour: () => null }));
-vi.mock('./components/PaymentModal', () => () => null);
-vi.mock('./components/OwnerDashboard', () => () => null);
-vi.mock('./components/HelpPage', () => () => null);
-vi.mock('./components/ShippingOrdersTable', () => () => null);
-vi.mock('./components/ProfitCalculator', () => () => null);
-vi.mock('./components/ShippingManagementDashboard', () => () => null);
-vi.mock('./components/PlatformsGuideManager', () => () => null);
-vi.mock('./components/AutoPricingEngine', () => () => null);
-vi.mock('./components/PriceComparisonEngine', () => ({ PriceComparisonEngine: () => null }));
-vi.mock('./components/AIProductStudio', () => ({ AIProductStudio: () => null }));
+vi.mock('../components/OnboardingTour', () => ({ OnboardingTour: () => null }));
+vi.mock('../components/PaymentModal', () => () => null);
+vi.mock('../components/OwnerDashboard', () => () => null);
+vi.mock('../components/HelpPage', () => () => null);
+vi.mock('../components/ShippingOrdersTable', () => () => null);
+vi.mock('../components/ProfitCalculator', () => () => null);
+vi.mock('../components/ShippingManagementDashboard', () => () => null);
+vi.mock('../components/PlatformsGuideManager', () => () => null);
+vi.mock('../components/AutoPricingEngine', () => () => null);
+vi.mock('../components/PriceComparisonEngine', () => ({ PriceComparisonEngine: () => null }));
+vi.mock('../components/AIProductStudio', () => ({ AIProductStudio: () => null }));
 
 describe('KPI Dashboard Rendering', () => {
   beforeEach(() => {
@@ -207,7 +208,7 @@ describe('KPI Dashboard Rendering', () => {
 
     render(<App />);
 
-    expect(await screen.findByText(/إرسال تنبيه بالبريد الإلكتروني/, {}, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getAllByText(/test@example.com/)[0]).toBeInTheDocument();
+    expect(await screen.findByText(/إرسال تنبيه بالبريد الإلكتروني/, { exact: false }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getAllByText(/jassmeinnour@gmail.com/)[0]).toBeInTheDocument();
   }, 10000);
 });
