@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { getPriceHistory, PriceHistoryEntry } from '../utils/priceHistoryManager';
 import { auth } from '../firebase';
 import { Timestamp } from 'firebase/firestore';
-import { EmergencyLoginButton } from './EmergencyLoginButton';
 
 export const PriceHistoryChart: React.FC<{ productId: string }> = ({ productId }) => {
   const [data, setData] = useState<PriceHistoryEntry[]>([]);
@@ -26,7 +25,6 @@ export const PriceHistoryChart: React.FC<{ productId: string }> = ({ productId }
     return (
       <div className="space-y-2 text-right">
         <div>لا توجد بيانات</div>
-        <EmergencyLoginButton />
       </div>
     );
   }

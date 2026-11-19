@@ -825,9 +825,9 @@ export default function PlatformsGuideManager() {
                     {checkedSteps['amz_step_1'] ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4 text-slate-500" />}
                   </div>
                   <div className="space-y-1">
-                    <span className="font-bold text-white block">1. تسجيل الدخول إلى Amazon Seller Central مصر</span>
+                    <span className="font-bold text-white block">1. موافقة التاجر من حسابه على Amazon Seller Central</span>
                     <p className="text-slate-400 text-[11px] leading-relaxed">
-                      افتح <strong className="text-amber-300">sellercentral.amazon.eg</strong> وتوجه إلى <strong>معلومات الحساب &gt; Merchant Token</strong> لنسخ معرف التاجر.
+                      <strong className="text-rose-400">لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو</strong> عبر <strong className="text-amber-300">sellercentral.amazon.eg</strong> ليوافق على رادار عبر SP-API OAuth ويرسل Refresh Token فقط.
                     </p>
                   </div>
                 </div>

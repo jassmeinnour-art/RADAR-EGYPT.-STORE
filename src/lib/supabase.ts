@@ -36,10 +36,14 @@ export interface Product {
   trader_id: string;
   title: string;
   sku: string;
+  asin?: string;
   price: number;
   stock: number;
   platform: string;
   image?: string;
+  image_url?: string;
+  product_url?: string;
+  condition?: string;
   buybox_price?: number;
   competitor_price?: number;
   created_at?: string;
@@ -635,12 +639,16 @@ export const multiTenantDb = {
     const newProducts: Product[] = scraped.map(s => ({
       id: `prd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)}`,
       trader_id: traderId,
-      title: s.title || 'منتج مسحوب من المتجر',
+      title: s.title || 'منتج مستورد',
       sku: s.sku || s.asin || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
+      asin: s.asin || s.sku || undefined,
       price: s.price || 0,
-      stock: s.inStock ? 15 : 0,
+      stock: typeof s.stock === 'number' ? s.stock : s.inStock ? 15 : 0,
       platform: s.platform || 'amazon',
-      image: s.image || '',
+      image: s.image_url || s.image || '',
+      image_url: s.image_url || s.image || '',
+      product_url: s.product_url || '',
+      ...(s.condition ? { condition: s.condition } : {}),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }));
@@ -1041,34 +1049,20 @@ export const multiTenantDb = {
   },
 
   /**
-   * Trigger sync for a specific trader via /api/traders/:id/sync (Real API sync, no mock generation)
+   * Safe trader catalog read/sync — never triggers direct browser scraping of Amazon/HTML endpoints
    */
-  async syncTrader(traderId: string): Promise<{ success: boolean; count: number; products: Product[] }> {
+  async syncTrader(traderId: string): Promise<{ success: boolean; count: number; products: Product[]; message?: string }> {
     if (isMaintenanceModeActive()) {
       const existing = await this.getProductsByTrader(traderId);
       return { success: false, count: existing.length, products: existing };
     }
-    try {
-      const res = await fetch(`/api/traders/${encodeURIComponent(traderId)}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) {
-          const fresh = json.products || [];
-          evaluatePulledProductsForPriceAlerts(traderId, fresh);
-          localStorage.setItem(getProductsStorageKey(traderId), JSON.stringify(fresh));
-          await recordTraderLastSyncAt(traderId, json.last_sync_at);
-          return { success: true, count: fresh.length, products: fresh };
-        }
-      }
-    } catch (e) {
-      console.warn('Sync API network issue:', e);
-    }
-
     const existing = await this.getProductsByTrader(traderId);
-    return { success: true, count: existing.length, products: existing };
+    return {
+      success: existing.length > 0,
+      count: existing.length,
+      products: existing,
+      message: 'لا يمكن السحب المباشر من أمازون من المتصفح - أمازون يمنع ذلك - استخدم استيراد Excel أو ربط SP-API',
+    };
   }
 };
 
@@ -1251,6 +1245,32 @@ class SupabaseQueryBuilder {
 
     // Persist/sync edits in localStorage fallback so edits remain consistent even before DB seeding
     let updatedRow: any = remoteResult && !Array.isArray(remoteResult) ? remoteResult : { id: eqId, ...this.updatePayload };
+    if (this.tableName === 'products' && eqId) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('radar_multi_tenant_products_')) {
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            const list = JSON.parse(raw);
+            if (!Array.isArray(list)) continue;
+            let modified = false;
+            const nextList = list.map((p: any) => {
+              if (p && String(p.id) === String(eqId)) {
+                modified = true;
+                updatedRow = { ...p, ...this.updatePayload };
+                return updatedRow;
+              }
+              return p;
+            });
+            if (modified) {
+              localStorage.setItem(k, JSON.stringify(nextList));
+            }
+          }
+        }
+      } catch {}
+    }
+
     if (this.tableName === 'traders' && eqId) {
       try {
         let foundInStorage = false;
@@ -1331,6 +1351,7 @@ class SupabaseQueryBuilder {
     try {
       const eqTraderId = this.filters.find(f => f.col === 'trader_id' && f.type === 'eq')?.val;
       const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+      const inIds = this.filters.find(f => f.col === 'id' && f.type === 'in')?.val;
       const targetTraderId = eqTraderId || (this.tableName === 'traders' ? eqId : null);
 
       if (this.tableName === 'traders' && eqId) {
@@ -1358,8 +1379,36 @@ class SupabaseQueryBuilder {
         } catch {}
       }
 
-      if (this.tableName === 'products' && targetTraderId) {
-        localStorage.removeItem(getProductsStorageKey(targetTraderId));
+      if (this.tableName === 'products') {
+        const idsToDelete = new Set<string>(
+          Array.isArray(inIds)
+            ? inIds.map(String)
+            : eqId
+            ? [String(eqId)]
+            : []
+        );
+
+        if (idsToDelete.size > 0) {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('radar_multi_tenant_products_')) {
+              if (targetTraderId && k !== getProductsStorageKey(String(targetTraderId))) continue;
+              try {
+                const raw = localStorage.getItem(k);
+                if (!raw) continue;
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                  const next = list.filter((item: any) => !idsToDelete.has(String(item?.id)));
+                  if (next.length !== list.length) {
+                    localStorage.setItem(k, JSON.stringify(next));
+                  }
+                }
+              } catch {}
+            }
+          }
+        } else if (targetTraderId) {
+          localStorage.removeItem(getProductsStorageKey(targetTraderId));
+        }
       }
 
       if (this.tableName === 'inventory_sync' && targetTraderId) {

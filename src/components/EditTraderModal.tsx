@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, RefreshCw, FileSpreadsheet } from 'lucide-react';
-import { supabase, Trader, isDemoOrOrphanProduct, recordTraderLastSyncAt } from '../lib/supabase';
+import { supabase, Trader } from '../lib/supabase';
 import { dataCache } from '../utils/dataCache';
 import { FetchProductsModal } from './FetchProductsModal';
-import { evaluatePulledProductsForPriceAlerts } from '../utils/smartPriceAlerts';
+import {
+  ACCEPTED_IMPORT_EXTENSIONS,
+  DEFAULT_TRADER_ID,
+  IMPORT_BUTTON_LABEL,
+  SellerCentralImportPreview,
+  previewSellerCentralFile,
+  sanitizeProductPullError,
+} from '../utils/sellerCentralExcelImporter';
 
 interface EditTraderModalProps {
   trader: Trader;
@@ -26,6 +33,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
+  const [pendingPreview, setPendingPreview] = useState<SellerCentralImportPreview | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -111,92 +119,16 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
     if (!file) return;
     setIsImportingExcel(true);
     try {
-      const XLSX = await import('xlsx');
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheet = workbook.SheetNames[0];
-      if (!firstSheet) throw new Error('الملف لا يحتوي على صفحات بيانات');
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(workbook.Sheets[firstSheet], { defval: '' });
-
-      const mappedProducts = rows
-        .map((row, index) => {
-          const normalized: Record<string, any> = {};
-          Object.keys(row).forEach((k) => {
-            normalized[k.trim().toLowerCase()] = row[k];
-          });
-
-          const title = String(
-            normalized['title'] ||
-              normalized['product_name'] ||
-              normalized['product name'] ||
-              normalized['item-name'] ||
-              normalized['name'] ||
-              normalized['اسم المنتج'] ||
-              normalized['المنتج'] ||
-              ''
-          ).trim();
-
-          const sku = String(
-            normalized['sku'] ||
-              normalized['seller-sku'] ||
-              normalized['seller sku'] ||
-              normalized['asin'] ||
-              normalized['asin1'] ||
-              normalized['كود'] ||
-              ''
-          )
-            .trim()
-            .toUpperCase();
-
-          const asin = String(normalized['asin'] || normalized['asin1'] || sku || '').trim();
-          const priceRaw =
-            normalized['price'] ?? normalized['standard price'] ?? normalized['السعر'] ?? 0;
-          const stockRaw =
-            normalized['stock'] ?? normalized['quantity'] ?? normalized['qty'] ?? normalized['الكمية'] ?? 0;
-          const imageRaw = String(
-            normalized['image_url'] || normalized['image'] || normalized['img'] || normalized['الصورة'] || ''
-          ).trim();
-
-          return {
-            id: `prd-${Date.now().toString(36)}-${index}-${Math.random().toString(36).substring(2, 6)}`,
-            trader_id: trader.id,
-            title: title || sku,
-            sku,
-            asin,
-            price: parseFloat(String(priceRaw).replace(/[^0-9.]/g, '')) || 0,
-            stock: parseInt(String(stockRaw).replace(/[^0-9]/g, ''), 10) || 0,
-            platform: String(normalized['platform'] || form.platform || trader.platform || 'amazon').toLowerCase(),
-            image: imageRaw,
-            image_url: imageRaw,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        })
-        .filter((p) => p.sku && p.title && !isDemoOrOrphanProduct(p));
-
-      if (mappedProducts.length === 0) {
-        onShowToast?.('⚠️ لم يتم العثور على صفوف منتجات صالحة في ملف Excel/CSV');
-        return;
-      }
-
-      const { error } = await supabase.from('products').insert(mappedProducts);
-      if (error) throw error;
-
-      evaluatePulledProductsForPriceAlerts(trader.id, mappedProducts, {
-        traderName: form.seller_name || trader.seller_name,
-      });
-
-      dataCache.invalidate('products_');
-      const nowIso = await recordTraderLastSyncAt(trader.id);
-      onUpdate({ ...trader, last_sync_at: nowIso, last_sync_timestamp: nowIso });
-      const syncStats = { total: mappedProducts.length, new: mappedProducts.length, updated: 0 };
-      try {
-        localStorage.setItem('radar_last_sync_stats', JSON.stringify(syncStats));
-      } catch {}
-
-      onShowToast?.(`✅ تم استيراد ${mappedProducts.length} منتج من ملف Excel للتاجر ${form.seller_name}!`);
+      const targetId = trader.id || DEFAULT_TRADER_ID;
+      const preview = await previewSellerCentralFile(
+        file,
+        targetId,
+        form.platform || trader.platform || 'amazon'
+      );
+      setPendingPreview(preview);
+      setIsFetchModalOpen(true);
     } catch (err: any) {
-      onShowToast?.(`❌ فشل استيراد ملف Excel: ${err?.message || 'خطأ في قراءة الملف'}`);
+      onShowToast?.(sanitizeProductPullError(err));
     } finally {
       setIsImportingExcel(false);
       if (excelInputRef.current) excelInputRef.current.value = '';
@@ -339,12 +271,12 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>{isImportingExcel ? 'جاري الاستيراد...' : 'استيراد من Excel'}</span>
+                <span>{isImportingExcel ? 'جاري قراءة الملف...' : IMPORT_BUTTON_LABEL}</span>
               </button>
               <input
                 ref={excelInputRef}
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept={ACCEPTED_IMPORT_EXTENSIONS}
                 onChange={handleExcelFileChange}
                 className="hidden"
               />
@@ -379,8 +311,17 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
             storefront_link: storeValue.trim(),
           }}
           isOpen={isFetchModalOpen}
-          onClose={() => setIsFetchModalOpen(false)}
+          initialPreview={pendingPreview}
+          onClose={() => {
+            setIsFetchModalOpen(false);
+            setPendingPreview(null);
+          }}
           onShowToast={onShowToast}
+          onSyncCompleted={() => {
+            const nowIso = new Date().toISOString();
+            onUpdate({ ...trader, last_sync_at: nowIso, last_sync_timestamp: nowIso });
+            setPendingPreview(null);
+          }}
         />
       )}
     </>

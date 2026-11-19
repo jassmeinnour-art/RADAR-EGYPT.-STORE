@@ -110,9 +110,9 @@ export const SettingsGuide: React.FC<SettingsGuideProps> = ({
                   </span>
                   <span className="text-[11px] text-amber-300 font-bold px-2 py-0.5 rounded bg-amber-500/10">لوحة بائع أمازون</span>
                 </div>
-                <h3 className="font-extrabold text-sm text-slate-100 mb-1">تسجيل الدخول لـ Seller Central</h3>
+                <h3 className="font-extrabold text-sm text-slate-100 mb-1">موافقة التاجر من حسابه (SP-API OAuth)</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  توجه إلى بوابة بائعين أمازون مصر (Amazon.eg Seller Central) أو الحساب العالمي، ثم افتح قائمة التطبيقات والخدمات (Partner Network).
+                  <strong className="text-rose-400">لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو</strong> عبر Amazon.eg Seller Central ليصدر Refresh Token فقط.
                 </p>
               </div>
               <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between">

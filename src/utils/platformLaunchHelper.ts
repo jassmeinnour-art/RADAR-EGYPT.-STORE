@@ -48,7 +48,7 @@ export const DEFAULT_PLATFORM_PORTALS: Record<string, PlatformPortalMeta> = {
     badgeText: 'سيلر سنترال',
     themeColor: '#FF9900',
     accentBg: 'bg-sky-500/10 text-sky-700 border-sky-200',
-    loginTip: 'تسجيل الدخول التلقائي بحساب البائع المعتمد عبر البريد المرتبط',
+    loginTip: 'التاجر يفوض رادار من حسابه هو عبر SP-API OAuth والمؤسس يستلم Refresh Token فقط (لا تدخل بحسابك على حساب التاجر)',
     directLaunchSupported: true,
   },
   noon_eg: {

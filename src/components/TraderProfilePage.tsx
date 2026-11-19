@@ -31,11 +31,24 @@ import {
   Activity,
   Scissors,
   Trash2,
-  Settings
+  Settings,
+  FileSpreadsheet
 } from 'lucide-react';
 import { multiTenantDb, Trader, Product } from '../lib/supabase';
-import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
+import { FetchProductsModal } from './FetchProductsModal';
+import {
+  ACCEPTED_IMPORT_EXTENSIONS,
+  DEFAULT_TRADER_ID,
+  DIRECT_FETCH_BLOCKED_MESSAGE,
+  IMPORT_BUTTON_LABEL,
+  SellerCentralImportPreview,
+  invokeAmazonSpApiSyncEdgeFunction,
+  isAmazonSpApiConfigured,
+  previewSellerCentralFile,
+  sanitizeProductPullError,
+} from '../utils/sellerCentralExcelImporter';
 
 interface TraderProfilePageProps {
   traderId: string;
@@ -57,9 +70,14 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isScrapingStorefront, setIsScrapingStorefront] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [pullNotice, setPullNotice] = useState<string | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<SellerCentralImportPreview | null>(null);
+  const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
   const [isSyncingInvoices, setIsSyncingInvoices] = useState(false);
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'failed' | null>>({});
+  const excelInputRef = React.useRef<HTMLInputElement>(null);
 
   const [editFormData, setEditFormData] = useState({
     seller_id: '',
@@ -132,29 +150,63 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
       if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
       return;
     }
-    const targetUrl = editFormData.storefront_link || editFormData.seller_link || trader?.storefront_link || trader?.seller_link;
-    if (!targetUrl) {
-      if (onShowToast) onShowToast('⚠️ يرجى إدخال رابط المتجر أو رابط البائع أولاً في تبويب البيانات الأساسية');
-      setActiveTab(1);
+
+    setPullNotice(null);
+
+    if (!isAmazonSpApiConfigured()) {
+      setPullNotice(DIRECT_FETCH_BLOCKED_MESSAGE);
+      if (onShowToast) onShowToast(DIRECT_FETCH_BLOCKED_MESSAGE);
       return;
     }
+
     setIsScrapingStorefront(true);
-    if (onShowToast) onShowToast('⏳ جاري تشغيل المتصفح وسحب منتجات المتجر والمخزون...');
     try {
-      const res = await fetch(`/api/scrape/storefront?trader_id=${encodeURIComponent(traderId)}&url=${encodeURIComponent(targetUrl)}&platform=${encodeURIComponent(trader?.platform || 'amazon')}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.products) && data.products.length > 0) {
-        await multiTenantDb.saveScrapedProducts(traderId, data.products);
-        const updatedProds = await multiTenantDb.getProductsByTrader(traderId);
-        setProducts(updatedProds);
-        if (onShowToast) onShowToast(`✅ تم سحب ${data.products.length} منتج بنجاح وحفظها في المخزون!`);
-      } else {
-        throw new Error(data.message || data.error || 'لم يتم العثور على منتجات في الرابط المعطى');
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId || DEFAULT_TRADER_ID);
+      if (!outcome.success) {
+        const cleanMsg = sanitizeProductPullError(outcome.message);
+        setPullNotice(cleanMsg);
+        if (onShowToast) onShowToast(cleanMsg);
+        return;
       }
+
+      const updatedProds = await multiTenantDb.getProductsByTrader(traderId);
+      setProducts(updatedProds);
+      setPullNotice(outcome.message);
+      if (onShowToast) onShowToast(outcome.message);
     } catch (err: any) {
-      if (onShowToast) onShowToast(`❌ فشل سحب المنتجات: ${err?.message || err}`);
+      const cleanMsg = sanitizeProductPullError(err);
+      setPullNotice(cleanMsg);
+      if (onShowToast) onShowToast(cleanMsg);
     } finally {
       setIsScrapingStorefront(false);
+    }
+  };
+
+  const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (isMaintenanceModeActive()) {
+      if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
+
+    setIsImportingExcel(true);
+    setPullNotice(null);
+    try {
+      const preview = await previewSellerCentralFile(
+        file,
+        traderId || DEFAULT_TRADER_ID,
+        trader?.platform || 'amazon'
+      );
+      setPendingPreview(preview);
+      setIsFetchModalOpen(true);
+    } catch (err: any) {
+      const cleanMsg = sanitizeProductPullError(err);
+      setPullNotice(cleanMsg);
+      if (onShowToast) onShowToast(cleanMsg);
+    } finally {
+      setIsImportingExcel(false);
+      if (excelInputRef.current) excelInputRef.current.value = '';
     }
   };
 
@@ -213,7 +265,6 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
         </h2>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <button onClick={onBack} className="text-amber-400 underline font-bold text-xs">العودة للدليل</button>
-          <EmergencyLoginButton />
         </div>
       </div>
     );
@@ -426,17 +477,40 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-2xl pr-11 pl-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
                 />
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMPORT_EXTENSIONS}
+                  onChange={handleExcelFileUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => excelInputRef.current?.click()}
+                  disabled={isImportingExcel}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition flex items-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{isImportingExcel ? 'جاري قراءة الملف...' : IMPORT_BUTTON_LABEL}</span>
+                </button>
                 <button 
+                  type="button"
                   onClick={handleScrapeStorefront}
                   disabled={isScrapingStorefront}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition flex items-center gap-2 shadow-lg disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition flex items-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className={`w-4 h-4 ${isScrapingStorefront ? 'animate-spin' : ''}`} />
-                  <span>{isScrapingStorefront ? 'جاري سحب المتجر...' : 'سحب المنتجات من رابط المتجر'}</span>
+                  <span>{isScrapingStorefront ? 'جاري السحب...' : 'سحب المنتجات'}</span>
                 </button>
               </div>
             </div>
+
+            {pullNotice && (
+              <div role="status" className="p-3.5 rounded-2xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-xs font-bold">
+                {pullNotice}
+              </div>
+            )}
 
             {products.length === 0 ? (
               <div className="py-20 text-center bg-slate-950/40 rounded-3xl border border-dashed border-slate-800 space-y-4">
@@ -853,6 +927,27 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
           </div>
         )}
       </div>
+
+      {isFetchModalOpen && trader && (
+        <FetchProductsModal
+          trader={trader}
+          isOpen={isFetchModalOpen}
+          initialPreview={pendingPreview}
+          onClose={() => {
+            setIsFetchModalOpen(false);
+            setPendingPreview(null);
+          }}
+          onShowToast={onShowToast}
+          onSyncCompleted={async (stats) => {
+            const updatedProds = await multiTenantDb.getProductsByTrader(traderId);
+            setProducts(updatedProds);
+            setPullNotice(
+              `تم قراءة ${stats.total} منتج من الملف - جديد ${stats.new} - محدّث ${stats.updated} - متخطى ${stats.skipped || 0}`
+            );
+            setPendingPreview(null);
+          }}
+        />
+      )}
     </div>
   );
 };

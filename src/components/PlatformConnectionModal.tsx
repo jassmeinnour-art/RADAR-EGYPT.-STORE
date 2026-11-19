@@ -811,6 +811,21 @@ export const PlatformConnectionModal: React.FC<PlatformConnectionModalProps> = (
                       </span>
                     </div>
 
+                    <div
+                      role="note"
+                      className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 flex items-start gap-2.5 text-rose-100 text-xs"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="font-black text-rose-300">
+                          لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو
+                        </p>
+                        <p className="text-[11px] text-rose-200/85">
+                          التاجر يدخل بنفسه على حسابه ويوافق على رادار عبر SP-API OAuth، والمؤسس يستلم Refresh Token فقط.
+                        </p>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Seller ID */}
                       <div>
