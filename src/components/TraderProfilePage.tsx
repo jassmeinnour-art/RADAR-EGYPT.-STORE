@@ -34,7 +34,7 @@ import {
   Settings,
   FileSpreadsheet
 } from 'lucide-react';
-import { multiTenantDb, Trader, Product } from '../lib/supabase';
+import { multiTenantDb, Trader, Product, formatSupabaseError } from '../lib/supabase';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { FetchProductsModal } from './FetchProductsModal';
@@ -137,9 +137,10 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
         }
       });
       setTrader(prev => prev ? ({ ...prev, ...editFormData }) : null);
-      if (onShowToast) onShowToast('✅ تم حفظ بيانات التاجر وروابط المتجر بنجاح!');
+      if (onShowToast) onShowToast('✅ تم تعديل بيانات التاجر بنجاح');
     } catch (err: any) {
-      if (onShowToast) onShowToast(`❌ فشل حفظ البيانات: ${err?.message || err}`);
+      console.error(err);
+      if (onShowToast) onShowToast(`❌ ${formatSupabaseError(err)}`);
     } finally {
       setIsSaving(false);
     }

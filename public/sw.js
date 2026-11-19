@@ -1,10 +1,10 @@
 // ============================================================================
 // Service Worker (sw.js) - RADAR EGYPT (رادار التاجر الذكي)
-// CacheFirst for Static Assets, Fonts & Images | NetworkFirst for Navigation
-// Full Offline Caching & PWA Lifecycle Support
+// Offline Caching, Core Asset Precache, Domain-Aligned Security & Background Sync
+// Aligned strictly with permitted domains in index.html CSP
 // ============================================================================
 
-const CACHE_VERSION = 'v1.4.1';
+const CACHE_VERSION = 'v1.5.0';
 const STATIC_CACHE = `radar-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `radar-images-${CACHE_VERSION}`;
 const FONT_CACHE = `radar-fonts-${CACHE_VERSION}`;
@@ -12,7 +12,7 @@ const DYNAMIC_CACHE = `radar-dynamic-${CACHE_VERSION}`;
 
 const VALID_CACHES = [STATIC_CACHE, IMAGE_CACHE, FONT_CACHE, DYNAMIC_CACHE];
 
-// Core static assets and icons to precache during install
+// Core static assets and PWA icons to precache during install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -23,7 +23,34 @@ const PRECACHE_ASSETS = [
   '/apple-touch-icon.png',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
-  '/pwa-maskable-512x512.png'
+  '/pwa-maskable-512x512.png',
+  '/icon-192.png',
+  '/icon-512.png'
+];
+
+// External hosts explicitly allowed for offline asset caching (matched with index.html CSP)
+const ALLOWED_FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
+const ALLOWED_IMAGE_CDN_HOSTS = ['cdn.simpleicons.org', 'upload.wikimedia.org'];
+const ALLOWED_APP_HOSTS = ['radaregypt.store'];
+
+// Hosts that must ALWAYS bypass SW caching (live APIs, Auth, Analytics — matched with index.html CSP)
+const BYPASS_HOSTS = [
+  'supabase.co',
+  'supabase.in',
+  'api.supabase.co',
+  'firebaseio.com',
+  'firestore.googleapis.com',
+  'identitytoolkit.googleapis.com',
+  'securetoken.googleapis.com',
+  'generativelanguage.googleapis.com',
+  'www.googleapis.com',
+  'oauth2.googleapis.com',
+  'fcm.googleapis.com',
+  'firebaseinstallations.googleapis.com',
+  'cloudflareinsights.com',
+  'static.cloudflareinsights.com',
+  'va.vercel-scripts.com',
+  'vitals.vercel-insights.com'
 ];
 
 // Offline Fallback SVG for images
@@ -386,22 +413,55 @@ self.addEventListener('message', (event) => {
 });
 
 // ----------------------------------------------------------------------------
-// Request Matchers & Bypass Rules
+// Domain & Request Matchers (Strictly Synchronized with index.html CSP)
 // ----------------------------------------------------------------------------
+function matchesHostList(hostname, list) {
+  const host = hostname.toLowerCase();
+  return list.some((entry) => host === entry || host.endsWith(`.${entry}`));
+}
+
+function isSameOrAppOrigin(url) {
+  return (
+    url.origin === self.location.origin ||
+    matchesHostList(url.hostname, ALLOWED_APP_HOSTS)
+  );
+}
+
+function isGoogleFont(url) {
+  return matchesHostList(url.hostname, ALLOWED_FONT_HOSTS);
+}
+
+function isAllowedImageCdn(url) {
+  return matchesHostList(url.hostname, ALLOWED_IMAGE_CDN_HOSTS);
+}
+
+function isAllowedCacheDomain(url) {
+  return (
+    isSameOrAppOrigin(url) ||
+    isGoogleFont(url) ||
+    isAllowedImageCdn(url)
+  );
+}
+
 function shouldBypassCache(url) {
   const host = url.hostname.toLowerCase();
   const path = url.pathname.toLowerCase();
 
-  // Never cache live auth, Supabase, Firebase, or Gemini API calls
+  // Never intercept domains outside our index.html allowlist
+  if (!isAllowedCacheDomain(url)) {
+    return true;
+  }
+
+  // Never cache live auth, Supabase, Firebase, Gemini AI, or analytics endpoints
+  if (matchesHostList(host, BYPASS_HOSTS)) {
+    return true;
+  }
+
+  // Never cache the Service Worker script itself or Firebase SW
   if (
-    host.includes('supabase.co') ||
-    host.includes('supabase.in') ||
-    host.includes('firebaseio.com') ||
-    host.includes('firestore.googleapis.com') ||
-    host.includes('identitytoolkit.googleapis.com') ||
-    host.includes('securetoken.googleapis.com') ||
-    host.includes('generativelanguage.googleapis.com') ||
-    host.includes('www.googleapis.com')
+    path === '/sw.js' ||
+    path === '/service-worker.js' ||
+    path === '/firebase-messaging-sw.js'
   ) {
     return true;
   }
@@ -409,6 +469,7 @@ function shouldBypassCache(url) {
   // Skip Vite dev / HMR module requests
   if (
     path.includes('/@vite/') ||
+    path.includes('/@react-refresh') ||
     path.includes('/@fs/') ||
     path.includes('/node_modules/') ||
     path.includes('/src/') ||
@@ -420,13 +481,9 @@ function shouldBypassCache(url) {
   return false;
 }
 
-function isGoogleFont(url) {
-  const host = url.hostname.toLowerCase();
-  return host === 'fonts.googleapis.com' || host === 'fonts.gstatic.com';
-}
-
 function isImageOrIcon(request, url) {
   if (request.destination === 'image') return true;
+  if (isAllowedImageCdn(url)) return true;
   const path = url.pathname.toLowerCase();
   return (
     path.endsWith('.png') ||
@@ -435,9 +492,7 @@ function isImageOrIcon(request, url) {
     path.endsWith('.svg') ||
     path.endsWith('.webp') ||
     path.endsWith('.gif') ||
-    path.endsWith('.ico') ||
-    url.hostname.includes('cdn.simpleicons.org') ||
-    url.hostname.includes('upload.wikimedia.org')
+    path.endsWith('.ico')
   );
 }
 
@@ -445,8 +500,7 @@ function isStaticAsset(request, url) {
   if (
     request.destination === 'script' ||
     request.destination === 'style' ||
-    request.destination === 'font' ||
-    request.destination === 'manifest'
+    request.destination === 'font'
   ) {
     return true;
   }
@@ -457,13 +511,12 @@ function isStaticAsset(request, url) {
     path.endsWith('.css') ||
     path.endsWith('.woff2') ||
     path.endsWith('.woff') ||
-    path.endsWith('.ttf') ||
-    path === '/manifest.json'
+    path.endsWith('.ttf')
   );
 }
 
 // ----------------------------------------------------------------------------
-// 5. CacheFirst Strategy: For Static Assets, Fonts & Images
+// 5. Caching Strategies
 // ----------------------------------------------------------------------------
 async function cacheFirst(request, cacheName, isImage = false) {
   const cache = await caches.open(cacheName);
@@ -483,7 +536,7 @@ async function cacheFirst(request, cacheName, isImage = false) {
       }
     }
     return networkResponse;
-  } catch (err) {
+  } catch {
     if (isImage) {
       return new Response(OFFLINE_IMAGE_SVG, {
         status: 200,
@@ -494,9 +547,22 @@ async function cacheFirst(request, cacheName, isImage = false) {
   }
 }
 
-// ----------------------------------------------------------------------------
-// 6. NetworkFirst Strategy: For App Routes & Navigation
-// ----------------------------------------------------------------------------
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+
+  const networkPromise = fetch(request)
+    .then((networkResponse) => {
+      if (networkResponse && networkResponse.status === 200) {
+        cache.put(request, networkResponse.clone());
+      }
+      return networkResponse;
+    })
+    .catch(() => null);
+
+  return cached || (await networkPromise) || new Response('Offline: Manifest unavailable', { status: 503 });
+}
+
 async function networkFirst(request, cacheName, isNavigation = false) {
   const cache = await caches.open(cacheName);
 
@@ -513,7 +579,7 @@ async function networkFirst(request, cacheName, isNavigation = false) {
       }
     }
     return networkResponse;
-  } catch (err) {
+  } catch {
     if (!isNetworkDown) {
       isNetworkDown = true;
       notifyClientsNetworkOffline('network_first_fetch_failed');
@@ -551,7 +617,7 @@ async function networkFirst(request, cacheName, isNavigation = false) {
 }
 
 // ----------------------------------------------------------------------------
-// 7. Fetch Event Listener
+// 6. Fetch Event Listener
 // ----------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -567,43 +633,39 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy 1: CacheFirst for Google Fonts
+  // Strategy 1: CacheFirst for Google Fonts (fonts.googleapis.com / fonts.gstatic.com)
   if (isGoogleFont(url)) {
     event.respondWith(cacheFirst(request, FONT_CACHE, false));
     return;
   }
 
-  // Strategy 2: CacheFirst for Images & Icons
+  // Strategy 2: CacheFirst for Images & Allowed Marketplace Icons
   if (isImageOrIcon(request, url)) {
     event.respondWith(cacheFirst(request, IMAGE_CACHE, true));
     return;
   }
 
-  // Strategy 3: CacheFirst for Static Assets (JS, CSS, Fonts, Manifest)
+  // Strategy 3: StaleWhileRevalidate for Web App Manifest
+  if (url.pathname.toLowerCase() === '/manifest.json' || request.destination === 'manifest') {
+    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
+    return;
+  }
+
+  // Strategy 4: CacheFirst for Static Assets (JS, CSS, Local Fonts)
   if (isStaticAsset(request, url)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE, false));
     return;
   }
 
-  // Strategy 4: NetworkFirst for SPA Navigation & Document Requests
+  // Strategy 5: NetworkFirst for SPA Navigation & Document Requests
   if (
     request.mode === 'navigate' ||
-    request.destination === 'document' ||
-    url.pathname.startsWith('/traders') ||
-    url.pathname.startsWith('/products') ||
-    url.pathname.startsWith('/dashboard') ||
-    url.pathname.startsWith('/login')
+    request.destination === 'document'
   ) {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE, true));
     return;
   }
 
-  // Strategy 5: NetworkFirst for same-origin API GET requests
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request, DYNAMIC_CACHE, false));
-    return;
-  }
-
-  // Default: NetworkFirst
+  // Strategy 6: NetworkFirst for same-origin GET requests & API reads
   event.respondWith(networkFirst(request, DYNAMIC_CACHE, false));
 });

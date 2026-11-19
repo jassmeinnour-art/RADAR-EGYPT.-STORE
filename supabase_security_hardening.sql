@@ -8,12 +8,28 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Ensure complete schema columns exist on traders & products
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS founder_uid UUID;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS gmail TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_id TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS destination_url TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS store_url TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_link TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS storefront_link TEXT;
+
+-- Ensure optional trader fields are nullable so leaving email/seller_id/phone blank never triggers constraint failures
+DO $$
+DECLARE
+  col_name TEXT;
+BEGIN
+  FOREACH col_name IN ARRAY ARRAY['email', 'gmail', 'phone', 'seller_id', 'destination_url', 'store_url', 'seller_link', 'storefront_link']
+  LOOP
+    BEGIN
+      EXECUTE format('ALTER TABLE public.traders ALTER COLUMN %I DROP NOT NULL;', col_name);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END LOOP;
+END $$;
 
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS asin TEXT;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS platform TEXT;
@@ -31,9 +47,13 @@ DELETE FROM public.traders
 WHERE LOWER(COALESCE(email, gmail, '')) <> 'mahmeudsaid4@gmail.com'
   AND COALESCE(seller_id, '') <> 'A37JIM7LHQI6IM';
 
--- Ensure remaining real trader record has complete fields
+-- Ensure remaining real trader record has complete fields & founder_uid linked to Founder Auth UID
 UPDATE public.traders
 SET
+  founder_uid = COALESCE(
+    founder_uid,
+    (SELECT id FROM auth.users WHERE LOWER(email) = 'jassmeinnour@gmail.com' LIMIT 1)
+  ),
   gmail = COALESCE(NULLIF(gmail, ''), email, 'mahmeudsaid4@gmail.com'),
   email = COALESCE(NULLIF(email, ''), gmail, 'mahmeudsaid4@gmail.com'),
   seller_id = COALESCE(NULLIF(seller_id, ''), 'A37JIM7LHQI6IM'),
@@ -89,9 +109,26 @@ ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 
 -- 5. Founder-ONLY (jassmeinnour@gmail.com) FULL ACCESS on all tables
 -- No trader_* policies: traders do not log in or hold Supabase Auth accounts.
+CREATE POLICY "founder can update traders" ON public.traders
+  FOR UPDATE TO authenticated
+  USING (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  )
+  WITH CHECK (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  );
+
 CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
-  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
-  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
+  USING (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  )
+  WITH CHECK (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  );
 
 CREATE POLICY "founder_all_products" ON public.products FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
