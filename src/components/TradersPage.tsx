@@ -17,8 +17,11 @@ import {
   Hash,
   AlertTriangle,
   CheckCircle2,
-  Clock
+  Clock,
+  FileSpreadsheet,
+  History
 } from 'lucide-react';
+import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
 import { supabase, Trader, getTraderLastSyncAt } from '../lib/supabase';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
@@ -27,7 +30,7 @@ import { FetchProductsModal } from './FetchProductsModal';
 import { EditTraderModal } from './EditTraderModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
-import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -295,7 +298,19 @@ const TraderCard: React.FC<{
             )}
           </div>
 
-          {/* 4. Pull All Products */}
+          {/* 4. Import Amazon TXT / Excel / CSV (Primary) & Pull Products (Edge SP-API) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFetch(trader);
+            }}
+            className="w-full px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 font-black text-xs border border-emerald-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>{IMPORT_BUTTON_LABEL}</span>
+          </button>
+
           <button
             type="button"
             onClick={(e) => {
@@ -758,9 +773,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
           description="سجل التجار فارغ حالياً. أضف تاجراً جديداً لإدارة متجره ومنتجاته."
           actionLabel="➕ إضافة تاجر جديد"
           onActionClick={() => setIsAddModalOpen(true)}
-        >
-          <EmergencyLoginButton />
-        </GlobalEmptyState>
+        />
         {renderAddTraderModal()}
       </div>
     );
@@ -788,14 +801,24 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer w-full md:w-auto justify-center"
-        >
-          <Plus className="w-5 h-5" />
-          <span>➕ إضافة تاجر جديد</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => navigate('/import-history')}
+            className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer justify-center whitespace-nowrap"
+          >
+            <History className="w-4 h-4 text-amber-400" />
+            <span>سجل عمليات الاستيراد</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer flex-1 md:flex-initial justify-center"
+          >
+            <Plus className="w-5 h-5" />
+            <span>➕ إضافة تاجر جديد</span>
+          </button>
+        </div>
       </div>
 
       <div className="relative max-w-xl">

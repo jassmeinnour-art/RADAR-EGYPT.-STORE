@@ -1959,10 +1959,10 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                         type="button"
                         onClick={() => handleOpenStoreSyncModal(merchant)}
                         className="text-[10px] text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
-                        title="سحب ومزامنة منتجات المتجر بالدخول بإيميل المنصة"
+                        title="مزامنة منتجات المتجر عبر SP-API OAuth أو استيراد الملف"
                       >
                         <RefreshCw className="w-3 h-3 text-purple-600" />
-                        <span>سحب المنتجات بالإيميل 🔄</span>
+                        <span>مزامنة المنتجات 🔄</span>
                       </button>
                     </div>
 
@@ -2029,7 +2029,7 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                       type="button"
                       onClick={() => handleOpenStoreSyncModal(merchant)}
                       className="h-9 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                      title="تسجيل الدخول بإيميل المتجر وسحب المنتجات إلى ملف هذا التاجر"
+                      title="مزامنة منتجات المتجر عبر SP-API (بعد موافقة التاجر من حسابه)"
                     >
                       <Layers className="w-3.5 h-3.5 text-purple-600" />
                       <span>مزامنة المتجر 🏬</span>
@@ -3030,17 +3030,27 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
               </button>
             </div>
 
+            {/* Security Warning */}
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs space-y-0.5">
+              <p className="font-black text-rose-700">
+                ⚠️ لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو
+              </p>
+              <p className="text-[11px] text-rose-800">
+                التاجر يدخل بنفسه على حسابه ويوافق على رادار عبر SP-API OAuth، والمؤسس يستلم Refresh Token فقط.
+              </p>
+            </div>
+
             {/* Platform Selector */}
             <div className="space-y-1.5 text-xs">
               <label className="font-bold text-slate-700 block">
-                اختر المنصة / السيلر سنترال المراد تسجيل الدخول وسحب منتجاته:
+                اختر المنصة المراد مزامنة منتجاتها عبر SP-API أو التقارير:
               </label>
               <select
                 value={storeSyncPlatform}
                 onChange={(e) => setStoreSyncPlatform(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500 cursor-pointer"
               >
-                <option value="amazon_eg">📦 أمازون مصر (Amazon Seller Central)</option>
+                <option value="amazon_eg">📦 أمازون مصر (Amazon SP-API)</option>
                 <option value="noon_eg">🟡 نون مصر (Noon Partner Portal)</option>
                 <option value="jumia_eg">🟠 جوميا مصر (Jumia Seller Center)</option>
                 <option value="shopify_salla">🌐 متجر خاص (سلة / زد / Shopify)</option>
@@ -3050,25 +3060,25 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
               </select>
             </div>
 
-            {/* Email Input */}
+            {/* Email Reference Input (Display / Matching Only) */}
             <div className="space-y-1.5 text-xs">
               <label className="font-bold text-slate-700 flex items-center justify-between">
-                <span>بريد الدخول لحساب المتجر بالسيلر سنترال:</span>
-                <span className="text-[10px] text-purple-600">اعتماد تلقائي للملف</span>
+                <span>بريد التاجر المرجعي (للتقارير فقط — لا يُستخدم للدخول):</span>
+                <span className="text-[10px] text-purple-600">SP-API OAuth فقط</span>
               </label>
               <div className="relative">
                 <input
                   type="email"
                   value={storeSyncEmail}
                   onChange={(e) => setStoreSyncEmail(e.target.value)}
-                  placeholder="seller@platform.com"
+                  placeholder="merchant@store.com"
                   className="w-full h-10 pr-9 pl-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-purple-500"
                   required
                 />
                 <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed">
-                يتم التحقق من حساب البائع وسحب كافة المنتجات المسجلة والأسعار فوراً إلى ملف هذا التاجر بعزل مستقل عن باقي التجار.
+                يتم سحب المنتجات المفوّضة عبر SP-API Refresh Token فقط إلى ملف هذا التاجر بعزل مستقل عن باقي التجار.
               </p>
             </div>
 
@@ -3081,7 +3091,7 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                 className="flex-1 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-950/20 transition cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${isSyncingStoreProducts ? 'animate-spin' : ''}`} />
-                <span>{isSyncingStoreProducts ? 'جاري التحقق وسحب المنتجات...' : 'تسجيل الدخول وسحب منتجات المتجر 📥'}</span>
+                <span>{isSyncingStoreProducts ? 'جاري مزامنة المنتجات...' : 'مزامنة منتجات المتجر عبر SP-API 📥'}</span>
               </button>
 
               <button
@@ -3375,14 +3385,19 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                       )}
                     </div>
 
-                    <p className="text-[10px] text-slate-600 leading-relaxed">
-                      💡 <strong>الربط المباشر المفوّض:</strong> لا حاجة لإدخال مفتاح Refresh Token يدوياً. يكفي كتابة معرّف التاجر (Seller ID) أو الضغط على زر الربط بضغطة واحدة ليتم تفعيل سحب الطلبات والمخزون الحي فوراً.
-                    </p>
+                    <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-300 text-[10px] text-rose-900 space-y-0.5">
+                      <p className="font-black text-rose-700">
+                        ⚠️ لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو
+                      </p>
+                      <p className="leading-relaxed">
+                        التاجر يدخل بنفسه على حسابه ويوافق على رادار عبر SP-API OAuth، والمؤسس يستلم Refresh Token فقط.
+                      </p>
+                    </div>
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-bold text-slate-800 block">معرّف التاجر في أمازون (SELLER_ID / Merchant Token) *</label>
-                        <span className="text-[9px] text-slate-500 font-mono">سيلر سنترال ➔ معلومات الحساب ➔ الرمز المميز</span>
+                        <span className="text-[9px] text-slate-500 font-mono">يستخرجه التاجر من حسابه</span>
                       </div>
                       <input
                         type="text"
@@ -3411,7 +3426,7 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
                         className="h-7.5 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[10px] font-black inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
                       >
                         <Sparkles className="w-3 h-3 text-slate-950" />
-                        <span>ربط بضغطة واحدة عبر سيلر سنترال (One-Click) 🔗</span>
+                        <span>رابط موافقة التاجر عبر SP-API OAuth 🔗</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>
 

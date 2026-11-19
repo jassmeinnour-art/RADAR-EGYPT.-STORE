@@ -9,7 +9,10 @@ import {
   X,
   Globe,
   BarChart3,
-  Sliders
+  Sliders,
+  FileSpreadsheet,
+  ExternalLink,
+  History
 } from 'lucide-react';
 import { supabase, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +23,7 @@ import { FetchProductsModal } from './FetchProductsModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { OptimizedImage } from './OptimizedImage';
-import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { ProductPriceHistory30DaysChart } from './ProductPriceHistory30DaysChart';
 import { ProductSyncHistory30DaysChart } from './ProductSyncHistory30DaysChart';
@@ -39,6 +42,14 @@ import {
   queueOfflineAction,
   RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT,
 } from '../utils/offlineActionQueue';
+import {
+  ACCEPTED_IMPORT_EXTENSIONS,
+  DEFAULT_TRADER_ID,
+  IMPORT_BUTTON_LABEL,
+  SellerCentralImportPreview,
+  previewSellerCentralFile,
+  sanitizeProductPullError,
+} from '../utils/sellerCentralExcelImporter';
 
 interface ProductsPageProps {
   onShowToast?: (message: string) => void;
@@ -94,7 +105,7 @@ const ProductCard: React.FC<{
           title="اضغط لعرض تفاصيل المنتج والرسم البياني للأسعار"
         >
           <OptimizedImage
-            src={product.image}
+            src={product.image_url || product.image}
             alt={product.title}
             width={320}
             height={200}
@@ -104,9 +115,28 @@ const ProductCard: React.FC<{
           <h3 className="text-sm font-black text-white group-hover:text-orange-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-snug" title={product.title}>
             {product.title}
           </h3>
-          <div className="flex items-center gap-1.5 mt-2 text-[11px] font-mono text-slate-400">
-            <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            <span className="font-bold text-amber-300/90">SKU: {product.sku}</span>
+          <div className="flex items-center flex-wrap gap-2 mt-2 text-[11px] font-mono text-slate-400">
+            <span className="inline-flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="font-bold text-amber-300/90">SKU: {product.sku}</span>
+            </span>
+            {product.asin && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 text-sky-300 border border-slate-700">
+                ASIN: {product.asin}
+              </span>
+            )}
+            {product.product_url && (
+              <a
+                href={product.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 underline"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>رابط</span>
+              </a>
+            )}
           </div>
         </div>
 
@@ -169,6 +199,10 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [syncStats, setSyncStats] = useState<{ total: number; new: number; updated: number } | null>(null);
   const [isAutoPricingSettingsOpen, setIsAutoPricingSettingsOpen] = useState<boolean>(false);
+  const [isImportingExcel, setIsImportingExcel] = useState<boolean>(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [pendingImportPreview, setPendingImportPreview] = useState<SellerCentralImportPreview | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!selectedProductForDetails) return;
@@ -267,21 +301,35 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       const from = (page - 1) * PAGE_SIZE;
       const to = page * PAGE_SIZE - 1;
 
-      let query: any = supabase
-        .from('products')
-        .select('id, title, sku, price, stock, platform, image, trader_id, buybox_price, competitor_price, created_at', { count: 'exact' })
-        .order('created_at', { ascending: false });
+      const buildProductQuery = (fields: string) => {
+        let q: any = supabase
+          .from('products')
+          .select(fields, { count: 'exact' })
+          .order('created_at', { ascending: false });
+        if (trader_id && trader_id !== 'all') {
+          q = q.eq('trader_id', trader_id);
+        }
+        if (platform && platform !== 'all') {
+          q = q.eq('platform', platform);
+        }
+        return q.range(from, to);
+      };
 
-      if (trader_id && trader_id !== 'all') {
-        query = query.eq('trader_id', trader_id);
+      let { data: prodsData, error: prodsError, count } = await buildProductQuery(
+        'id, title, sku, asin, price, stock, platform, image, image_url, product_url, trader_id, buybox_price, competitor_price, created_at'
+      );
+
+      if (prodsError) {
+        const errMsg = String(prodsError?.message || '').toLowerCase();
+        if (errMsg.includes('asin') || errMsg.includes('image_url') || errMsg.includes('product_url') || errMsg.includes('column')) {
+          const fallbackRes = await buildProductQuery(
+            'id, title, sku, price, stock, platform, image, trader_id, buybox_price, competitor_price, created_at'
+          );
+          prodsData = fallbackRes.data;
+          prodsError = fallbackRes.error;
+          count = fallbackRes.count;
+        }
       }
-      if (platform && platform !== 'all') {
-        query = query.eq('platform', platform);
-      }
-
-      query = query.range(from, to);
-
-      const { data: prodsData, error: prodsError, count } = await query;
 
       if (prodsError) {
         console.error('Error fetching products:', prodsError);
@@ -568,6 +616,21 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const isFiltered = Boolean(activeTraderName || activePlatformName || heatmapFilter);
 
+  const modalTargetTrader: Trader = useMemo(() => {
+    if (activeTraderObj) return activeTraderObj;
+    const resolvedId = urlTraderId && urlTraderId !== 'all' ? urlTraderId : DEFAULT_TRADER_ID;
+    return {
+      id: resolvedId,
+      user_id: 'founder',
+      seller_name: resolvedId === DEFAULT_TRADER_ID ? 'محمود سعيد' : 'التاجر المحدد',
+      email: 'mahmeudsaid4@gmail.com',
+      phone: '',
+      platform: urlPlatform || 'amazon',
+      status: 'active',
+      seller_id: resolvedId,
+    };
+  }, [activeTraderObj, urlTraderId, urlPlatform]);
+
   const handleOpenFetchAllModal = async () => {
     if (isMaintenanceModeActive()) {
       onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
@@ -577,6 +640,42 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     await ensureTraderOptions();
     setIsSyncingInBackground(false);
     setIsFetchModalOpen(true);
+  };
+
+  const handleDirectExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (isMaintenanceModeActive()) {
+      onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      return;
+    }
+    setIsImportingExcel(true);
+    setImportFeedback(null);
+    try {
+      const targetId =
+        urlTraderId && urlTraderId !== 'all'
+          ? urlTraderId
+          : activeTraderObj?.id || DEFAULT_TRADER_ID;
+      const preview = await previewSellerCentralFile(
+        file,
+        targetId,
+        urlPlatform && urlPlatform !== 'all' ? urlPlatform : 'amazon'
+      );
+      setPendingImportPreview({
+        ...preview,
+        traderName: activeTraderObj?.seller_name || modalTargetTrader.seller_name,
+      });
+      setIsFetchModalOpen(true);
+    } catch (err) {
+      const cleanMsg = sanitizeProductPullError(err);
+      setImportFeedback(cleanMsg);
+      onShowToast?.(cleanMsg);
+    } finally {
+      setIsImportingExcel(false);
+      if (excelInputRef.current) {
+        excelInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -596,6 +695,27 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <input
+            ref={excelInputRef}
+            type="file"
+            accept={ACCEPTED_IMPORT_EXTENSIONS}
+            data-testid="products-excel-file-input"
+            onChange={handleDirectExcelImport}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => excelInputRef.current?.click()}
+            disabled={isImportingExcel}
+            className="px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-colors duration-200 cursor-pointer justify-center disabled:opacity-50"
+          >
+            {isImportingExcel ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            <span>{isImportingExcel ? 'جاري قراءة الملف...' : IMPORT_BUTTON_LABEL}</span>
+          </button>
           <button
             type="button"
             onClick={() => setIsAutoPricingSettingsOpen(true)}
@@ -606,6 +726,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           </button>
           <button
             type="button"
+            onClick={() => navigate('/import-history')}
+            className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold text-xs flex items-center gap-2 transition-colors duration-200 cursor-pointer justify-center whitespace-nowrap"
+          >
+            <History className="w-4 h-4 text-amber-400" />
+            <span>سجل عمليات الاستيراد</span>
+          </button>
+          <button
+            type="button"
             onClick={handleOpenFetchAllModal}
             className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-colors duration-200 cursor-pointer justify-center"
           >
@@ -613,9 +741,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             <span>سحب كل منتجات المتجر</span>
           </button>
           {isSyncingInBackground && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-2 rounded-2xl animate-pulse">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-2 rounded-2xl">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>يتم المزامنة...</span>
+              <span>جاري الفتح...</span>
             </span>
           )}
           <button
@@ -679,6 +807,22 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           </button>
         )}
       </div>
+
+      {importFeedback && (
+        <div
+          role="status"
+          className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center justify-between gap-3"
+        >
+          <span>{importFeedback}</span>
+          <button
+            type="button"
+            onClick={() => setImportFeedback(null)}
+            className="text-slate-400 hover:text-white cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {syncStats && <SyncReportDisplay stats={syncStats} />}
 
@@ -769,9 +913,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             description="لم يتم إضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها من رابط المتجر."
             actionLabel={isFiltered ? 'مسح الفلتر وعرض الكل' : 'إضافة منتج جديد'}
             onActionClick={isFiltered ? handleClearAllFilters : () => { ensureTraderOptions(); setIsAddModalOpen(true); }}
-          >
-            <EmergencyLoginButton />
-          </GlobalEmptyState>
+          />
         ) : (
           <VirtualProductGrid
             items={filteredProducts}
@@ -808,14 +950,19 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         </div>
       )}
 
-      {isFetchModalOpen && activeTraderObj && (
+      {isFetchModalOpen && (
         <FetchProductsModal
-          trader={activeTraderObj}
+          trader={modalTargetTrader}
           isOpen={isFetchModalOpen}
-          onClose={() => setIsFetchModalOpen(false)}
+          initialPreview={pendingImportPreview}
+          onClose={() => {
+            setIsFetchModalOpen(false);
+            setPendingImportPreview(null);
+          }}
           onShowToast={onShowToast}
           onSyncCompleted={(stats) => {
             setSyncStats(stats);
+            setPendingImportPreview(null);
             fetchProductsAndTraders(urlTraderId, urlPlatform, 1, true);
           }}
         />
@@ -952,7 +1099,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 p-1.5 shrink-0 overflow-hidden">
                   <OptimizedImage
-                    src={selectedProductForDetails.image}
+                    src={selectedProductForDetails.image_url || selectedProductForDetails.image}
                     alt={selectedProductForDetails.title}
                     width={64}
                     height={64}

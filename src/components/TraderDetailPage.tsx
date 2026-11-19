@@ -23,7 +23,7 @@ import {
 import { supabase, Trader, Product } from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
-import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 
 
 interface TraderDetailPageProps {
@@ -223,7 +223,6 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
             <ArrowRight className="w-4 h-4" />
             <span>العودة إلى دليل التجار</span>
           </button>
-          <EmergencyLoginButton />
         </div>
       </div>
     );

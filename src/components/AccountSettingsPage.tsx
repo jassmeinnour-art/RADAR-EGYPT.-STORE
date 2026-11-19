@@ -13,7 +13,21 @@ import {
   Sparkles,
   Store,
   User,
+  Key,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
+import {
+  DEFAULT_TRADER_ID,
+  FOUNDER_AMAZON_WARNING_TEXT,
+  getAmazonSpApiSettings,
+  invokeAmazonSpApiSyncEdgeFunction,
+  isAmazonSpApiConfigured,
+  sanitizeProductPullError,
+  saveAmazonSpApiSettings,
+} from '../utils/sellerCentralExcelImporter';
 import { useAuth } from '../context/AuthContext';
 import {
   AccountNotificationChannelPrefs,
@@ -99,6 +113,12 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingChannels, setIsSavingChannels] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Amazon SP-API (Supabase Edge Function) settings
+  const [spApiCreds, setSpApiCreds] = useState(() => getAmazonSpApiSettings());
+  const [showSpApiSecrets, setShowSpApiSecrets] = useState(false);
+  const [isSyncingSpApi, setIsSyncingSpApi] = useState(false);
+  const [spApiFeedback, setSpApiFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -283,6 +303,39 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
       onShowToast?.(errMsg);
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveSpApiCreds = () => {
+    const saved = saveAmazonSpApiSettings(spApiCreds);
+    setSpApiCreds(saved);
+    const msg = 'تم حفظ إعدادات ربط Amazon SP-API للمزامنة عبر Supabase Edge Function.';
+    setSpApiFeedback(msg);
+    setStatusMessage(msg);
+    onShowToast?.(msg);
+  };
+
+  const handleSyncViaSpApiEdge = async () => {
+    const saved = saveAmazonSpApiSettings(spApiCreds);
+    setSpApiCreds(saved);
+    setIsSyncingSpApi(true);
+    setSpApiFeedback(null);
+    try {
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(
+        saved.sellerId || DEFAULT_TRADER_ID
+      );
+      const msg = outcome.success
+        ? outcome.message
+        : sanitizeProductPullError(outcome.message);
+      setSpApiFeedback(msg);
+      setStatusMessage(msg);
+      onShowToast?.(msg);
+    } catch (err) {
+      const cleanMsg = sanitizeProductPullError(err);
+      setSpApiFeedback(cleanMsg);
+      onShowToast?.(cleanMsg);
+    } finally {
+      setIsSyncingSpApi(false);
     }
   };
 
@@ -617,6 +670,168 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Amazon SP-API Settings Section (Server-side Supabase Edge Function) */}
+      <div
+        aria-label="إعدادات ربط أمازون SP-API"
+        className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="space-y-1">
+            <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+              <Key className="w-5 h-5 text-amber-400" />
+              <span>ربط أمازون SP-API (عبر Supabase Edge Function)</span>
+            </h2>
+            <p className="text-xs text-slate-400">
+              تُستخدم هذه المفاتيح للسحب الرسمي عبر خادم Supabase Edge Function وليس من المتصفح لتجنب حظر CORS من أمازون.
+            </p>
+          </div>
+          <span
+            className={`text-xs font-black ${
+              isAmazonSpApiConfigured(spApiCreds) ? 'text-emerald-400' : 'text-amber-400'
+            }`}
+          >
+            {isAmazonSpApiConfigured(spApiCreds) ? 'بيانات الربط مكتملة' : 'بانتظار إدخال المفاتيح'}
+          </span>
+        </div>
+
+        {/* Amazon Linked Account Security Warning */}
+        <div
+          role="note"
+          data-testid="founder-amazon-warning"
+          className="p-4 rounded-2xl bg-rose-950/50 border border-rose-500/50 flex items-start gap-3 text-rose-100"
+        >
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-xs">
+            <p className="font-black text-rose-300">{FOUNDER_AMAZON_WARNING_TEXT}</p>
+            <p className="text-rose-200/85 leading-relaxed">
+              لا تدخل على Seller Central بحساب التاجر أبداً لتجنب ربط أو إغلاق الحسابين من أمازون. الطريقة الوحيدة المعتمدة: التاجر يدخل بنفسه على حسابه ويوافق على رادار عبر SP-API OAuth، والمؤسس يستلم Refresh Token فقط.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="sp-api-refresh-token"
+              className="block text-xs font-bold text-slate-300 mb-1.5"
+            >
+              Refresh Token
+            </label>
+            <div className="relative">
+              <input
+                id="sp-api-refresh-token"
+                type={showSpApiSecrets ? 'text' : 'password'}
+                dir="ltr"
+                value={spApiCreds.refreshToken}
+                onChange={(e) =>
+                  setSpApiCreds((prev) => ({ ...prev, refreshToken: e.target.value }))
+                }
+                placeholder="Atzr|IwEB..."
+                className="w-full h-10 pl-10 pr-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSpApiSecrets((s) => !s)}
+                aria-label="إظهار أو إخفاء المفاتيح"
+                className="absolute left-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
+              >
+                {showSpApiSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="sp-api-client-id"
+              className="block text-xs font-bold text-slate-300 mb-1.5"
+            >
+              Client ID
+            </label>
+            <input
+              id="sp-api-client-id"
+              type="text"
+              dir="ltr"
+              value={spApiCreds.clientId}
+              onChange={(e) =>
+                setSpApiCreds((prev) => ({ ...prev, clientId: e.target.value }))
+              }
+              placeholder="amzn1.application-oa2-client..."
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="sp-api-client-secret"
+              className="block text-xs font-bold text-slate-300 mb-1.5"
+            >
+              Client Secret
+            </label>
+            <input
+              id="sp-api-client-secret"
+              type={showSpApiSecrets ? 'text' : 'password'}
+              dir="ltr"
+              value={spApiCreds.clientSecret}
+              onChange={(e) =>
+                setSpApiCreds((prev) => ({ ...prev, clientSecret: e.target.value }))
+              }
+              placeholder="amzn1.oa2-cs.v1..."
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="sp-api-seller-id"
+              className="block text-xs font-bold text-slate-300 mb-1.5"
+            >
+              Seller ID
+            </label>
+            <input
+              id="sp-api-seller-id"
+              type="text"
+              dir="ltr"
+              value={spApiCreds.sellerId}
+              onChange={(e) =>
+                setSpApiCreds((prev) => ({ ...prev, sellerId: e.target.value }))
+              }
+              placeholder={DEFAULT_TRADER_ID}
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+        </div>
+
+        {spApiFeedback && (
+          <div
+            role="status"
+            className="p-3 rounded-xl bg-slate-950 border border-amber-500/40 text-xs font-bold text-amber-200"
+          >
+            {spApiFeedback}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+          <button
+            type="button"
+            onClick={handleSaveSpApiCreds}
+            className="min-h-[40px] px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            <span>حفظ إعدادات SP-API</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSyncViaSpApiEdge}
+            disabled={isSyncingSpApi}
+            className="min-h-[40px] px-5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-xs font-black flex items-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncingSpApi ? 'animate-spin' : ''}`} />
+            <span>سحب عبر SP-API (Edge Function)</span>
+          </button>
+        </div>
+      </div>
     </section>
   );
 };

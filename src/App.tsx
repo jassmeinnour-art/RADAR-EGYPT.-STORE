@@ -11,6 +11,8 @@ import { dataCache } from './utils/dataCache';
 import { navigate, resolvePathToTab, type WorkspaceTab } from './utils/navigation';
 import { MaintenanceModeBanner } from './components/MaintenanceModeControl';
 import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from './utils/maintenanceMode';
+import { multiTenantDb, type Trader } from './lib/supabase';
+import { DEFAULT_TRADER_ID } from './utils/sellerCentralExcelImporter';
 
 export type { WorkspaceTab };
 
@@ -34,8 +36,6 @@ function lazyWithPreload<T extends React.ComponentType<any>>(
   return Component;
 }
 
-// Primary workspace shell components (loaded lazily so /login TTI stays minimal,
-// and preloaded proactively only when authenticated first screen is rendered)
 const AppSidebar = lazyWithPreload(() =>
   import('./components/AppSidebar').then((m) => ({ default: m.AppSidebar }))
 );
@@ -44,21 +44,24 @@ const Header = lazyWithPreload(() =>
 );
 const NotFoundPage = lazyWithPreload(() => import('./components/NotFoundPage'));
 
-// Lazy loaded non-critical overlays (deferred until browser idle)
-const VisualCustomizerModal = lazyWithPreload(() =>
-  import('./components/VisualCustomizerModal').then((m) => ({ default: m.VisualCustomizerModal }))
-);
-const DownloadFAB = lazyWithPreload(() => import('./components/DownloadFAB'));
-const PWAInstallPrompt = lazyWithPreload(() => import('./components/PWAInstallPrompt'));
 const RouteDebugger = lazyWithPreload(() =>
   import('./components/RouteDebugger').then((m) => ({ default: m.RouteDebugger }))
 );
+const ProductScanner = lazyWithPreload(() =>
+  import('./components/ProductScanner').then((m) => ({ default: m.ProductScanner }))
+);
+const FetchProductsModal = lazyWithPreload(() =>
+  import('./components/FetchProductsModal').then((m) => ({ default: m.FetchProductsModal }))
+);
+const NotificationsModal = lazyWithPreload(() =>
+  import('./components/NotificationsModal').then((m) => ({ default: m.NotificationsModal }))
+);
 
-// Lazy loaded workspace tabs (DashboardHome is loaded statically so / renders immediately)
 const DashboardOverviewPage = lazyWithPreload(() => import('./components/DashboardOverviewPage'));
 const TradersPage = lazyWithPreload(() => import('./components/TradersPage'));
 const ProductsPage = lazyWithPreload(() => import('./components/ProductsPage'));
 const InventoryPage = lazyWithPreload(() => import('./components/InventoryPage'));
+const ImportHistoryPage = lazyWithPreload(() => import('./components/ImportHistoryPage'));
 const ShippingManagementDashboard = lazyWithPreload(() => import('./components/ShippingManagementDashboard'));
 const WaybillSplitterPage = lazyWithPreload(() => import('./components/WaybillSplitterPage'));
 const PerformanceDashboard = lazyWithPreload(() => import('./components/PerformanceDashboard'));
@@ -80,6 +83,7 @@ const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
   products: ProductsPage.preload,
   merchants: ProductsPage.preload,
   inventory: InventoryPage.preload,
+  import_history: ImportHistoryPage.preload,
   shipping: ShippingManagementDashboard.preload,
   split_invoices: WaybillSplitterPage.preload,
   reports: PerformanceDashboard.preload,
@@ -98,11 +102,21 @@ const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
 };
 
 function preloadFirstScreenComponents(tab: WorkspaceTab): void {
-  // Preload ONLY the chrome and the single active route visible on first paint
   Header.preload();
   AppSidebar.preload();
   TAB_PRELOADERS[tab]?.();
 }
+
+const DEFAULT_MODAL_TRADER: Trader = {
+  id: DEFAULT_TRADER_ID,
+  user_id: 'founder',
+  seller_name: 'محمود سعيد',
+  email: 'mahmeudsaid4@gmail.com',
+  phone: '',
+  platform: 'amazon',
+  status: 'active',
+  seller_id: DEFAULT_TRADER_ID,
+};
 
 export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>(() => {
@@ -111,7 +125,7 @@ export default function App() {
     }
     return 'home';
   });
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -128,12 +142,24 @@ export default function App() {
   const [hasLazyLoadError, setHasLazyLoadError] = useState<boolean>(false);
   const [failedTabName, setFailedTabName] = useState<string | undefined>(undefined);
   const [mountDeferredOverlays, setMountDeferredOverlays] = useState(false);
-  
+
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isAmazonImportOpen, setIsAmazonImportOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
   const { user, isOwner, authInitError, isPasswordRecovery } = useAuth();
   const { isMaintenanceMode } = useMaintenanceMode();
 
   const handlePrefetchTab = useCallback((tab: WorkspaceTab) => {
     TAB_PRELOADERS[tab]?.();
+  }, []);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    if (!msg) return;
+    setToastMessage(msg);
   }, []);
 
   const handlePullToRefresh = useCallback(async () => {
@@ -150,7 +176,7 @@ export default function App() {
       );
     }
     await new Promise((resolve) => window.setTimeout(resolve, 350));
-  }, [activeWorkspaceTab, isMaintenanceMode]);
+  }, [activeWorkspaceTab, isMaintenanceMode, showToast]);
 
   useEffect(() => {
     if (!user || !isOwner) {
@@ -158,13 +184,32 @@ export default function App() {
     }
   }, [user, isOwner]);
 
-  // Proactive preload strictly for the visible first-screen components when authenticated
   useEffect(() => {
     if (!user) return;
     preloadFirstScreenComponents(activeWorkspaceTab);
   }, [user, activeWorkspaceTab]);
 
-  // Defer secondary floating overlays until the main thread is idle after first screen TTI
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const refreshUnread = async () => {
+      try {
+        const list = await multiTenantDb.getNotifications();
+        if (active) {
+          setUnreadNotificationsCount((list || []).filter((n) => !n.is_read).length);
+        }
+      } catch {
+        // safe fallback
+      }
+    };
+    refreshUnread();
+    window.addEventListener('radar_notifications_updated', refreshUnread);
+    return () => {
+      active = false;
+      window.removeEventListener('radar_notifications_updated', refreshUnread);
+    };
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     const win = window as Window & {
@@ -187,13 +232,6 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    if (!msg) return;
-    setToastMessage(msg);
   }, []);
 
   useEffect(() => {
@@ -234,12 +272,12 @@ export default function App() {
         sectionTitle="شاشة تسجيل دخول المؤسس"
         sectionDescription="تعذر عرض واجهة تسجيل الدخول بالكامل مؤقتاً. اضغط إعادة المحاولة للمتابعة."
       >
-        <LoginPage 
+        <LoginPage
           onLoginSuccess={() => {
             preloadFirstScreenComponents('home');
             setActiveWorkspaceTab('home');
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
-          }} 
+          }}
         />
       </ErrorBoundary>
     );
@@ -258,6 +296,7 @@ export default function App() {
       products: <ProductsPage onShowToast={showToast} />,
       merchants: <ProductsPage onShowToast={showToast} />,
       inventory: <InventoryPage onShowToast={showToast} />,
+      import_history: <ImportHistoryPage onShowToast={showToast} />,
       shipping: <ShippingManagementDashboard onShowToast={showToast} />,
       split_invoices: <WaybillSplitterPage onShowToast={showToast} />,
       reports: <PerformanceDashboard onShowToast={showToast} />,
@@ -280,7 +319,7 @@ export default function App() {
       layout_settings: <LayoutSettingsPage />,
       account_settings: <AccountSettingsPage onShowToast={showToast} />,
       help: (
-        <HelpPage 
+        <HelpPage
           onNavigateToPlatformsGuide={() => {
             setActiveWorkspaceTab('platforms_guide');
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/connections');
@@ -332,14 +371,18 @@ export default function App() {
     } else {
       const next = !isSidebarCollapsed;
       setIsSidebarCollapsed(next);
-      localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+      try {
+        localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+      } catch {
+        // safe fallback
+      }
     }
   };
 
   return (
-    <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 pb-20 relative font-['Cairo']">
+    <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 pb-12 relative font-['Cairo']">
       <OfflineNoticeBanner onShowToast={showToast} />
-      
+
       <ErrorBoundary silent fallback={null} sectionName="sidebar">
         <Suspense fallback={null}>
           <AppSidebar
@@ -349,7 +392,11 @@ export default function App() {
             onToggleCollapse={() => {
               const next = !isSidebarCollapsed;
               setIsSidebarCollapsed(next);
-              localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+              try {
+                localStorage.setItem('sidebarCollapsed', JSON.stringify(next));
+              } catch {
+                // safe fallback
+              }
             }}
             activeTab={activeWorkspaceTab}
             onSelectTab={(tab) => {
@@ -363,6 +410,7 @@ export default function App() {
                   traders: '/traders',
                   products: '/products',
                   inventory: '/inventory',
+                  import_history: '/import-history',
                   shipping: '/invoices',
                   split_invoices: '/invoices/split',
                   reports: '/reports',
@@ -373,7 +421,7 @@ export default function App() {
                   traders_sync: '/gmail-sync',
                   layout_settings: '/settings/layout',
                   account_settings: '/settings',
-                  help: '/help'
+                  help: '/help',
                 };
                 if (pathMap[tab]) {
                   window.history.pushState({}, '', pathMap[tab]);
@@ -381,46 +429,47 @@ export default function App() {
               }
             }}
             onPrefetchTab={handlePrefetchTab}
-            onOpenAllMerchantsHub={() => {}}
             onOpenOwnerDashboard={() => {
               if (isOwner) {
                 OwnerDashboard.preload();
                 setShowOwnerDashboard(true);
               }
             }}
-            onOpenSubscriptionModal={() => {}}
-            onOpenOnboarding={() => {}}
+            onOpenScanner={() => {
+              ProductScanner.preload();
+              setIsScannerOpen(true);
+            }}
+            onOpenAmazonImport={() => {
+              FetchProductsModal.preload();
+              setIsAmazonImportOpen(true);
+            }}
+            onOpenNotifications={() => {
+              NotificationsModal.preload();
+              setIsNotificationsOpen(true);
+            }}
+            unreadNotificationsCount={unreadNotificationsCount}
+            onShowToast={showToast}
             isOwner={isOwner}
           />
         </Suspense>
       </ErrorBoundary>
 
-      <div 
-        className="transition-[padding] duration-200"
-        style={{
-          paddingRight: isSidebarOpen ? '0' : (isSidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 280px)')
-        }}
+      <div
+        className={`transition-[padding] duration-200 ${
+          isSidebarCollapsed ? 'lg:pr-[72px]' : 'lg:pr-[264px]'
+        }`}
       >
-        <ErrorBoundary silent fallback={<div className="h-16 bg-slate-950 border-b border-slate-800/60" />} sectionName="header">
-          <Suspense fallback={<div className="h-16 bg-slate-950 border-b border-slate-800/60" />}>
-            <Header 
+        <ErrorBoundary silent fallback={<div className="h-12 bg-[#F8FAFC] border-b border-slate-300" />} sectionName="header">
+          <Suspense fallback={<div className="h-12 bg-[#F8FAFC] border-b border-slate-300" />}>
+            <Header
               onShowToast={showToast}
               activeTab={activeWorkspaceTab}
               setActiveTab={(tab: string) => setActiveWorkspaceTab(tab as WorkspaceTab)}
               onToggleSidebar={handleToggleSidebar}
-              onOpenScanner={() => {}}
-              onOpenPublishModal={() => {}}
-              connectedPlatforms={[]}
-              productCount={0}
-              onNavigateToSplit={() => setActiveWorkspaceTab('split_invoices')}
-              onNavigateToTrader={(id) => { 
-                setActiveWorkspaceTab('traders');
-                if (typeof window !== 'undefined') window.history.pushState({}, '', `/traders/${id}`);
-              }}
             />
           </Suspense>
         </ErrorBoundary>
-        
+
         <PullToRefresh onRefresh={handlePullToRefresh} disabled={isMaintenanceMode}>
           <main className="w-full p-4 md:p-6 lg:p-8">
             <ErrorBoundary silent fallback={null} sectionName="maintenance-banner">
@@ -443,6 +492,7 @@ export default function App() {
                             products: 'كتالوج المنتجات والأسعار',
                             merchants: 'كتالوج المنتجات والأسعار',
                             inventory: 'إدارة المخزون',
+                            import_history: 'سجل عمليات الاستيراد',
                             shipping: 'بوالص الشحن والفواتير',
                             split_invoices: 'تقسيم البوالص',
                             reports: 'التقارير والمؤشرات المالية',
@@ -472,12 +522,61 @@ export default function App() {
         </PullToRefresh>
       </div>
 
+      {isScannerOpen && (
+        <Suspense fallback={null}>
+          <ProductScanner
+            isOpen={isScannerOpen}
+            onClose={() => setIsScannerOpen(false)}
+            currency="EGP"
+            onProductDetected={(product) => {
+              showToast(`تم فحص المنتج: ${product.title}`);
+              setIsScannerOpen(false);
+              setActiveWorkspaceTab('radar');
+              if (typeof window !== 'undefined') {
+                window.history.pushState({}, '', '/competitors');
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
+      {isAmazonImportOpen && (
+        <Suspense fallback={null}>
+          <FetchProductsModal
+            isOpen={isAmazonImportOpen}
+            onClose={() => setIsAmazonImportOpen(false)}
+            trader={DEFAULT_MODAL_TRADER}
+            onShowToast={showToast}
+            onSyncCompleted={() => {
+              dataCache.invalidate();
+              setActiveWorkspaceTab('products');
+              if (typeof window !== 'undefined') {
+                window.history.pushState({}, '', '/products');
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
+      {isNotificationsOpen && (
+        <Suspense fallback={null}>
+          <NotificationsModal
+            isOpen={isNotificationsOpen}
+            onClose={() => setIsNotificationsOpen(false)}
+            onShowToast={showToast}
+            onNavigateToSplit={() => {
+              setActiveWorkspaceTab('split_invoices');
+              if (typeof window !== 'undefined') {
+                window.history.pushState({}, '', '/invoices/split');
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
       {mountDeferredOverlays && (
         <ErrorBoundary silent fallback={null} sectionName="overlays">
           <Suspense fallback={null}>
-            <VisualCustomizerModal />
-            <PWAInstallPrompt onShowToast={showToast} />
-            <DownloadFAB />
             <RouteDebugger
               activeTab={activeWorkspaceTab}
               hasLazyLoadError={hasLazyLoadError}
@@ -493,6 +592,7 @@ export default function App() {
                     traders: '/traders',
                     products: '/products',
                     inventory: '/inventory',
+                    import_history: '/import-history',
                     shipping: '/invoices',
                     split_invoices: '/invoices/split',
                     reports: '/reports',
@@ -503,7 +603,7 @@ export default function App() {
                     traders_sync: '/gmail-sync',
                     layout_settings: '/settings/layout',
                     account_settings: '/settings',
-                    help: '/help'
+                    help: '/help',
                   };
                   if (pathMap[tab]) {
                     window.history.pushState({}, '', pathMap[tab]);

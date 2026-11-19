@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Mail,
@@ -21,8 +21,6 @@ import {
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { isSupabaseConfigured, supabaseClient } from '../lib/supabase';
 import { clearStaleRadarCache } from './EmergencyLoginButton';
-
-const PWAInstallPrompt = lazy(() => import('./PWAInstallPrompt'));
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -1144,10 +1142,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </div>
         </div>
       </footer>
-
-      <Suspense fallback={null}>
-        <PWAInstallPrompt />
-      </Suspense>
     </div>
   );
 };

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { GlobalEmptyState } from './GlobalEmptyState';
-import { EmergencyErrorBanner, EmergencyLoginButton } from './EmergencyLoginButton';
+import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 const cardStyle: React.CSSProperties = {
@@ -115,9 +115,7 @@ export default function AnalyticsPage() {
           description="دليل التجار والمنتجات فارغ حالياً. أضف تجاراً ومنتجات وفواتير أولاً لتتمكن المنظومة من تتبع الأسعار وتوليد الرسوم البيانية."
           actionLabel="➕ إضافة تاجر جديد"
           onActionClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { path: '/traders' } }))}
-        >
-          <EmergencyLoginButton />
-        </GlobalEmptyState>
+        />
       </div>
     );
   }

@@ -43,6 +43,7 @@ const REGISTERED_ROUTES_CONFIG: Array<{ tab: WorkspaceTab; path: string; compone
   { tab: 'products', path: '/products', componentName: 'ProductsPage', isLazy: true },
   { tab: 'merchants', path: '/traders', componentName: 'ProductsPage (Alias)', isLazy: true },
   { tab: 'inventory', path: '/inventory', componentName: 'InventoryPage', isLazy: true },
+  { tab: 'import_history', path: '/import-history', componentName: 'ImportHistoryPage', isLazy: true },
   { tab: 'shipping', path: '/invoices', componentName: 'ShippingManagementDashboard', isLazy: true },
   { tab: 'split_invoices', path: '/invoices/split', componentName: 'WaybillSplitterPage', isLazy: true },
   { tab: 'reports', path: '/reports', componentName: 'PerformanceDashboard', isLazy: true },

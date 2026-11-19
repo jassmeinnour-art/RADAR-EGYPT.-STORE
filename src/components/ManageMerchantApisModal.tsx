@@ -1129,19 +1129,30 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                   )}
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  تم تبسيط عملية تسجيل وربط المتجر بالكامل: <strong className="text-amber-300">لا يُطلب من التاجر نسخ أو إدخال أي مفاتيح برمجية أو Refresh Token يدوياً</strong>. يكفي فقط إدخال معرّف التاجر (Merchant ID / Seller ID) أو الضغط على زر الربط بضغطة واحدة لتفويض التطبيق رسمياً عبر سيلر سنترال.
-                </p>
+                <div
+                  role="note"
+                  className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 flex items-start gap-2.5 text-rose-100 text-xs"
+                >
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-black text-rose-300">
+                      لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو
+                    </p>
+                    <p className="text-[11px] text-rose-200/85 leading-relaxed">
+                      الطريقة الوحيدة المعتمدة: التاجر يدخل بنفسه على حسابه في أمازون ويوافق على رادار عبر SP-API OAuth، والمؤسس يستلم Refresh Token فقط (بدون طلب كلمة مرور أمازون أبداً).
+                    </p>
+                  </div>
+                </div>
 
-                {/* 1-Click Seller Central Consent Action */}
+                {/* 1-Click Seller Central Consent Action (Shared for Merchant Self-Approval) */}
                 <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
                   <div className="space-y-0.5">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>الربط بضغطة واحدة عبر أمازون Seller Central:</span>
+                      <span>رابط تفويض SP-API OAuth (يفتحه التاجر من حسابه هو):</span>
                     </span>
                     <span className="text-[11px] text-slate-400 block">
-                      يقوم بنقل التاجر لصفحة موافقة أمازون الرسمية وإتمام تفويض SP-API تلقائياً
+                      أرسل رابط الموافقة للتاجر ليوافق بنفسه من Seller Central ويُصدر Refresh Token لرادار
                     </span>
                   </div>
 
@@ -1151,7 +1162,7 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                     rel="noreferrer"
                     className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs inline-flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition active:scale-95 shrink-0"
                   >
-                    <span>ربط المتجر عبر سيلر سنترال 🔗</span>
+                    <span>رابط تفويض التاجر (SP-API OAuth) 🔗</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -1179,8 +1190,8 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                   />
                   <div className="text-[11px] text-slate-600 space-y-1 pt-1 leading-relaxed">
                     <p className="flex items-center gap-1">
-                      <span className="text-amber-600 font-black">💡 أين تجد معرّف التاجر؟</span>
-                      <span>سجّل دخول إلى Amazon Seller Central ➔ الإعدادات ⚙️ ➔ معلومات الحساب ➔ <strong>الرمز المميز لحساب البائع (Merchant Token)</strong>.</span>
+                      <span className="text-amber-600 font-black">💡 أين يجد التاجر معرّفه؟</span>
+                      <span>يدخل التاجر بنفسه إلى حسابه في Amazon Seller Central ➔ الإعدادات ⚙️ ➔ معلومات الحساب ➔ <strong>الرمز المميز لحساب البائع (Merchant Token)</strong> ويرسله لك.</span>
                     </p>
                   </div>
                 </div>
