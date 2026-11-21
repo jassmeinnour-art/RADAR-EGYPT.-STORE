@@ -169,10 +169,37 @@ export const THEME_PRESETS: PrimaryThemeConfig[] = [
 
 const LOCAL_STORAGE_THEME_KEY = 'radar_global_primary_theme_v7_offwhite_black';
 const LOCAL_STORAGE_COLOR_MODE_KEY = 'radar_global_color_mode_v7_offwhite_black';
+export const LOCAL_STORAGE_THEME_VARIANT_KEY = 'radar_active_theme_variant';
 const THEME_CACHE_PURGE_KEY = 'radar_soft_offwhite_black_cache_purged_v7';
 
 export type ColorModePreference = 'system' | 'light' | 'dark' | 'scheduled';
 export type ResolvedColorMode = 'light' | 'dark';
+export type ThemeVariantId = 'dark-high-contrast' | 'clean-light';
+
+export interface ThemeVariantMeta {
+  id: ThemeVariantId;
+  label: string;
+  labelAr: string;
+  description: string;
+  colorMode: ResolvedColorMode;
+}
+
+export const THEME_VARIANT_DEFINITIONS: Record<ThemeVariantId, ThemeVariantMeta> = {
+  'dark-high-contrast': {
+    id: 'dark-high-contrast',
+    label: 'Dark High Contrast',
+    labelAr: 'الوضع الداكن عالي التباين (Dark High Contrast)',
+    description: 'مخصص للبيئات التجارية المظلمة بتباين نصوص فائق وحدود واضحة.',
+    colorMode: 'dark',
+  },
+  'clean-light': {
+    id: 'clean-light',
+    label: 'Clean Light',
+    labelAr: 'الوضع النهاري النظيف (Clean Light)',
+    description: 'وضع مريح للعين خالٍ من التوهج للعمل النهاري الطويل.',
+    colorMode: 'light',
+  },
+};
 
 interface ThemeContextType {
   currentThemeId: PrimaryThemeId;
@@ -184,9 +211,12 @@ interface ThemeContextType {
   setIsThemeModalOpen: (open: boolean) => void;
   colorMode: ColorModePreference;
   resolvedColorMode: ResolvedColorMode;
+  themeVariant: ThemeVariantId;
   systemColorScheme: ResolvedColorMode;
   setColorMode: (mode: ColorModePreference) => void;
+  setThemeVariant: (variant: ThemeVariantId) => void;
   toggleColorMode: () => void;
+  toggleThemeVariant: () => ThemeVariantId;
   cycleColorMode: () => ColorModePreference;
 }
 
@@ -216,12 +246,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (localStorage.getItem(THEME_CACHE_PURGE_KEY) !== 'true') {
         localStorage.setItem(THEME_CACHE_PURGE_KEY, 'true');
-        localStorage.setItem(LOCAL_STORAGE_THEME_KEY, 'sky');
-        localStorage.setItem(LOCAL_STORAGE_COLOR_MODE_KEY, 'light');
-        if ('caches' in window) {
-          caches.keys().then((keys) => {
-            keys.forEach((key) => caches.delete(key).catch(() => {}));
-          }).catch(() => {});
+        if (!localStorage.getItem(LOCAL_STORAGE_THEME_KEY)) {
+          localStorage.setItem(LOCAL_STORAGE_THEME_KEY, 'sky');
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_COLOR_MODE_KEY)) {
+          localStorage.setItem(LOCAL_STORAGE_COLOR_MODE_KEY, 'light');
         }
       }
     } catch {
@@ -247,6 +276,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [colorMode, setColorModeState] = useState<ColorModePreference>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const savedVariant = localStorage.getItem(LOCAL_STORAGE_THEME_VARIANT_KEY);
+        if (savedVariant === 'dark-high-contrast') return 'dark';
+        if (savedVariant === 'clean-light') return 'light';
+
         const saved = localStorage.getItem(LOCAL_STORAGE_COLOR_MODE_KEY);
         if (saved === 'dark' || saved === 'light' || saved === 'system' || saved === 'scheduled') {
           return saved as ColorModePreference;
@@ -311,24 +344,32 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return colorMode;
   }, [colorMode, systemColorScheme, scheduledColorScheme]);
 
+  const themeVariant: ThemeVariantId =
+    resolvedColorMode === 'dark' ? 'dark-high-contrast' : 'clean-light';
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     try {
       const root = document.documentElement;
+      const activeVariant: ThemeVariantId =
+        resolvedColorMode === 'dark' ? 'dark-high-contrast' : 'clean-light';
+
+      root.setAttribute('data-theme', activeVariant);
       root.setAttribute('data-color-mode', resolvedColorMode);
       root.setAttribute('data-color-mode-preference', colorMode);
       root.style.colorScheme = resolvedColorMode;
 
       if (resolvedColorMode === 'dark') {
-        root.classList.add('dark', 'theme-dark');
-        root.classList.remove('light', 'theme-light');
+        root.classList.add('dark', 'theme-dark', 'theme-dark-high-contrast');
+        root.classList.remove('light', 'theme-light', 'theme-clean-light');
       } else {
-        root.classList.add('light', 'theme-light');
-        root.classList.remove('dark', 'theme-dark');
+        root.classList.add('light', 'theme-light', 'theme-clean-light');
+        root.classList.remove('dark', 'theme-dark', 'theme-dark-high-contrast');
       }
 
       localStorage.setItem(LOCAL_STORAGE_COLOR_MODE_KEY, colorMode);
+      localStorage.setItem(LOCAL_STORAGE_THEME_VARIANT_KEY, activeVariant);
     } catch {
       // safe fallback
     }
@@ -340,31 +381,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const root = document.documentElement;
       root.setAttribute('data-primary-theme', currentTheme.id);
-
-      if (resolvedColorMode === 'dark') {
-        root.style.setProperty('--primary-color', '#38BDF8');
-        root.style.setProperty('--primary-hover', '#0284C7');
-        root.style.setProperty('--primary-active', '#0369A1');
-        root.style.setProperty('--primary-light', '#0F172A');
-        root.style.setProperty('--primary-light-hover', '#1E293B');
-        root.style.setProperty('--primary-border', '#38BDF8');
-        root.style.setProperty('--primary-text', '#F8FAFC');
-        root.style.setProperty('--primary-chart-stroke', '#38BDF8');
-        root.style.setProperty('--primary-chart-fill', '#38BDF8');
-        root.style.setProperty('--primary-chart-light', '#0F172A');
-      } else {
-        root.style.setProperty('--primary-color', '#000000');
-        root.style.setProperty('--primary-hover', '#1E293B');
-        root.style.setProperty('--primary-active', '#0F172A');
-        root.style.setProperty('--primary-light', '#F8FAFC');
-        root.style.setProperty('--primary-light-hover', '#F1F5F9');
-        root.style.setProperty('--primary-border', '#000000');
-        root.style.setProperty('--primary-text', '#000000');
-        root.style.setProperty('--primary-chart-stroke', '#000000');
-        root.style.setProperty('--primary-chart-fill', '#000000');
-        root.style.setProperty('--primary-chart-light', '#F8FAFC');
-      }
-
       localStorage.setItem(LOCAL_STORAGE_THEME_KEY, currentTheme.id);
     } catch {
       // safe fallback
@@ -391,8 +407,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const setThemeVariant = (variant: ThemeVariantId) => {
+    setColorModeState(variant === 'dark-high-contrast' ? 'dark' : 'light');
+  };
+
   const toggleColorMode = () => {
-    setColorModeState(prev => (prev === 'dark' ? 'light' : 'dark'));
+    const next: ColorModePreference = resolvedColorMode === 'dark' ? 'light' : 'dark';
+    setColorModeState(next);
+  };
+
+  const toggleThemeVariant = (): ThemeVariantId => {
+    const nextVariant: ThemeVariantId =
+      resolvedColorMode === 'dark' ? 'clean-light' : 'dark-high-contrast';
+    setColorModeState(nextVariant === 'dark-high-contrast' ? 'dark' : 'light');
+    return nextVariant;
   };
 
   const cycleColorMode = (): ColorModePreference => {
@@ -421,9 +449,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsThemeModalOpen,
         colorMode,
         resolvedColorMode,
+        themeVariant,
         systemColorScheme,
         setColorMode,
+        setThemeVariant,
         toggleColorMode,
+        toggleThemeVariant,
         cycleColorMode,
       }}
     >
@@ -442,9 +473,12 @@ const FALLBACK_THEME_CONTEXT: ThemeContextType = {
   setIsThemeModalOpen: () => {},
   colorMode: 'light',
   resolvedColorMode: 'light',
+  themeVariant: 'clean-light',
   systemColorScheme: 'light',
   setColorMode: () => {},
+  setThemeVariant: () => {},
   toggleColorMode: () => {},
+  toggleThemeVariant: () => 'clean-light',
   cycleColorMode: () => 'light',
 };
 

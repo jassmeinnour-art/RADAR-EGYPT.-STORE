@@ -13,13 +13,28 @@ import {
   Filter,
   RefreshCw,
   Layers,
-  Award
+  Award,
+  Download,
+  FileText,
+  Package,
+  ChevronDown
 } from 'lucide-react';
 import { MarketTrendsAnalysis } from './MarketTrendsAnalysis';
+import {
+  exportFinancialReportToPDF,
+  exportProductsListToPDF,
+  PdfProductRow
+} from '../utils/pdfExporter';
+import {
+  AUTO_PRICING_PRODUCTS_STORAGE_KEY,
+  INITIAL_AUTO_PRICING_PRODUCTS
+} from '../data/autoPricingEngineData';
+import { LIVE_PRODUCTS_STORAGE_KEY } from '../services/livePlatformProductSync';
 
 interface PerformanceDashboardProps {
   currency?: string;
   catalogNetProfitTotal?: number;
+  products?: PdfProductRow[];
   onShowToast?: (msg: string) => void;
 }
 
@@ -37,10 +52,32 @@ interface DailyMetricsPoint {
 export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   currency = 'ج.م',
   catalogNetProfitTotal,
+  products,
   onShowToast
 }) => {
   const [activeChartView, setActiveChartView] = useState<'overview' | 'profit_margin' | 'orders_growth'>('overview');
   const [dateRange, setDateRange] = useState<'30d' | '14d' | '7d'>('30d');
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState<'financial' | 'products' | null>(null);
+  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isExportMenuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsExportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isExportMenuOpen]);
 
   // Generate 30-Day Historical Trend Data
   const raw30DaysData = useMemo<DailyMetricsPoint[]>(() => {
@@ -94,6 +131,113 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
     return { totalRev, totalProfit, totalOrders, avgMargin, avgGrowth, avgBuyBoxWin };
   }, [chartData]);
 
+  const resolveProductsForPdf = (): PdfProductRow[] => {
+    if (Array.isArray(products) && products.length > 0) {
+      return products;
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const liveRaw = localStorage.getItem(LIVE_PRODUCTS_STORAGE_KEY);
+        if (liveRaw) {
+          const parsedLive = JSON.parse(liveRaw);
+          if (Array.isArray(parsedLive) && parsedLive.length > 0) {
+            return parsedLive.map((p: any) => ({
+              sku: p.sku || p.id,
+              title: p.title || 'منتج',
+              category: p.category,
+              price: Number(p.suggestedRetailPrice ?? p.currentLowestPrice ?? p.price ?? 0),
+              costPrice: Number(p.estimatedWholesaleCost ?? p.costPrice ?? 0),
+              competitorPrice: Number(p.currentLowestPrice ?? 0),
+              stock: typeof p.stock === 'number' ? p.stock : undefined,
+            }));
+          }
+        }
+      } catch {
+        // Ignore malformed cache
+      }
+
+      try {
+        const pricingRaw = localStorage.getItem(AUTO_PRICING_PRODUCTS_STORAGE_KEY);
+        if (pricingRaw) {
+          const parsedPricing = JSON.parse(pricingRaw);
+          if (Array.isArray(parsedPricing) && parsedPricing.length > 0) {
+            return parsedPricing.map((p: any) => ({
+              sku: p.sku || p.productId,
+              title: p.title || 'منتج',
+              category: p.category,
+              price: Number(p.currentPrice ?? 0),
+              costPrice: Number(p.costPrice ?? 0),
+              competitorPrice: Number(p.lowestCompetitorPrice ?? 0),
+            }));
+          }
+        }
+      } catch {
+        // Ignore malformed cache
+      }
+    }
+
+    return INITIAL_AUTO_PRICING_PRODUCTS.map((p) => ({
+      sku: p.sku,
+      title: p.title,
+      category: p.category,
+      price: p.currentPrice,
+      costPrice: p.costPrice,
+      competitorPrice: p.lowestCompetitorPrice,
+    }));
+  };
+
+  const handleExportFinancialPdf = () => {
+    setIsExportingPdf('financial');
+    setIsExportMenuOpen(false);
+    try {
+      const periodLabel =
+        dateRange === '7d' ? 'آخر 7 أيام' : dateRange === '14d' ? 'آخر 14 يوماً' : 'آخر 30 يوماً';
+      exportFinancialReportToPDF({
+        title: 'التقرير المالي وأداء المبيعات',
+        periodLabel,
+        currency,
+        totalRevenue: metrics.totalRev,
+        totalNetProfit: metrics.totalProfit,
+        avgMarginPercent: metrics.avgMargin,
+        totalOrders: metrics.totalOrders,
+        avgBuyBoxWinPercent: metrics.avgBuyBoxWin,
+        rows: chartData.map((d) => ({
+          dateStr: d.dateStr,
+          revenueEGP: d.revenueEGP,
+          netProfitEGP: d.netProfitEGP,
+          profitMarginPercent: d.profitMarginPercent,
+          ordersCount: d.ordersCount,
+          buyBoxWinRatePercent: d.buyBoxWinRatePercent,
+        })),
+      });
+      onShowToast?.('تم تصدير التقرير المالي بصيغة PDF بنجاح');
+    } catch (err: any) {
+      console.error('PDF export error:', err);
+      onShowToast?.(err?.message || 'تعذر تصدير التقرير المالي بصيغة PDF');
+    } finally {
+      setIsExportingPdf(null);
+    }
+  };
+
+  const handleExportProductsPdf = () => {
+    setIsExportingPdf('products');
+    setIsExportMenuOpen(false);
+    try {
+      const items = resolveProductsForPdf();
+      exportProductsListToPDF(items, {
+        currency,
+        title: 'تقرير قائمة المنتجات والتسعير',
+      });
+      onShowToast?.(`تم تصدير قائمة المنتجات (${items.length} منتج) بصيغة PDF بنجاح`);
+    } catch (err: any) {
+      console.error('Products PDF export error:', err);
+      onShowToast?.(err?.message || 'تعذر تصدير قائمة المنتجات بصيغة PDF');
+    } finally {
+      setIsExportingPdf(null);
+    }
+  };
+
   return (
     <div className="bg-slate-950 text-slate-100 rounded-3xl p-6 sm:p-8 border border-indigo-500/30 shadow-2xl space-y-8 font-['Cairo',sans-serif]" dir="rtl">
       
@@ -118,14 +262,56 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           </div>
         </div>
 
-        {/* Date Range Selector Pills & Market Trends Jump */}
+        {/* Date Range Selector, Export PDF & Market Trends Jump */}
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              type="button"
+              disabled={isExportingPdf !== null}
+              onClick={() => setIsExportMenuOpen((prev) => !prev)}
+              aria-haspopup="menu"
+              aria-expanded={isExportMenuOpen}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Download className="w-4 h-4" aria-hidden="true" />
+              <span>{isExportingPdf ? 'جاري التصدير...' : 'تصدير'}</span>
+              <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+
+            {isExportMenuOpen && (
+              <div
+                role="menu"
+                aria-label="خيارات تصدير PDF"
+                className="absolute left-0 sm:right-0 mt-2 w-60 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-30 space-y-1"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleExportFinancialPdf}
+                  className="w-full text-right px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-100 text-xs font-bold flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <FileText className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  <span>تصدير التقرير المالي (PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleExportProductsPdf}
+                  className="w-full text-right px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-100 text-xs font-bold flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <Package className="w-4 h-4 text-amber-400 shrink-0" aria-hidden="true" />
+                  <span>تصدير قائمة المنتجات (PDF)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => {
               document.getElementById('market-trends-analysis-section')?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
             <TrendingUp className="w-3.5 h-3.5" />
             <span>تحليل اتجاهات السوق</span>

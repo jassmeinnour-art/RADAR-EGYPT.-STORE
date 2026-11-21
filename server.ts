@@ -6688,6 +6688,287 @@ app.post('/api/platforms/test-connection', async (req, res) => {
     res.status(500).json({ success: false, status: 'failed', error: error.message || 'خطأ في اختبار الاتصال' });
   }
 });
+// Endpoint: AI HelpGuide Quick Answers using Gemini (gemini-4-hydrogen)
+app.post('/api/help-guide', async (req, res) => {
+  try {
+    const { query, topic, history } = req.body || {};
+    const trimmedQuery = typeof query === 'string' ? query.trim() : '';
+
+    if (!trimmedQuery) {
+      return res.status(400).json({
+        success: false,
+        error: 'يرجى إدخال سؤالك أو اختيار أحد الاستعلامات الشائعة أولاً',
+      });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'خدمة Gemini غير مهيأة حالياً: متغير GEMINI_API_KEY غير مضبوط على الخادم',
+      });
+    }
+
+    const systemInstruction = `أنت المساعد الرسمي لتطبيق "رادار التاجر" (Radar Egypt) المتخصص في مساعدة التجار في مصر (أمازون مصر، نون، جوميا) على استخدام أدوات المنصة بدقة وسرعة.
+قدّم إجابات عملية مختصرة ومنظمة باللغة العربية الفصحى المبسطة بناءً على أدوات التطبيق الفعلية:
+1. استيراد المنتجات (ملف أمازون TXT / Excel / CSV):
+   - أمازون لا يسمح بالسحب المباشر من المتصفح بسبب قيود CORS والحماية؛ الطريقة المعتمدة هي تصدير تقرير المخزون (All Listings Report بصيغة .txt مفصول بـ Tab بترميز UTF-8) أو ملف Excel/CSV ورفعه من زر "استورد ملف أمازون (TXT / Excel / CSV)" في كارت التاجر أو القائمة الجانبية.
+   - يدعم النظام معاينة أول 5 منتجات قبل التأكيد، وتحديث السعر والمخزون تلقائياً للمنتجات المطابقة عبر seller-sku دون تكرار، وإنشاء رابط المنتج https://www.amazon.eg/dp/{asin}.
+2. سجل عمليات الاستيراد والتراجع:
+   - يمكن للتاجر مراجعة كافة الملفات المرفوعة مسبقاً من شاشة "سجل عمليات الاستيراد"، والاطلاع على الرسم البياني لنسبة المنتجات المستوردة بنجاح مقابل الفاشلة، مع زر التراجع عن أي عملية استيراد تمت بالخطأ.
+3. ربط المنصات (Amazon SP-API / Noon / Jumia):
+   - تحذير أمان مهم: لا يدخل المؤسس بحسابه أبداً على Seller Central الخاص بالتاجر لتجنب ربط الحسابين وإغلاقهما من أمازون؛ يدخل التاجر بنفسه على حسابه ويوافق عبر SP-API OAuth لتزويد النظام بـ Refresh Token فقط، ويتم السحب عبر خادم/Edge Function وليس من المتصفح.
+4. إدارة التجار (/traders):
+   - عرض وإضافة وتعديل بيانات التجار (مع عزل الصلاحيات عبر Supabase RLS)، وترك الحقول الاختيارية مثل Seller ID فارغة إذا لم تتوفر.
+5. رادار المنافسين وقائمة المتابعة والتسعير (/competitors, /watchlist):
+   - مراقبة أسعار المنافسين وحائز صندوق الشراء (Buy Box)، وتحديد الحد الأدنى الآمن للسعر باستخدام حاسبة العمولات وضريبة القيمة المضافة المصرية 14% (VAT على عمولة المنصة ورسوم الشحن).
+6. الفواتير ومقسم البوالص (/invoices/split) وسحب فواتير الجيميل:
+   - تقسيم ملفات البوالص PDF المجمعة وفرزها حسب شركة الشحن والمحافظة، ومزامنة فواتير الموردين عبر الجيميل.
+7. العمل دون إنترنت وتثبيت التطبيق (PWA):
+   - يعتمد التطبيق على Service Worker (sw.js) لتخزين الموارد الأساسية وإتاحة التصفح عند انقطاع الإنترنت، مع دعم التثبيت على الشاشة الرئيسية عبر manifest.json من القائمة الجانبية.
+
+أجب بشكل مباشر في خطوات مرقمة قصيرة وواضحة (بحد أقصى 5-7 نقاط)، واذكر اسم القسم أو الأداة داخل التطبيق، ولا تخترع ميزات غير موجودة.`;
+
+    const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+    if (Array.isArray(history)) {
+      for (const item of history.slice(-6)) {
+        if (item && typeof item.content === 'string' && item.content.trim()) {
+          contents.push({
+            role: item.role === 'model' ? 'model' : 'user',
+            parts: [{ text: item.content.trim() }],
+          });
+        }
+      }
+    }
+
+    const userPrompt =
+      typeof topic === 'string' && topic.trim()
+        ? `[التصنيف: ${topic.trim()}]\nالسؤال: ${trimmedQuery}`
+        : trimmedQuery;
+
+    contents.push({
+      role: 'user',
+      parts: [{ text: userPrompt }],
+    });
+
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents,
+      config: {
+        systemInstruction,
+      },
+    });
+
+    const answer = (response?.text || '').trim();
+    if (!answer) {
+      return res.status(502).json({
+        success: false,
+        error: 'لم يرد نموذج Gemini بإجابة نصية صالحة، يرجى المحاولة مرة أخرى',
+      });
+    }
+
+    return res.json({
+      success: true,
+      answer,
+      model: 'gemini-4-hydrogen',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[HelpGuide API Error]:', error);
+    const statusCode =
+      typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+        ? error.status
+        : 500;
+    return res.status(statusCode).json({
+      success: false,
+      error: error?.message || 'تعذر الحصول على إجابة من خدمة Gemini حالياً',
+    });
+  }
+});
+
+const STUDIO_STYLE_PROMPTS: Record<string, string> = {
+  luxury_marble:
+    'Place the product on an architectural white and grey Carrara marble podium with soft diffused commercial studio rim lighting, subtle natural contact shadow, and clean depth of field.',
+  modern_cairo_living:
+    'Place the product on a warm natural oak tabletop inside a sunlit modern luxury living room with soft sheer curtain daylight, subtle bokeh, and minimal ceramic & botanical accents.',
+  ramadan_arabesque:
+    'Place the product on a refined dark walnut surface accented with warm brushed brass geometric arabesque decor and soft golden ambient lantern bokeh lighting.',
+  minimal_pastel:
+    'Place the product on a smooth matte sand-pastel geometric pedestal with clean editorial softbox shadows and ultra-modern minimalist aesthetic.',
+  nature_botanical:
+    'Place the product on a natural textured travertine stone slab outdoors in soft dappled morning sunlight with subtle palm and olive leaf shadows.',
+  neon_tech:
+    'Place the product on a sleek dark anodized slate surface with subtle cyan and amber studio rim highlights, dramatic high-contrast reflections tailored for tech and gadgets.',
+  pure_commercial_white:
+    'Isolate the product cleanly on a seamless 100% pure studio white infinity background with crisp soft ground contact shadow, optimized for Amazon, Noon, and Jumia product listings.',
+};
+
+const STUDIO_ARTISTIC_FILTER_PROMPTS: Record<string, string> = {
+  none: '',
+  restaurant_pro:
+    'Transform the setting and lighting into authentic luxury restaurant and culinary editorial photography: warm tungsten pendant glow, refined bistro marble or rustic oak dining table ambiance, appetizing shallow depth-of-field dining room bokeh, crisp specular highlights, and Michelin-grade hospitality presentation.',
+  playful_cartoon:
+    'Transform the entire scene and visual styling into a vibrant, cheerful 3D cartoon and playful illustrated marketing style: expressive toon shading, lively saturated colors, fun dynamic studio props, and energetic animated commercial appeal while keeping the product clearly recognizable.',
+  editorial_luxury:
+    'Apply a high-fashion magazine editorial photography style with dramatic directional key lighting, sculptural shadows, refined low-saturation luxury color grading, and Leica medium-format depth.',
+  watercolor_craft:
+    'Render the backdrop and scene elements in a delicate hand-painted watercolor illustration style with fine textured watercolor paper grain, soft pastel pigment washes, and artisanal brush accents framing the product.',
+  pop_art_bold:
+    'Apply a bold modern Pop-Art promotional poster aesthetic featuring vivid high-contrast color blocking, dynamic graphic accents, crisp comic highlights, and high-energy retail campaign impact.',
+  golden_vintage:
+    'Apply a warm vintage 35mm film photography aesthetic with golden-hour amber tones, subtle organic film grain, gentle halation highlights, and timeless nostalgic charm.',
+  cafe_cozy:
+    'Set the ambiance in an inviting modern artisan cafe with warm morning sunlight beams, textured natural wood surfaces, soft linen accents, and cozy hospitality warmth.',
+};
+
+const ILLUSTRATIVE_ARTISTIC_FILTERS = new Set(['playful_cartoon', 'watercolor_craft', 'pop_art_bold']);
+
+const VALID_STUDIO_ASPECT_RATIOS = new Set(['1:1', '3:4', '4:3', '9:16', '16:9']);
+const VALID_STUDIO_RESOLUTIONS = new Set(['1K', '2K', '4K']);
+
+// Endpoint: ProductImageStudio — AI Decorative Backdrop & Social Media Aspect Ratio Generator
+app.post('/api/product-image-studio/generate', async (req, res) => {
+  try {
+    const {
+      imageBase64,
+      mimeType = 'image/png',
+      productTitle = '',
+      stylePresetId = 'luxury_marble',
+      artisticFilterId = 'none',
+      customPrompt = '',
+      aspectRatio = '1:1',
+      platformPresetId = 'instagram_post',
+      resolution = '1K',
+    } = req.body || {};
+
+    const trimmedTitle = typeof productTitle === 'string' ? productTitle.trim() : '';
+    const trimmedCustom = typeof customPrompt === 'string' ? customPrompt.trim() : '';
+    const hasImage = typeof imageBase64 === 'string' && imageBase64.trim().length > 0;
+
+    if (!hasImage && !trimmedTitle && !trimmedCustom) {
+      return res.status(400).json({
+        success: false,
+        error: 'يرجى رفع صورة المنتج أو إدخال وصف المنتج والمشهد المطلوب أولاً',
+      });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'خدمة توليد الصور بالذكاء الاصطناعي غير مهيأة حالياً: متغير GEMINI_API_KEY غير مضبوط على الخادم',
+      });
+    }
+
+    const safeAspectRatio = VALID_STUDIO_ASPECT_RATIOS.has(aspectRatio) ? aspectRatio : '1:1';
+    const safeResolution = VALID_STUDIO_RESOLUTIONS.has(resolution) ? resolution : '1K';
+    const safeArtisticFilterId =
+      typeof artisticFilterId === 'string' && artisticFilterId in STUDIO_ARTISTIC_FILTER_PROMPTS
+        ? artisticFilterId
+        : 'none';
+    const isHighRes = safeResolution === '2K' || safeResolution === '4K';
+    const modelName = isHighRes ? 'gemini-nano-banana-2.1' : 'gemini-3.1-flash-lite-image';
+
+    const styleInstruction =
+      STUDIO_STYLE_PROMPTS[stylePresetId] || STUDIO_STYLE_PROMPTS.luxury_marble;
+    const artisticInstruction = STUDIO_ARTISTIC_FILTER_PROMPTS[safeArtisticFilterId] || '';
+    const isIllustrativeFilter = ILLUSTRATIVE_ARTISTIC_FILTERS.has(safeArtisticFilterId);
+
+    const compositionPrompt = [
+      'You are an expert commercial e-commerce product photographer and art director.',
+      hasImage
+        ? isIllustrativeFilter
+          ? 'Keep the product’s recognizable silhouette, proportions, brand identity, and packaging details from the input photo, while cohesively stylizing the product and surrounding environment into the requested artistic filter aesthetic.'
+          : 'Preserve the exact product from the input photo without altering its geometry, logo, label text, colors, or key details. Replace only the background and environmental lighting so the product sits naturally and seamlessly in the new scene.'
+        : `Create a high-conversion commercial studio product visual featuring: ${trimmedTitle || 'a premium retail product'}.`,
+      trimmedTitle && hasImage ? `Product name: "${trimmedTitle}".` : '',
+      `Decorative backdrop direction: ${styleInstruction}`,
+      artisticInstruction ? `Artistic smart filter style (${safeArtisticFilterId}): ${artisticInstruction}` : '',
+      trimmedCustom ? `Additional merchant styling details: ${trimmedCustom}.` : '',
+      `Social media layout & framing (${platformPresetId}): Compose the scene cleanly in ${safeAspectRatio} aspect ratio with balanced negative space and sharp focus on the product.`,
+      'Output a clean, high-conversion commercial product image without watermarks, random text overlays, or distorted labels.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const parts: any[] = [];
+    if (hasImage) {
+      let detectedMime = typeof mimeType === 'string' && mimeType.startsWith('image/') ? mimeType : 'image/png';
+      const dataUrlMatch = imageBase64.match(/^data:(image\/[^;]+);base64,/i);
+      if (dataUrlMatch) {
+        detectedMime = dataUrlMatch[1];
+      }
+      const cleanBase64 = imageBase64.replace(/^data:image\/[^;]+;base64,/i, '');
+      parts.push({
+        inlineData: {
+          data: cleanBase64,
+          mimeType: detectedMime,
+        },
+      });
+    }
+    parts.push({ text: compositionPrompt });
+
+    const ai = getGenAI();
+    const imageConfig: Record<string, string> = {
+      aspectRatio: safeAspectRatio,
+    };
+    if (isHighRes) {
+      imageConfig.imageSize = safeResolution;
+    }
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: { parts },
+      config: {
+        imageConfig,
+      },
+    });
+
+    let generatedImageUrl = '';
+    let generatedMimeType = 'image/png';
+    const textNotes: string[] = [];
+
+    for (const part of response?.candidates?.[0]?.content?.parts ?? []) {
+      if (part.inlineData?.data) {
+        generatedMimeType = part.inlineData.mimeType || 'image/png';
+        generatedImageUrl = `data:${generatedMimeType};base64,${part.inlineData.data}`;
+      } else if (part.text) {
+        textNotes.push(part.text.trim());
+      }
+    }
+
+    if (!generatedImageUrl) {
+      return res.status(502).json({
+        success: false,
+        error: 'لم يُرجع نموذج الذكاء الاصطناعي صورة صالحة. يرجى تعديل الوصف أو المحاولة بصورة أخرى.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      imageUrl: generatedImageUrl,
+      mimeType: generatedMimeType,
+      model: modelName,
+      aspectRatio: safeAspectRatio,
+      resolution: safeResolution,
+      platformPresetId,
+      stylePresetId,
+      artisticFilterId: safeArtisticFilterId,
+      notes: textNotes.join(' ').trim() || undefined,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[ProductImageStudio API Error]:', error);
+    const statusCode =
+      typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+        ? error.status
+        : 500;
+    return res.status(statusCode).json({
+      success: false,
+      error: error?.message || 'تعذر توليد الخلفية الديكورية بالذكاء الاصطناعي حالياً',
+    });
+  }
+});
+
 app.all('/api/*', (req, res) => {
   res.status(404).json({
     success: false,

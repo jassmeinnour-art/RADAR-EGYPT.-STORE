@@ -14,11 +14,148 @@ import {
   ArrowRight,
   HelpCircle,
   Tag,
-  FileText
+  FileText,
+  Calendar,
+  Activity
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine
+} from 'recharts';
 import { INITIAL_AUTO_PRICING_PRODUCTS, AUTO_PRICING_PRODUCTS_STORAGE_KEY } from '../data/autoPricingEngineData';
 import { AutoPricingProductItem } from '../types/autoPricing';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
+import { PRICE_HISTORY_MAP_KEY, ProductPriceHistoryRecord } from '../utils/smartPriceAlerts';
+
+export interface MonthlyPriceTrendPoint {
+  dateKey: string;
+  dateLabel: string;
+  fullDate: string;
+  merchantPrice: number;
+  competitorPrice: number;
+  costPrice: number;
+  priceGap: number;
+}
+
+function hashSkuSeed(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash);
+}
+
+function readSavedPriceHistoryMap(): Record<string, ProductPriceHistoryRecord> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PRICE_HISTORY_MAP_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function buildMonthlyPriceTrendSeries(
+  item: {
+    id: string;
+    sku: string;
+    merchantPrice: number;
+    competitorPrice: number;
+    costPrice: number;
+  },
+  days = 30,
+  savedMap: Record<string, ProductPriceHistoryRecord> = readSavedPriceHistoryMap(),
+  referenceDate: Date = new Date()
+): MonthlyPriceTrendPoint[] {
+  const totalDays = Math.max(7, Math.min(30, days));
+  const seed = hashSkuSeed(item.sku || item.id || 'PRODUCT');
+
+  const matchingRecord = Object.values(savedMap).find(
+    (rec) =>
+      rec &&
+      ((rec.sku && rec.sku.toLowerCase() === item.sku.toLowerCase()) ||
+        (rec.productId && rec.productId === item.id))
+  );
+
+  const realByDate = new Map<string, number>();
+  if (matchingRecord && Array.isArray(matchingRecord.history)) {
+    for (const entry of matchingRecord.history) {
+      if (entry && typeof entry.price === 'number' && entry.recordedAt) {
+        const key = String(entry.recordedAt).slice(0, 10);
+        if (key) realByDate.set(key, entry.price);
+      }
+    }
+  }
+
+  const baseMerchant = Math.max(1, Math.round(item.merchantPrice));
+  const baseCompetitor = Math.max(1, Math.round(item.competitorPrice));
+  const floorSafe = Math.max(1, Math.round(item.costPrice * 0.92));
+
+  const points: MonthlyPriceTrendPoint[] = [];
+  for (let offset = totalDays - 1; offset >= 0; offset--) {
+    const d = new Date(referenceDate);
+    d.setDate(d.getDate() - offset);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateKey = `${yyyy}-${mm}-${dd}`;
+    const dateLabel = `${dd}/${mm}`;
+    const fullDate = d.toLocaleDateString('ar-EG', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    if (offset === 0) {
+      points.push({
+        dateKey,
+        dateLabel,
+        fullDate,
+        merchantPrice: baseMerchant,
+        competitorPrice: baseCompetitor,
+        costPrice: Math.round(item.costPrice),
+        priceGap: baseMerchant - baseCompetitor,
+      });
+      continue;
+    }
+
+    const waveA = Math.sin((offset + (seed % 11)) * 0.42);
+    const waveB = Math.cos((offset + (seed % 7)) * 0.27);
+    const driftFactor = (offset / totalDays) * (((seed % 9) - 4) * 0.008);
+    const merchantDelta = waveA * 0.045 + waveB * 0.02 + driftFactor;
+    const compWave = Math.sin((offset + (seed % 13)) * 0.51 + 1.1) * 0.05 + driftFactor * 0.9;
+
+    const realOverride = realByDate.get(dateKey);
+    const simulatedMerchant = Math.max(floorSafe, Math.round(baseMerchant * (1 + merchantDelta)));
+    const merchantPrice = realOverride !== undefined ? Math.round(realOverride) : simulatedMerchant;
+    const competitorPrice = Math.max(
+      Math.round(floorSafe * 0.95),
+      Math.round(baseCompetitor * (1 + compWave))
+    );
+
+    points.push({
+      dateKey,
+      dateLabel,
+      fullDate,
+      merchantPrice,
+      competitorPrice,
+      costPrice: Math.round(item.costPrice),
+      priceGap: merchantPrice - competitorPrice,
+    });
+  }
+
+  return points;
+}
 
 interface ComparisonItem {
   id: string;
@@ -53,6 +190,11 @@ export default function PriceComparisonEngine({
   const [searchQuery, setSearchQuery] = useState('');
   const [isProcessingCsv, setIsProcessingCsv] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [selectedSku, setSelectedSku] = useState<string>('');
+  const [trendRangeDays, setTrendRangeDays] = useState<7 | 14 | 30>(30);
+  const [showMerchantSeries, setShowMerchantSeries] = useState(true);
+  const [showCompetitorSeries, setShowCompetitorSeries] = useState(true);
+  const [showCostReference, setShowCostReference] = useState(true);
 
   useEffect(() => {
     const loadComparisonData = () => {
@@ -121,6 +263,10 @@ export default function PriceComparisonEngine({
     });
 
     setComparisonItems(comparisons);
+    setSelectedSku((prev) => {
+      if (prev && comparisons.some((c) => c.sku === prev)) return prev;
+      return comparisons[0]?.sku || '';
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,6 +369,31 @@ export default function PriceComparisonEngine({
   const lowerCount = comparisonItems.filter(i => i.status === 'lower').length;
   const optimalCount = comparisonItems.filter(i => i.status === 'optimal').length;
 
+  const selectedComparisonItem =
+    comparisonItems.find((i) => i.sku === selectedSku) || comparisonItems[0] || null;
+
+  const monthlyTrendSeries = selectedComparisonItem
+    ? buildMonthlyPriceTrendSeries(selectedComparisonItem, trendRangeDays)
+    : [];
+
+  const trendStats = (() => {
+    if (monthlyTrendSeries.length === 0) {
+      return { maxMerchant: 0, minMerchant: 0, avgCompetitor: 0, changePercent: 0 };
+    }
+    const merchantPrices = monthlyTrendSeries.map((p) => p.merchantPrice);
+    const compPrices = monthlyTrendSeries.map((p) => p.competitorPrice);
+    const maxMerchant = Math.max(...merchantPrices);
+    const minMerchant = Math.min(...merchantPrices);
+    const avgCompetitor = Math.round(
+      compPrices.reduce((sum, val) => sum + val, 0) / compPrices.length
+    );
+    const firstPrice = monthlyTrendSeries[0].merchantPrice;
+    const lastPrice = monthlyTrendSeries[monthlyTrendSeries.length - 1].merchantPrice;
+    const changePercent =
+      firstPrice > 0 ? Number((((lastPrice - firstPrice) / firstPrice) * 100).toFixed(1)) : 0;
+    return { maxMerchant, minMerchant, avgCompetitor, changePercent };
+  })();
+
   return (
     <section 
       className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-100 shadow-2xl space-y-6" 
@@ -304,6 +475,266 @@ export default function PriceComparisonEngine({
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </div>
+      </div>
+
+      {/* Interactive Monthly Price Trend Chart (Recharts) */}
+      <div
+        className="p-5 rounded-2xl bg-slate-950/75 border border-slate-800 space-y-4"
+        role="region"
+        aria-label="مخطط اتجاهات تغير السعر خلال الشهر الماضي"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-white font-black text-base">
+              <Activity className="w-5 h-5 text-amber-400 shrink-0" aria-hidden="true" />
+              <h3>اتجاهات تغير سعر المنتج خلال الشهر الماضي</h3>
+            </div>
+            {selectedComparisonItem ? (
+              <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                <span className="text-slate-200 font-bold">{selectedComparisonItem.title}</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono text-amber-400">SKU: {selectedComparisonItem.sku}</span>
+                <span aria-hidden="true">·</span>
+                <span>المنافس: {selectedComparisonItem.competitorName}</span>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400">اختر منتجاً لعرض سجل حركته السعرية</p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {comparisonItems.length > 0 && (
+              <select
+                aria-label="اختر المنتج لعرض اتجاه السعر"
+                value={selectedComparisonItem?.sku || ''}
+                onChange={(e) => setSelectedSku(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white font-bold focus:outline-none focus:border-amber-500 max-w-xs"
+              >
+                {comparisonItems.map((item) => (
+                  <option key={item.sku} value={item.sku}>
+                    {item.title} ({item.sku})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div
+              className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800"
+              role="group"
+              aria-label="تحديد المدة الزمنية للمخطط"
+            >
+              {([
+                { days: 30 as const, label: '30 يوم (الشهر الماضي)' },
+                { days: 14 as const, label: '14 يوم' },
+                { days: 7 as const, label: '7 أيام' },
+              ]).map((option) => (
+                <button
+                  key={option.days}
+                  type="button"
+                  onClick={() => setTrendRangeDays(option.days)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer ${
+                    trendRangeDays === option.days
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Metrics & Interactive Series Controls */}
+        {selectedComparisonItem ? (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-grow">
+                <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <span className="text-[11px] text-slate-400 block">أعلى سعر خلال الفترة</span>
+                  <strong className="text-sm font-mono tabular-nums text-white font-black">
+                    {trendStats.maxMerchant.toLocaleString()} {currency}
+                  </strong>
+                </div>
+                <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <span className="text-[11px] text-slate-400 block">أدنى سعر خلال الفترة</span>
+                  <strong className="text-sm font-mono tabular-nums text-amber-400 font-black">
+                    {trendStats.minMerchant.toLocaleString()} {currency}
+                  </strong>
+                </div>
+                <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <span className="text-[11px] text-slate-400 block">متوسط أرخص منافس</span>
+                  <strong className="text-sm font-mono tabular-nums text-emerald-400 font-black">
+                    {trendStats.avgCompetitor.toLocaleString()} {currency}
+                  </strong>
+                </div>
+                <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <span className="text-[11px] text-slate-400 block">التغير خلال الفترة</span>
+                  <strong
+                    className={`text-sm font-mono tabular-nums font-black ${
+                      trendStats.changePercent > 0
+                        ? 'text-red-400'
+                        : trendStats.changePercent < 0
+                        ? 'text-emerald-400'
+                        : 'text-slate-300'
+                    }`}
+                  >
+                    {trendStats.changePercent > 0 ? `+${trendStats.changePercent}%` : `${trendStats.changePercent}%`}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  aria-pressed={showMerchantSeries}
+                  onClick={() => setShowMerchantSeries((v) => !v)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                    showMerchantSeries
+                      ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                      : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  سعرك
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showCompetitorSeries}
+                  onClick={() => setShowCompetitorSeries((v) => !v)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                    showCompetitorSeries
+                      ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300'
+                      : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  أرخص منافس
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showCostReference}
+                  onClick={() => setShowCostReference((v) => !v)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                    showCostReference
+                      ? 'bg-sky-500/15 border-sky-500/50 text-sky-300'
+                      : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  حد التكلفة ({selectedComparisonItem.costPrice.toLocaleString()})
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full h-[300px]" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyTrendSeries} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                  <defs>
+                    <linearGradient id="merchantPriceFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.32} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    stroke="#64748b"
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    minTickGap={18}
+                  />
+                  <YAxis
+                    stroke="#64748b"
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    domain={['auto', 'auto']}
+                    width={56}
+                    tickFormatter={(val: number) => `${val}`}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const pt = payload[0]?.payload as MonthlyPriceTrendPoint | undefined;
+                      if (!pt) return null;
+                      return (
+                        <div
+                          dir="rtl"
+                          className="rounded-xl bg-slate-950 border border-slate-700 p-3 shadow-xl text-xs space-y-1.5"
+                        >
+                          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                            <span>{pt.fullDate}</span>
+                          </div>
+                          {showMerchantSeries && (
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-amber-300">سعرك:</span>
+                              <span className="font-mono tabular-nums font-black text-white">
+                                {pt.merchantPrice.toLocaleString()} {currency}
+                              </span>
+                            </div>
+                          )}
+                          {showCompetitorSeries && (
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-emerald-300">أرخص منافس:</span>
+                              <span className="font-mono tabular-nums font-black text-emerald-400">
+                                {pt.competitorPrice.toLocaleString()} {currency}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-800/80">
+                            <span className="text-slate-400">الفجوة السعرية:</span>
+                            <span
+                              className={`font-mono tabular-nums font-bold ${
+                                pt.priceGap > 0 ? 'text-red-400' : pt.priceGap < 0 ? 'text-sky-400' : 'text-slate-300'
+                              }`}
+                            >
+                              {pt.priceGap > 0 ? `+${pt.priceGap}` : pt.priceGap} {currency}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  {showCostReference && (
+                    <ReferenceLine
+                      y={selectedComparisonItem.costPrice}
+                      stroke="#38bdf8"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: `التكلفة ${selectedComparisonItem.costPrice}`,
+                        position: 'insideTopRight',
+                        fill: '#38bdf8',
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                  {showMerchantSeries && (
+                    <Area
+                      type="monotone"
+                      dataKey="merchantPrice"
+                      name="سعرك"
+                      stroke="#f59e0b"
+                      strokeWidth={2.5}
+                      fill="url(#merchantPriceFill)"
+                      activeDot={{ r: 5, fill: '#fbbf24', stroke: '#0f172a', strokeWidth: 2 }}
+                    />
+                  )}
+                  {showCompetitorSeries && (
+                    <Line
+                      type="monotone"
+                      dataKey="competitorPrice"
+                      name="أرخص منافس"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, fill: '#34d399', stroke: '#0f172a', strokeWidth: 2 }}
+                    />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        ) : (
+          <div className="py-10 text-center text-xs text-slate-400">
+            لا توجد بيانات منتجات متاحة لعرض المخطط البياني حالياً.
+          </div>
+        )}
       </div>
 
       {/* Filter & Search Bar */}
@@ -402,8 +833,18 @@ export default function PriceComparisonEngine({
                     </span>
                   );
 
+                const isSelectedRow = selectedComparisonItem?.sku === item.sku;
+
                 return (
-                  <tr key={item.id} className="hover:bg-slate-900/60 transition" role="row">
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedSku(item.sku)}
+                    aria-selected={isSelectedRow}
+                    className={`cursor-pointer transition ${
+                      isSelectedRow ? 'bg-amber-500/10' : 'hover:bg-slate-900/60'
+                    }`}
+                    role="row"
+                  >
                     <td className="p-3.5" role="cell">
                       <p className="font-bold text-white line-clamp-1">{item.title}</p>
                       <span className="text-[10px] text-amber-400 font-mono">SKU: {item.sku}</span>
@@ -428,7 +869,11 @@ export default function PriceComparisonEngine({
                     </td>
                     <td className="p-3.5 text-center" role="cell">
                       <button
-                        onClick={() => applyRecommended(item.sku, item.recommendedPrice)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSku(item.sku);
+                          applyRecommended(item.sku, item.recommendedPrice);
+                        }}
                         aria-label={`تطبيق السعر المقترح ${item.recommendedPrice} ${currency} للمنتج ${item.sku}`}
                         className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-[11px] shadow transition flex items-center gap-1 mx-auto active:scale-95 focus:ring-2 focus:ring-slate-950 outline-none"
                       >

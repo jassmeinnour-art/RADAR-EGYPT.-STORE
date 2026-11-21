@@ -1,21 +1,268 @@
-:root {
-  --font-family: 'Cairo', sans-serif;
-  --card-bg: #1E293B;
-  --card-border: #334155;
-  --card-text: #FFFFFF;
-  --card-text-secondary: #94A3B8;
-  --input-bg: #0F172A;
-  --input-text: #FFFFFF;
-  --app-bg: #0F172A;
-  --primary-color: #F97316;
+/* ==========================================================================
+   Merchant Radar Design System Variables
+   Supports:
+   1. Dark High Contrast (data-theme="dark-high-contrast" / .dark / .theme-dark)
+   2. Clean Light (data-theme="clean-light" / .light / .theme-light)
+   ========================================================================== */
+
+:root,
+:root[data-theme="clean-light"],
+html.light,
+html.theme-light,
+html.theme-clean-light {
+  color-scheme: light;
+  --theme-id: 'clean-light';
+  --theme-name: 'Clean Light';
+  --font-family: 'Cairo', 'Tajawal', sans-serif;
+
+  /* App & Surface Backgrounds */
+  --app-bg: #F8FAFC;
+  --app-bg-primary: #F8FAFC;
+  --app-bg-secondary: #F1F5F9;
+  --app-bg-surface: #FFFFFF;
+  --app-bg-card: #FFFFFF;
+  --surface-bg: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-subtle: #F1F5F9;
+  --surface-muted: #E2E8F0;
+
+  /* Cards & Containers */
+  --card-bg: #FFFFFF;
+  --card-bg-elevated: #FFFFFF;
+  --card-bg-hover: #F8FAFC;
+  --card-border: #CBD5E1;
+  --card-border-strong: #94A3B8;
   --card-radius: 12px;
 
-  /* المتغيرات الديناميكية للتحكم في مقاسات وشكل التطبيق */
-  --sidebar-width: 280px;
-  --sidebar-collapsed-width: 70px;
+  /* Typography */
+  --card-text: #0F172A;
+  --card-text-secondary: #475569;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --app-text-primary: #0F172A;
+  --app-text-secondary: #475569;
+  --app-border-color: #CBD5E1;
+
+  /* Header & Sidebar */
+  --header-bg: #FFFFFF;
+  --header-border: #CBD5E1;
+  --header-text: #0F172A;
+  --sidebar-bg: #FFFFFF;
+  --sidebar-surface: #F8FAFC;
+  --sidebar-border: #CBD5E1;
+  --sidebar-text: #0F172A;
+  --sidebar-text-muted: #475569;
+  --sidebar-hover-bg: #F1F5F9;
+  --sidebar-active-bg: #F59E0B;
+  --sidebar-active-text: #0F172A;
+
+  /* Form Inputs */
+  --input-bg: #FFFFFF;
+  --input-border: #94A3B8;
+  --input-border-focus: #0284C7;
+  --input-text: #0F172A;
+  --input-placeholder: #64748B;
+
+  /* Brand & Interactive Accents */
+  --primary-color: #D97706;
+  --primary-hover: #B45309;
+  --primary-active: #92400E;
+  --primary-text: #FFFFFF;
+  --primary-light: #FEF3C7;
+  --primary-light-hover: #FDE68A;
+  --primary-border: #D97706;
+  --accent-color: #0284C7;
+  --accent-hover: #0369A1;
+  --accent-text: #FFFFFF;
+
+  /* Brand Logo & Chart Tokens */
+  --logo-brand-color: #0F172A;
+  --logo-brand-hover: #1E293B;
+  --logo-brand-active: #0284C7;
+  --logo-brand-active-bg: #E2E8F0;
+  --primary-chart-stroke: #0284C7;
+  --primary-chart-fill: #0284C7;
+  --primary-chart-light: #E0F2FE;
+
+  /* Commercial Semantic States */
+  --success-color: #059669;
+  --success-bg: #ECFDF5;
+  --success-border: #6EE7B7;
+  --success-text: #065F46;
+
+  --warning-color: #D97706;
+  --warning-bg: #FFFBEB;
+  --warning-border: #FCD34D;
+  --warning-text: #92400E;
+
+  --danger-color: #DC2626;
+  --danger-bg: #FEF2F2;
+  --danger-border: #FCA5A5;
+  --danger-text: #991B1B;
+
+  --info-color: #0284C7;
+  --info-bg: #F0F9FF;
+  --info-border: #7DD3FC;
+  --info-text: #075985;
+
+  /* Tables & Data Grids */
+  --table-header-bg: #F1F5F9;
+  --table-row-bg: #FFFFFF;
+  --table-row-alt-bg: #F8FAFC;
+  --table-row-hover: #F1F5F9;
+  --table-border: #E2E8F0;
+
+  /* Charts & Tooltips */
+  --chart-grid: #E2E8F0;
+  --chart-axis: #475569;
+  --chart-tooltip-bg: #FFFFFF;
+  --chart-tooltip-border: #CBD5E1;
+  --chart-tooltip-text: #0F172A;
+
+  /* Badges, Overlays & Elevation */
+  --badge-bg: #F1F5F9;
+  --badge-text: #0F172A;
+  --badge-border: #CBD5E1;
+  --overlay-backdrop: rgba(15, 23, 42, 0.55);
+  --divider-color: #E2E8F0;
+  --focus-ring: rgba(2, 132, 199, 0.35);
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 32px -8px rgba(15, 23, 42, 0.14);
+
+  /* Layout Tokens */
+  --sidebar-width: 264px;
+  --sidebar-collapsed-width: 72px;
   --font-size: 14px;
   --button-padding: 8px 16px;
-  --header-height: 64px;
-  --sidebar-logo-size: 36px;
+  --header-height: 48px;
+  --sidebar-logo-size: 32px;
   --app-gap: 16px;
+}
+
+:root[data-theme="dark-high-contrast"],
+html.dark,
+html.theme-dark,
+html.theme-dark-high-contrast {
+  color-scheme: dark;
+  --theme-id: 'dark-high-contrast';
+  --theme-name: 'Dark High Contrast';
+
+  /* Deep Obsidian Commercial Trading Canvas */
+  --app-bg: #020617;
+  --app-bg-primary: #020617;
+  --app-bg-secondary: #090E1A;
+  --app-bg-surface: #0F172A;
+  --app-bg-card: #111827;
+  --surface-bg: #0F172A;
+  --surface-elevated: #1E293B;
+  --surface-subtle: #0B1120;
+  --surface-muted: #1E293B;
+
+  /* High-Contrast Elevated Cards & Sharp Borders */
+  --card-bg: #0F172A;
+  --card-bg-elevated: #162033;
+  --card-bg-hover: #1E293B;
+  --card-border: #475569;
+  --card-border-strong: #64748B;
+
+  /* Crisp Maximum-Legibility Typography (>= 7:1 Contrast) */
+  --card-text: #FFFFFF;
+  --card-text-secondary: #E2E8F0;
+  --text-primary: #FFFFFF;
+  --text-secondary: #E2E8F0;
+  --text-muted: #94A3B8;
+  --text-inverse: #020617;
+  --app-text-primary: #FFFFFF;
+  --app-text-secondary: #E2E8F0;
+  --app-border-color: #475569;
+
+  /* Header & Sidebar */
+  --header-bg: #090E1A;
+  --header-border: #475569;
+  --header-text: #FFFFFF;
+  --sidebar-bg: #020617;
+  --sidebar-surface: #0F172A;
+  --sidebar-border: #334155;
+  --sidebar-text: #FFFFFF;
+  --sidebar-text-muted: #CBD5E1;
+  --sidebar-hover-bg: #1E293B;
+  --sidebar-active-bg: #F59E0B;
+  --sidebar-active-text: #020617;
+
+  /* High-Contrast Form Inputs */
+  --input-bg: #020617;
+  --input-border: #64748B;
+  --input-border-focus: #38BDF8;
+  --input-text: #FFFFFF;
+  --input-placeholder: #94A3B8;
+
+  /* High-Visibility Commercial Accents */
+  --primary-color: #F59E0B;
+  --primary-hover: #FBBF24;
+  --primary-active: #D97706;
+  --primary-text: #020617;
+  --primary-light: #1E293B;
+  --primary-light-hover: #334155;
+  --primary-border: #F59E0B;
+  --accent-color: #38BDF8;
+  --accent-hover: #7DD3FC;
+  --accent-text: #020617;
+
+  /* Brand Logo & Chart Tokens */
+  --logo-brand-color: #F59E0B;
+  --logo-brand-hover: #FBBF24;
+  --logo-brand-active: #38BDF8;
+  --logo-brand-active-bg: #1E293B;
+  --primary-chart-stroke: #38BDF8;
+  --primary-chart-fill: #38BDF8;
+  --primary-chart-light: #0F172A;
+
+  /* Commercial Semantic States (High Contrast) */
+  --success-color: #34D399;
+  --success-bg: rgba(16, 185, 129, 0.16);
+  --success-border: #10B981;
+  --success-text: #6EE7B7;
+
+  --warning-color: #FBBF24;
+  --warning-bg: rgba(245, 158, 11, 0.18);
+  --warning-border: #F59E0B;
+  --warning-text: #FDE68A;
+
+  --danger-color: #FB7185;
+  --danger-bg: rgba(244, 63, 94, 0.18);
+  --danger-border: #F43F5E;
+  --danger-text: #FECDD3;
+
+  --info-color: #38BDF8;
+  --info-bg: rgba(56, 189, 248, 0.16);
+  --info-border: #38BDF8;
+  --info-text: #BAE6FD;
+
+  /* Tables & Data Grids */
+  --table-header-bg: #162033;
+  --table-row-bg: #0F172A;
+  --table-row-alt-bg: #0B1120;
+  --table-row-hover: #1E293B;
+  --table-border: #334155;
+
+  /* Charts & Tooltips */
+  --chart-grid: #334155;
+  --chart-axis: #E2E8F0;
+  --chart-tooltip-bg: #020617;
+  --chart-tooltip-border: #475569;
+  --chart-tooltip-text: #FFFFFF;
+
+  /* Badges, Overlays & Elevation */
+  --badge-bg: #1E293B;
+  --badge-text: #FFFFFF;
+  --badge-border: #475569;
+  --overlay-backdrop: rgba(2, 6, 23, 0.82);
+  --divider-color: #334155;
+  --focus-ring: rgba(56, 189, 248, 0.45);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.65);
+  --shadow-md: 0 6px 18px -2px rgba(0, 0, 0, 0.78);
+  --shadow-lg: 0 22px 44px -8px rgba(0, 0, 0, 0.92);
 }

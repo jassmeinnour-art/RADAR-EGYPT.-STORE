@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="رادار التاجر" />
     
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://static.cloudflareinsights.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https:; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com https://*.supabase.co wss://*.supabase.co https://*.supabase.in https://api.supabase.co https://vitals.vercel-insights.com; worker-src 'self' blob:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://static.cloudflareinsights.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://cdn.simpleicons.org https://upload.wikimedia.org https://radaregypt.store https://*.radaregypt.store https:; font-src 'self' data: https://fonts.gstatic.com https:; connect-src 'self' https://radaregypt.store https://*.radaregypt.store https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.simpleicons.org https://upload.wikimedia.org https://cloudflareinsights.com https://*.cloudflareinsights.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://firestore.googleapis.com https://*.googleapis.com https://*.firebaseio.com https://*.supabase.co wss://*.supabase.co https://*.supabase.in https://api.supabase.co; manifest-src 'self'; worker-src 'self' blob:;" />
     <script>
       if (window.location.hostname.includes('dev.')) {
         const meta = document.createElement('meta');
@@ -162,16 +162,25 @@
           window.WebSocket.CLOSED = 3;
         }
 
-        // Early theme detection
+        // Early theme detection (Dark High Contrast / Clean Light)
         try {
+          var savedVariant = localStorage.getItem('radar_active_theme_variant');
           var savedMode = localStorage.getItem('radar_global_color_mode_v7_offwhite_black') || 'light';
-          var isDark = savedMode === 'dark' || (savedMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var isDark =
+            savedVariant === 'dark-high-contrast' ||
+            savedMode === 'dark' ||
+            (savedMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var rootEl = document.documentElement;
           if (isDark) {
-            document.documentElement.classList.add('dark', 'theme-dark');
-            document.documentElement.classList.remove('light', 'theme-light');
+            rootEl.setAttribute('data-theme', 'dark-high-contrast');
+            rootEl.setAttribute('data-color-mode', 'dark');
+            rootEl.classList.add('dark', 'theme-dark', 'theme-dark-high-contrast');
+            rootEl.classList.remove('light', 'theme-light', 'theme-clean-light');
           } else {
-            document.documentElement.classList.add('light', 'theme-light');
-            document.documentElement.classList.remove('dark', 'theme-dark');
+            rootEl.setAttribute('data-theme', 'clean-light');
+            rootEl.setAttribute('data-color-mode', 'light');
+            rootEl.classList.add('light', 'theme-light', 'theme-clean-light');
+            rootEl.classList.remove('dark', 'theme-dark', 'theme-dark-high-contrast');
           }
         } catch(e) {}
 
@@ -253,9 +262,10 @@
     <!-- Favicon & App Icons -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   </head>
-  <body style="background-color: #08090D; margin: 0;">
+  <body style="margin: 0;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

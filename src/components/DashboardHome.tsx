@@ -249,16 +249,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       <ErrorBoundary sectionName="home-hero" sectionTitle="مقدمة رادار الترحيبية" sectionDescription="تعذر تحميل ترويسة الصفحة مؤقتاً، باقي أقسام المنصة تعمل بشكل طبيعي.">
         <section
           ref={heroRef}
-          className="relative min-h-[380px] flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 rounded-[3rem] border border-slate-800 shadow-2xl overflow-hidden"
+          className="relative min-h-[380px] flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-white via-slate-50 to-amber-50/40 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 rounded-[3rem] border border-[var(--card-border)] shadow-xl dark:shadow-2xl overflow-hidden"
         >
           <DraggableHandle elementId="home_hero" targetRef={heroRef} position="bottom-left" />
 
           <div className="relative z-10 space-y-6 max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-black text-white leading-tight">
-              رادار - <span className="text-amber-500">التاجر الذكي</span>
+            <h1 className="text-4xl md:text-6xl font-black text-slate-950 dark:text-white leading-tight">
+              رادار - <span className="text-amber-600 dark:text-amber-500">التاجر الذكي</span>
             </h1>
 
-            <p className="text-lg text-slate-300 font-bold leading-relaxed">
+            <p className="text-lg text-slate-700 dark:text-slate-300 font-bold leading-relaxed">
               تابع منتجاتك وأسعارك ومنافسيك في مكان واحد - على أمازون ونون وجوميا
             </p>
 
@@ -275,7 +275,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
               <button
                 type="button"
                 onClick={() => stepsRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-2xl border border-slate-700 transition-colors duration-200 cursor-pointer"
+                className="px-8 py-4 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-black rounded-2xl border border-[var(--card-border)] transition-colors duration-200 cursor-pointer"
               >
                 شاهد كيف يعمل
               </button>
@@ -301,21 +301,21 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
         <section ref={whyRef} className="relative space-y-8">
           <DraggableHandle elementId="home_why" targetRef={whyRef} position="bottom-right" />
           <div className="text-center space-y-2">
-            <h2 className="text-2xl md:text-3xl font-black text-white">لماذا رادار؟ 🎯</h2>
-            <p className="text-slate-400 text-sm font-bold">كل ما تحتاجه للسيطرة على السوق وزيادة أرباحك</p>
+            <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">لماذا رادار؟ 🎯</h2>
+            <p className="text-[var(--text-secondary)] text-sm font-bold">كل ما تحتاجه للسيطرة على السوق وزيادة أرباحك</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {whyCards.map((card, idx) => (
               <div
                 key={idx}
-                className="p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-amber-500/30 transition-colors duration-200 shadow-lg"
+                className="p-6 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl hover:border-amber-500/50 transition-colors duration-200 shadow-lg"
               >
-                <div className="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--card-border)] flex items-center justify-center mb-4">
                   {card.icon}
                 </div>
-                <h3 className="text-lg font-black text-white mb-2">{card.title}</h3>
-                <p className="text-xs text-slate-400 font-bold leading-relaxed">{card.desc}</p>
+                <h3 className="text-lg font-black text-[var(--text-primary)] mb-2">{card.title}</h3>
+                <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{card.desc}</p>
               </div>
             ))}
           </div>
@@ -324,25 +324,25 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
 
       {/* 4. How to use Section (Static — renders immediately) */}
       <ErrorBoundary sectionName="home-how-to-use" sectionTitle="قسم كيفية الاستخدام">
-        <section ref={stepsRef} className="relative bg-slate-900/50 border border-slate-800 p-8 md:p-12 rounded-[3rem]">
+        <section ref={stepsRef} className="relative bg-[var(--card-bg)] border border-[var(--card-border)] p-8 md:p-12 rounded-[3rem] shadow-md">
           <DraggableHandle elementId="home_steps" targetRef={stepsRef} position="bottom-left" />
           <div className="text-center mb-10 space-y-2">
-            <h2 className="text-2xl md:text-3xl font-black text-white">كيفية الاستخدام 🛠️</h2>
-            <p className="text-slate-400 text-sm font-bold">4 خطوات بسيطة لتبدأ رحلتك مع رادار</p>
+            <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">كيفية الاستخدام 🛠️</h2>
+            <p className="text-[var(--text-secondary)] text-sm font-bold">4 خطوات بسيطة لتبدأ رحلتك مع رادار</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map((step, idx) => (
               <div key={idx} className="relative">
-                <div className="text-6xl font-black text-white/5 absolute -top-4 -right-4 pointer-events-none">
+                <div className="text-6xl font-black text-slate-900/5 dark:text-white/5 absolute -top-4 -right-4 pointer-events-none">
                   {step.number}
                 </div>
                 <div className="relative z-10 space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
                     {step.number}
                   </div>
-                  <h3 className="text-lg font-black text-white">{step.title}</h3>
-                  <p className="text-xs text-slate-400 font-bold leading-relaxed">{step.desc}</p>
+                  <h3 className="text-lg font-black text-[var(--text-primary)]">{step.title}</h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{step.desc}</p>
                 </div>
               </div>
             ))}

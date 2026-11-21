@@ -545,7 +545,9 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   };
 
   const handleUpdateTrader = (updated: Trader) => {
-    setTraders((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTraders((prev) =>
+      prev.map((t) => (String(t.id) === String(updated.id) ? { ...t, ...updated } : t))
+    );
     dataCache.invalidate('traders');
   };
 
@@ -880,6 +882,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       {isEditModalOpen && selectedTrader && (
         <EditTraderModal
           trader={selectedTrader}
+          existingTraders={traders}
           isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false);

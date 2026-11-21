@@ -284,6 +284,93 @@ export function isFounderSession(): boolean {
   return getSupabaseActiveEmail() === FOUNDER_EMAIL;
 }
 
+const DERIVED_TRADER_FIELDS = new Set([
+  'id',
+  'created_at',
+  'products_count',
+  'amazon_count',
+  'noon_count',
+  'total_stock',
+  'invoices_count',
+  'is_connected',
+]);
+
+export function sanitizeTraderUpdatePayload(updates: Record<string, any> | null | undefined): Record<string, any> {
+  const clean: Record<string, any> = {};
+  if (!updates || typeof updates !== 'object') return clean;
+  for (const [k, v] of Object.entries(updates)) {
+    if (DERIVED_TRADER_FIELDS.has(k)) continue;
+    clean[k] = v;
+  }
+  return clean;
+}
+
+export function formatSupabaseError(err: any): string {
+  if (!err) return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات';
+  if (typeof err === 'string') return err;
+  const msg = String(err.message || err.error_description || err.error || '').trim();
+  const details = String(err.details || '').trim();
+  const hint = String(err.hint || '').trim();
+  const code = String(err.code || '').trim();
+
+  const lower = `${msg} ${details}`.toLowerCase();
+  const isDuplicateEmail =
+    (code === '23505' || lower.includes('duplicate key') || lower.includes('unique constraint')) &&
+    (lower.includes('email') || lower.includes('gmail') || lower.includes('موجود لتاجر آخر'));
+
+  const baseParts: string[] = [];
+  if (msg) baseParts.push(msg);
+  if (details && !msg.includes(details)) baseParts.push(details);
+  if (hint && !msg.includes(hint)) baseParts.push(`(${hint})`);
+  const rawMessage = baseParts.join(' — ') || (code ? `Supabase Error Code: ${code}` : JSON.stringify(err));
+
+  if (isDuplicateEmail && !rawMessage.includes('هذا الإيميل موجود لتاجر آخر')) {
+    return `هذا الإيميل موجود لتاجر آخر (${rawMessage})`;
+  }
+  return rawMessage;
+}
+
+async function invokeUpdateTraderEdgeFunction(
+  traderId: string,
+  updates: Record<string, any>,
+  accessToken?: string | null
+): Promise<{ data: any; error: any }> {
+  if (!hasValidSupabaseUrl || !hasValidSupabaseKey) {
+    return { data: null, error: { message: 'Supabase Edge Function غير مهيأ' } };
+  }
+  try {
+    const cleanUpdates = sanitizeTraderUpdatePayload(updates);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/update-trader`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        traderId,
+        updates: cleanUpdates,
+        founderEmail: getSupabaseActiveEmail() || FOUNDER_EMAIL,
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      return {
+        data: null,
+        error: {
+          message: json?.error || `Edge Function failed (${res.status})`,
+          details: json?.details,
+          hint: json?.hint,
+          code: json?.code || String(res.status),
+        },
+      };
+    }
+    return { data: json.data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
+
 export function isDemoOrOrphanProduct(p: any): boolean {
   if (!p) return true;
   const id = String(p.id || '');
@@ -590,16 +677,44 @@ export const multiTenantDb = {
    * Update full trader fields (seller_id, seller_link, storefront_link, gmail, etc.)
    */
   async updateTrader(traderId: string, updates: Partial<Trader>): Promise<boolean> {
-    if (!traderId) return false;
+    const cleanId = String(traderId || '').trim();
+    if (!cleanId) {
+      const err = new Error('معرف التاجر (id) فارغ — لا يمكن التعديل');
+      console.error(err);
+      throw err;
+    }
+
+    const sanitizedUpdates = sanitizeTraderUpdatePayload(updates as Record<string, any>);
+    let remoteUpdated: any = null;
 
     if (supabaseClient) {
       try {
-        await supabaseClient
+        const res = await supabaseClient
           .from('traders')
-          .update(updates)
-          .eq('id', traderId);
+          .update(sanitizedUpdates)
+          .eq('id', cleanId)
+          .select();
+
+        if (res.error) {
+          console.error('[MultiTenant Supabase Trader Update Error]:', res.error);
+          const msg = String(res.error.message || '').toLowerCase();
+          if (res.error.code === '42501' || msg.includes('row-level security') || msg.includes('jwt') || msg.includes('unauthorized')) {
+            const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
+            const edgeRes = await invokeUpdateTraderEdgeFunction(cleanId, sanitizedUpdates, session?.access_token);
+            if (!edgeRes.error && edgeRes.data) {
+              remoteUpdated = edgeRes.data;
+            } else {
+              throw res.error;
+            }
+          } else {
+            throw res.error;
+          }
+        } else if (Array.isArray(res.data) && res.data.length > 0) {
+          remoteUpdated = res.data[0];
+        }
       } catch (err) {
-        console.warn('[MultiTenant Supabase Trader Update Error]:', err);
+        console.error('[MultiTenant Supabase Trader Update Exception]:', err);
+        throw err;
       }
     }
 
@@ -612,11 +727,11 @@ export const multiTenantDb = {
             try {
               const list: Trader[] = JSON.parse(raw);
               if (Array.isArray(list)) {
-                const target = list.find(t => t.id === traderId);
+                const target = list.find(t => t.id === cleanId);
                 if (target) {
-                  Object.assign(target, updates);
+                  Object.assign(target, remoteUpdated || sanitizedUpdates);
                   localStorage.setItem(k, JSON.stringify(list));
-                  window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { traderId } }));
+                  window.dispatchEvent(new CustomEvent('multi_tenant_traders_updated', { detail: { traderId: cleanId } }));
                 }
               }
             } catch {}
@@ -1203,7 +1318,14 @@ class SupabaseQueryBuilder {
 
   update(updates: any): this {
     this.isUpdate = true;
-    this.updatePayload = updates;
+    this.updatePayload =
+      this.tableName === 'traders'
+        ? sanitizeTraderUpdatePayload(updates)
+        : (() => {
+            if (!updates || typeof updates !== 'object') return updates;
+            const { id: _omittedId, ...rest } = updates;
+            return rest;
+          })();
     return this;
   }
 
@@ -1213,37 +1335,156 @@ class SupabaseQueryBuilder {
   }
 
   private async executeUpdate(): Promise<{ data: any; error: any }> {
-    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
-      const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
-      if (!session?.access_token) {
-        return { data: null, error: { message: 'Unauthorized: active session required' } };
-      }
-    }
-    const activeEmail = getSupabaseActiveEmail();
-    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
-      return { data: null, error: { message: 'Unauthorized: founder access only' } };
+    const idFilter = this.filters.find(f => f.col === 'id' && f.type === 'eq');
+    const eqId = idFilter?.val !== undefined && idFilter?.val !== null ? String(idFilter.val).trim() : '';
+
+    if (this.tableName === 'traders' && !eqId) {
+      const missingIdErr = {
+        message: 'معرف التاجر (id) مطلوب للتعديل ويجب التحديث عبر eq("id", trader.id) فقط',
+        code: 'MISSING_TRADER_ID',
+      };
+      console.error(missingIdErr);
+      return { data: null, error: missingIdErr };
     }
 
-    const eqId = this.filters.find(f => f.col === 'id' && f.type === 'eq')?.val;
+    let session: Session | null = null;
+    if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
+      session = await getActiveSupabaseSession(2000);
+      if (!session?.access_token && activeAccessToken) {
+        session = { access_token: activeAccessToken } as Session;
+      }
+    }
+
+    const activeEmail = getSupabaseActiveEmail();
+    if (PROTECTED_TABLES.has(this.tableName) && activeEmail !== FOUNDER_EMAIL) {
+      const authErr = { message: 'Unauthorized: founder access only' };
+      console.error(authErr);
+      return { data: null, error: authErr };
+    }
+
     let remoteResult: any = null;
 
     if (supabaseClient) {
-      try {
-        let builder: any = supabaseClient.from(this.tableName).update(this.updatePayload);
-        for (const f of this.filters) {
-          if (f.type === 'eq') builder = builder.eq(f.col, f.val);
-          if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+      if (PROTECTED_TABLES.has(this.tableName) && !session?.access_token) {
+        if (this.tableName === 'traders' && eqId) {
+          const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, null);
+          if (!edgeRes.error && edgeRes.data) {
+            remoteResult = edgeRes.data;
+          } else {
+            const errObj = edgeRes.error || { message: 'Unauthorized: active session required' };
+            console.error(errObj);
+            return { data: null, error: errObj };
+          }
+        } else {
+          const errObj = { message: 'Unauthorized: active session required' };
+          console.error(errObj);
+          return { data: null, error: errObj };
         }
-        const res = await builder.select();
-        if (!res.error && res.data && res.data.length > 0) {
-          remoteResult = this.isSingle ? res.data[0] : res.data;
-        } else if (res.error) {
-          return { data: null, error: res.error };
+      } else {
+        try {
+          const runUpdate = async (payload: Record<string, any>) => {
+            let builder: any = supabaseClient!.from(this.tableName).update(payload);
+            for (const f of this.filters) {
+              if (f.type === 'eq') builder = builder.eq(f.col, f.val);
+              if (f.type === 'neq') builder = builder.neq(f.col, f.val);
+            }
+            return await builder.select();
+          };
+
+          let res = await runUpdate(this.updatePayload);
+
+          // If legacy table schema has NOT NULL constraint on optional blank fields, retry replacing null with ''
+          if (
+            res.error &&
+            this.tableName === 'traders' &&
+            (res.error.code === '23502' || /violates not-null constraint/i.test(String(res.error.message || '')))
+          ) {
+            const nonNullPayload: Record<string, any> = { ...this.updatePayload };
+            for (const key of Object.keys(nonNullPayload)) {
+              if (nonNullPayload[key] === null && key !== 'founder_uid' && key !== 'user_id') {
+                nonNullPayload[key] = '';
+              }
+            }
+            res = await runUpdate(nonNullPayload);
+          }
+
+          if (!res.error && Array.isArray(res.data) && res.data.length > 0) {
+            remoteResult = this.isSingle ? res.data[0] : res.data;
+          } else if (res.error) {
+            console.error(res.error);
+            const errMsg = String(res.error.message || '').toLowerCase();
+            const isRlsFailure =
+              res.error.code === '42501' ||
+              errMsg.includes('row-level security') ||
+              errMsg.includes('permission denied');
+
+            if (this.tableName === 'traders' && eqId && isRlsFailure) {
+              const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, session?.access_token);
+              if (!edgeRes.error && edgeRes.data) {
+                remoteResult = edgeRes.data;
+              } else {
+                return { data: null, error: res.error };
+              }
+            } else {
+              return { data: null, error: res.error };
+            }
+          } else if (this.tableName === 'traders' && eqId) {
+            // 0 rows returned typically indicates RLS blocked update or record ID was not matched
+            const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, session?.access_token);
+            if (!edgeRes.error && edgeRes.data) {
+              remoteResult = edgeRes.data;
+            } else {
+              const rlsOrMissingErr = {
+                message:
+                  edgeRes.error?.message ||
+                  'new row violates row-level security policy or trader record not found (0 rows updated)',
+                code: edgeRes.error?.code || '42501',
+                details: edgeRes.error?.details,
+              };
+              console.error(rlsOrMissingErr);
+              return { data: null, error: rlsOrMissingErr };
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          return { data: null, error: err };
         }
-      } catch {}
+      }
+    } else if (this.tableName === 'traders' && eqId) {
+      // Offline / localStorage-only mode: verify duplicate email against OTHER traders
+      const candidateEmail = String(this.updatePayload?.email || this.updatePayload?.gmail || '').trim().toLowerCase();
+      if (candidateEmail && typeof localStorage !== 'undefined') {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
+              const raw = localStorage.getItem(k);
+              if (!raw) continue;
+              const list = JSON.parse(raw);
+              if (!Array.isArray(list)) continue;
+              const conflict = list.find(
+                (t: any) =>
+                  t &&
+                  String(t.id) !== eqId &&
+                  (String(t.email || '').trim().toLowerCase() === candidateEmail ||
+                    String(t.gmail || '').trim().toLowerCase() === candidateEmail)
+              );
+              if (conflict) {
+                const dupErr = {
+                  message: 'duplicate key value violates unique constraint "traders_email_key"',
+                  details: `Key (email)=(${candidateEmail}) already exists for another trader.`,
+                  code: '23505',
+                };
+                console.error(dupErr);
+                return { data: null, error: dupErr };
+              }
+            }
+          }
+        } catch {}
+      }
     }
 
-    // Persist/sync edits in localStorage fallback so edits remain consistent even before DB seeding
+    // Persist/sync edits in localStorage fallback so edits remain consistent in local cache
     let updatedRow: any = remoteResult && !Array.isArray(remoteResult) ? remoteResult : { id: eqId, ...this.updatePayload };
     if (this.tableName === 'products' && eqId) {
       try {
@@ -1286,7 +1527,9 @@ class SupabaseQueryBuilder {
               if (t && String(t.id) === String(eqId)) {
                 foundInStorage = true;
                 modified = true;
-                updatedRow = { ...t, ...this.updatePayload };
+                updatedRow = remoteResult && !Array.isArray(remoteResult)
+                  ? { ...t, ...remoteResult }
+                  : { ...t, ...this.updatePayload };
                 return updatedRow;
               }
               return t;
@@ -1300,11 +1543,13 @@ class SupabaseQueryBuilder {
           const defaultKey = 'radar_multi_tenant_traders_default';
           const rawDef = localStorage.getItem(defaultKey);
           const defList: any[] = rawDef ? JSON.parse(rawDef) : [];
-          updatedRow = {
-            id: String(eqId),
-            user_id: 'founder',
-            ...this.updatePayload,
-          };
+          updatedRow = remoteResult && !Array.isArray(remoteResult)
+            ? remoteResult
+            : {
+                id: String(eqId),
+                user_id: 'founder',
+                ...this.updatePayload,
+              };
           const filtered = Array.isArray(defList) ? defList.filter((t: any) => String(t?.id) !== String(eqId)) : [];
           filtered.unshift(updatedRow);
           localStorage.setItem(defaultKey, JSON.stringify(filtered));
@@ -1735,12 +1980,27 @@ export const SUPABASE_RLS_SQL = `-- ============================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Ensure complete schema columns exist on traders & products
+ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS founder_uid UUID;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS gmail TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_id TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS destination_url TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS store_url TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS seller_link TEXT;
 ALTER TABLE public.traders ADD COLUMN IF NOT EXISTS storefront_link TEXT;
+
+DO $$
+DECLARE
+  col_name TEXT;
+BEGIN
+  FOREACH col_name IN ARRAY ARRAY['email', 'gmail', 'phone', 'seller_id', 'destination_url', 'store_url', 'seller_link', 'storefront_link']
+  LOOP
+    BEGIN
+      EXECUTE format('ALTER TABLE public.traders ALTER COLUMN %I DROP NOT NULL;', col_name);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END LOOP;
+END $$;
 
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS asin TEXT;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS platform TEXT;
@@ -1805,9 +2065,26 @@ ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 
 -- 5. Founder-ONLY (jassmeinnour@gmail.com) FULL ACCESS on all tables
 -- No trader_* policies exist: traders are managed data records with no login.
+CREATE POLICY "founder can update traders" ON public.traders
+  FOR UPDATE TO authenticated
+  USING (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  )
+  WITH CHECK (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  );
+
 CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
-  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')
-  WITH CHECK (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
+  USING (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  )
+  WITH CHECK (
+    auth.uid() = founder_uid
+    OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
+  );
 
 CREATE POLICY "founder_all_products" ON public.products FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')

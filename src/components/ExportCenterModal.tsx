@@ -40,6 +40,10 @@ import {
   getHoursSinceLastExport,
   getLastExportTimestamp
 } from '../utils/csvProductManager';
+import {
+  exportProductsListToPDF,
+  exportFinancialReportToPDF
+} from '../utils/pdfExporter';
 
 interface ExportCenterModalProps {
   isOpen: boolean;
@@ -279,6 +283,69 @@ export const ExportCenterModal: React.FC<ExportCenterModalProps> = ({
         setIsExporting(null);
       }
     }, 400);
+  };
+
+  const handleExportProductsPdf = (itemsToExport: ProductData[]) => {
+    try {
+      exportProductsListToPDF(
+        itemsToExport.map((p) => ({
+          sku: p.sku || p.id,
+          title: p.title,
+          category: p.category,
+          price: p.suggestedRetailPrice || p.currentLowestPrice || 0,
+          costPrice: p.estimatedWholesaleCost || 0,
+          competitorPrice: p.currentLowestPrice || 0,
+        })),
+        {
+          currency,
+          title: 'قائمة المنتجات والأسعار التنافسية',
+        }
+      );
+      onSuccessToast?.(`تم تصدير قائمة المنتجات (${itemsToExport.length} منتج) إلى PDF بنجاح`);
+    } catch (err) {
+      console.error('PDF Products export error:', err);
+    }
+  };
+
+  const handleExportFinancialPdf = () => {
+    try {
+      const totalRev = filteredProducts.reduce(
+        (sum, p) => sum + (p.suggestedRetailPrice || p.currentLowestPrice || 0),
+        0
+      );
+      const totalCost = filteredProducts.reduce(
+        (sum, p) => sum + (p.estimatedWholesaleCost || 0),
+        0
+      );
+      const totalProfit = Math.max(0, totalRev - totalCost);
+      const avgMargin = totalRev > 0 ? Number(((totalProfit / totalRev) * 100).toFixed(1)) : 0;
+
+      exportFinancialReportToPDF({
+        title: 'التقرير المالي وتقييم المحفظة',
+        periodLabel: `تقييم ${filteredProducts.length} منتج بالكتالوج`,
+        currency,
+        totalRevenue: totalRev,
+        totalNetProfit: totalProfit,
+        avgMarginPercent: avgMargin,
+        totalOrders: filteredProducts.length,
+        rows: filteredProducts.slice(0, 40).map((p) => {
+          const rev = p.suggestedRetailPrice || p.currentLowestPrice || 0;
+          const cost = p.estimatedWholesaleCost || 0;
+          const profit = rev - cost;
+          const margin = rev > 0 ? Number(((profit / rev) * 100).toFixed(1)) : 0;
+          return {
+            dateStr: p.sku || p.id,
+            revenueEGP: rev,
+            netProfitEGP: profit,
+            profitMarginPercent: margin,
+            ordersCount: p.merchantOffers?.length || 1,
+          };
+        }),
+      });
+      onSuccessToast?.('تم تصدير التقرير المالي إلى ملف PDF بنجاح');
+    } catch (err) {
+      console.error('PDF Financial export error:', err);
+    }
   };
 
   if (!isOpen) return null;
@@ -876,14 +943,25 @@ export const ExportCenterModal: React.FC<ExportCenterModalProps> = ({
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => handleExport('catalog')}
-                    disabled={isExporting !== null || filteredProducts.length === 0}
-                    className="w-full h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{isExporting === 'catalog' ? 'جاري إنشاء الملف...' : `تصدير الكتالوج (${filteredProducts.length} منتج)`}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExport('catalog')}
+                      disabled={isExporting !== null || filteredProducts.length === 0}
+                      className="flex-1 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{isExporting === 'catalog' ? 'جاري إنشاء الملف...' : `CSV (${filteredProducts.length} منتج)`}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExportProductsPdf(filteredProducts)}
+                      disabled={isExporting !== null || filteredProducts.length === 0}
+                      className="h-9 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      <span>تصدير PDF</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Card 2: Price History Log */}
@@ -934,14 +1012,25 @@ export const ExportCenterModal: React.FC<ExportCenterModalProps> = ({
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => handleExport('financial')}
-                    disabled={isExporting !== null || filteredProducts.length === 0}
-                    className="w-full h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{isExporting === 'financial' ? 'جاري تجهيز التقرير...' : 'تصدير التقرير المالي والمحاسبي'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExport('financial')}
+                      disabled={isExporting !== null || filteredProducts.length === 0}
+                      className="flex-1 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{isExporting === 'financial' ? 'جاري تجهيز التقرير...' : 'تصدير CSV'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportFinancialPdf}
+                      disabled={isExporting !== null || filteredProducts.length === 0}
+                      className="h-9 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>تصدير PDF</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Card 4: Single Product Full Audit */}
