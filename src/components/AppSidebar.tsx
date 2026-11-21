@@ -27,6 +27,7 @@ import {
   Download,
   ExternalLink,
   Clock,
+  Wand2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WorkspaceTab } from '../App';
@@ -231,6 +232,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           },
         },
         {
+          id: 'product_image_studio_tab',
+          label: 'استوديو صور المنتجات',
+          icon: <Wand2 className="w-4 h-4 text-amber-300" />,
+          preloadTab: 'product_image_studio',
+          isActive: activeTab === 'product_image_studio',
+          action: () => {
+            onSelectTab('product_image_studio');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/image-studio');
+          },
+        },
+        {
           id: 'import_history_tab',
           label: 'سجل عمليات الاستيراد',
           icon: <History className="w-4 h-4 text-amber-300" />,
@@ -390,18 +402,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         {
           id: 'sidebar_theme_mode',
           label: resolvedColorMode === 'dark' ? 'الوضع النهاري' : 'وضع ليلي',
+          badge: resolvedColorMode === 'dark' ? 'Dark High Contrast' : 'Clean Light',
           icon:
             resolvedColorMode === 'dark' ? (
               <Sun className="w-4 h-4 text-amber-400" />
             ) : (
-              <Moon className="w-4 h-4 text-indigo-300" />
+              <Moon className="w-4 h-4 text-sky-500" />
             ),
           action: () => {
             toggleColorMode();
             onShowToast?.(
               resolvedColorMode === 'dark'
-                ? 'تم التبديل إلى الوضع النهاري'
-                : 'تم التبديل إلى الوضع الليلي'
+                ? 'تم التبديل إلى وضع Clean Light المريح للعين'
+                : 'تم التبديل إلى وضع Dark High Contrast للبيئات التجارية المظلمة'
             );
           },
         },
@@ -448,15 +461,15 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <FounderModeWrapper elementId="app_sidebar" position="bottom-left">
         <aside
           data-testid="app-sidebar"
-          className={`fixed top-0 bottom-0 right-0 z-[120] bg-slate-950 text-white shadow-2xl flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out ${
+          className={`fixed top-0 bottom-0 right-0 z-[120] bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] shadow-2xl flex flex-col border-l border-[var(--sidebar-border)] transition-all duration-300 ease-in-out ${
             isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
           } ${isCollapsed ? 'w-[72px]' : 'w-[264px]'}`}
           dir="rtl"
         >
           {/* Sidebar Header */}
-          <div className="h-12 px-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="h-12 px-3 bg-[var(--sidebar-bg)] border-b border-[var(--sidebar-border)] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2 overflow-hidden min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[var(--sidebar-surface)] border border-[var(--sidebar-border)] overflow-hidden shrink-0">
                 <img
                   src="/pwa-512x512.png"
                   alt="RADAR"
@@ -465,7 +478,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
               {!isCollapsed && (
                 <div className="truncate min-w-0">
-                  <h2 className="text-sm font-black text-white tracking-wide truncate" dir="ltr">
+                  <h2 className="text-sm font-black text-[var(--sidebar-text)] tracking-wide truncate" dir="ltr">
                     RADAR
                   </h2>
                 </div>
@@ -476,7 +489,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <button
                 type="button"
                 onClick={handleToggleCollapse}
-                className="hidden lg:flex p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="hidden lg:flex p-1.5 rounded-lg text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] transition-colors cursor-pointer"
                 title={isCollapsed ? 'توسيع القائمة' : 'طي القائمة'}
               >
                 <Menu className="w-4 h-4 shrink-0" />
@@ -485,7 +498,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="lg:hidden p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="lg:hidden p-1.5 rounded-lg text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] transition-colors cursor-pointer"
                 title="إغلاق القائمة"
               >
                 <X className="w-4 h-4 shrink-0" />
@@ -504,12 +517,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               return (
                 <div
                   key={category.id}
-                  className="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/60"
+                  className="rounded-xl border border-[var(--sidebar-border)] overflow-hidden bg-[var(--sidebar-surface)]"
                 >
                   <button
                     type="button"
                     onClick={() => toggleCategory(category.id)}
-                    className="w-full px-2.5 py-2 bg-slate-900 text-white font-black text-xs flex items-center justify-between border-b border-slate-800 transition-colors cursor-pointer text-right hover:bg-slate-800/80"
+                    className="w-full px-2.5 py-2 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] font-black text-xs flex items-center justify-between border-b border-[var(--sidebar-border)] transition-colors cursor-pointer text-right hover:bg-[var(--sidebar-hover-bg)]"
                     title={isCollapsed ? category.title : undefined}
                   >
                     <span className="flex items-center gap-2 min-w-0">
@@ -518,7 +531,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     </span>
                     {!isCollapsed && (
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                        className={`w-3.5 h-3.5 text-[var(--sidebar-text-muted)] transition-transform duration-200 shrink-0 ${
                           isCategoryOpen ? 'rotate-180' : ''
                         }`}
                       />
@@ -545,13 +558,13 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                           className={`w-full min-h-[38px] text-right px-2.5 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center justify-between cursor-pointer whitespace-nowrap ${
                             item.isActive
                               ? 'bg-amber-500 text-slate-950 font-black'
-                              : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)]'
                           }`}
                         >
                           <span className="flex items-center gap-2 min-w-0">
                             <span
                               className={`shrink-0 ${
-                                item.isActive ? 'text-slate-950' : 'text-amber-300'
+                                item.isActive ? 'text-slate-950' : 'text-amber-500 dark:text-amber-300'
                               }`}
                             >
                               {item.icon}
@@ -563,7 +576,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                               className={`shrink-0 text-[10px] font-black px-1.5 py-0.5 rounded-md ${
                                 item.isActive
                                   ? 'bg-slate-950 text-amber-400'
-                                  : 'bg-slate-950 text-amber-300 border border-slate-700'
+                                  : 'bg-[var(--badge-bg)] text-[var(--badge-text)] border border-[var(--badge-border)]'
                               }`}
                             >
                               {item.badge}
@@ -578,20 +591,54 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             })}
           </nav>
 
-          {/* Sidebar Footer */}
-          {!isCollapsed && (
-            <div className="p-2.5 bg-slate-950 border-t border-slate-800 text-xs text-white shrink-0">
+          {/* Sidebar Footer: Direct Theme Switcher + Trial Days */}
+          <div className="p-2.5 bg-[var(--sidebar-bg)] border-t border-[var(--sidebar-border)] text-xs text-[var(--sidebar-text)] shrink-0 space-y-2">
+            <button
+              type="button"
+              id="btn-sidebar-switch-theme"
+              data-testid="sidebar-theme-switch-btn"
+              onClick={() => {
+                toggleColorMode();
+                onShowToast?.(
+                  resolvedColorMode === 'dark'
+                    ? 'تم التبديل إلى وضع Clean Light المريح للعين'
+                    : 'تم التبديل إلى وضع Dark High Contrast للبيئات التجارية المظلمة'
+                );
+              }}
+              aria-label="تبديل الثيم"
+              title={`تبديل الثيم (${resolvedColorMode === 'dark' ? 'Dark High Contrast' : 'Clean Light'})`}
+              className="w-full py-2 px-2.5 rounded-xl bg-[var(--sidebar-surface)] hover:bg-[var(--sidebar-hover-bg)] border border-[var(--sidebar-border)] text-[var(--sidebar-text)] font-black text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5 min-w-0">
+                {resolvedColorMode === 'dark' ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                )}
+                {!isCollapsed && <span className="truncate">تبديل الثيم</span>}
+              </span>
+              {!isCollapsed && (
+                <span
+                  dir="ltr"
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--badge-bg)] text-[var(--badge-text)] border border-[var(--badge-border)] shrink-0"
+                >
+                  {resolvedColorMode === 'dark' ? 'Dark High Contrast' : 'Clean Light'}
+                </span>
+              )}
+            </button>
+
+            {!isCollapsed && (
               <div className="flex items-center justify-between font-bold">
-                <span className="flex items-center gap-1 text-[11px] text-slate-300">
-                  <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="flex items-center gap-1 text-[11px] text-[var(--sidebar-text-muted)]">
+                  <Clock className="w-3.5 h-3.5 text-emerald-500" />
                   <span>التجربة المجانية:</span>
                 </span>
-                <span className="text-white font-black bg-emerald-950 border border-emerald-700 px-2 py-0.5 rounded text-[10px] font-mono">
+                <span className="text-emerald-700 dark:text-white font-black bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded text-[10px] font-mono">
                   {trialDaysRemaining} أيام
                 </span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </aside>
       </FounderModeWrapper>
 

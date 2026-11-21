@@ -18,7 +18,8 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@google/genai": "~2.4.0",
+    "@google/genai": "^3.6.1",
+    "@imgly/background-removal": "^1.7.0",
     "@supabase/supabase-js": "^2.118.0",
     "@types/compression": "^1.8.1",
     "@vercel/analytics": "^2.0.1",
@@ -44,6 +45,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-is": "^19.1.0",
+    "recharts": "^3.11.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

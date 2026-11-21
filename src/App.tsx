@@ -73,6 +73,7 @@ const LayoutSettingsPage = lazyWithPreload(() => import('./components/LayoutSett
 const AccountSettingsPage = lazyWithPreload(() => import('./components/AccountSettingsPage'));
 const HelpPage = lazyWithPreload(() => import('./components/HelpPage'));
 const WatchlistManager = lazyWithPreload(() => import('./components/WatchlistManager'));
+const ProductImageStudio = lazyWithPreload(() => import('./components/ProductImageStudio'));
 const OwnerDashboard = lazyWithPreload(() => import('./components/OwnerDashboard'));
 
 export const OWNER_EMAIL = 'jassmeinnour@gmail.com';
@@ -83,6 +84,7 @@ const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
   products: ProductsPage.preload,
   merchants: ProductsPage.preload,
   inventory: InventoryPage.preload,
+  product_image_studio: ProductImageStudio.preload,
   import_history: ImportHistoryPage.preload,
   shipping: ShippingManagementDashboard.preload,
   split_invoices: WaybillSplitterPage.preload,
@@ -296,6 +298,7 @@ export default function App() {
       products: <ProductsPage onShowToast={showToast} />,
       merchants: <ProductsPage onShowToast={showToast} />,
       inventory: <InventoryPage onShowToast={showToast} />,
+      product_image_studio: <ProductImageStudio onShowToast={showToast} />,
       import_history: <ImportHistoryPage onShowToast={showToast} />,
       shipping: <ShippingManagementDashboard onShowToast={showToast} />,
       split_invoices: <WaybillSplitterPage onShowToast={showToast} />,
@@ -380,7 +383,7 @@ export default function App() {
   };
 
   return (
-    <div dir="rtl" className="w-full min-h-screen bg-slate-950 text-slate-100 pb-12 relative font-['Cairo']">
+    <div dir="rtl" className="w-full min-h-screen bg-[var(--app-bg)] text-[var(--text-primary)] pb-12 relative font-['Cairo'] transition-colors duration-200">
       <OfflineNoticeBanner onShowToast={showToast} />
 
       <ErrorBoundary silent fallback={null} sectionName="sidebar">
@@ -410,6 +413,7 @@ export default function App() {
                   traders: '/traders',
                   products: '/products',
                   inventory: '/inventory',
+                  product_image_studio: '/image-studio',
                   import_history: '/import-history',
                   shipping: '/invoices',
                   split_invoices: '/invoices/split',
@@ -459,8 +463,8 @@ export default function App() {
           isSidebarCollapsed ? 'lg:pr-[72px]' : 'lg:pr-[264px]'
         }`}
       >
-        <ErrorBoundary silent fallback={<div className="h-12 bg-[#F8FAFC] border-b border-slate-300" />} sectionName="header">
-          <Suspense fallback={<div className="h-12 bg-[#F8FAFC] border-b border-slate-300" />}>
+        <ErrorBoundary silent fallback={<div className="h-12 bg-[var(--header-bg)] border-b border-[var(--header-border)]" />} sectionName="header">
+          <Suspense fallback={<div className="h-12 bg-[var(--header-bg)] border-b border-[var(--header-border)]" />}>
             <Header
               onShowToast={showToast}
               activeTab={activeWorkspaceTab}
@@ -492,6 +496,7 @@ export default function App() {
                             products: 'كتالوج المنتجات والأسعار',
                             merchants: 'كتالوج المنتجات والأسعار',
                             inventory: 'إدارة المخزون',
+                            product_image_studio: 'استوديو صور المنتجات بالذكاء الاصطناعي',
                             import_history: 'سجل عمليات الاستيراد',
                             shipping: 'بوالص الشحن والفواتير',
                             split_invoices: 'تقسيم البوالص',
@@ -592,6 +597,7 @@ export default function App() {
                     traders: '/traders',
                     products: '/products',
                     inventory: '/inventory',
+                    product_image_studio: '/image-studio',
                     import_history: '/import-history',
                     shipping: '/invoices',
                     split_invoices: '/invoices/split',

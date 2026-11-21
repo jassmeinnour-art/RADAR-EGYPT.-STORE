@@ -1,42 +1,58 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark-high-contrast"], [data-theme="dark-high-contrast"] *));
 @import "./variables.css";
 
 body, * {
-  font-family: var(--font-family) !important;
+  font-family: var(--font-family);
 }
 
+html,
 body {
-  background: var(--app-bg) !important;
-  color: var(--card-text) !important;
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* تطبيق متغيرات الثيم الداكن للأسطح والبطاقات والحاويات العامة */
+/* تطبيق متغيرات الثيم (Dark High Contrast / Clean Light) للأسطح والبطاقات */
 .theme-card,
 .card,
 .panel,
 .bg-card,
 .modal-card {
-  background-color: var(--card-bg) !important;
-  border-color: var(--card-border) !important;
-  color: var(--card-text) !important;
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--card-text);
   border-radius: var(--card-radius, 12px);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-surface {
+  background-color: var(--surface-bg);
+  color: var(--text-primary);
+  border-color: var(--card-border);
+}
+
+.theme-input {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--input-text);
 }
 
 /* توجيه النصوص العامة لمتغيرات الثيم */
 .text-card-primary {
-  color: var(--card-text) !important;
+  color: var(--card-text);
 }
 
 .text-card-secondary {
-  color: var(--card-text-secondary) !important;
+  color: var(--card-text-secondary);
 }
 
 /* حماية صور الشعارات في القائمة الجانبية والرأس والخلفية */
 .sidebar-logo {
-  width: var(--sidebar-logo-size, 36px) !important;
-  height: var(--sidebar-logo-size, 36px) !important;
-  max-width: var(--sidebar-logo-size, 36px) !important;
-  max-height: var(--sidebar-logo-size, 36px) !important;
+  width: var(--sidebar-logo-size, 32px) !important;
+  height: var(--sidebar-logo-size, 32px) !important;
+  max-width: var(--sidebar-logo-size, 32px) !important;
+  max-height: var(--sidebar-logo-size, 32px) !important;
   object-fit: contain !important;
 }
 
@@ -58,18 +74,13 @@ header img {
   justify-content: center;
 }
 
-.flex-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .notifications-dropdown {
   z-index: 9999 !important;
   position: fixed !important;
-  background-color: #0f172a !important;
-  border-color: #334155 !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.95), 0 0 35px 5px rgba(0, 0, 0, 0.85) !important;
+  background-color: var(--card-bg) !important;
+  color: var(--card-text) !important;
+  border-color: var(--card-border) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
 .notifications-dropdown * {

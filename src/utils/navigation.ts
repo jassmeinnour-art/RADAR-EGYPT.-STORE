@@ -9,6 +9,7 @@ export type WorkspaceTab =
   | 'traders'
   | 'products'
   | 'inventory'
+  | 'product_image_studio'
   | 'import_history'
   | 'merchants'
   | 'radar'
@@ -35,6 +36,7 @@ export const TAB_TO_PATH_MAP: Partial<Record<WorkspaceTab, string>> = {
   products: '/products',
   merchants: '/products',
   inventory: '/inventory',
+  product_image_studio: '/image-studio',
   import_history: '/import-history',
   shipping: '/invoices',
   split_invoices: '/invoices/split',
@@ -61,6 +63,7 @@ export function resolvePathToTab(rawPath: string): WorkspaceTab {
   if (normalized === '/traders' || normalized.startsWith('/traders/')) return 'traders';
   if (normalized === '/products') return 'products';
   if (normalized === '/inventory') return 'inventory';
+  if (normalized === '/image-studio' || normalized === '/studio') return 'product_image_studio';
   if (normalized === '/import-history') return 'import_history';
   if (normalized === '/invoices') return 'shipping';
   if (normalized === '/invoices/split') return 'split_invoices';

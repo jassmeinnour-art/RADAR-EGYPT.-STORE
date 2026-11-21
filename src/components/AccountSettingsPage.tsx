@@ -18,7 +18,13 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  Palette,
+  Moon,
+  Sun,
+  Check,
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { ThemeToggle } from './ThemeToggle';
 import {
   DEFAULT_TRADER_ID,
   FOUNDER_AMAZON_WARNING_TEXT,
@@ -95,6 +101,7 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
   onShowToast,
 }) => {
   const { profile, user, updateStoreProfile } = useAuth();
+  const { resolvedColorMode, setThemeVariant } = useTheme();
 
   // Profile fields
   const [displayName, setDisplayName] = useState(profile?.displayName || 'مؤسس النظام');
@@ -346,25 +353,25 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
     <section
       dir="rtl"
       aria-label="إعدادات الحساب وتفضيلات التنبيهات"
-      className="max-w-5xl mx-auto space-y-6 font-['Cairo'] text-slate-100"
+      className="max-w-5xl mx-auto space-y-6 font-['Cairo'] text-[var(--text-primary)]"
     >
       {/* Page Header */}
-      <header className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <header className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
         <div className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-black text-white font-['Alexandria']">
+          <h1 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] font-['Alexandria']">
             إعدادات الحساب والتنبيهات
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400">
-            إدارة بيانات الحساب التجاري وتفضيلات استقبال تنبيهات الأسعار عبر واتساب مقابل إشعارات المتصفح ·{' '}
-            <span className="text-slate-300 font-mono" dir="ltr">
+          <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
+            إدارة بيانات الحساب التجاري ومظهر التطبيق وتفضيلات استقبال تنبيهات الأسعار ·{' '}
+            <span className="text-[var(--text-primary)] font-mono" dir="ltr">
               {accountEmail}
             </span>
           </p>
         </div>
 
-        <div className="text-xs text-slate-400 tabular-nums shrink-0">
+        <div className="text-xs text-[var(--text-secondary)] tabular-nums shrink-0">
           القناة النشطة:{' '}
-          <strong className="text-sky-400">
+          <strong className="text-[var(--accent-color)]">
             {channelPrefs.channelMode === 'both'
               ? 'واتساب + المتصفح'
               : channelPrefs.channelMode === 'whatsapp_only'
@@ -379,15 +386,110 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
       {statusMessage && (
         <div
           role="status"
-          className="bg-slate-900 border border-emerald-500/40 rounded-xl px-4 py-3 text-xs font-bold text-emerald-300 flex items-center gap-2"
+          className="bg-[var(--card-bg)] border border-[var(--success-border)] rounded-xl px-4 py-3 text-xs font-bold text-[var(--success-text)] flex items-center gap-2"
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-[var(--success-color)]" />
           <span>{statusMessage}</span>
         </div>
       )}
 
+      {/* Theme Appearance Card: Dark High Contrast & Clean Light */}
+      <div
+        aria-label="إعدادات ثيم التطبيق والمظهر"
+        className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-6 space-y-4 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--divider-color)] pb-4">
+          <div className="space-y-1">
+            <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] flex items-center gap-2">
+              <Palette className="w-5 h-5 text-[var(--primary-color)]" />
+              <span>مظهر التطبيق والثيمات (Dark High Contrast / Clean Light)</span>
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              بدّل بضغطة واحدة بين وضع Dark High Contrast المخصص للبيئات التجارية المظلمة ووضع Clean Light المريح للعين
+            </p>
+          </div>
+
+          <ThemeToggle
+            variant="full"
+            showLabel
+            onToggleNotification={(msg) => {
+              setStatusMessage(msg);
+              onShowToast?.(msg);
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            type="button"
+            data-testid="select-theme-dark-high-contrast"
+            onClick={() => {
+              setThemeVariant('dark-high-contrast');
+              const msg = 'تم تفعيل وضع Dark High Contrast للبيئات التجارية المظلمة';
+              setStatusMessage(msg);
+              onShowToast?.(msg);
+            }}
+            className={`p-4 rounded-xl border text-right transition-all cursor-pointer flex items-start justify-between gap-3 ${
+              resolvedColorMode === 'dark'
+                ? 'bg-[#020617] border-amber-400 text-white ring-2 ring-amber-400/30'
+                : 'bg-[var(--surface-subtle)] border-[var(--card-border)] text-[var(--text-primary)] hover:border-slate-500'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-sm font-black" dir="ltr">
+                  Dark High Contrast
+                </span>
+              </div>
+              <p className={`text-[11px] leading-relaxed ${resolvedColorMode === 'dark' ? 'text-slate-300' : 'text-[var(--text-secondary)]'}`}>
+                تباين فائق وحدود واضحة مخصصة للبيئات التجارية المظلمة وإدارة الصفقات الطويلة.
+              </p>
+            </div>
+            {resolvedColorMode === 'dark' && (
+              <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            data-testid="select-theme-clean-light"
+            onClick={() => {
+              setThemeVariant('clean-light');
+              const msg = 'تم تفعيل وضع Clean Light المريح للعين';
+              setStatusMessage(msg);
+              onShowToast?.(msg);
+            }}
+            className={`p-4 rounded-xl border text-right transition-all cursor-pointer flex items-start justify-between gap-3 ${
+              resolvedColorMode === 'light'
+                ? 'bg-white border-sky-500 text-slate-950 ring-2 ring-sky-400/30 shadow-sm'
+                : 'bg-[var(--surface-subtle)] border-[var(--card-border)] text-[var(--text-primary)] hover:border-sky-400'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-sm font-black" dir="ltr">
+                  Clean Light
+                </span>
+              </div>
+              <p className={`text-[11px] leading-relaxed ${resolvedColorMode === 'light' ? 'text-slate-600' : 'text-[var(--text-secondary)]'}`}>
+                خلفية أوف-وايت نظيفة خالية من التوهج ونصوص واضحة ومريحة للعين خلال العمل النهاري.
+              </p>
+            </div>
+            {resolvedColorMode === 'light' && (
+              <span className="w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Notification Channels Section: WhatsApp vs Browser */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-6 space-y-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
           <div className="space-y-1">
             <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">

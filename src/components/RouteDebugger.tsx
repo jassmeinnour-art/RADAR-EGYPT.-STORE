@@ -58,6 +58,7 @@ const REGISTERED_ROUTES_CONFIG: Array<{ tab: WorkspaceTab; path: string; compone
   { tab: 'account_settings', path: '/settings', componentName: 'AccountSettingsPage', isLazy: true },
   { tab: 'help', path: '/help', componentName: 'HelpPage', isLazy: true },
   { tab: 'watchlist', path: '/watchlist', componentName: 'PriceComparisonEngine (Watchlist)', isLazy: true },
+  { tab: 'product_image_studio', path: '/image-studio', componentName: 'ProductImageStudio', isLazy: true },
   { tab: 'ai_studio', path: '/ai-studio', componentName: 'OwnerDashboard (AI Studio)', isLazy: true },
 ];
 

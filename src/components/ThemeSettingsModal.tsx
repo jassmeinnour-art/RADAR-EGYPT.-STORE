@@ -59,7 +59,8 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
     colorMode,
     resolvedColorMode,
     systemColorScheme,
-    setColorMode
+    setColorMode,
+    toggleColorMode,
   } = useTheme();
 
   const {
@@ -257,7 +258,7 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
               <Zap className={`w-4 h-4 ${activeTab === 'updates' ? 'text-indigo-600' : 'text-slate-400'}`} />
               <span>التحديثات الذكية وتثبيت التطبيق (PWA)</span>
             </div>
-            {effectiveUpdateState.hasUpdate ? (
+            {effectiveUpdateState?.hasUpdate ? (
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" title="يوجد تحديث متاح" />
             ) : null}
           </button>
@@ -699,27 +700,90 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                   <div className="flex items-center gap-2">
                     <Monitor className="w-4 h-4 text-indigo-600" />
                     <h3 className="text-xs sm:text-sm font-black text-slate-900 font-['Alexandria']">
-                      مظهر الواجهة والكشف التلقائي لنظام التشغيل (Theme Mode)
+                      مظهر الواجهة: Dark High Contrast و Clean Light
                     </h3>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
-                    إعداد النظام المكتشف: {systemColorScheme === 'dark' ? 'وضع ليلي 🌙' : 'وضع نهاري ☀️'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      id="btn-modal-switch-theme-direct"
+                      onClick={() => {
+                        const nextIsDark = resolvedColorMode !== 'dark';
+                        toggleColorMode();
+                        onShowToast?.(
+                          nextIsDark
+                            ? 'تم التبديل إلى وضع Dark High Contrast للبيئات التجارية المظلمة'
+                            : 'تم التبديل إلى وضع Clean Light المريح للعين'
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      {resolvedColorMode === 'dark' ? (
+                        <Sun className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <Moon className="w-3.5 h-3.5 text-sky-300" />
+                      )}
+                      <span>تبديل الثيم</span>
+                    </button>
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                      النظام: {systemColorScheme === 'dark' ? 'داكن' : 'نهاري'}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-500">
-                  يتعرف التطبيق تلقائياً على إعدادات نظام تشغيل جهازك لتفعيل الوضع الليلي أو النهاري، كما يمكنك التبديل يدوياً في أي وقت من هنا أو من شريط الأدوات العلوي:
+                  اختر بين وضع Dark High Contrast المخصص للبيئات التجارية المظلمة ووضع Clean Light المريح للعين، أو فعّل المزامنة التلقائية:
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    id="btn-modal-color-mode-dark"
+                    onClick={() => {
+                      setColorMode('dark');
+                      onShowToast?.('تم تفعيل وضع Dark High Contrast للبيئات التجارية المظلمة');
+                    }}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
+                      colorMode === 'dark'
+                        ? 'bg-slate-950 border-amber-400 text-white ring-2 ring-amber-400/30 font-black'
+                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800 font-bold'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-xs">
+                      <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Dark High Contrast</span>
+                    </span>
+                    {colorMode === 'dark' && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-modal-color-mode-light"
+                    onClick={() => {
+                      setColorMode('light');
+                      onShowToast?.('تم تفعيل وضع Clean Light المريح للعين');
+                    }}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
+                      colorMode === 'light'
+                        ? 'bg-sky-50 border-sky-500 text-slate-950 ring-2 ring-sky-400/30 font-black'
+                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800 font-bold'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-xs">
+                      <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Clean Light</span>
+                    </span>
+                    {colorMode === 'light' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
+                  </button>
+
                   <button
                     type="button"
                     id="btn-modal-color-mode-system"
                     onClick={() => {
                       setColorMode('system');
                       onShowToast?.(
-                        `🖥️ تم تفعيل الكشف التلقائي حسب نظام التشغيل (${
-                          systemColorScheme === 'dark' ? 'ليلي 🌙' : 'نهاري ☀️'
+                        `تم تفعيل الكشف التلقائي حسب نظام التشغيل (${
+                          systemColorScheme === 'dark' ? 'Dark High Contrast' : 'Clean Light'
                         })`
                       );
                     }}
@@ -741,7 +805,7 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                     id="btn-modal-color-mode-scheduled"
                     onClick={() => {
                       setColorMode('scheduled');
-                      onShowToast?.('⏰ تم تفعيل الوضع المجدول (تلقائي حسب الوقت)');
+                      onShowToast?.('تم تفعيل الوضع المجدول (تلقائي حسب الوقت)');
                     }}
                     className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
                       colorMode === 'scheduled'
@@ -754,46 +818,6 @@ export const ThemeSettingsModal: React.FC<ThemeSettingsModalProps> = ({
                       <span>مجدول (بالوقت)</span>
                     </span>
                     {colorMode === 'scheduled' && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    id="btn-modal-color-mode-dark"
-                    onClick={() => {
-                      setColorMode('dark');
-                      onShowToast?.('🌙 تم تفعيل الوضع الليلي (Dark Mode) يدوياً');
-                    }}
-                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
-                      colorMode === 'dark'
-                        ? 'bg-slate-900 border-slate-800 text-white ring-2 ring-indigo-500/30 font-black'
-                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 font-bold'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-xs">
-                      <Moon className="w-4 h-4 text-sky-400 shrink-0" />
-                      <span>ليلي (Dark)</span>
-                    </span>
-                    {colorMode === 'dark' && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    id="btn-modal-color-mode-light"
-                    onClick={() => {
-                      setColorMode('light');
-                      onShowToast?.('☀️ تم تفعيل الوضع النهاري (Light Mode) يدوياً');
-                    }}
-                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex items-center justify-between ${
-                      colorMode === 'light'
-                        ? 'bg-sky-50 border-sky-400 text-slate-950 ring-2 ring-sky-400/30 font-black'
-                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 font-bold'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-xs">
-                      <Sun className="w-4 h-4 text-sky-500 shrink-0" />
-                      <span>نهاري (Light)</span>
-                    </span>
-                    {colorMode === 'light' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
                   </button>
                 </div>
               </div>

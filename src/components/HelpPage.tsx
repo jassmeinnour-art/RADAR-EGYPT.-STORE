@@ -42,9 +42,381 @@ import {
   BarChart3,
   ArrowUpRight,
   Activity,
-  Layers as LayersIcon
+  Layers as LayersIcon,
+  MessageSquare,
+  Send,
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+export interface HelpGuideCommonQuery {
+  id: string;
+  label: string;
+  topic: string;
+  query: string;
+}
+
+export const HELP_GUIDE_COMMON_QUERIES: HelpGuideCommonQuery[] = [
+  {
+    id: 'import-txt',
+    label: 'استيراد ملف أمازون TXT',
+    topic: 'الاستيراد',
+    query: 'كيف أستورد منتجات أمازون من ملف TXT أو Excel بدون أخطاء أو تكرار؟',
+  },
+  {
+    id: 'import-history',
+    label: 'سجل الاستيراد والتراجع',
+    topic: 'سجل الاستيراد',
+    query: 'كيف أراجع سجل عمليات الاستيراد أو أتراجع عن عملية تمت بالخطأ؟',
+  },
+  {
+    id: 'sp-api-safe',
+    label: 'ربط Amazon SP-API الآمن',
+    topic: 'ربط المنصات',
+    query: 'ما الطريقة الآمنة لربط حساب التاجر بـ Amazon SP-API دون حظر الحساب؟',
+  },
+  {
+    id: 'buy-box',
+    label: 'رادار المنافسين و Buy Box',
+    topic: 'المنافسة والتسعير',
+    query: 'كيف أراقب أسعار المنافسين وأفوز بصندوق الشراء Buy Box مع حماية هامش الربح؟',
+  },
+  {
+    id: 'waybill-split',
+    label: 'مقسم البوالص والجيميل',
+    topic: 'الفواتير والشحن',
+    query: 'كيف أستخدم مقسم البوالص وفصل الفواتير وسحب فواتير الجيميل؟',
+  },
+  {
+    id: 'offline-pwa',
+    label: 'العمل دون إنترنت (PWA)',
+    topic: 'التطبيق PWA',
+    query: 'كيف يعمل رادار التاجر دون إنترنت وكيف أثبت التطبيق على الشاشة الرئيسية؟',
+  },
+];
+
+interface HelpGuideHistoryItem {
+  id: string;
+  query: string;
+  topic?: string;
+  answer: string;
+  model?: string;
+  timestamp: string;
+}
+
+export interface HelpGuideProps {
+  initialQuery?: string;
+}
+
+export const HelpGuide: React.FC<HelpGuideProps> = ({ initialQuery = '' }) => {
+  const [question, setQuestion] = useState(initialQuery);
+  const [activeTopic, setActiveTopic] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastFailedRequest, setLastFailedRequest] = useState<{ query: string; topic?: string } | null>(null);
+  const [currentAnswer, setCurrentAnswer] = useState<HelpGuideHistoryItem | null>(null);
+  const [history, setHistory] = useState<HelpGuideHistoryItem[]>([]);
+  const [copiedAnswer, setCopiedAnswer] = useState(false);
+
+  const askHelpGuide = async (rawQuery: string, topic?: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      setErrorMessage('يرجى كتابة سؤالك أو اختيار أحد الاستعلامات الشائعة أولاً.');
+      return;
+    }
+
+    setQuestion(trimmed);
+    setActiveTopic(topic);
+    setIsLoading(true);
+    setErrorMessage(null);
+    setLastFailedRequest(null);
+
+    try {
+      const conversationContext = history
+        .slice(-3)
+        .flatMap((item) => [
+          { role: 'user' as const, content: item.query },
+          { role: 'model' as const, content: item.answer },
+        ]);
+
+      const response = await fetch('/api/help-guide', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: trimmed,
+          topic,
+          history: conversationContext,
+        }),
+      });
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok || !data?.success || !data?.answer) {
+        const message =
+          data?.error ||
+          data?.message ||
+          `تعذر الحصول على رد من خدمة Gemini (رمز الحالة ${response.status})`;
+        setErrorMessage(message);
+        setLastFailedRequest({ query: trimmed, topic });
+        return;
+      }
+
+      const entry: HelpGuideHistoryItem = {
+        id: `${Date.now()}`,
+        query: trimmed,
+        topic,
+        answer: String(data.answer),
+        model: data.model || 'gemini-4-hydrogen',
+        timestamp: data.timestamp || new Date().toISOString(),
+      };
+
+      setCurrentAnswer(entry);
+      setHistory((prev) => {
+        const filtered = prev.filter((item) => item.query !== entry.query);
+        return [entry, ...filtered].slice(0, 6);
+      });
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'حدث خطأ في الاتصال بالخادم أثناء طلب المساعدة.');
+      setLastFailedRequest({ query: trimmed, topic });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    askHelpGuide(question, activeTopic);
+  };
+
+  const handleCopyAnswer = async () => {
+    if (!currentAnswer?.answer) return;
+    try {
+      await navigator.clipboard?.writeText(currentAnswer.answer);
+      setCopiedAnswer(true);
+      setTimeout(() => setCopiedAnswer(false), 2000);
+    } catch {
+      // Clipboard API may be unavailable in restricted contexts
+    }
+  };
+
+  return (
+    <section
+      aria-label="دليل المساعدة الفوري عبر Gemini"
+      className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-amber-500/35 rounded-3xl p-6 sm:p-7 mb-8 shadow-2xl space-y-5"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/35 text-amber-400 shrink-0">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-black text-white">
+                المساعد الفوري لأدوات رادار التاجر
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-bold">
+                Gemini AI
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              اختر استعلاماً شائعاً أو اكتب سؤالك للحصول على خطوات فورية لاستخدام أدوات الاستيراد، الربط، والتسعير.
+            </p>
+          </div>
+        </div>
+
+        {currentAnswer && (
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentAnswer(null);
+              setQuestion('');
+              setActiveTopic(undefined);
+              setErrorMessage(null);
+            }}
+            className="self-start sm:self-center px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>سؤال جديد</span>
+          </button>
+        )}
+      </div>
+
+      {/* Common Queries Grid */}
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+          <MessageSquare className="w-4 h-4 text-amber-400" />
+          <span>الاستعلامات الشائعة (اضغط للحصول على إجابة فورية):</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {HELP_GUIDE_COMMON_QUERIES.map((item) => {
+            const isSelected = currentAnswer?.query === item.query && !isLoading;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                disabled={isLoading}
+                onClick={() => askHelpGuide(item.query, item.topic)}
+                className={`text-right p-3 rounded-xl border transition flex items-start justify-between gap-2.5 cursor-pointer disabled:opacity-60 ${
+                  isSelected
+                    ? 'bg-amber-500/15 border-amber-400 text-white shadow'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-amber-500/40 text-slate-200 hover:bg-slate-950'
+                }`}
+              >
+                <div className="space-y-1">
+                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-amber-300">
+                    {item.topic}
+                  </span>
+                  <div className="text-xs font-bold leading-snug">{item.label}</div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-amber-400 shrink-0 rotate-180 mt-1" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Custom Question Input */}
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
+        <div className="relative flex-grow">
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => {
+              setQuestion(e.target.value);
+              if (activeTopic) setActiveTopic(undefined);
+            }}
+            aria-label="اسأل مساعد رادار التاجر"
+            placeholder="اكتب سؤالك هنا (مثلاً: كيف أستورد تقرير أمازون TXT أو أفعّل تنبيهات الأسعار؟)..."
+            className="w-full py-3 px-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 text-white placeholder-slate-400 text-sm focus:outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition shrink-0 cursor-pointer"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>جاري التحليل...</span>
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              <span>اسأل المساعد</span>
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div
+          role="status"
+          className="p-4 rounded-2xl bg-slate-950/90 border border-amber-500/30 flex items-center gap-3 text-xs sm:text-sm text-amber-200"
+        >
+          <Loader2 className="w-5 h-5 animate-spin text-amber-400 shrink-0" />
+          <span>جاري تجهيز الإجابة السريعة عبر Gemini...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {errorMessage && !isLoading && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-950/50 border border-red-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm text-red-200"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+          {lastFailedRequest && (
+            <button
+              type="button"
+              onClick={() => askHelpGuide(lastFailedRequest.query, lastFailedRequest.topic)}
+              className="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-400/40 text-red-100 text-xs font-bold shrink-0 cursor-pointer"
+            >
+              إعادة المحاولة
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Gemini Answer Card */}
+      {currentAnswer && !isLoading && (
+        <div className="p-5 rounded-2xl bg-slate-950 border border-emerald-500/35 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{currentAnswer.query}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {currentAnswer.model && (
+                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400">
+                  {currentAnswer.model}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleCopyAnswer}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+              >
+                {copiedAnswer ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">تم النسخ</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-slate-400" />
+                    <span>نسخ الإجابة</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
+            {currentAnswer.answer}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Session History */}
+      {history.length > 1 && (
+        <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-slate-400 font-bold">استعلاماتك السابقة:</span>
+          {history.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setCurrentAnswer(item);
+                setQuestion(item.query);
+                setErrorMessage(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg border text-xs transition cursor-pointer ${
+                currentAnswer?.id === item.id
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-200 font-bold'
+                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+              }`}
+            >
+              {item.query.length > 45 ? `${item.query.slice(0, 45)}...` : item.query}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
 
 interface HelpPageProps {
   onNavigateToPlatformsGuide?: () => void;
@@ -542,6 +914,9 @@ export default function HelpPage({ onNavigateToPlatformsGuide, onStartTour, onOp
           )}
         </div>
       </div>
+
+      {/* Gemini-powered HelpGuide Component */}
+      <HelpGuide />
 
       {/* Main Navigation Tabs */}
       <div className="flex flex-wrap gap-2 sm:gap-3 mb-8 border-b border-slate-800 pb-4">

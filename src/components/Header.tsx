@@ -90,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       dir="rtl"
       data-testid="compact-top-header"
-      className="sticky top-0 z-40 h-12 min-h-[48px] max-h-[48px] bg-[#F8FAFC] border-b border-slate-300 text-slate-950 px-3 sm:px-5 flex items-center justify-between gap-2 sm:gap-4"
+      className="sticky top-0 z-40 h-12 min-h-[48px] max-h-[48px] bg-[var(--header-bg)] border-b border-[var(--header-border)] text-[var(--header-text)] px-3 sm:px-5 flex items-center justify-between gap-2 sm:gap-4 transition-colors duration-200"
     >
       {/* 1. Right (RTL start): Small RADAR logo */}
       <button
@@ -113,14 +113,14 @@ export const Header: React.FC<HeaderProps> = ({
             className="w-full h-full object-cover"
           />
         </div>
-        <span className="text-sm font-black tracking-wide text-slate-950 whitespace-nowrap" dir="ltr">
+        <span className="text-sm font-black tracking-wide text-[var(--header-text)] whitespace-nowrap" dir="ltr">
           RADAR
         </span>
       </button>
 
       {/* 2. Center: Compact Quick Search */}
       <div className="flex-1 max-w-md mx-auto h-8 relative">
-        <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="search"
           aria-label="بحث سريع في المنتجات"
@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
               new CustomEvent('merchant_global_search', { detail: { query: e.target.value } })
             );
           }}
-          className="w-full h-full pr-8 pl-3 rounded-lg bg-white border border-slate-300 focus:border-slate-900 focus:outline-none text-xs font-bold text-slate-950 placeholder:text-slate-400 transition-colors"
+          className="w-full h-full pr-8 pl-3 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] focus:border-[var(--input-border-focus)] focus:outline-none text-xs font-bold text-[var(--input-text)] placeholder:text-[var(--input-placeholder)] transition-colors"
         />
       </div>
 
@@ -162,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onToggleSidebar}
           aria-label="فتح القائمة الجانبية"
           title="فتح القائمة الجانبية"
-          className="h-8 w-8 rounded-lg bg-white hover:bg-slate-100 text-slate-950 border border-slate-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+          className="h-8 w-8 rounded-lg bg-[var(--card-bg)] hover:bg-[var(--card-bg-hover)] text-[var(--header-text)] border border-[var(--card-border)] flex items-center justify-center transition-colors cursor-pointer shrink-0"
         >
           <Menu className="w-4 h-4 shrink-0" />
         </button>
