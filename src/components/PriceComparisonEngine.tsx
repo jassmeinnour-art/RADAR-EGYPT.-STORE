@@ -16,12 +16,15 @@ import {
   Tag,
   FileText,
   Calendar,
-  Activity
+  Activity,
+  GitCompareArrows,
+  Check
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -42,6 +45,172 @@ export interface MonthlyPriceTrendPoint {
   competitorPrice: number;
   costPrice: number;
   priceGap: number;
+}
+
+export interface PriceTrendChartPoint {
+  dateKey: string;
+  dateLabel: string;
+  fullDate: string;
+  merchantPrice: number | null;
+  competitorPrice: number | null;
+  projectedMerchantPrice: number | null;
+  projectedCompetitorPrice: number | null;
+  costPrice: number;
+  priceGap: number;
+  isProjected: boolean;
+}
+
+export interface PriceTrendProjectionResult {
+  series: PriceTrendChartPoint[];
+  slopePerDay: number;
+  competitorSlopePerDay: number;
+  projectedEndMerchantPrice: number;
+  projectedEndCompetitorPrice: number;
+  projectedChangePercent: number;
+  trendDirection: 'up' | 'down' | 'stable';
+  rSquared: number;
+}
+
+function fitLinearRegression(values: number[]): { slope: number; intercept: number; rSquared: number } {
+  const n = values.length;
+  if (n < 2) {
+    return { slope: 0, intercept: values[0] ?? 0, rSquared: 0 };
+  }
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += values[i];
+    sumXY += i * values[i];
+    sumXX += i * i;
+  }
+
+  const denominator = n * sumXX - sumX * sumX;
+  const slope = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
+  const intercept = (sumY - slope * sumX) / n;
+
+  const meanY = sumY / n;
+  let ssTot = 0;
+  let ssRes = 0;
+  for (let i = 0; i < n; i++) {
+    const predicted = intercept + slope * i;
+    ssTot += (values[i] - meanY) ** 2;
+    ssRes += (values[i] - predicted) ** 2;
+  }
+  const rSquared = ssTot === 0 ? 1 : Math.max(0, Math.min(1, Number((1 - ssRes / ssTot).toFixed(2))));
+
+  return { slope, intercept, rSquared };
+}
+
+export function buildPriceTrendProjection(
+  historicalSeries: MonthlyPriceTrendPoint[],
+  projectionDays = 7,
+  costPrice = 0
+): PriceTrendProjectionResult {
+  if (!Array.isArray(historicalSeries) || historicalSeries.length === 0) {
+    return {
+      series: [],
+      slopePerDay: 0,
+      competitorSlopePerDay: 0,
+      projectedEndMerchantPrice: 0,
+      projectedEndCompetitorPrice: 0,
+      projectedChangePercent: 0,
+      trendDirection: 'stable',
+      rSquared: 0,
+    };
+  }
+
+  const horizon = Math.max(3, Math.min(14, Math.round(projectionDays)));
+  const merchantReg = fitLinearRegression(historicalSeries.map((p) => p.merchantPrice));
+  const competitorReg = fitLinearRegression(historicalSeries.map((p) => p.competitorPrice));
+
+  const lastIdx = historicalSeries.length - 1;
+  const lastPoint = historicalSeries[lastIdx];
+  const minSafePrice = Math.max(1, Math.round(costPrice > 0 ? costPrice * 0.85 : 1));
+
+  // Anchor regression projection at the last actual price while preserving learned daily slope
+  const anchorMerchant = lastPoint.merchantPrice;
+  const anchorCompetitor = lastPoint.competitorPrice;
+
+  const combined: PriceTrendChartPoint[] = historicalSeries.map((pt, idx) => ({
+    dateKey: pt.dateKey,
+    dateLabel: pt.dateLabel,
+    fullDate: pt.fullDate,
+    merchantPrice: pt.merchantPrice,
+    competitorPrice: pt.competitorPrice,
+    projectedMerchantPrice: idx === lastIdx ? pt.merchantPrice : null,
+    projectedCompetitorPrice: idx === lastIdx ? pt.competitorPrice : null,
+    costPrice: pt.costPrice,
+    priceGap: pt.priceGap,
+    isProjected: false,
+  }));
+
+  const baseDate = new Date(`${lastPoint.dateKey}T12:00:00`);
+  const validBaseDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+
+  let projectedEndMerchant = anchorMerchant;
+  let projectedEndCompetitor = anchorCompetitor;
+
+  for (let step = 1; step <= horizon; step++) {
+    const d = new Date(validBaseDate);
+    d.setDate(d.getDate() + step);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateKey = `${yyyy}-${mm}-${dd}`;
+    const dateLabel = `${dd}/${mm}`;
+    const fullDate = d.toLocaleDateString('ar-EG', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const projM = Math.max(minSafePrice, Math.round(anchorMerchant + merchantReg.slope * step));
+    const projC = Math.max(
+      Math.max(1, Math.round(minSafePrice * 0.95)),
+      Math.round(anchorCompetitor + competitorReg.slope * step)
+    );
+
+    projectedEndMerchant = projM;
+    projectedEndCompetitor = projC;
+
+    combined.push({
+      dateKey,
+      dateLabel,
+      fullDate,
+      merchantPrice: null,
+      competitorPrice: null,
+      projectedMerchantPrice: projM,
+      projectedCompetitorPrice: projC,
+      costPrice: lastPoint.costPrice,
+      priceGap: projM - projC,
+      isProjected: true,
+    });
+  }
+
+  const slopePerDay = Number(merchantReg.slope.toFixed(2));
+  const competitorSlopePerDay = Number(competitorReg.slope.toFixed(2));
+  const projectedChangePercent =
+    anchorMerchant > 0
+      ? Number((((projectedEndMerchant - anchorMerchant) / anchorMerchant) * 100).toFixed(1))
+      : 0;
+  const trendDirection: 'up' | 'down' | 'stable' =
+    projectedChangePercent >= 0.5 ? 'up' : projectedChangePercent <= -0.5 ? 'down' : 'stable';
+
+  return {
+    series: combined,
+    slopePerDay,
+    competitorSlopePerDay,
+    projectedEndMerchantPrice: projectedEndMerchant,
+    projectedEndCompetitorPrice: projectedEndCompetitor,
+    projectedChangePercent,
+    trendDirection,
+    rSquared: merchantReg.rSquared,
+  };
 }
 
 function hashSkuSeed(input: string): number {
@@ -157,6 +326,118 @@ export function buildMonthlyPriceTrendSeries(
   return points;
 }
 
+export const DIRECT_COMPARISON_COLORS = [
+  '#f59e0b',
+  '#38bdf8',
+  '#10b981',
+  '#a855f7',
+  '#fb7185',
+  '#2dd4bf',
+] as const;
+
+export type DirectComparisonMetric = 'merchant' | 'competitor';
+
+export interface DirectComparisonSeriesMeta {
+  id: string;
+  sku: string;
+  title: string;
+  color: string;
+  currentPrice: number;
+  competitorPrice: number;
+  costPrice: number;
+  minPrice: number;
+  maxPrice: number;
+  avgPrice: number;
+  changePercent: number;
+}
+
+export interface DirectComparisonChartPoint {
+  dateKey: string;
+  dateLabel: string;
+  fullDate: string;
+  [skuKey: string]: string | number;
+}
+
+export interface DirectComparisonResult {
+  chartData: DirectComparisonChartPoint[];
+  seriesMeta: DirectComparisonSeriesMeta[];
+}
+
+export function buildDirectComparisonChartData(
+  items: Array<{
+    id: string;
+    sku: string;
+    title: string;
+    merchantPrice: number;
+    competitorPrice: number;
+    costPrice: number;
+  }>,
+  days = 30,
+  metric: DirectComparisonMetric = 'merchant',
+  savedMap: Record<string, ProductPriceHistoryRecord> = readSavedPriceHistoryMap(),
+  referenceDate: Date = new Date()
+): DirectComparisonResult {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { chartData: [], seriesMeta: [] };
+  }
+
+  const perProductSeries = items.map((item) =>
+    buildMonthlyPriceTrendSeries(item, days, savedMap, referenceDate)
+  );
+
+  const baseSeries = perProductSeries[0] ?? [];
+  const chartData: DirectComparisonChartPoint[] = baseSeries.map((pt, idx) => {
+    const point: DirectComparisonChartPoint = {
+      dateKey: pt.dateKey,
+      dateLabel: pt.dateLabel,
+      fullDate: pt.fullDate,
+    };
+
+    items.forEach((item, productIdx) => {
+      const seriesPoint = perProductSeries[productIdx]?.[idx];
+      if (seriesPoint) {
+        point[item.sku] =
+          metric === 'competitor' ? seriesPoint.competitorPrice : seriesPoint.merchantPrice;
+      }
+    });
+
+    return point;
+  });
+
+  const seriesMeta: DirectComparisonSeriesMeta[] = items.map((item, productIdx) => {
+    const series = perProductSeries[productIdx] ?? [];
+    const values = series.map((p) =>
+      metric === 'competitor' ? p.competitorPrice : p.merchantPrice
+    );
+    const minPrice = values.length > 0 ? Math.min(...values) : 0;
+    const maxPrice = values.length > 0 ? Math.max(...values) : 0;
+    const avgPrice =
+      values.length > 0
+        ? Math.round(values.reduce((sum, val) => sum + val, 0) / values.length)
+        : 0;
+    const firstVal = values[0] ?? 0;
+    const lastVal = values[values.length - 1] ?? 0;
+    const changePercent =
+      firstVal > 0 ? Number((((lastVal - firstVal) / firstVal) * 100).toFixed(1)) : 0;
+
+    return {
+      id: item.id,
+      sku: item.sku,
+      title: item.title,
+      color: DIRECT_COMPARISON_COLORS[productIdx % DIRECT_COMPARISON_COLORS.length],
+      currentPrice: Math.round(item.merchantPrice),
+      competitorPrice: Math.round(item.competitorPrice),
+      costPrice: Math.round(item.costPrice),
+      minPrice,
+      maxPrice,
+      avgPrice,
+      changePercent,
+    };
+  });
+
+  return { chartData, seriesMeta };
+}
+
 interface ComparisonItem {
   id: string;
   sku: string;
@@ -191,10 +472,15 @@ export default function PriceComparisonEngine({
   const [isProcessingCsv, setIsProcessingCsv] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [selectedSku, setSelectedSku] = useState<string>('');
+  const [chartMode, setChartMode] = useState<'single' | 'direct'>('single');
+  const [directCompareSkus, setDirectCompareSkus] = useState<string[]>([]);
+  const [directMetric, setDirectMetric] = useState<DirectComparisonMetric>('merchant');
   const [trendRangeDays, setTrendRangeDays] = useState<7 | 14 | 30>(30);
+  const [projectionDays, setProjectionDays] = useState<7 | 14>(7);
   const [showMerchantSeries, setShowMerchantSeries] = useState(true);
   const [showCompetitorSeries, setShowCompetitorSeries] = useState(true);
   const [showCostReference, setShowCostReference] = useState(true);
+  const [showProjection, setShowProjection] = useState(true);
 
   useEffect(() => {
     const loadComparisonData = () => {
@@ -266,6 +552,11 @@ export default function PriceComparisonEngine({
     setSelectedSku((prev) => {
       if (prev && comparisons.some((c) => c.sku === prev)) return prev;
       return comparisons[0]?.sku || '';
+    });
+    setDirectCompareSkus((prev) => {
+      const validPrev = prev.filter((sku) => comparisons.some((c) => c.sku === sku));
+      if (validPrev.length >= 2) return validPrev;
+      return comparisons.slice(0, Math.min(2, comparisons.length)).map((c) => c.sku);
     });
   };
 
@@ -376,6 +667,28 @@ export default function PriceComparisonEngine({
     ? buildMonthlyPriceTrendSeries(selectedComparisonItem, trendRangeDays)
     : [];
 
+  const projectionResult = selectedComparisonItem
+    ? buildPriceTrendProjection(monthlyTrendSeries, projectionDays, selectedComparisonItem.costPrice)
+    : null;
+
+  const chartData: PriceTrendChartPoint[] = showProjection && projectionResult
+    ? projectionResult.series
+    : monthlyTrendSeries.map((pt) => ({
+        dateKey: pt.dateKey,
+        dateLabel: pt.dateLabel,
+        fullDate: pt.fullDate,
+        merchantPrice: pt.merchantPrice,
+        competitorPrice: pt.competitorPrice,
+        projectedMerchantPrice: null,
+        projectedCompetitorPrice: null,
+        costPrice: pt.costPrice,
+        priceGap: pt.priceGap,
+        isProjected: false,
+      }));
+
+  const todayBoundaryLabel =
+    monthlyTrendSeries.length > 0 ? monthlyTrendSeries[monthlyTrendSeries.length - 1].dateLabel : null;
+
   const trendStats = (() => {
     if (monthlyTrendSeries.length === 0) {
       return { maxMerchant: 0, minMerchant: 0, avgCompetitor: 0, changePercent: 0 };
@@ -393,6 +706,24 @@ export default function PriceComparisonEngine({
       firstPrice > 0 ? Number((((lastPrice - firstPrice) / firstPrice) * 100).toFixed(1)) : 0;
     return { maxMerchant, minMerchant, avgCompetitor, changePercent };
   })();
+
+  const toggleDirectCompareSku = (sku: string) => {
+    setDirectCompareSkus((prev) => {
+      if (prev.includes(sku)) {
+        return prev.filter((itemSku) => itemSku !== sku);
+      }
+      return [...prev, sku];
+    });
+  };
+
+  const directComparisonItems = comparisonItems.filter((item) =>
+    directCompareSkus.includes(item.sku)
+  );
+
+  const directComparisonResult =
+    directComparisonItems.length >= 2
+      ? buildDirectComparisonChartData(directComparisonItems, trendRangeDays, directMetric)
+      : { chartData: [], seriesMeta: [] };
 
   return (
     <section 
@@ -487,9 +818,21 @@ export default function PriceComparisonEngine({
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-white font-black text-base">
               <Activity className="w-5 h-5 text-amber-400 shrink-0" aria-hidden="true" />
-              <h3>اتجاهات تغير سعر المنتج خلال الشهر الماضي</h3>
+              <h3>
+                {chartMode === 'direct'
+                  ? 'المقارنة المباشرة لتذبذب أسعار المنتجات'
+                  : 'اتجاهات تغير سعر المنتج خلال الشهر الماضي'}
+              </h3>
             </div>
-            {selectedComparisonItem ? (
+            {chartMode === 'direct' ? (
+              <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                <span>اختر منتجين أو أكثر لدمج حركتهما السعرية في رسم بياني واحد</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono text-amber-400">
+                  المحددة: {directComparisonItems.length} من {comparisonItems.length}
+                </span>
+              </p>
+            ) : selectedComparisonItem ? (
               <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
                 <span className="text-slate-200 font-bold">{selectedComparisonItem.title}</span>
                 <span aria-hidden="true">·</span>
@@ -503,7 +846,39 @@ export default function PriceComparisonEngine({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {comparisonItems.length > 0 && (
+            <div
+              className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800"
+              role="group"
+              aria-label="وضع عرض الرسم البياني"
+            >
+              <button
+                type="button"
+                aria-pressed={chartMode === 'single'}
+                onClick={() => setChartMode('single')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer ${
+                  chartMode === 'single'
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                منتج واحد
+              </button>
+              <button
+                type="button"
+                aria-pressed={chartMode === 'direct'}
+                onClick={() => setChartMode('direct')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  chartMode === 'direct'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <GitCompareArrows className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>المقارنة المباشرة</span>
+              </button>
+            </div>
+
+            {chartMode === 'single' && comparisonItems.length > 0 && (
               <select
                 aria-label="اختر المنتج لعرض اتجاه السعر"
                 value={selectedComparisonItem?.sku || ''}
@@ -545,8 +920,223 @@ export default function PriceComparisonEngine({
           </div>
         </div>
 
-        {/* Summary Metrics & Interactive Series Controls */}
-        {selectedComparisonItem ? (
+        {chartMode === 'direct' ? (
+          <div className="space-y-4" data-testid="direct-comparison-panel">
+            {/* Multi-product Picker + Metric Switcher */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div
+                className="flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label="اختيار المنتجات للمقارنة المباشرة"
+                data-testid="direct-comparison-selector"
+              >
+                {comparisonItems.map((item) => {
+                  const selectedIdx = directComparisonItems.findIndex((i) => i.sku === item.sku);
+                  const isSelected = selectedIdx !== -1;
+                  const seriesColor = isSelected
+                    ? DIRECT_COMPARISON_COLORS[selectedIdx % DIRECT_COMPARISON_COLORS.length]
+                    : '#475569';
+
+                  return (
+                    <button
+                      key={item.sku}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleDirectCompareSku(item.sku)}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-slate-900 border-amber-500/60 text-white'
+                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-sm shrink-0"
+                        style={{ backgroundColor: seriesColor }}
+                        aria-hidden="true"
+                      />
+                      <span className="max-w-[180px] truncate">{item.title}</span>
+                      <span className="font-mono text-[11px] text-slate-400 tabular-nums">
+                        {item.merchantPrice.toLocaleString()} {currency}
+                      </span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 shrink-0 self-start lg:self-auto"
+                role="group"
+                aria-label="نوع السعر في المقارنة المباشرة"
+              >
+                <button
+                  type="button"
+                  aria-pressed={directMetric === 'merchant'}
+                  onClick={() => setDirectMetric('merchant')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                    directMetric === 'merchant'
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  مقارنة سعرك
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={directMetric === 'competitor'}
+                  onClick={() => setDirectMetric('competitor')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                    directMetric === 'competitor'
+                      ? 'bg-emerald-500 text-slate-950'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  مقارنة المنافس
+                </button>
+              </div>
+            </div>
+
+            {directComparisonItems.length < 2 ? (
+              <div
+                data-testid="direct-comparison-empty"
+                className="py-12 px-4 rounded-xl bg-slate-900/50 border border-slate-800 text-center space-y-3"
+              >
+                <p className="text-xs text-slate-300 font-bold">
+                  يرجى اختيار منتجين على الأقل لعرض المقارنة المباشرة في الرسم البياني.
+                </p>
+                {comparisonItems.length >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setDirectCompareSkus(comparisonItems.slice(0, 2).map((c) => c.sku))}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition cursor-pointer"
+                  >
+                    اختيار أول منتجين تلقائياً
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div
+                  data-testid="direct-comparison-summary"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+                >
+                  {directComparisonResult.seriesMeta.map((meta) => (
+                    <div
+                      key={meta.sku}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-sm shrink-0"
+                            style={{ backgroundColor: meta.color }}
+                            aria-hidden="true"
+                          />
+                          <span className="text-xs font-bold text-white truncate">{meta.title}</span>
+                        </div>
+                        <span
+                          className={`font-mono text-[11px] font-bold tabular-nums shrink-0 ${
+                            meta.changePercent > 0
+                              ? 'text-red-400'
+                              : meta.changePercent < 0
+                              ? 'text-emerald-400'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {meta.changePercent > 0 ? `+${meta.changePercent}%` : `${meta.changePercent}%`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono tabular-nums">
+                        <span>المتوسط: {meta.avgPrice.toLocaleString()} {currency}</span>
+                        <span>{meta.minPrice.toLocaleString()}–{meta.maxPrice.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="w-full h-[300px]" dir="ltr" data-testid="direct-comparison-chart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={directComparisonResult.chartData}
+                      margin={{ top: 12, right: 16, left: 4, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis
+                        dataKey="dateLabel"
+                        stroke="#64748b"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        minTickGap={18}
+                      />
+                      <YAxis
+                        stroke="#64748b"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        domain={['auto', 'auto']}
+                        width={56}
+                        tickFormatter={(val: number) => `${val}`}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload || payload.length === 0) return null;
+                          const pt = payload[0]?.payload as DirectComparisonChartPoint | undefined;
+                          if (!pt) return null;
+                          return (
+                            <div
+                              dir="rtl"
+                              className="rounded-xl bg-slate-950 border border-slate-700 p-3 shadow-xl text-xs space-y-1.5 min-w-[210px]"
+                            >
+                              <div className="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>{pt.fullDate}</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {directMetric === 'competitor' ? 'أرخص منافس' : 'سعرك'}
+                                </span>
+                              </div>
+                              {directComparisonResult.seriesMeta.map((meta) => {
+                                const val = pt[meta.sku];
+                                if (typeof val !== 'number') return null;
+                                return (
+                                  <div key={meta.sku} className="flex items-center justify-between gap-4">
+                                    <span className="flex items-center gap-1.5 text-slate-200 truncate max-w-[140px]">
+                                      <span
+                                        className="w-2 h-2 rounded-sm shrink-0"
+                                        style={{ backgroundColor: meta.color }}
+                                        aria-hidden="true"
+                                      />
+                                      <span className="truncate">{meta.title}</span>
+                                    </span>
+                                    <span className="font-mono tabular-nums font-black text-white">
+                                      {val.toLocaleString()} {currency}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }}
+                      />
+                      {directComparisonResult.seriesMeta.map((meta) => (
+                        <Line
+                          key={meta.sku}
+                          type="monotone"
+                          dataKey={meta.sku}
+                          name={meta.title}
+                          stroke={meta.color}
+                          strokeWidth={2.5}
+                          dot={false}
+                          activeDot={{ r: 5, fill: meta.color, stroke: '#0f172a', strokeWidth: 2 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+        /* Summary Metrics & Interactive Series Controls */
+        selectedComparisonItem ? (
           <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-grow">
@@ -621,12 +1211,88 @@ export default function PriceComparisonEngine({
                 >
                   حد التكلفة ({selectedComparisonItem.costPrice.toLocaleString()})
                 </button>
+                <button
+                  type="button"
+                  aria-pressed={showProjection}
+                  onClick={() => setShowProjection((v) => !v)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    showProjection
+                      ? 'bg-violet-500/20 border-violet-400/60 text-violet-200'
+                      : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-violet-400" aria-hidden="true" />
+                  <span>التوقع المستقبلي (Trend)</span>
+                </button>
               </div>
             </div>
 
+            {showProjection && projectionResult && (
+              <div
+                data-testid="trend-projection-summary"
+                className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-violet-950/25 border border-violet-500/30"
+              >
+                <div className="flex flex-wrap items-center gap-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-5 border-t-2 border-dashed border-violet-400" aria-hidden="true" />
+                    <span className="text-violet-200 font-bold">
+                      توقع السعر بعد {projectionDays} أيام (انحدار خطي):
+                    </span>
+                    <strong className="font-mono tabular-nums text-white font-black">
+                      {projectionResult.projectedEndMerchantPrice.toLocaleString()} {currency}
+                    </strong>
+                    <span
+                      className={`font-mono font-bold px-2 py-0.5 rounded-md ${
+                        projectionResult.trendDirection === 'up'
+                          ? 'bg-red-500/15 text-red-300'
+                          : projectionResult.trendDirection === 'down'
+                          ? 'bg-emerald-500/15 text-emerald-300'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      {projectionResult.projectedChangePercent > 0
+                        ? `+${projectionResult.projectedChangePercent}%`
+                        : `${projectionResult.projectedChangePercent}%`}
+                    </span>
+                  </div>
+
+                  <div className="text-slate-400">
+                    معدل التغير اليومي:{' '}
+                    <span className="font-mono text-slate-200 font-bold">
+                      {projectionResult.slopePerDay > 0 ? `+${projectionResult.slopePerDay}` : projectionResult.slopePerDay} {currency}/يوم
+                    </span>
+                  </div>
+
+                  <div className="text-slate-400">
+                    توقع أرخص منافس:{' '}
+                    <span className="font-mono text-emerald-300 font-bold">
+                      {projectionResult.projectedEndCompetitorPrice.toLocaleString()} {currency}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-lg border border-slate-800 shrink-0" role="group" aria-label="أفق التوقع المستقبلي">
+                  {([7, 14] as const).map((horizon) => (
+                    <button
+                      key={horizon}
+                      type="button"
+                      onClick={() => setProjectionDays(horizon)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                        projectionDays === horizon
+                          ? 'bg-violet-500 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      +{horizon} يوم
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="w-full h-[300px]" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyTrendSeries} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
                   <defs>
                     <linearGradient id="merchantPriceFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.32} />
@@ -650,30 +1316,43 @@ export default function PriceComparisonEngine({
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload || payload.length === 0) return null;
-                      const pt = payload[0]?.payload as MonthlyPriceTrendPoint | undefined;
+                      const pt = payload[0]?.payload as PriceTrendChartPoint | undefined;
                       if (!pt) return null;
+                      const displayMerchant = pt.isProjected ? pt.projectedMerchantPrice : pt.merchantPrice;
+                      const displayCompetitor = pt.isProjected ? pt.projectedCompetitorPrice : pt.competitorPrice;
                       return (
                         <div
                           dir="rtl"
                           className="rounded-xl bg-slate-950 border border-slate-700 p-3 shadow-xl text-xs space-y-1.5"
                         >
-                          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                            <span>{pt.fullDate}</span>
+                          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                              <span>{pt.fullDate}</span>
+                            </span>
+                            {pt.isProjected && (
+                              <span className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px] font-bold">
+                                توقع إحصائي
+                              </span>
+                            )}
                           </div>
-                          {showMerchantSeries && (
+                          {showMerchantSeries && displayMerchant !== null && (
                             <div className="flex items-center justify-between gap-4">
-                              <span className="text-amber-300">سعرك:</span>
+                              <span className={pt.isProjected ? 'text-violet-300' : 'text-amber-300'}>
+                                {pt.isProjected ? 'سعرك المتوقع:' : 'سعرك:'}
+                              </span>
                               <span className="font-mono tabular-nums font-black text-white">
-                                {pt.merchantPrice.toLocaleString()} {currency}
+                                {displayMerchant.toLocaleString()} {currency}
                               </span>
                             </div>
                           )}
-                          {showCompetitorSeries && (
+                          {showCompetitorSeries && displayCompetitor !== null && (
                             <div className="flex items-center justify-between gap-4">
-                              <span className="text-emerald-300">أرخص منافس:</span>
+                              <span className="text-emerald-300">
+                                {pt.isProjected ? 'أرخص منافس متوقع:' : 'أرخص منافس:'}
+                              </span>
                               <span className="font-mono tabular-nums font-black text-emerald-400">
-                                {pt.competitorPrice.toLocaleString()} {currency}
+                                {displayCompetitor.toLocaleString()} {currency}
                               </span>
                             </div>
                           )}
@@ -691,6 +1370,19 @@ export default function PriceComparisonEngine({
                       );
                     }}
                   />
+                  {showProjection && todayBoundaryLabel && (
+                    <ReferenceLine
+                      x={todayBoundaryLabel}
+                      stroke="#a78bfa"
+                      strokeDasharray="3 3"
+                      label={{
+                        value: 'اليوم · بدء التوقع',
+                        position: 'insideTopLeft',
+                        fill: '#c4b5fd',
+                        fontSize: 10,
+                      }}
+                    />
+                  )}
                   {showCostReference && (
                     <ReferenceLine
                       y={selectedComparisonItem.costPrice}
@@ -712,6 +1404,7 @@ export default function PriceComparisonEngine({
                       stroke="#f59e0b"
                       strokeWidth={2.5}
                       fill="url(#merchantPriceFill)"
+                      connectNulls={false}
                       activeDot={{ r: 5, fill: '#fbbf24', stroke: '#0f172a', strokeWidth: 2 }}
                     />
                   )}
@@ -723,7 +1416,34 @@ export default function PriceComparisonEngine({
                       stroke="#10b981"
                       strokeWidth={2}
                       dot={false}
+                      connectNulls={false}
                       activeDot={{ r: 4, fill: '#34d399', stroke: '#0f172a', strokeWidth: 2 }}
+                    />
+                  )}
+                  {showProjection && showMerchantSeries && (
+                    <Line
+                      type="monotone"
+                      dataKey="projectedMerchantPrice"
+                      name="توقع سعرك (Trend)"
+                      stroke="#a855f7"
+                      strokeWidth={2.5}
+                      strokeDasharray="6 4"
+                      dot={{ r: 2.5, fill: '#c084fc', strokeWidth: 0 }}
+                      connectNulls={false}
+                      activeDot={{ r: 5, fill: '#c084fc', stroke: '#0f172a', strokeWidth: 2 }}
+                    />
+                  )}
+                  {showProjection && showCompetitorSeries && (
+                    <Line
+                      type="monotone"
+                      dataKey="projectedCompetitorPrice"
+                      name="توقع أرخص منافس"
+                      stroke="#34d399"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={false}
+                      connectNulls={false}
+                      activeDot={{ r: 4, fill: '#6ee7b7', stroke: '#0f172a', strokeWidth: 2 }}
                     />
                   )}
                 </AreaChart>
@@ -734,6 +1454,7 @@ export default function PriceComparisonEngine({
           <div className="py-10 text-center text-xs text-slate-400">
             لا توجد بيانات منتجات متاحة لعرض المخطط البياني حالياً.
           </div>
+        )
         )}
       </div>
 
@@ -833,12 +1554,21 @@ export default function PriceComparisonEngine({
                     </span>
                   );
 
-                const isSelectedRow = selectedComparisonItem?.sku === item.sku;
+                const isSelectedRow =
+                  chartMode === 'direct'
+                    ? directCompareSkus.includes(item.sku)
+                    : selectedComparisonItem?.sku === item.sku;
 
                 return (
                   <tr
                     key={item.id}
-                    onClick={() => setSelectedSku(item.sku)}
+                    onClick={() => {
+                      if (chartMode === 'direct') {
+                        toggleDirectCompareSku(item.sku);
+                      } else {
+                        setSelectedSku(item.sku);
+                      }
+                    }}
                     aria-selected={isSelectedRow}
                     className={`cursor-pointer transition ${
                       isSelectedRow ? 'bg-amber-500/10' : 'hover:bg-slate-900/60'

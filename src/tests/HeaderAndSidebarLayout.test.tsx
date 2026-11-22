@@ -2,7 +2,12 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Header } from '../components/Header';
-import { AppSidebar } from '../components/AppSidebar';
+import {
+  AppSidebar,
+  applyStoredOrder,
+  SIDEBAR_CATEGORY_ORDER_STORAGE_KEY,
+  SIDEBAR_ITEM_ORDER_STORAGE_KEY,
+} from '../components/AppSidebar';
 import App, { OWNER_EMAIL } from '../App';
 
 const mockToggleColorMode = vi.fn();
@@ -259,5 +264,64 @@ describe('Compact 48px Header, Unified AppSidebar, and Zero-Duplicate Cleanup', 
     expect(screen.queryByText(/جميع الأقسام والشاشات/)).not.toBeInTheDocument();
     expect(screen.queryByText(/سحب الطلبات/)).not.toBeInTheDocument();
     expect(screen.queryByText(/ابدأ السحب/)).not.toBeInTheDocument();
+  });
+
+  it('persists custom sidebar category and item order from localStorage and supports resetting to default', () => {
+    // 1. Test pure ordering helper
+    const base = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    expect(applyStoredOrder(base, ['c', 'a']).map((x) => x.id)).toEqual(['c', 'a', 'b']);
+
+    // 2. Seed custom order in localStorage before mount
+    localStorage.setItem(
+      SIDEBAR_CATEGORY_ORDER_STORAGE_KEY,
+      JSON.stringify(['sales', 'home', 'inventory'])
+    );
+    localStorage.setItem(
+      SIDEBAR_ITEM_ORDER_STORAGE_KEY,
+      JSON.stringify({ sales: ['reports_tab', 'shipping_tab', 'split_invoices_tab'] })
+    );
+
+    const onShowToast = vi.fn();
+    render(
+      <AppSidebar
+        isOpen={true}
+        onClose={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+        activeTab="home"
+        onSelectTab={vi.fn()}
+        onOpenOwnerDashboard={vi.fn()}
+        onShowToast={onShowToast}
+        isOwner={true}
+      />
+    );
+
+    const nav = screen.getByRole('navigation', { name: 'القائمة الجانبية الرئيسية' });
+    const categoryCards = nav.querySelectorAll('[data-testid^="sidebar-category-card-"]');
+    expect(categoryCards[0].getAttribute('data-testid')).toBe('sidebar-category-card-sales');
+    expect(categoryCards[1].getAttribute('data-testid')).toBe('sidebar-category-card-home');
+    expect(categoryCards[2].getAttribute('data-testid')).toBe('sidebar-category-card-inventory');
+
+    const salesCard = categoryCards[0];
+    const salesItems = salesCard.querySelectorAll('[data-testid^="sidebar-item-row-"]');
+    expect(salesItems[0].getAttribute('data-testid')).toBe('sidebar-item-row-reports_tab');
+    expect(salesItems[1].getAttribute('data-testid')).toBe('sidebar-item-row-shipping_tab');
+    expect(salesItems[2].getAttribute('data-testid')).toBe('sidebar-item-row-split_invoices_tab');
+
+    // Drag handles exist for categories and items
+    expect(screen.getByTestId('drag-handle-category-sales')).toBeInTheDocument();
+    expect(screen.getByTestId('drag-handle-item-reports_tab')).toBeInTheDocument();
+
+    // Reset restores default order and clears localStorage
+    const resetBtn = screen.getByTestId('btn-reset-sidebar-order');
+    fireEvent.click(resetBtn);
+
+    expect(localStorage.getItem(SIDEBAR_CATEGORY_ORDER_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(SIDEBAR_ITEM_ORDER_STORAGE_KEY)).toBeNull();
+    expect(onShowToast).toHaveBeenCalledWith('تمت استعادة الترتيب الافتراضي للقائمة الجانبية.');
+
+    const resetCards = nav.querySelectorAll('[data-testid^="sidebar-category-card-"]');
+    expect(resetCards[0].getAttribute('data-testid')).toBe('sidebar-category-card-home');
+    expect(resetCards[1].getAttribute('data-testid')).toBe('sidebar-category-card-inventory');
   });
 });
