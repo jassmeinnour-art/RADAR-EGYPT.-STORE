@@ -78,11 +78,12 @@ describe('PDF Export (jsPDF) in Reports & ExportCenterModal', () => {
     const rawPdf = pdf.output();
     expect(rawPdf.startsWith('%PDF-')).toBe(true);
     expect(rawPdf).toContain('2026-11-20');
+    expect(rawPdf).toContain('Financial Performance Chart');
     const dataUri = pdf.output('datauristring');
     expect(dataUri).toContain('application/pdf');
   });
 
-  it('renders "تصدير" button in PerformanceDashboard and exports financial and product PDFs', () => {
+  it('renders "تصدير التقرير" button in PerformanceDashboard and exports financial & products PDFs via jsPDF', () => {
     const financialSpy = vi.spyOn(pdfExporter, 'exportFinancialReportToPDF');
     const productsSpy = vi.spyOn(pdfExporter, 'exportProductsListToPDF');
     const onShowToast = vi.fn();
@@ -103,21 +104,19 @@ describe('PDF Export (jsPDF) in Reports & ExportCenterModal', () => {
       />
     );
 
-    const exportBtn = screen.getByRole('button', { name: /تصدير/ });
-    expect(exportBtn).toBeTruthy();
+    const exportReportBtn = screen.getByRole('button', { name: 'تصدير التقرير' });
+    expect(exportReportBtn).toBeTruthy();
 
-    fireEvent.click(exportBtn);
-    const finOption = screen.getByRole('menuitem', { name: 'تصدير التقرير المالي (PDF)' });
-    expect(finOption).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: 'تصدير قائمة المنتجات (PDF)' })).toBeTruthy();
-
-    fireEvent.click(finOption);
+    fireEvent.click(exportReportBtn);
     expect(financialSpy).toHaveBeenCalledTimes(1);
     expect(financialSpy.mock.calls[0][0].periodLabel).toBe('آخر 30 يوماً');
+    expect(financialSpy.mock.calls[0][0].productsCount).toBe(1);
     expect(onShowToast).toHaveBeenCalledWith('تم تصدير التقرير المالي بصيغة PDF بنجاح');
 
-    // Re-open menu and export products list PDF
-    fireEvent.click(screen.getByRole('button', { name: /تصدير/ }));
+    // Open additional PDF options menu and export products list PDF
+    const extraMenuBtn = screen.getByRole('button', { name: 'خيارات التصدير الإضافية' });
+    fireEvent.click(extraMenuBtn);
+    expect(screen.getByRole('menuitem', { name: 'تصدير التقرير المالي (PDF)' })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: 'تصدير قائمة المنتجات (PDF)' }));
     expect(productsSpy).toHaveBeenCalledTimes(1);
     expect(productsSpy.mock.calls[0][0][0].sku).toBe('RADAR-01');

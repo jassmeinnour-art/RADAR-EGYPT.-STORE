@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   Clock,
   FileSpreadsheet,
-  History
+  History,
+  UserPlus,
+  BarChart3
 } from 'lucide-react';
 import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
 import { supabase, Trader, getTraderLastSyncAt } from '../lib/supabase';
@@ -40,6 +42,17 @@ interface TradersPageProps {
   onSelectTrader?: (traderId: string) => void;
 }
 
+function safeFormatSupabaseError(err: any): string {
+  if (!err) return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات';
+  if (typeof err === 'string') return err;
+  const msg = String(err.message || err.error_description || err.error || '').trim();
+  const details = String(err.details || '').trim();
+  const hint = String(err.hint || '').trim();
+  const code = String(err.code || '').trim();
+  const parts = [msg, details && !msg.includes(details) ? details : '', hint && !msg.includes(hint) ? `(${hint})` : ''].filter(Boolean);
+  return parts.join(' — ') || (code ? `Supabase Error Code: ${code}` : 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات');
+}
+
 const PLATFORM_DETAILS: Record<string, { name: string; color: string; logo: string }> = {
   amazon: { name: 'أمازون (Amazon)', color: 'border-amber-500/40 bg-amber-500/10 text-amber-300', logo: 'https://cdn.simpleicons.org/amazon/FF9900' },
   noon: { name: 'نون (Noon)', color: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Noon.com_Logo.svg' },
@@ -53,11 +66,12 @@ const PLATFORM_DETAILS: Record<string, { name: string; color: string; logo: stri
 const TraderCard: React.FC<{
   trader: Trader;
   isSyncing: boolean;
+  onSelect: (t: Trader) => void;
   onEdit: (t: Trader) => void;
   onDelete: (e: React.MouseEvent, t: Trader) => void;
   onFetch: (t: Trader) => void;
   onShowToast?: (message: string) => void;
-}> = React.memo(({ trader, isSyncing, onEdit, onDelete, onFetch, onShowToast }) => {
+}> = React.memo(({ trader, isSyncing, onSelect, onEdit, onDelete, onFetch, onShowToast }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const plat = PLATFORM_DETAILS[trader.platform] || {
     name: trader.platform || 'منصة عامة',
@@ -92,14 +106,23 @@ const TraderCard: React.FC<{
   return (
     <div
       ref={cardRef}
-      className="card border relative overflow-hidden flex flex-col justify-between p-5 bg-slate-900/90 border-slate-800 rounded-3xl shadow-xl"
+      data-testid={`trader-card-${trader.id}`}
+      onClick={() => onSelect(trader)}
+      className="card border relative overflow-hidden flex flex-col justify-between p-5 bg-slate-900/90 border-slate-800 hover:border-amber-500/50 rounded-3xl shadow-xl transition-colors cursor-pointer"
     >
       <DraggableHandle elementId={`trader_card_${trader.id}`} targetRef={cardRef} position="bottom-right" />
 
       <div className="space-y-4">
         {/* Header: Seller Name, Platform Badge, Seller ID, Delete */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(trader);
+            }}
+            className="flex items-center gap-3 min-w-0 text-right cursor-pointer group flex-1"
+          >
             <div className="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-700 p-2 flex items-center justify-center shrink-0">
               <img
                 src={plat.logo}
@@ -115,7 +138,7 @@ const TraderCard: React.FC<{
               />
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-black text-white truncate">
+              <h3 className="text-base font-black text-white group-hover:text-amber-300 transition-colors truncate">
                 {trader.seller_name}
               </h3>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -128,7 +151,7 @@ const TraderCard: React.FC<{
                 </span>
               </div>
             </div>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -230,8 +253,20 @@ const TraderCard: React.FC<{
           </div>
         </div>
 
-        {/* Founder Action Buttons (5 Required Actions) */}
+        {/* Founder Action Buttons (Open Profile + 5 Actions) */}
         <div className="pt-3 border-t border-slate-800/70 space-y-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(trader);
+            }}
+            className="w-full px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-black text-xs border border-amber-500/40 transition-colors duration-200 flex items-center justify-between cursor-pointer"
+          >
+            <span>عرض ملف التاجر</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </button>
+
           {/* 1. Edit Trader Data */}
           <button
             type="button"
@@ -355,7 +390,7 @@ const TraderCard: React.FC<{
 });
 TraderCard.displayName = 'TraderCard';
 
-export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
+export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectTrader }) => {
   const { user, profile, isOwner } = useAuth();
   const userEmail = (user?.email || profile?.email || '').trim().toLowerCase();
   const isFounder = Boolean(user && !user.isAnonymous && isOwner && userEmail === OWNER_EMAIL);
@@ -363,7 +398,8 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const [traders, setTraders] = useState<Trader[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 20;
 
@@ -385,6 +421,14 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
   const [formDestinationUrl, setFormDestinationUrl] = useState<string>('');
   const [formStoreUrl, setFormStoreUrl] = useState<string>('');
 
+  const handleOpenTraderDetail = (trader: Trader) => {
+    if (onSelectTrader) {
+      onSelectTrader(trader.id);
+    } else {
+      navigate(`/traders/${encodeURIComponent(trader.id)}`);
+    }
+  };
+
   const fetchTraders = async (targetPage = 1, forceFresh = false) => {
     if (!isFounder) {
       setTraders([]);
@@ -392,20 +436,13 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
       return;
     }
 
-    const cacheKey = `traders_${userEmail}_page_${targetPage}`;
+    const cacheKey = `traders_${userEmail}_all`;
     const dropdownCacheKey = `traders_dropdown_options_${userEmail}_v2`;
     const cached = !forceFresh ? dataCache.getStale<Trader[]>(cacheKey) : null;
 
     if (cached) {
-      if (targetPage === 1) {
-        setTraders(cached.data);
-      } else {
-        setTraders((prev) => {
-          const combined = [...prev, ...cached.data];
-          return Array.from(new Map(combined.map((t) => [t.id, t])).values());
-        });
-      }
-      setHasMore(cached.data.length === PAGE_SIZE);
+      setTraders(cached.data);
+      setHasMore(false);
       setIsLoading(false);
       if (cached.isFresh) return;
     } else if (targetPage === 1) {
@@ -413,65 +450,58 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
     }
 
     try {
-      const from = (targetPage - 1) * PAGE_SIZE;
-      const to = targetPage * PAGE_SIZE - 1;
-
-      let { data, error } = await supabase
-        .from('traders')
-        .select('id, seller_name, email, gmail, seller_id, platform, storefront_link, store_url, destination_url, seller_link, status, phone, user_id, last_sync_at, last_sync_timestamp')
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error && (String(error.message || '').includes('last_sync_timestamp') || String(error.message || '').includes('last_sync_at'))) {
-        const fallbackRes = await supabase
-          .from('traders')
-          .select('id, seller_name, email, gmail, seller_id, platform, storefront_link, store_url, destination_url, seller_link, status, phone, user_id')
-          .order('created_at', { ascending: false })
-          .range(from, to);
-        data = fallbackRes.data;
-        error = fallbackRes.error;
-      }
+      // Exact same source as DashboardHome: supabase.from('traders').select('*')
+      const { data, error } = await supabase.from('traders').select('*');
 
       if (error) {
-        console.error('Error fetching traders:', error);
+        console.error('[TradersPage] Error fetching traders from Supabase:', error);
+        const realErrMsg = safeFormatSupabaseError(error);
         setFetchError(true);
-      } else {
-        setFetchError(false);
+        setFetchErrorMessage(realErrMsg);
+        if (!cached) {
+          setTraders([]);
+        }
+        return;
       }
+
+      setFetchError(false);
+      setFetchErrorMessage(null);
 
       let list = Array.isArray(data) ? (data as Trader[]) : [];
 
-      list = list.map((t) => {
-        const syncedTs = getTraderLastSyncAt(t.id, t.last_sync_at, t.last_sync_timestamp) || undefined;
-        return {
-          ...t,
-          last_sync_at: syncedTs,
-          last_sync_timestamp: syncedTs,
-          platform: (t.platform || '').includes('amazon')
-            ? 'amazon'
-            : (t.platform || '').includes('noon')
-            ? 'noon'
-            : t.platform,
-        };
-      });
-
-      setHasMore(list.length === PAGE_SIZE);
-
-      if (targetPage === 1) {
-        setTraders(list);
-        dataCache.set(dropdownCacheKey, list.map((t) => ({ id: t.id, seller_name: t.seller_name, platform: t.platform })));
-      } else {
-        setTraders((prev) => {
-          const combined = [...prev, ...list];
-          return Array.from(new Map(combined.map((t) => [t.id, t])).values());
+      list = list
+        .map((t) => {
+          const syncedTs = getTraderLastSyncAt(t.id, t.last_sync_at, t.last_sync_timestamp) || undefined;
+          return {
+            ...t,
+            last_sync_at: syncedTs,
+            last_sync_timestamp: syncedTs,
+            platform: (t.platform || '').includes('amazon')
+              ? 'amazon'
+              : (t.platform || '').includes('noon')
+              ? 'noon'
+              : t.platform,
+          };
+        })
+        .sort((a, b) => {
+          const tA = a.created_at ? Date.parse(a.created_at) : 0;
+          const tB = b.created_at ? Date.parse(b.created_at) : 0;
+          return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0);
         });
-      }
 
+      setHasMore(false);
+      setTraders(list);
+      dataCache.set(
+        dropdownCacheKey,
+        list.map((t) => ({ id: t.id, seller_name: t.seller_name, platform: t.platform }))
+      );
       dataCache.set(cacheKey, list);
       setPage(targetPage);
-    } catch (err) {
-      console.error('Error fetching traders:', err);
+    } catch (err: any) {
+      console.error('[TradersPage] Exception fetching traders:', err);
+      const realErrMsg = safeFormatSupabaseError(err);
       setFetchError(true);
+      setFetchErrorMessage(realErrMsg);
       if (!cached && targetPage === 1) setTraders([]);
     } finally {
       setIsLoading(false);
@@ -627,11 +657,17 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
   const renderAddTraderModal = () =>
     isAddModalOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm font-['Cairo']" dir="rtl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-trader-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm font-['Cairo']"
+        dir="rtl"
+      >
         <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 text-right shadow-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-            <h3 className="text-base font-black text-white">إضافة سجل تاجر جديد</h3>
-            <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+            <h3 id="add-trader-modal-title" className="text-base font-black text-white">إضافة سجل تاجر جديد</h3>
+            <button type="button" onClick={() => setIsAddModalOpen(false)} aria-label="إغلاق نافذة إضافة التاجر" className="text-slate-400 hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -744,18 +780,109 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
     );
 
   if (traders.length === 0) {
+    const detailedErrorText = fetchErrorMessage || 'حدث خطأ أثناء الاتصال بقاعدة البيانات';
     return (
       <div className="w-full font-['Cairo'] space-y-4" dir="rtl">
-        {fetchError && (
-          <EmergencyErrorBanner message="فشل الاتصال - حاول مرة أخرى" />
+        {fetchError ? (
+          <>
+            <div className="space-y-2">
+              <EmergencyErrorBanner message={`فشل جلب التجار من Supabase: ${detailedErrorText}`} />
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => fetchTraders(1, true)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>إعادة المحاولة</span>
+                </button>
+              </div>
+            </div>
+            <GlobalEmptyState
+              icon={<Users className="w-10 h-10 text-amber-400" />}
+              message={`خطأ Supabase: ${detailedErrorText}`}
+              description="راجع رسالة الخطأ الظاهرة أعلاه وتفاصيل Console ثم أعد المحاولة."
+              actionLabel="إضافة تاجر"
+              onActionClick={() => setIsAddModalOpen(true)}
+            />
+          </>
+        ) : (
+          <section
+            data-testid="traders-empty-state"
+            aria-label="لا يوجد تجار مسجلون"
+            className="max-w-3xl mx-auto my-8 px-6 py-10 sm:px-12 sm:py-14 rounded-3xl bg-slate-900/80 border border-slate-800 text-center space-y-8"
+          >
+            {/* Expressive Storefront + UserPlus Icon */}
+            <div
+              data-testid="traders-empty-icon"
+              aria-hidden="true"
+              className="w-20 h-20 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center relative"
+            >
+              <Store className="w-9 h-9 text-amber-400" />
+              <span className="w-8 h-8 rounded-xl bg-slate-950 border border-amber-500/40 flex items-center justify-center text-amber-300 absolute -bottom-2 -left-2">
+                <UserPlus className="w-4 h-4" />
+              </span>
+            </div>
+
+            <div className="space-y-3 max-w-xl mx-auto">
+              <h2 className="text-xl sm:text-2xl font-black text-white leading-snug">
+                {isLoading ? 'جاري تحميل قائمة التجار...' : 'أضف تاجرك الأول لتفعيل مزايا المنصة'}
+              </h2>
+              <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                {isLoading
+                  ? 'يتم الآن جلب سجلات التجار من قاعدة البيانات.'
+                  : 'إضافة تاجر هي الخطوة الأساسية لربط متاجرك على المنصات المختلفة، واستيراد المنتجات، وتشغيل أدوات مراقبة الأسعار وتقارير المبيعات الفعلية.'}
+              </p>
+            </div>
+
+            {/* Unboxed feature benefits grid separated by hairline dividers */}
+            <div
+              data-testid="traders-empty-features"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-right border-y border-slate-800/80 py-6"
+            >
+              <div className="flex items-start gap-3">
+                <Package className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-white">ربط واستيراد المنتجات</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    استورد قوائم منتجات التاجر عبر ملفات أمازون أو زامن المخزون مباشرة.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <BarChart3 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-white">مراقبة الأسعار والمنافسين</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    تتبع تحركات الأسعار وحالة الـ Buy Box لاكتشاف أفضل فرص التسعير.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-white">تقارير المبيعات والأرباح</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    اعرض إجمالي المبيعات وصافي الربح والفواتير الفعلية لكل تاجر بوضوح.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-1 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="min-h-[44px] px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm inline-flex items-center justify-center gap-2 transition-colors duration-200 cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+              >
+                <UserPlus className="w-4 h-4" aria-hidden="true" />
+                <span>ابدأ بإضافة أول تاجر</span>
+              </button>
+            </div>
+          </section>
         )}
-        <GlobalEmptyState
-          icon={<Users className="w-10 h-10 text-amber-400" />}
-          message={fetchError ? 'فشل الاتصال - حاول مرة أخرى' : 'لا يوجد تجار - أضف تاجر جديد'}
-          description="سجل التجار فارغ حالياً. أضف تاجراً جديداً لإدارة متجره ومنتجاته."
-          actionLabel="➕ إضافة تاجر جديد"
-          onActionClick={() => setIsAddModalOpen(true)}
-        />
         {renderAddTraderModal()}
       </div>
     );
@@ -830,6 +957,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
               key={trader.id}
               trader={trader}
               isSyncing={syncingTraderId === trader.id}
+              onSelect={handleOpenTraderDetail}
               onEdit={handleEditTrader}
               onDelete={handleDeleteTrader}
               onFetch={handleFetchProducts}

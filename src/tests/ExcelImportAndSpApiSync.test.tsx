@@ -73,6 +73,19 @@ const {
 });
 
 vi.mock('../lib/supabase', () => {
+  const mahmoudTraderFixture = [
+    {
+      id: 'A37JIM7LHQI6IM',
+      user_id: 'founder',
+      seller_name: 'محمود سعيد',
+      email: 'mahmeudsaid4@gmail.com',
+      phone: '',
+      platform: 'amazon',
+      status: 'active',
+      seller_id: 'A37JIM7LHQI6IM',
+    },
+  ];
+
   const buildChain = (tableName: string) => {
     const chain: any = {
       select: vi.fn((_fields?: string, _opts?: any) => chain),
@@ -95,9 +108,9 @@ vi.mock('../lib/supabase', () => {
       }),
       order: vi.fn(() => chain),
       range: vi.fn(async () => ({
-        data: tableName === 'traders' ? [] : existingProductRowsRef.current,
+        data: tableName === 'traders' ? mahmoudTraderFixture : existingProductRowsRef.current,
         error: null,
-        count: tableName === 'traders' ? 0 : existingProductRowsRef.current.length,
+        count: tableName === 'traders' ? 1 : existingProductRowsRef.current.length,
       })),
       insert: mockInsert,
       update: mockUpdate,
@@ -105,9 +118,9 @@ vi.mock('../lib/supabase', () => {
       single: vi.fn(async () => ({ data: null, error: null })),
       then: (onFulfilled: any) =>
         Promise.resolve({
-          data: tableName === 'traders' ? [] : existingProductRowsRef.current,
+          data: tableName === 'traders' ? mahmoudTraderFixture : existingProductRowsRef.current,
           error: null,
-          count: 0,
+          count: tableName === 'traders' ? 1 : existingProductRowsRef.current.length,
         }).then(onFulfilled),
     };
     return chain;

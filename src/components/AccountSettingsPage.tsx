@@ -22,8 +22,10 @@ import {
   Moon,
   Sun,
   Check,
+  Gauge,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { usePerformanceMode } from '../context/PerformanceModeContext';
 import { ThemeToggle } from './ThemeToggle';
 import {
   DEFAULT_TRADER_ID,
@@ -102,6 +104,7 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
 }) => {
   const { profile, user, updateStoreProfile } = useAuth();
   const { resolvedColorMode, setThemeVariant } = useTheme();
+  const { isPerformanceMode, isSlowNetworkDetected, setPerformanceMode } = usePerformanceMode();
 
   // Profile fields
   const [displayName, setDisplayName] = useState(profile?.displayName || 'مؤسس النظام');
@@ -484,6 +487,59 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
               </span>
             )}
+          </button>
+        </div>
+      </div>
+
+      {/* Performance Mode Card (Low-bandwidth / Reduced-motion optimization) */}
+      <div
+        aria-label="وضع الأداء والإنترنت الضعيف"
+        className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-6 space-y-4 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] flex items-center gap-2">
+              <Gauge className="w-5 h-5 text-emerald-400" />
+              <span>وضع الأداء (Performance Mode)</span>
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              يعطّل الرسوم المتحركة والانتقالات غير الضرورية ويؤجّل تحميل المكونات غير المرئية خارج الشاشة بشكل أكثر صرامة لتسريع الاستجابة وتوفير البيانات في ظروف الإنترنت الضعيفة.
+            </p>
+            {isSlowNetworkDetected && (
+              <p className="text-[11px] font-bold text-amber-400">
+                تم رصد اتصال بطيء أو وضع توفير البيانات (Save-Data) في متصفحك.
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isPerformanceMode}
+            data-testid="settings-performance-mode-switch"
+            onClick={() => {
+              const nextVal = !isPerformanceMode;
+              setPerformanceMode(nextVal);
+              const msg = nextVal
+                ? 'تم تفعيل وضع الأداء — تم تعطيل الرسوم المتحركة وتأجيل تحميل المكونات غير المرئية.'
+                : 'تم إيقاف وضع الأداء واستعادة الحركة والتحميل القياسي.';
+              setStatusMessage(msg);
+              onShowToast?.(msg);
+            }}
+            className={`px-4 py-2 rounded-xl border text-xs font-black flex items-center gap-2.5 cursor-pointer shrink-0 whitespace-nowrap transition-colors ${
+              isPerformanceMode
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+                : 'bg-[var(--surface-subtle)] hover:bg-[var(--card-bg-hover)] text-[var(--text-primary)] border-[var(--card-border)]'
+            }`}
+          >
+            <span>{isPerformanceMode ? 'مفعل الآن' : 'تفعيل وضع الأداء'}</span>
+            <span
+              className={`w-9 h-5 rounded-full p-0.5 flex items-center ${
+                isPerformanceMode ? 'bg-emerald-300 justify-start' : 'bg-slate-600 justify-end'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white block" />
+            </span>
           </button>
         </div>
       </div>

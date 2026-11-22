@@ -9,6 +9,7 @@ import { AsyncOperationsProvider } from "./context/AsyncOperationsContext"
 import { AudioNotificationProvider } from "./context/AudioNotificationContext"
 import { LanguageProvider } from "./context/LanguageContext"
 import { VisualCustomizerProvider } from "./context/VisualCustomizerContext"
+import { PerformanceModeProvider } from "./context/PerformanceModeContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import "./index.css"
 import { setupPWA } from "./pwaRegister"
@@ -80,29 +81,31 @@ if (root) {
     ReactDOM.createRoot(root).render(
       <React.StrictMode>
         <AuthProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <AsyncOperationsProvider>
-                <AudioNotificationProvider>
-                  <VisualCustomizerProvider>
-                    <ErrorBoundary
-                      sectionName="root-app"
-                      sectionTitle="تطبيق رادار مصر"
-                      sectionDescription="حدث استثناء غير متوقع أثناء تشغيل الواجهة. يمكنك النقر على زر إعادة المحاولة لاستعادة الجلسة بأمان."
-                    >
-                      <App />
-                    </ErrorBoundary>
-                    {isVercelHost && (
-                      <ErrorBoundary silent fallback={null} sectionName="analytics">
-                        <Analytics />
-                        <SpeedInsights />
+          <PerformanceModeProvider>
+            <ThemeProvider>
+              <LanguageProvider>
+                <AsyncOperationsProvider>
+                  <AudioNotificationProvider>
+                    <VisualCustomizerProvider>
+                      <ErrorBoundary
+                        sectionName="root-app"
+                        sectionTitle="تطبيق رادار مصر"
+                        sectionDescription="حدث استثناء غير متوقع أثناء تشغيل الواجهة. يمكنك النقر على زر إعادة المحاولة لاستعادة الجلسة بأمان."
+                      >
+                        <App />
                       </ErrorBoundary>
-                    )}
-                  </VisualCustomizerProvider>
-                </AudioNotificationProvider>
-              </AsyncOperationsProvider>
-            </LanguageProvider>
-          </ThemeProvider>
+                      {isVercelHost && (
+                        <ErrorBoundary silent fallback={null} sectionName="analytics">
+                          <Analytics />
+                          <SpeedInsights />
+                        </ErrorBoundary>
+                      )}
+                    </VisualCustomizerProvider>
+                  </AudioNotificationProvider>
+                </AsyncOperationsProvider>
+              </LanguageProvider>
+            </ThemeProvider>
+          </PerformanceModeProvider>
         </AuthProvider>
       </React.StrictMode>
     )
