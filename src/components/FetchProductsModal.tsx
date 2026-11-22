@@ -307,13 +307,13 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 </span>
               </div>
 
-              {(previewData.linePreviewMessage || previewData.rows[0]?.title) && (
+              {(previewData.linePreviewMessage || previewData.rows[0]?.sku) && (
                 <p
                   data-testid="import-line-preview-banner"
                   className="text-xs font-bold text-emerald-300 bg-emerald-950/35 border border-emerald-500/30 rounded-xl px-3 py-2"
                 >
                   {previewData.linePreviewMessage ||
-                    `تم قراءة ${previewData.totalRead} سطر - أول منتج: ${previewData.rows[0]?.title || '—'}`}
+                    `تم قراءة ${previewData.totalRead} منتج - مثال: أول منتج: [${previewData.rows[0]?.sku || '—'}] - [${previewData.rows[0]?.title || '—'}] - [${previewData.rows[0]?.price ?? 0} ج.م]`}
                 </p>
               )}
 
@@ -394,7 +394,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>تأكيد واستيراد المنتجات ({previewData.totalRead})</span>
+                      <span>تأكيد الاستيراد ({previewData.totalRead})</span>
                     </>
                   )}
                 </button>
