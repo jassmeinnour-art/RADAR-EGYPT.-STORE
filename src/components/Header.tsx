@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { Menu, Search, Pencil, Ruler, Crown } from 'lucide-react';
+import { Menu, Search, Pencil, Ruler, Crown, Gauge } from 'lucide-react';
 import { ConnectedMerchantPlatform } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { usePerformanceMode } from '../context/PerformanceModeContext';
 import { AppUpdateState } from '../hooks/useAppUpdate';
 
 export interface HeaderProps {
@@ -60,6 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
 }) => {
   const { user, profile, isOwner, isFounderMode, toggleFounderMode, signOut } = useAuth();
+  const { isPerformanceMode, togglePerformanceMode } = usePerformanceMode();
 
   const isFounderUserStrict = useMemo(() => {
     if (!user || user.isAnonymous || !isOwner) return false;
@@ -67,6 +69,15 @@ export const Header: React.FC<HeaderProps> = ({
     const pEmail = profile?.email?.trim().toLowerCase() || '';
     return uEmail === 'jassmeinnour@gmail.com' || pEmail === 'jassmeinnour@gmail.com';
   }, [user, profile?.email, isOwner]);
+
+  const handleTogglePerformanceMode = () => {
+    const nextEnabled = togglePerformanceMode();
+    onShowToast?.(
+      nextEnabled
+        ? 'تم تفعيل وضع الأداء — تم تعطيل الرسوم المتحركة وتأجيل تحميل المكونات غير المرئية.'
+        : 'تم إيقاف وضع الأداء واستعادة الحركة والتحميل القياسي.'
+    );
+  };
 
   const handleToggleFounder = () => {
     toggleFounderMode();
@@ -164,6 +175,28 @@ export const Header: React.FC<HeaderProps> = ({
             تسجيل الدخول
           </button>
         )}
+
+        <button
+          type="button"
+          data-testid="btn-header-performance-mode"
+          aria-pressed={isPerformanceMode}
+          onClick={handleTogglePerformanceMode}
+          title={
+            isPerformanceMode
+              ? 'إيقاف وضع الأداء (الإنترنت الضعيف)'
+              : 'تفعيل وضع الأداء (تعطيل الحركة وتأجيل التحميل)'
+          }
+          className={`h-8 px-2.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+            isPerformanceMode
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+              : 'bg-[var(--card-bg)] hover:bg-[var(--card-bg-hover)] text-[var(--header-text)] border-[var(--card-border)]'
+          }`}
+        >
+          <Gauge className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden md:inline whitespace-nowrap">
+            {isPerformanceMode ? 'وضع الأداء: مفعل' : 'وضع الأداء'}
+          </span>
+        </button>
 
         {isFounderUserStrict && (
           <button

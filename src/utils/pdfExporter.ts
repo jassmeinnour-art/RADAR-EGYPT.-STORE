@@ -29,7 +29,10 @@ export interface PdfFinancialReportInput {
   totalNetProfit: number;
   avgMarginPercent: number;
   totalOrders: number;
-  avgBuyBoxWinPercent?: number;
+  avgOrderValue?: number;
+  salesGrowthPercent?: number;
+  productsCount?: number;
+  avgBuyBoxWinPercent?: number | null;
   rows: PdfFinancialDayRow[];
 }
 
@@ -185,14 +188,22 @@ function renderPaginatedCanvasPdf(
   subtitle: string,
   kpis: Array<{ label: string; value: string; accent: string }>,
   columns: TableColumnSpec[],
-  rows: string[][]
+  rows: string[][],
+  options?: {
+    renderExtraFirstPageContent?: (ctx: CanvasRenderingContext2D, startY: number) => number;
+  }
 ): boolean {
   const firstCanvas = createA4Canvas();
   if (!firstCanvas) return false;
 
+  // Render Page 1 header + KPIs + optional summary/charts first to determine exact table start Y
+  let firstPageStartY = renderA4HeaderAndKpis(firstCanvas.ctx, title, subtitle, kpis);
+  if (options?.renderExtraFirstPageContent) {
+    firstPageStartY = options.renderExtraFirstPageContent(firstCanvas.ctx, firstPageStartY);
+  }
+
   const rowHeight = 46;
   const headerHeight = 50;
-  const firstPageStartY = 350;
   const nextPageStartY = 120;
   const bottomLimit = A4_HEIGHT_PX - 105;
 
@@ -222,7 +233,7 @@ function renderPaginatedCanvasPdf(
 
     let tableY: number;
     if (pageIdx === 0) {
-      tableY = renderA4HeaderAndKpis(ctx, title, subtitle, kpis);
+      tableY = firstPageStartY;
     } else {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
@@ -299,6 +310,243 @@ function renderPaginatedCanvasPdf(
   });
 
   return true;
+}
+
+function drawFinancialSummaryAndCharts(
+  ctx: CanvasRenderingContext2D,
+  startY: number,
+  report: PdfFinancialReportInput,
+  currency: string
+): number {
+  const leftMargin = 56;
+  const contentWidth = A4_WIDTH_PX - 112; // 1128
+
+  // 1. Secondary Financial Performance Summary Bar
+  const summaryY = startY - 12;
+  const avgOrderVal =
+    report.avgOrderValue !== undefined
+      ? report.avgOrderValue
+      : report.totalOrders > 0
+      ? Math.round(report.totalRevenue / report.totalOrders)
+      : 0;
+  const growthStr =
+    report.salesGrowthPercent !== undefined
+      ? `${report.salesGrowthPercent > 0 ? '+' : ''}${report.salesGrowthPercent}%`
+      : '-';
+  const productsStr =
+    report.productsCount !== undefined ? `${report.productsCount} منتج` : `${report.rows.length} يوم`;
+
+  drawRoundedRect(ctx, leftMargin, summaryY, contentWidth, 56, 10);
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fill();
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 17px "Cairo", "Arial", sans-serif';
+  const summaryLine = `ملخص الأداء المالي:  متوسط الهامش الصافي ${report.avgMarginPercent}%  ·  متوسط قيمة الطلب ${Math.round(avgOrderVal).toLocaleString()} ${currency}  ·  نمو الفترة ${growthStr}  ·  النطاق: ${productsStr}`;
+  ctx.fillText(truncateText(ctx, summaryLine, contentWidth - 40), leftMargin + contentWidth / 2, summaryY + 35);
+
+  // 2. Charts Section Header
+  const chartsHeaderY = summaryY + 84;
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 22px "Cairo", "Arial", sans-serif';
+  ctx.fillText('الرسوم البيانية للأداء المالي', A4_WIDTH_PX - 56, chartsHeaderY);
+
+  const panelTop = chartsHeaderY + 18;
+  const panelGap = 24;
+  const panelWidth = (contentWidth - panelGap) / 2; // 552
+  const panelHeight = 290;
+  const rightPanelX = leftMargin + panelWidth + panelGap;
+  const leftPanelX = leftMargin;
+
+  // Draw two crisp light-theme chart panels
+  [rightPanelX, leftPanelX].forEach((px) => {
+    drawRoundedRect(ctx, px, panelTop, panelWidth, panelHeight, 14);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  const rows = (report.rows || []).slice(-10);
+
+  // Right Panel: Revenue vs Net Profit Bar Chart
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 18px "Cairo", "Arial", sans-serif';
+  ctx.fillText('الإيرادات مقابل صافي الربح', rightPanelX + panelWidth - 20, panelTop + 32);
+
+  // Legend (left side of Right Panel)
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px "Cairo", "Arial", sans-serif';
+  ctx.fillStyle = '#d97706';
+  ctx.fillRect(rightPanelX + 20, panelTop + 20, 12, 12);
+  ctx.fillStyle = '#334155';
+  ctx.fillText('المبيعات', rightPanelX + 38, panelTop + 31);
+
+  ctx.fillStyle = '#059669';
+  ctx.fillRect(rightPanelX + 108, panelTop + 20, 12, 12);
+  ctx.fillStyle = '#334155';
+  ctx.fillText('الربح', rightPanelX + 126, panelTop + 31);
+
+  // Left Panel: Orders & Profit Margin % Trend Chart
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 18px "Cairo", "Arial", sans-serif';
+  ctx.fillText('حركة الطلبات وهامش الربح %', leftPanelX + panelWidth - 20, panelTop + 32);
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px "Cairo", "Arial", sans-serif';
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(leftPanelX + 20, panelTop + 20, 12, 12);
+  ctx.fillStyle = '#334155';
+  ctx.fillText('الطلبات', leftPanelX + 38, panelTop + 31);
+
+  ctx.fillStyle = '#7c3aed';
+  ctx.fillRect(leftPanelX + 102, panelTop + 20, 12, 12);
+  ctx.fillStyle = '#334155';
+  ctx.fillText('الهامش %', leftPanelX + 120, panelTop + 31);
+
+  if (rows.length === 0) {
+    [rightPanelX, leftPanelX].forEach((px) => {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'normal 17px "Cairo", "Arial", sans-serif';
+      ctx.fillText(
+        'لا توجد فواتير مسجلة لعرض الرسم البياني في هذه الفترة',
+        px + panelWidth / 2,
+        panelTop + panelHeight / 2 + 10
+      );
+    });
+  } else {
+    // Draw Right Panel Plot Area
+    const plotPadLeft = 68;
+    const plotPadRight = 24;
+    const plotTop = panelTop + 56;
+    const plotBottom = panelTop + panelHeight - 44;
+    const plotHeight = plotBottom - plotTop;
+    const rPlotWidth = panelWidth - plotPadLeft - plotPadRight;
+    const maxVal = Math.max(
+      10,
+      ...rows.map((r) => Math.max(Number(r.revenueEGP) || 0, Number(r.netProfitEGP) || 0))
+    );
+
+    for (let step = 0; step <= 3; step++) {
+      const gy = plotBottom - (plotHeight * step) / 3;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(rightPanelX + plotPadLeft, gy);
+      ctx.lineTo(rightPanelX + panelWidth - plotPadRight, gy);
+      ctx.stroke();
+
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'normal 12px "Cairo", "Arial", sans-serif';
+      ctx.fillText(Math.round((maxVal * step) / 3).toLocaleString(), rightPanelX + plotPadLeft - 8, gy + 4);
+    }
+
+    const slotW = rPlotWidth / rows.length;
+    const barW = Math.min(20, Math.max(6, (slotW - 10) / 2));
+    rows.forEach((r, idx) => {
+      const cx = rightPanelX + plotPadLeft + idx * slotW + slotW / 2;
+      const revH = Math.max(2, ((Number(r.revenueEGP) || 0) / maxVal) * plotHeight);
+      const profH = Math.max(2, ((Number(r.netProfitEGP) || 0) / maxVal) * plotHeight);
+
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(cx - barW - 1, plotBottom - revH, barW, revH);
+
+      ctx.fillStyle = '#059669';
+      ctx.fillRect(cx + 1, plotBottom - profH, barW, profH);
+
+      if (rows.length <= 7 || idx % 2 === 0 || idx === rows.length - 1) {
+        ctx.direction = 'ltr';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#475569';
+        ctx.font = 'normal 11px "Cairo", "Arial", sans-serif';
+        ctx.fillText(String(r.dateStr).slice(5), cx, plotBottom + 18);
+      }
+    });
+
+    // Draw Left Panel Plot Area (Orders Bars + Margin Line)
+    const maxOrders = Math.max(1, ...rows.map((r) => Number(r.ordersCount) || 0));
+    for (let step = 0; step <= 3; step++) {
+      const gy = plotBottom - (plotHeight * step) / 3;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(leftPanelX + plotPadLeft, gy);
+      ctx.lineTo(leftPanelX + panelWidth - plotPadRight, gy);
+      ctx.stroke();
+
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'normal 12px "Cairo", "Arial", sans-serif';
+      ctx.fillText(String(Math.round((maxOrders * step) / 3)), leftPanelX + plotPadLeft - 8, gy + 4);
+    }
+
+    const linePts: Array<{ x: number; y: number }> = [];
+    const orderBarW = Math.min(26, Math.max(8, slotW * 0.48));
+    rows.forEach((r, idx) => {
+      const cx = leftPanelX + plotPadLeft + idx * slotW + slotW / 2;
+      const ordH = Math.max(2, ((Number(r.ordersCount) || 0) / maxOrders) * plotHeight);
+
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(cx - orderBarW / 2, plotBottom - ordH, orderBarW, ordH);
+
+      const clampedMargin = Math.max(0, Math.min(100, Number(r.profitMarginPercent) || 0));
+      linePts.push({ x: cx, y: plotBottom - (clampedMargin / 100) * plotHeight });
+
+      if (rows.length <= 7 || idx % 2 === 0 || idx === rows.length - 1) {
+        ctx.direction = 'ltr';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#475569';
+        ctx.font = 'normal 11px "Cairo", "Arial", sans-serif';
+        ctx.fillText(String(r.dateStr).slice(5), cx, plotBottom + 18);
+      }
+    });
+
+    if (linePts.length > 0) {
+      ctx.strokeStyle = '#7c3aed';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      linePts.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      linePts.forEach((pt) => {
+        ctx.fillStyle = '#7c3aed';
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+  }
+
+  // 3. Table Section Title
+  const tableHeadingY = panelTop + panelHeight + 42;
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 21px "Cairo", "Arial", sans-serif';
+  ctx.fillText('تفاصيل الأداء المالي اليومي', A4_WIDTH_PX - 56, tableHeadingY);
+
+  return tableHeadingY + 18;
 }
 
 export function exportProductsListToPDF(
@@ -402,11 +650,16 @@ export function exportFinancialReportToPDF(
     creator: 'Radar Egypt Merchant',
   });
 
+  const buyBoxDisplay =
+    typeof report.avgBuyBoxWinPercent === 'number' && Number.isFinite(report.avgBuyBoxWinPercent)
+      ? `${report.avgBuyBoxWinPercent}%`
+      : '-';
+
   const kpis = [
     { label: 'إجمالي المبيعات', value: `${Math.round(report.totalRevenue).toLocaleString()} ${currency}`, accent: '#0f172a' },
     { label: 'صافي الأرباح', value: `${Math.round(report.totalNetProfit).toLocaleString()} ${currency}`, accent: '#059669' },
-    { label: 'متوسط هامش الربح', value: `${report.avgMarginPercent}%`, accent: '#d97706' },
     { label: 'إجمالي الطلبات', value: `${report.totalOrders.toLocaleString()} طلب`, accent: '#0284c7' },
+    { label: 'معدل Buy Box', value: buyBoxDisplay, accent: '#7c3aed' },
   ];
 
   // Total table width = 1128
@@ -425,16 +678,20 @@ export function exportFinancialReportToPDF(
     `${Math.round(r.netProfitEGP).toLocaleString()} ${currency}`,
     `${r.profitMarginPercent}%`,
     `${r.ordersCount}`,
-    r.buyBoxWinRatePercent !== undefined ? `${r.buyBoxWinRatePercent}%` : '-',
+    typeof r.buyBoxWinRatePercent === 'number' ? `${r.buyBoxWinRatePercent}%` : '-',
   ]);
 
   const renderedCanvas = renderPaginatedCanvasPdf(
     pdf,
     title,
-    `ملخص الإيرادات وصافي الأرباح — الفترة: ${report.periodLabel}`,
+    `ملخص الأداء المالي والرسوم البيانية — الفترة: ${report.periodLabel}`,
     kpis,
     columns,
-    rows
+    rows,
+    {
+      renderExtraFirstPageContent: (ctx, startY) =>
+        drawFinancialSummaryAndCharts(ctx, startY, report, currency),
+    }
   );
 
   if (!renderedCanvas) {
@@ -446,8 +703,47 @@ export function exportFinancialReportToPDF(
       14,
       26
     );
+    pdf.text(
+      `Margin: ${report.avgMarginPercent}% | Orders: ${report.totalOrders} | Buy Box: ${buyBoxDisplay}`,
+      14,
+      32
+    );
+
+    // Vector mini-chart inside jsPDF fallback
+    const chartRows = (report.rows || []).slice(-10);
+    let tableStartY = 40;
+    if (chartRows.length > 0) {
+      pdf.setFontSize(9);
+      pdf.text('Financial Performance Chart (Revenue vs Net Profit)', 14, 40);
+      const chartX = 14;
+      const chartY = 44;
+      const chartW = 182;
+      const chartH = 34;
+      pdf.setDrawColor(203, 213, 225);
+      pdf.rect(chartX, chartY, chartW, chartH);
+
+      const maxVal = Math.max(
+        10,
+        ...chartRows.map((r) => Math.max(Number(r.revenueEGP) || 0, Number(r.netProfitEGP) || 0))
+      );
+      const slotW = (chartW - 8) / chartRows.length;
+      const barW = Math.min(7, Math.max(2, (slotW - 3) / 2));
+
+      chartRows.forEach((r, idx) => {
+        const cx = chartX + 4 + idx * slotW + slotW / 2;
+        const revH = Math.max(1, ((Number(r.revenueEGP) || 0) / maxVal) * (chartH - 6));
+        const profH = Math.max(1, ((Number(r.netProfitEGP) || 0) / maxVal) * (chartH - 6));
+
+        pdf.setFillColor(217, 119, 6);
+        pdf.rect(cx - barW - 0.5, chartY + chartH - 2 - revH, barW, revH, 'F');
+        pdf.setFillColor(5, 150, 105);
+        pdf.rect(cx + 0.5, chartY + chartH - 2 - profH, barW, profH, 'F');
+      });
+      tableStartY = chartY + chartH + 8;
+    }
+
     autoTable(pdf, {
-      startY: 32,
+      startY: tableStartY,
       head: [['Date', `Revenue (${currency})`, `Net Profit (${currency})`, 'Margin %', 'Orders', 'Buy Box %']],
       body: rows,
       styles: { fontSize: 8.5 },

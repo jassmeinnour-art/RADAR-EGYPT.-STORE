@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { usePerformanceMode } from '../context/PerformanceModeContext';
 
 interface TabTransitionContainerProps {
   tabKey: string;
@@ -12,6 +13,7 @@ export const TabTransitionContainer: React.FC<TabTransitionContainerProps> = ({
   tabKey,
   children,
 }) => {
+  const { isPerformanceMode } = usePerformanceMode();
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return false;
     return window.matchMedia('(max-width: 767px)').matches;
@@ -28,15 +30,30 @@ export const TabTransitionContainer: React.FC<TabTransitionContainerProps> = ({
     return () => mq.removeEventListener?.('change', onChange);
   }, []);
 
-  // Scroll smoothly back to top on mobile when navigating between tabs
+  // Scroll back to top on mobile when navigating between tabs (instant when Performance Mode is active)
   useEffect(() => {
     if (previousTabRef.current !== tabKey) {
       previousTabRef.current = tabKey;
       if (isMobile && typeof window !== 'undefined' && window.scrollY > 40) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: isPerformanceMode ? 'auto' : 'smooth' });
       }
     }
-  }, [tabKey, isMobile]);
+  }, [tabKey, isMobile, isPerformanceMode]);
+
+  if (isPerformanceMode) {
+    return (
+      <MotionConfig reducedMotion="always">
+        <div
+          key={tabKey}
+          data-testid="tab-transition-static"
+          data-performance-mode="true"
+          className="w-full"
+        >
+          {children}
+        </div>
+      </MotionConfig>
+    );
+  }
 
   const initialVariant = isMobile
     ? { opacity: 0, y: 14, scale: 0.99 }
@@ -55,6 +72,7 @@ export const TabTransitionContainer: React.FC<TabTransitionContainerProps> = ({
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={tabKey}
+          data-testid="tab-transition-animated"
           initial={initialVariant}
           animate={animateVariant}
           exit={exitVariant}

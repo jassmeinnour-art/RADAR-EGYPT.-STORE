@@ -205,3 +205,43 @@ header img {
     animation: none !important;
   }
 }
+
+/* ===== Performance Mode: Disable unnecessary animations, transitions, and heavy compositing ===== */
+html[data-performance-mode="true"],
+html.performance-mode {
+  scroll-behavior: auto !important;
+}
+
+html[data-performance-mode="true"] *,
+html[data-performance-mode="true"] *::before,
+html[data-performance-mode="true"] *::after,
+html.performance-mode *,
+html.performance-mode *::before,
+html.performance-mode *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+  will-change: auto !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-performance-mode="true"] .radar-animated-gradient,
+html[data-performance-mode="true"] .radar-sweep-spin,
+html[data-performance-mode="true"] .radar-ring-slow-spin,
+html[data-performance-mode="true"] .radar-orb-float,
+html[data-performance-mode="true"] .radar-particle,
+html[data-performance-mode="true"] .radar-blip,
+html[data-performance-mode="true"] .radar-ticker-track,
+html.performance-mode .radar-animated-gradient,
+html.performance-mode .radar-sweep-spin,
+html.performance-mode .radar-ring-slow-spin,
+html.performance-mode .radar-orb-float,
+html.performance-mode .radar-particle,
+html.performance-mode .radar-blip,
+html.performance-mode .radar-ticker-track {
+  animation: none !important;
+}

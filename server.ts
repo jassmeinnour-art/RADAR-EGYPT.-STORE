@@ -6969,6 +6969,159 @@ app.post('/api/product-image-studio/generate', async (req, res) => {
   }
 });
 
+const VALID_ONBOARDING_VIDEO_DURATIONS = new Set(['6s', '8s', '10s']);
+const VALID_ONBOARDING_FOCUS_MODES = new Set(['all', 'docs', 'integration']);
+
+// Endpoint: PlatformsOnboardingGuide — AI Short Explanatory Video Generator (Gemini Interactions API / Omni Flash)
+app.post('/api/platforms/onboarding-video', async (req, res) => {
+  try {
+    const {
+      platformId = 'amazon-eg',
+      platformName = 'Amazon Egypt',
+      arabicName = 'أمازون مصر',
+      focusMode = 'all',
+      duration = '8s',
+      requirementsSummary = '',
+      fulfillmentSummary = '',
+    } = req.body || {};
+
+    const cleanPlatformName = typeof platformName === 'string' ? platformName.trim() : '';
+    const cleanArabicName = typeof arabicName === 'string' ? arabicName.trim() : '';
+
+    if (!cleanPlatformName && !cleanArabicName) {
+      return res.status(400).json({
+        success: false,
+        error: 'يرجى تحديد اسم المنصة المطلوب توليد فيديو توضيحي لها',
+      });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'خدمة توليد الفيديو بالذكاء الاصطناعي غير مهيأة حالياً: يرجى ضبط GEMINI_API_KEY في Settings > Secrets',
+      });
+    }
+
+    const safeDuration = VALID_ONBOARDING_VIDEO_DURATIONS.has(duration) ? duration : '8s';
+    const safeFocus = VALID_ONBOARDING_FOCUS_MODES.has(focusMode) ? focusMode : 'all';
+
+    const focusDirections: Record<string, string> = {
+      all: `Step-by-step onboarding journey for an Egyptian merchant joining ${cleanPlatformName || cleanArabicName}: preparing official business documents (Commercial Register, Tax Card, Bank IBAN), completing Seller Portal registration, and connecting inventory & pricing synchronization.`,
+      docs: `Focused visual walkthrough of organizing and scanning official Egyptian merchant onboarding documents (Commercial Register, Tax Card, Bank IBAN statement, National ID) cleanly for ${cleanPlatformName || cleanArabicName} seller verification.`,
+      integration: `Clean software UI walkthrough showing product catalog import, Seller ID connection, automated fulfillment setup (${fulfillmentSummary || 'FBA / Express'}), and live price radar monitoring for ${cleanPlatformName || cleanArabicName}.`,
+    };
+
+    const promptParts = [
+      `Create a crisp, modern 3D motion-graphics explainer video demonstrating seller onboarding and store integration for ${cleanPlatformName || cleanArabicName} (${platformId}) in Egypt.`,
+      focusDirections[safeFocus],
+      requirementsSummary ? `Key onboarding context: ${String(requirementsSummary).slice(0, 400)}` : '',
+      'Visual style: clean studio lighting, modern navy and warm amber UI dashboard elements, smooth camera pan across clean verification cards and marketplace connection flow, high legibility, zero distorted text or watermarks.',
+    ].filter(Boolean);
+
+    const ai = getGenAI();
+    const interaction: any = await ai.interactions.create(
+      {
+        model: 'gemini-omni-1.2-flash',
+        input: promptParts.join('\n'),
+        background: false,
+        store: false,
+        stream: false,
+        response_format: {
+          type: 'video',
+          aspect_ratio: '16:9',
+          duration: safeDuration,
+          resolution: '720p',
+        },
+      },
+      { timeout: 300000 }
+    );
+
+    let videoPart = interaction?.output_video;
+    if (!videoPart && Array.isArray(interaction?.steps)) {
+      for (const step of interaction.steps) {
+        if (step?.type === 'model_output' && Array.isArray(step.content)) {
+          const found = step.content.find((c: any) => c?.type === 'video' && (c?.data || c?.uri));
+          if (found) {
+            videoPart = found;
+            break;
+          }
+        }
+      }
+    }
+
+    let videoUrl = '';
+    const mimeType = videoPart?.mime_type || 'video/mp4';
+
+    if (videoPart?.data) {
+      videoUrl = `data:${mimeType};base64,${videoPart.data}`;
+    } else if (videoPart?.uri) {
+      if (/^https?:\/\//i.test(videoPart.uri)) {
+        try {
+          const mediaResp = await fetch(videoPart.uri, {
+            headers: {
+              'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+            },
+          });
+          if (mediaResp.ok) {
+            const arrBuf = await mediaResp.arrayBuffer();
+            const b64 = Buffer.from(arrBuf).toString('base64');
+            videoUrl = `data:${mimeType};base64,${b64}`;
+          } else {
+            videoUrl = videoPart.uri;
+          }
+        } catch {
+          videoUrl = videoPart.uri;
+        }
+      } else {
+        videoUrl = videoPart.uri;
+      }
+    }
+
+    if (!videoUrl) {
+      return res.status(502).json({
+        success: false,
+        error: 'لم يُرجع نموذج الذكاء الاصطناعي ملف فيديو صالحاً. يرجى إعادة المحاولة.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      platformId,
+      focusMode: safeFocus,
+      duration: safeDuration,
+      mimeType,
+      model: 'gemini-omni-1.2-flash',
+      videoUrl,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[PlatformsOnboardingGuide Video API Error]:', error);
+    const rawMsg = String(error?.message || '');
+    const statusCode =
+      typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+        ? error.status
+        : 500;
+
+    if (statusCode === 403 || /PERMISSION_DENIED|API_KEY_INVALID/i.test(rawMsg)) {
+      return res.status(statusCode).json({
+        success: false,
+        error: 'تعذر التحقق من مفتاح Gemini API. يرجى مراجعة المفتاح في Settings > Secrets.',
+      });
+    }
+    if (statusCode === 429 || /RESOURCE_EXHAUSTED/i.test(rawMsg)) {
+      return res.status(429).json({
+        success: false,
+        error: 'تم بلوغ الحد المسموح لتوليد الفيديو أو يتطلب النموذج مفتاح API مدفوعاً في Settings > Secrets.',
+      });
+    }
+
+    return res.status(statusCode).json({
+      success: false,
+      error: rawMsg || 'تعذر توليد الفيديو التوضيحي بالذكاء الاصطناعي حالياً',
+    });
+  }
+});
+
 app.all('/api/*', (req, res) => {
   res.status(404).json({
     success: false,

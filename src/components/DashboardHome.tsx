@@ -30,6 +30,8 @@ import { SmartPriceAlertsPanel } from './SmartPriceAlertsPanel';
 import { MaintenanceModeToggleCard } from './MaintenanceModeControl';
 import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { ErrorBoundary } from './ErrorBoundary';
+import { DeferredViewportMount } from './DeferredViewportMount';
+import { usePerformanceMode } from '../context/PerformanceModeContext';
 
 interface DashboardHomeProps {
   onShowToast?: (msg: string) => void;
@@ -37,9 +39,12 @@ interface DashboardHomeProps {
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
   const { user, profile, isOwner, isFounderMode, toggleFounderMode, signOut } = useAuth();
+  const { isPerformanceMode } = usePerformanceMode();
   const [traders, setTraders] = useState<Trader[]>([]);
   const [tradersLoaded, setTradersLoaded] = useState<boolean>(false);
   const [tradersFetchFailed, setTradersFetchFailed] = useState<boolean>(false);
+  const [tradersErrorMessage, setTradersErrorMessage] = useState<string | null>(null);
+  const [tradersSectionVisible, setTradersSectionVisible] = useState<boolean>(() => !isPerformanceMode);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const whyRef = useRef<HTMLDivElement>(null);
@@ -47,8 +52,17 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
   const featuresRef = useRef<HTMLDivElement>(null);
   const tradersRef = useRef<HTMLDivElement>(null);
 
-  // Fetch traders strictly in the background AFTER initial static homepage has painted
   useEffect(() => {
+    if (!isPerformanceMode) {
+      setTradersSectionVisible(true);
+    }
+  }, [isPerformanceMode]);
+
+  // Fetch traders strictly in the background AFTER initial static homepage has painted (and only when visible in Performance Mode)
+  useEffect(() => {
+    if (isPerformanceMode && !tradersSectionVisible) {
+      return;
+    }
     let active = true;
 
     const redirectToLogin = async () => {
@@ -101,17 +115,22 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
 
         if (error) {
           console.error('[DashboardHome] Background traders fetch failed:', error);
+          const realErr = String((error as any)?.message || error || '');
+          setTradersErrorMessage(realErr);
           setTradersFetchFailed(true);
           setTradersLoaded(true);
           return;
         }
 
         setTraders(Array.isArray(data) ? (data as Trader[]) : []);
+        setTradersErrorMessage(null);
         setTradersFetchFailed(false);
         setTradersLoaded(true);
       } catch (err) {
         console.error('[DashboardHome] Background traders fetch exception:', err);
         if (active) {
+          const realErr = String((err as any)?.message || err || '');
+          setTradersErrorMessage(realErr);
           setTradersFetchFailed(true);
           setTradersLoaded(true);
         }
@@ -144,7 +163,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
       }
       window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     };
-  }, [user, profile?.email, signOut]);
+  }, [user, profile?.email, signOut, isPerformanceMode, tradersSectionVisible]);
 
   const whyCards = [
     {
@@ -274,7 +293,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
 
               <button
                 type="button"
-                onClick={() => stepsRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                onClick={() =>
+                  stepsRef.current?.scrollIntoView?.({
+                    behavior: isPerformanceMode ? 'auto' : 'smooth',
+                  })
+                }
                 className="px-8 py-4 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-black rounded-2xl border border-[var(--card-border)] transition-colors duration-200 cursor-pointer"
               >
                 شاهد كيف يعمل
@@ -290,146 +313,164 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
           <ErrorBoundary sectionName="home-maintenance-mode" sectionTitle="مفتاح وضع الصيانة" compact>
             <MaintenanceModeToggleCard onShowToast={onShowToast} compact />
           </ErrorBoundary>
-          <ErrorBoundary sectionName="home-smart-alerts" sectionTitle="تنبيهات الأسعار الذكية">
-            <SmartPriceAlertsPanel compact onShowToast={onShowToast} />
-          </ErrorBoundary>
+          <DeferredViewportMount
+            sectionId="home-smart-alerts"
+            minHeight={140}
+            label="تنبيهات الأسعار الذكية"
+          >
+            <ErrorBoundary sectionName="home-smart-alerts" sectionTitle="تنبيهات الأسعار الذكية">
+              <SmartPriceAlertsPanel compact onShowToast={onShowToast} />
+            </ErrorBoundary>
+          </DeferredViewportMount>
         </div>
       )}
 
-      {/* 3. Why Radar Section (Static — renders immediately) */}
-      <ErrorBoundary sectionName="home-why-radar" sectionTitle="قسم لماذا رادار">
-        <section ref={whyRef} className="relative space-y-8">
-          <DraggableHandle elementId="home_why" targetRef={whyRef} position="bottom-right" />
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">لماذا رادار؟ 🎯</h2>
-            <p className="text-[var(--text-secondary)] text-sm font-bold">كل ما تحتاجه للسيطرة على السوق وزيادة أرباحك</p>
-          </div>
+      {/* 3. Why Radar Section */}
+      <DeferredViewportMount sectionId="home-why-radar" minHeight={220} label="لماذا رادار؟">
+        <ErrorBoundary sectionName="home-why-radar" sectionTitle="قسم لماذا رادار">
+          <section ref={whyRef} className="relative space-y-8">
+            <DraggableHandle elementId="home_why" targetRef={whyRef} position="bottom-right" />
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">لماذا رادار؟ 🎯</h2>
+              <p className="text-[var(--text-secondary)] text-sm font-bold">كل ما تحتاجه للسيطرة على السوق وزيادة أرباحك</p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {whyCards.map((card, idx) => (
-              <div
-                key={idx}
-                className="p-6 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl hover:border-amber-500/50 transition-colors duration-200 shadow-lg"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--card-border)] flex items-center justify-center mb-4">
-                  {card.icon}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {whyCards.map((card, idx) => (
+                <div
+                  key={idx}
+                  className="p-6 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl hover:border-amber-500/50 transition-colors duration-200 shadow-lg"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--card-border)] flex items-center justify-center mb-4">
+                    {card.icon}
+                  </div>
+                  <h3 className="text-lg font-black text-[var(--text-primary)] mb-2">{card.title}</h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{card.desc}</p>
                 </div>
-                <h3 className="text-lg font-black text-[var(--text-primary)] mb-2">{card.title}</h3>
-                <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{card.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </ErrorBoundary>
+              ))}
+            </div>
+          </section>
+        </ErrorBoundary>
+      </DeferredViewportMount>
 
-      {/* 4. How to use Section (Static — renders immediately) */}
-      <ErrorBoundary sectionName="home-how-to-use" sectionTitle="قسم كيفية الاستخدام">
-        <section ref={stepsRef} className="relative bg-[var(--card-bg)] border border-[var(--card-border)] p-8 md:p-12 rounded-[3rem] shadow-md">
-          <DraggableHandle elementId="home_steps" targetRef={stepsRef} position="bottom-left" />
-          <div className="text-center mb-10 space-y-2">
-            <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">كيفية الاستخدام 🛠️</h2>
-            <p className="text-[var(--text-secondary)] text-sm font-bold">4 خطوات بسيطة لتبدأ رحلتك مع رادار</p>
-          </div>
+      {/* 4. How to use Section */}
+      <DeferredViewportMount sectionId="home-how-to-use" minHeight={240} label="كيفية الاستخدام">
+        <ErrorBoundary sectionName="home-how-to-use" sectionTitle="قسم كيفية الاستخدام">
+          <section ref={stepsRef} className="relative bg-[var(--card-bg)] border border-[var(--card-border)] p-8 md:p-12 rounded-[3rem] shadow-md">
+            <DraggableHandle elementId="home_steps" targetRef={stepsRef} position="bottom-left" />
+            <div className="text-center mb-10 space-y-2">
+              <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">كيفية الاستخدام 🛠️</h2>
+              <p className="text-[var(--text-secondary)] text-sm font-bold">4 خطوات بسيطة لتبدأ رحلتك مع رادار</p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {steps.map((step, idx) => (
-              <div key={idx} className="relative">
-                <div className="text-6xl font-black text-slate-900/5 dark:text-white/5 absolute -top-4 -right-4 pointer-events-none">
-                  {step.number}
-                </div>
-                <div className="relative z-10 space-y-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {steps.map((step, idx) => (
+                <div key={idx} className="relative">
+                  <div className="text-6xl font-black text-slate-900/5 dark:text-white/5 absolute -top-4 -right-4 pointer-events-none">
                     {step.number}
                   </div>
-                  <h3 className="text-lg font-black text-[var(--text-primary)]">{step.title}</h3>
-                  <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </ErrorBoundary>
-
-      {/* 5. Features Section (Static — renders immediately) */}
-      <ErrorBoundary sectionName="home-features" sectionTitle="خواص التطبيق الاحترافية">
-        <section ref={featuresRef} className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <DraggableHandle elementId="home_features" targetRef={featuresRef} position="bottom-right" />
-          <div className="space-y-6">
-            <h2 className="text-3xl font-black text-white">خواص التطبيق الاحترافية 💎</h2>
-            <p className="text-slate-400 font-bold leading-relaxed">
-              رادار ليس مجرد أداة لتتبع الأسعار، بل هو نظام متكامل مصمم للنمو والاستقرار. الكروت القابلة للضغط مميزة بسهم تفاعلي.
-            </p>
-
-            <div className="space-y-4">
-              {features.map((f, i) => {
-                const content = (
-                  <div
-                    className={`flex items-start justify-between gap-4 p-4 bg-slate-900/40 border rounded-2xl transition-colors duration-200 ${
-                      f.isActionable
-                        ? 'border-amber-500/40 hover:border-amber-500 hover:bg-slate-900 cursor-pointer'
-                        : 'border-slate-800/50'
-                    }`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 mt-1 shrink-0">
-                        {f.icon}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-black text-white mb-1">{f.title}</h4>
-                        <p className="text-[11px] text-slate-400 font-bold">{f.desc}</p>
-                      </div>
+                  <div className="relative z-10 space-y-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
+                      {step.number}
                     </div>
-
-                    {f.isActionable ? (
-                      <div className="flex items-center gap-1.5 text-amber-400 font-black text-xs shrink-0 self-center">
-                        <span className="hidden sm:inline">اضغط للذهاب</span>
-                        <ArrowLeft className="w-4 h-4" />
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 shrink-0 self-center">
-                        معلومة معرفية
-                      </span>
-                    )}
+                    <h3 className="text-lg font-black text-[var(--text-primary)]">{step.title}</h3>
+                    <p className="text-xs text-[var(--text-secondary)] font-bold leading-relaxed">{step.desc}</p>
                   </div>
-                );
+                </div>
+              ))}
+            </div>
+          </section>
+        </ErrorBoundary>
+      </DeferredViewportMount>
 
-                if (f.isActionable && f.action) {
-                  return (
-                    <div key={i} onClick={f.action} role="button" tabIndex={0}>
-                      {content}
+      {/* 5. Features Section */}
+      <DeferredViewportMount sectionId="home-features" minHeight={280} label="خواص التطبيق الاحترافية">
+        <ErrorBoundary sectionName="home-features" sectionTitle="خواص التطبيق الاحترافية">
+          <section ref={featuresRef} className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <DraggableHandle elementId="home_features" targetRef={featuresRef} position="bottom-right" />
+            <div className="space-y-6">
+              <h2 className="text-3xl font-black text-white">خواص التطبيق الاحترافية 💎</h2>
+              <p className="text-slate-400 font-bold leading-relaxed">
+                رادار ليس مجرد أداة لتتبع الأسعار، بل هو نظام متكامل مصمم للنمو والاستقرار. الكروت القابلة للضغط مميزة بسهم تفاعلي.
+              </p>
+
+              <div className="space-y-4">
+                {features.map((f, i) => {
+                  const content = (
+                    <div
+                      className={`flex items-start justify-between gap-4 p-4 bg-slate-900/40 border rounded-2xl transition-colors duration-200 ${
+                        f.isActionable
+                          ? 'border-amber-500/40 hover:border-amber-500 hover:bg-slate-900 cursor-pointer'
+                          : 'border-slate-800/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 mt-1 shrink-0">
+                          {f.icon}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white mb-1">{f.title}</h4>
+                          <p className="text-[11px] text-slate-400 font-bold">{f.desc}</p>
+                        </div>
+                      </div>
+
+                      {f.isActionable ? (
+                        <div className="flex items-center gap-1.5 text-amber-400 font-black text-xs shrink-0 self-center">
+                          <span className="hidden sm:inline">اضغط للذهاب</span>
+                          <ArrowLeft className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 shrink-0 self-center">
+                          معلومة معرفية
+                        </span>
+                      )}
                     </div>
                   );
-                }
-                return <div key={i}>{content}</div>;
-              })}
-            </div>
-          </div>
 
-          <div className="relative p-6 bg-slate-950 border border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden aspect-video flex items-center justify-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-indigo-500/5" />
-            <Sliders className="w-24 h-24 text-amber-500/20" />
-            <div className="absolute bottom-8 right-8 left-8 p-6 bg-slate-900/90 border border-slate-800 rounded-3xl space-y-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-black text-white">حساب المؤسس الحصري ⚡</span>
+                  if (f.isActionable && f.action) {
+                    return (
+                      <div key={i} onClick={f.action} role="button" tabIndex={0}>
+                        {content}
+                      </div>
+                    );
+                  }
+                  return <div key={i}>{content}</div>;
+                })}
               </div>
-              <p className="text-[10px] text-slate-400 font-bold">
-                {traders.length > 0
-                  ? `متصل الآن: ${traders.length} تاجر مدار عبر حساب المؤسس`
-                  : 'إدارة كل التجار والمنصات عبر حساب المؤسس فقط (jassmeinnour@gmail.com)'}
-              </p>
             </div>
-          </div>
-        </section>
-      </ErrorBoundary>
+
+            <div className="relative p-6 bg-slate-950 border border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden aspect-video flex items-center justify-center">
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-indigo-500/5" />
+              <Sliders className="w-24 h-24 text-amber-500/20" />
+              <div className="absolute bottom-8 right-8 left-8 p-6 bg-slate-900/90 border border-slate-800 rounded-3xl space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-black text-white">حساب المؤسس الحصري ⚡</span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold">
+                  {traders.length > 0
+                    ? `متصل الآن: ${traders.length} تاجر مدار عبر حساب المؤسس`
+                    : 'إدارة كل التجار والمنصات عبر حساب المؤسس فقط (jassmeinnour@gmail.com)'}
+                </p>
+              </div>
+            </div>
+          </section>
+        </ErrorBoundary>
+      </DeferredViewportMount>
 
       {/* 6. Traders Summary Section (Isolated ErrorBoundary — non-blocking background fetch) */}
-      <ErrorBoundary sectionName="home-traders" sectionTitle="ملخص قائمة التجار" sectionDescription="تعذر جلب قائمة التجار في هذه اللحظة. يمكنك إعادة المحاولة أو الانتقال لصفحة إدارة التجار مباشرة.">
-        <section
-          ref={tradersRef}
-          aria-label="قسم التجار"
-          className="p-6 sm:p-8 bg-slate-900/60 border border-slate-800 rounded-[2.5rem] space-y-5 shadow-xl"
-        >
+      <DeferredViewportMount
+        sectionId="home-traders"
+        minHeight={240}
+        label="ملخص قائمة التجار"
+        onVisible={() => setTradersSectionVisible(true)}
+      >
+        <ErrorBoundary sectionName="home-traders" sectionTitle="ملخص قائمة التجار" sectionDescription="تعذر جلب قائمة التجار في هذه اللحظة. يمكنك إعادة المحاولة أو الانتقال لصفحة إدارة التجار مباشرة.">
+          <section
+            ref={tradersRef}
+            aria-label="قسم التجار"
+            className="p-6 sm:p-8 bg-slate-900/60 border border-slate-800 rounded-[2.5rem] space-y-5 shadow-xl"
+          >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -460,13 +501,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
                 const destUrl = t.destination_url || t.seller_link || '';
                 const storeUrl = t.store_url || t.storefront_link || '';
                 return (
-                  <div
+                  <button
                     key={t.id}
-                    className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-amber-500/40 transition-colors space-y-2"
+                    type="button"
+                    data-testid={`home-trader-card-${t.id}`}
+                    onClick={() => navigate(`/traders/${encodeURIComponent(t.id)}`)}
+                    className="w-full text-right p-4 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-amber-500/60 hover:bg-slate-950 transition-colors space-y-2 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-black text-white truncate">{t.seller_name}</h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
+                      <h3 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors truncate">
+                        {t.seller_name}
+                      </h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase shrink-0">
                         {t.platform || 'amazon'}
                       </span>
                     </div>
@@ -492,26 +538,57 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onShowToast }) => {
                         </div>
                       )}
                     </div>
-                  </div>
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-amber-400">
+                      <span>عرض ملف التاجر</span>
+                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                    </div>
+                  </button>
                 );
               })}
             </div>
           ) : (
-            <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center">
-              <p className="text-sm font-bold text-slate-300">
-                {tradersFetchFailed || tradersLoaded
-                  ? 'لا توجد بيانات - سجل دخول أولاً'
-                  : 'لا توجد بيانات - سجل دخول أولاً'}
-              </p>
+            <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center space-y-3">
+              {tradersFetchFailed ? (
+                <>
+                  <p className="text-sm font-bold text-rose-300">
+                    {tradersErrorMessage || 'فشل جلب بيانات التجار من Supabase'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/traders')}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold cursor-pointer"
+                  >
+                    الانتقال لصفحة التجار
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-slate-300">
+                    {tradersLoaded ? 'لا يوجد تجار - أضف تاجر جديد' : 'جاري تحميل قائمة التجار...'}
+                  </p>
+                  {tradersLoaded && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/traders')}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer"
+                    >
+                      إضافة تاجر جديد
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
-        </section>
-      </ErrorBoundary>
+          </section>
+        </ErrorBoundary>
+      </DeferredViewportMount>
 
-      {/* 7. Sponsored Ads Section (Static — renders immediately, isolated ErrorBoundary) */}
-      <ErrorBoundary sectionName="home-sponsored-ads" sectionTitle="إعلانات الشركاء الممولة">
-        <SponsoredAdsSection />
-      </ErrorBoundary>
+      {/* 7. Sponsored Ads Section (Deferred offscreen in Performance Mode) */}
+      <DeferredViewportMount sectionId="home-sponsored-ads" minHeight={180} label="إعلانات الشركاء الممولة">
+        <ErrorBoundary sectionName="home-sponsored-ads" sectionTitle="إعلانات الشركاء الممولة">
+          <SponsoredAdsSection />
+        </ErrorBoundary>
+      </DeferredViewportMount>
 
       {/* 8. Bottom CTA Button */}
       <ErrorBoundary sectionName="home-cta" sectionTitle="زر التوجيه لإدارة التجار" compact>

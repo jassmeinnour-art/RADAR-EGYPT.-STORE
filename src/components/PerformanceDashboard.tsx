@@ -1,35 +1,42 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   TrendingUp,
-  TrendingDown,
   DollarSign,
   ShoppingCart,
-  Percent,
-  Calendar,
   Sparkles,
   Activity,
   ArrowUpRight,
-  ArrowDownRight,
-  Filter,
   RefreshCw,
-  Layers,
   Award,
   Download,
   FileText,
   Package,
-  ChevronDown
+  ChevronDown,
+  AlertCircle,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { MarketTrendsAnalysis } from './MarketTrendsAnalysis';
 import {
   exportFinancialReportToPDF,
   exportProductsListToPDF,
-  PdfProductRow
+  PdfProductRow,
 } from '../utils/pdfExporter';
 import {
-  AUTO_PRICING_PRODUCTS_STORAGE_KEY,
-  INITIAL_AUTO_PRICING_PRODUCTS
-} from '../data/autoPricingEngineData';
-import { LIVE_PRODUCTS_STORAGE_KEY } from '../services/livePlatformProductSync';
+  supabase,
+  isDemoOrOrphanProduct,
+} from '../lib/supabase';
+import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
+import { usePerformanceMode } from '../context/PerformanceModeContext';
+import { DeferredViewportMount } from './DeferredViewportMount';
+import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 
 interface PerformanceDashboardProps {
   currency?: string;
@@ -46,22 +53,73 @@ interface DailyMetricsPoint {
   profitMarginPercent: number;
   salesGrowthPercent: number;
   ordersCount: number;
-  buyBoxWinRatePercent: number;
+  buyBoxWinRatePercent: number | null;
+}
+
+function safeFormatSupabaseError(err: any): string {
+  if (!err) return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات';
+  if (typeof err === 'string') return err;
+  const msg = String(err.message || err.error_description || err.error || '').trim();
+  const details = String(err.details || '').trim();
+  return [msg, details && !msg.includes(details) ? details : ''].filter(Boolean).join(' — ') || 'Supabase Error';
+}
+
+function getInvoiceAmount(inv: any): number {
+  if (!inv || typeof inv !== 'object') return 0;
+  const direct = inv.total_amount ?? inv.total ?? inv.amount;
+  if (direct !== undefined && direct !== null && !Number.isNaN(Number(direct))) {
+    return Number(direct);
+  }
+  const price = Number(inv.price ?? 0) || 0;
+  const qty = Number(inv.quantity ?? inv.sold_quantity ?? 1) || 1;
+  return price * qty;
+}
+
+function getInvoiceProfit(inv: any): number {
+  if (!inv || typeof inv !== 'object') return 0;
+  const directProfit = inv.net_profit ?? inv.profit;
+  if (directProfit !== undefined && directProfit !== null && !Number.isNaN(Number(directProfit))) {
+    return Number(directProfit);
+  }
+  const amount = getInvoiceAmount(inv);
+  const cost = Number(inv.cost ?? inv.cost_price ?? 0) || 0;
+  if (cost > 0) {
+    return amount - cost;
+  }
+  return amount;
+}
+
+function getProductSoldQty(p: any): number {
+  const sold = Number(p?.sold_quantity);
+  if (Number.isFinite(sold) && sold > 0) return sold;
+  return 1;
+}
+
+function getProductCost(p: any): number {
+  return Number(p?.cost_price ?? p?.costPrice ?? p?.cost ?? p?.wholesale_price ?? 0) || 0;
 }
 
 export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   currency = 'ج.م',
-  catalogNetProfitTotal,
-  products,
-  onShowToast
+  products: propProducts,
+  onShowToast,
 }) => {
+  const { user, profile } = useAuth();
+  const { isPerformanceMode } = usePerformanceMode();
+  const activeEmail = String(user?.email || profile?.email || '').trim().toLowerCase();
+
   const [activeChartView, setActiveChartView] = useState<'overview' | 'profit_margin' | 'orders_growth'>('overview');
   const [dateRange, setDateRange] = useState<'30d' | '14d' | '7d'>('30d');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState<'financial' | 'products' | null>(null);
-  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbInvoices, setDbInvoices] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
     if (!isExportMenuOpen) return;
     const handleOutside = (e: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
@@ -79,111 +137,249 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
     };
   }, [isExportMenuOpen]);
 
-  // Generate 30-Day Historical Trend Data
-  const raw30DaysData = useMemo<DailyMetricsPoint[]>(() => {
-    const points: DailyMetricsPoint[] = [];
-    const today = new Date();
+  const loadReportsData = useCallback(async () => {
+    if (Array.isArray(propProducts)) {
+      setDbProducts(propProducts);
+    }
 
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+    setIsLoading(true);
+    setFetchErrorMessage(null);
+    try {
+      const [productsRes, invoicesRes] = await Promise.all([
+        supabase.from('products').select('*'),
+        supabase.from('invoices').select('*'),
+      ]);
 
-      // Create realistic fluctuation trends
-      const dayIndex = 30 - i; // 1 to 30
-      const baseRev = 22000 + Math.sin(dayIndex / 3) * 6000 + Math.random() * 4000;
-      const margin = 21 + Math.sin(dayIndex / 4) * 4.5 + Math.random() * 2;
-      const profit = Math.round((baseRev * margin) / 100);
-      const orders = Math.round(baseRev / 480);
-      const growth = 12 + Math.cos(dayIndex / 5) * 8 + (dayIndex * 0.4);
+      const errors: string[] = [];
+      if (productsRes.error) {
+        console.error('[PerformanceDashboard] Supabase products error:', productsRes.error);
+        errors.push(safeFormatSupabaseError(productsRes.error));
+      }
+      if (invoicesRes.error) {
+        console.error('[PerformanceDashboard] Supabase invoices error:', invoicesRes.error);
+        errors.push(safeFormatSupabaseError(invoicesRes.error));
+      }
 
-      const dayName = d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+      if (errors.length > 0 && !Array.isArray(propProducts)) {
+        setFetchErrorMessage(errors.join(' | '));
+      }
 
-      points.push({
-        dateStr: d.toISOString().slice(0, 10),
-        dayLabel: dayName,
-        revenueEGP: Math.round(baseRev),
-        netProfitEGP: profit,
-        profitMarginPercent: Math.round(margin * 10) / 10,
-        salesGrowthPercent: Math.round(growth * 10) / 10,
-        ordersCount: orders,
-        buyBoxWinRatePercent: Math.min(98, Math.round(75 + (dayIndex * 0.6) + Math.random() * 4)),
+      const rawProducts = Array.isArray(productsRes.data) ? productsRes.data : [];
+      const cleanProducts = rawProducts.filter((p: any) => p && !isDemoOrOrphanProduct(p));
+
+      if (!Array.isArray(propProducts)) {
+        setDbProducts(cleanProducts);
+      } else if (cleanProducts.length > 0) {
+        setDbProducts(cleanProducts);
+      }
+
+      const rawInvoices = Array.isArray(invoicesRes.data) ? invoicesRes.data : [];
+      setDbInvoices(rawInvoices);
+    } catch (err: any) {
+      console.error('[PerformanceDashboard] Failed to load reports from Supabase:', err);
+      if (!Array.isArray(propProducts)) {
+        setFetchErrorMessage(safeFormatSupabaseError(err));
+        setDbProducts([]);
+      }
+      setDbInvoices([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [propProducts, activeEmail]);
+
+  useEffect(() => {
+    // Only skip automatic query when neither authenticated nor passed explicit products in isolated tests
+    if (!activeEmail && Array.isArray(propProducts)) {
+      setDbProducts(propProducts);
+      setDbInvoices([]);
+      return;
+    }
+    if (activeEmail && activeEmail !== OWNER_EMAIL) {
+      setDbProducts([]);
+      setDbInvoices([]);
+      return;
+    }
+    loadReportsData();
+    const handleRefresh = () => {
+      loadReportsData();
+    };
+    window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
+  }, [loadReportsData, activeEmail, propProducts]);
+
+  const effectiveProducts = useMemo(() => {
+    if (Array.isArray(propProducts) && dbProducts.length === 0) {
+      return propProducts;
+    }
+    return dbProducts;
+  }, [propProducts, dbProducts]);
+
+  const rangeDays = dateRange === '7d' ? 7 : dateRange === '14d' ? 14 : 30;
+
+  const filteredInvoices = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - (rangeDays - 1));
+    const cutoffMs = cutoff.getTime();
+
+    return [...dbInvoices]
+      .filter((inv) => {
+        const rawDate = inv?.created_at || inv?.invoice_date || inv?.date;
+        if (!rawDate) return true;
+        const ms = Date.parse(String(rawDate));
+        if (!Number.isFinite(ms)) return true;
+        return ms >= cutoffMs;
+      })
+      .sort((a, b) => {
+        const msA = Date.parse(String(a?.created_at || a?.invoice_date || a?.date || '')) || 0;
+        const msB = Date.parse(String(b?.created_at || b?.invoice_date || b?.date || '')) || 0;
+        return msA - msB;
+      });
+  }, [dbInvoices, rangeDays]);
+
+  // Build real chart series from Supabase `invoices` sorted chronologically
+  const chartData = useMemo<DailyMetricsPoint[]>(() => {
+    if (filteredInvoices.length === 0) return [];
+
+    const grouped = new Map<
+      string,
+      { revenue: number; profit: number; orders: number; timestampMs: number }
+    >();
+
+    for (const inv of filteredInvoices) {
+      const rawDate = inv?.created_at || inv?.invoice_date || inv?.date;
+      const parsedMs = rawDate ? Date.parse(String(rawDate)) : Date.now();
+      const safeDate = Number.isFinite(parsedMs) ? new Date(parsedMs) : new Date();
+      const dateStr = safeDate.toISOString().slice(0, 10);
+
+      const amount = getInvoiceAmount(inv);
+      const profit = getInvoiceProfit(inv);
+
+      const prev = grouped.get(dateStr) || {
+        revenue: 0,
+        profit: 0,
+        orders: 0,
+        timestampMs: safeDate.getTime(),
+      };
+      grouped.set(dateStr, {
+        revenue: prev.revenue + amount,
+        profit: prev.profit + profit,
+        orders: prev.orders + 1,
+        timestampMs: Math.min(prev.timestampMs, safeDate.getTime()),
       });
     }
-    return points;
-  }, []);
 
-  // Filter Data by selected range
-  const chartData = useMemo(() => {
-    if (dateRange === '7d') return raw30DaysData.slice(-7);
-    if (dateRange === '14d') return raw30DaysData.slice(-14);
-    return raw30DaysData;
-  }, [raw30DaysData, dateRange]);
+    const sortedEntries = Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
 
-  // Aggregate Metrics over selected range
+    return sortedEntries.map(([dateStr, agg], idx) => {
+      const d = new Date(`${dateStr}T12:00:00`);
+      const dayLabel = Number.isNaN(d.getTime())
+        ? dateStr
+        : d.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+      const prevRev = idx > 0 ? sortedEntries[idx - 1][1].revenue : agg.revenue;
+      const growth =
+        idx > 0 && prevRev > 0
+          ? Math.round(((agg.revenue - prevRev) / prevRev) * 1000) / 10
+          : 0;
+      const margin = agg.revenue > 0 ? Math.round((agg.profit / agg.revenue) * 1000) / 10 : 0;
+
+      return {
+        dateStr,
+        dayLabel,
+        revenueEGP: Math.round(agg.revenue),
+        netProfitEGP: Math.round(agg.profit),
+        profitMarginPercent: margin,
+        salesGrowthPercent: growth,
+        ordersCount: agg.orders,
+        buyBoxWinRatePercent: null,
+      };
+    });
+  }, [filteredInvoices]);
+
+  // Aggregate Real KPI Metrics strictly from Supabase `products` + `invoices`
   const metrics = useMemo(() => {
-    const totalRev = chartData.reduce((sum, d) => sum + d.revenueEGP, 0);
-    const totalProfit = chartData.reduce((sum, d) => sum + d.netProfitEGP, 0);
-    const totalOrders = chartData.reduce((sum, d) => sum + d.ordersCount, 0);
-    const avgMargin = totalRev > 0 ? Math.round((totalProfit / totalRev) * 1000) / 10 : 0;
-    const avgGrowth = Math.round((chartData.reduce((sum, d) => sum + d.salesGrowthPercent, 0) / chartData.length) * 10) / 10;
-    const avgBuyBoxWin = Math.round(chartData.reduce((sum, d) => sum + d.buyBoxWinRatePercent, 0) / chartData.length);
+    const productsRevenue = effectiveProducts.reduce((sum, p) => {
+      const price = Number(p?.price) || 0;
+      const qty = getProductSoldQty(p);
+      return sum + price * qty;
+    }, 0);
 
-    return { totalRev, totalProfit, totalOrders, avgMargin, avgGrowth, avgBuyBoxWin };
-  }, [chartData]);
+    const invoicesRevenue = filteredInvoices.reduce(
+      (sum, inv) => sum + getInvoiceAmount(inv),
+      0
+    );
+
+    const productsProfit = effectiveProducts.reduce((sum, p) => {
+      const price = Number(p?.price) || 0;
+      const cost = getProductCost(p);
+      const qty = getProductSoldQty(p);
+      return sum + (price - cost) * qty;
+    }, 0);
+
+    const invoicesProfit = filteredInvoices.reduce(
+      (sum, inv) => sum + getInvoiceProfit(inv),
+      0
+    );
+
+    const totalRev = Math.round(productsRevenue + invoicesRevenue);
+    const totalProfit = Math.round(productsProfit + invoicesProfit);
+    const totalOrders = filteredInvoices.length;
+    const avgMargin = totalRev > 0 ? Math.round((totalProfit / totalRev) * 1000) / 10 : 0;
+    const avgOrderValue = totalOrders > 0 ? Math.round(totalRev / totalOrders) : 0;
+
+    let avgGrowth = 0;
+    if (chartData.length >= 2) {
+      const mid = Math.floor(chartData.length / 2);
+      const firstHalf = chartData.slice(0, mid).reduce((s, d) => s + d.revenueEGP, 0);
+      const secondHalf = chartData.slice(mid).reduce((s, d) => s + d.revenueEGP, 0);
+      avgGrowth = firstHalf > 0 ? Math.round(((secondHalf - firstHalf) / firstHalf) * 1000) / 10 : 0;
+    }
+
+    // Buy Box Win Rate: only show a real percentage if real buybox data exists; otherwise null -> "-"
+    const productsWithBuyBox = effectiveProducts.filter(
+      (p) =>
+        (typeof p?.buybox_win_rate === 'number' && Number.isFinite(p.buybox_win_rate)) ||
+        (Number(p?.buybox_price) > 0 && Number(p?.price) > 0)
+    );
+
+    let avgBuyBoxWin: number | null = null;
+    if (productsWithBuyBox.length > 0) {
+      const explicitRates = productsWithBuyBox
+        .map((p) => (typeof p?.buybox_win_rate === 'number' ? p.buybox_win_rate : null))
+        .filter((v): v is number => v !== null);
+
+      if (explicitRates.length > 0) {
+        avgBuyBoxWin = Math.round(
+          explicitRates.reduce((s, v) => s + v, 0) / explicitRates.length
+        );
+      } else {
+        const wonCount = productsWithBuyBox.filter(
+          (p) => Number(p.price) <= Number(p.buybox_price)
+        ).length;
+        avgBuyBoxWin = Math.round((wonCount / productsWithBuyBox.length) * 100);
+      }
+    }
+
+    return {
+      totalRev,
+      totalProfit,
+      totalOrders,
+      avgMargin,
+      avgOrderValue,
+      avgGrowth,
+      avgBuyBoxWin,
+    };
+  }, [effectiveProducts, filteredInvoices, chartData]);
 
   const resolveProductsForPdf = (): PdfProductRow[] => {
-    if (Array.isArray(products) && products.length > 0) {
-      return products;
-    }
-
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const liveRaw = localStorage.getItem(LIVE_PRODUCTS_STORAGE_KEY);
-        if (liveRaw) {
-          const parsedLive = JSON.parse(liveRaw);
-          if (Array.isArray(parsedLive) && parsedLive.length > 0) {
-            return parsedLive.map((p: any) => ({
-              sku: p.sku || p.id,
-              title: p.title || 'منتج',
-              category: p.category,
-              price: Number(p.suggestedRetailPrice ?? p.currentLowestPrice ?? p.price ?? 0),
-              costPrice: Number(p.estimatedWholesaleCost ?? p.costPrice ?? 0),
-              competitorPrice: Number(p.currentLowestPrice ?? 0),
-              stock: typeof p.stock === 'number' ? p.stock : undefined,
-            }));
-          }
-        }
-      } catch {
-        // Ignore malformed cache
-      }
-
-      try {
-        const pricingRaw = localStorage.getItem(AUTO_PRICING_PRODUCTS_STORAGE_KEY);
-        if (pricingRaw) {
-          const parsedPricing = JSON.parse(pricingRaw);
-          if (Array.isArray(parsedPricing) && parsedPricing.length > 0) {
-            return parsedPricing.map((p: any) => ({
-              sku: p.sku || p.productId,
-              title: p.title || 'منتج',
-              category: p.category,
-              price: Number(p.currentPrice ?? 0),
-              costPrice: Number(p.costPrice ?? 0),
-              competitorPrice: Number(p.lowestCompetitorPrice ?? 0),
-            }));
-          }
-        }
-      } catch {
-        // Ignore malformed cache
-      }
-    }
-
-    return INITIAL_AUTO_PRICING_PRODUCTS.map((p) => ({
-      sku: p.sku,
-      title: p.title,
+    return effectiveProducts.map((p: any) => ({
+      sku: p.sku || p.id || '-',
+      title: p.title || 'منتج',
       category: p.category,
-      price: p.currentPrice,
-      costPrice: p.costPrice,
-      competitorPrice: p.lowestCompetitorPrice,
+      price: Number(p.price ?? 0),
+      costPrice: getProductCost(p),
+      competitorPrice: Number(p.competitor_price ?? p.competitorPrice ?? p.buybox_price ?? 0),
+      stock: typeof p.stock === 'number' ? p.stock : undefined,
     }));
   };
 
@@ -201,6 +397,9 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
         totalNetProfit: metrics.totalProfit,
         avgMarginPercent: metrics.avgMargin,
         totalOrders: metrics.totalOrders,
+        avgOrderValue: metrics.avgOrderValue,
+        salesGrowthPercent: metrics.avgGrowth,
+        productsCount: effectiveProducts.length,
         avgBuyBoxWinPercent: metrics.avgBuyBoxWin,
         rows: chartData.map((d) => ({
           dateStr: d.dateStr,
@@ -208,7 +407,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           netProfitEGP: d.netProfitEGP,
           profitMarginPercent: d.profitMarginPercent,
           ordersCount: d.ordersCount,
-          buyBoxWinRatePercent: d.buyBoxWinRatePercent,
+          buyBoxWinRatePercent: d.buyBoxWinRatePercent ?? undefined,
         })),
       });
       onShowToast?.('تم تصدير التقرير المالي بصيغة PDF بنجاح');
@@ -238,43 +437,81 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
     }
   };
 
+  const activeSeriesKey =
+    activeChartView === 'overview'
+      ? 'revenueEGP'
+      : activeChartView === 'profit_margin'
+      ? 'profitMarginPercent'
+      : 'ordersCount';
+
+  const activeSeriesColor =
+    activeChartView === 'overview'
+      ? '#f59e0b'
+      : activeChartView === 'profit_margin'
+      ? '#38bdf8'
+      : '#10b981';
+
+  const activeSeriesLabel =
+    activeChartView === 'overview'
+      ? `الإيرادات (${currency})`
+      : activeChartView === 'profit_margin'
+      ? 'هامش الربح %'
+      : 'عدد الطلبات';
+
   return (
-    <div className="bg-slate-950 text-slate-100 rounded-3xl p-6 sm:p-8 border border-indigo-500/30 shadow-2xl space-y-8 font-['Cairo',sans-serif]" dir="rtl">
-      
+    <div
+      className="bg-slate-950 text-slate-100 rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl space-y-8 font-['Cairo',sans-serif]"
+      dir="rtl"
+    >
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/30">
+            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/30">
               <Activity className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                <span>لوحة أداء المبيعات وهامش الربح (PerformanceDashboard)</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                  تتبع 30 يوماً 📊
-                </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                لوحة أداء المبيعات وهامش الربح
               </h2>
               <p className="text-xs text-slate-400">
-                تحليل تفاعلي قياسي لتطور الأرباح، نسبة الهامش الصافي، ونمو المبيعات اليومي برسوم Recharts المتقدمة
+                مؤشرات حقيقية محسوبة مباشرة من جداول المنتجات والفواتير في Supabase · آخر {rangeDays} يوماً
               </p>
             </div>
           </div>
         </div>
 
-        {/* Date Range Selector, Export PDF & Market Trends Jump */}
+        {/* Date Range Selector, Refresh, Export PDF & Market Trends Jump */}
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <div className="relative" ref={exportMenuRef}>
+          <button
+            type="button"
+            onClick={loadReportsData}
+            disabled={isLoading}
+            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>تحديث</span>
+          </button>
+
+          <div className="relative inline-flex items-stretch" ref={exportMenuRef}>
+            <button
+              type="button"
+              disabled={isExportingPdf !== null}
+              onClick={handleExportFinancialPdf}
+              className="min-h-[40px] px-4 py-2 rounded-r-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              <Download className="w-4 h-4" aria-hidden="true" />
+              <span>{isExportingPdf === 'financial' ? 'جاري التصدير...' : 'تصدير التقرير'}</span>
+            </button>
             <button
               type="button"
               disabled={isExportingPdf !== null}
               onClick={() => setIsExportMenuOpen((prev) => !prev)}
+              aria-label="خيارات التصدير الإضافية"
               aria-haspopup="menu"
               aria-expanded={isExportMenuOpen}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="min-h-[40px] px-2.5 py-2 rounded-l-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 text-white border-r border-emerald-500/40 flex items-center justify-center shadow-md transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
             >
-              <Download className="w-4 h-4" aria-hidden="true" />
-              <span>{isExportingPdf ? 'جاري التصدير...' : 'تصدير'}</span>
               <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
 
@@ -282,7 +519,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
               <div
                 role="menu"
                 aria-label="خيارات تصدير PDF"
-                className="absolute left-0 sm:right-0 mt-2 w-60 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-30 space-y-1"
+                className="absolute left-0 sm:right-0 top-full mt-2 w-60 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-30 space-y-1"
               >
                 <button
                   type="button"
@@ -325,10 +562,11 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setDateRange(item.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                type="button"
+                onClick={() => setDateRange(item.id as '30d' | '14d' | '7d')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                   dateRange === item.id
-                    ? 'bg-indigo-600 text-white shadow-md font-black'
+                    ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -339,168 +577,253 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
         </div>
       </div>
 
+      {fetchErrorMessage && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>خطأ في جلب بيانات التقارير من Supabase: {fetchErrorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={loadReportsData}
+            className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-white cursor-pointer shrink-0"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
       {/* KPI Highlight Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
         {/* Total Revenue */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+        <div
+          data-testid="reports-kpi-sales"
+          className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2"
+        >
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
-            <span>إجمالي مبيعات الـ 30 يوماً</span>
+            <span>إجمالي المبيعات</span>
             <DollarSign className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono tabular-nums">
             {metrics.totalRev.toLocaleString()} <span className="text-xs text-slate-400 font-bold">{currency}</span>
           </div>
-          <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>معدل نمو +{metrics.avgGrowth}% YoY</span>
+          <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
+            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+            <span>
+              {metrics.totalOrders > 0
+                ? `نمو الفترة: ${metrics.avgGrowth > 0 ? `+${metrics.avgGrowth}%` : `${metrics.avgGrowth}%`}`
+                : `${effectiveProducts.length} منتج · ${filteredInvoices.length} فاتورة`}
+            </span>
           </div>
         </div>
 
         {/* Net Profit */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+        <div
+          data-testid="reports-kpi-profit"
+          className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2"
+        >
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
-            <span>صافي الربح المتبقي</span>
+            <span>صافي الربح</span>
             <Sparkles className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
-            +{metrics.totalProfit.toLocaleString()} <span className="text-xs text-emerald-300 font-bold">{currency}</span>
+          <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tabular-nums">
+            {metrics.totalProfit.toLocaleString()} <span className="text-xs text-emerald-300 font-bold">{currency}</span>
           </div>
-          <div className="text-[11px] text-amber-300 font-bold">
-            متوسط الهامش الصافي: <strong className="font-mono text-white">{metrics.avgMargin}%</strong>
+          <div className="text-[11px] text-slate-400 font-bold">
+            متوسط الهامش الصافي: <strong className="font-mono text-white tabular-nums">{metrics.avgMargin}%</strong>
           </div>
         </div>
 
         {/* Total Orders */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+        <div
+          data-testid="reports-kpi-orders"
+          className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2"
+        >
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
-            <span>إجمالي الطلبات المباعة</span>
+            <span>إجمالي الطلبات</span>
             <ShoppingCart className="w-4 h-4 text-sky-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono tabular-nums">
             {metrics.totalOrders.toLocaleString()} <span className="text-xs text-slate-400 font-bold">طلب</span>
           </div>
-          <div className="text-[11px] text-sky-300 font-bold">
-            معدل القيمة المتوسطة للطلب: {Math.round(metrics.totalRev / (metrics.totalOrders || 1))} {currency}
+          <div className="text-[11px] text-slate-400 font-bold">
+            متوسط قيمة الطلب: <strong className="font-mono text-sky-300 tabular-nums">{metrics.avgOrderValue.toLocaleString()} {currency}</strong>
           </div>
         </div>
 
         {/* Buy Box Win Rate */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+        <div
+          data-testid="reports-kpi-buybox"
+          className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2"
+        >
           <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
             <span>معدل الفوز بالـ Buy Box</span>
             <Award className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-purple-300 font-mono">
-            {metrics.avgBuyBoxWin}%
+          <div className="text-2xl sm:text-3xl font-black text-purple-300 font-mono tabular-nums">
+            {metrics.avgBuyBoxWin !== null ? `${metrics.avgBuyBoxWin}%` : '-'}
           </div>
-          <div className="text-[11px] text-purple-400 font-bold">
-            تفوق تنافسي ممتاز على منصات أمازون ونون
+          <div className="text-[11px] text-slate-400 font-bold">
+            {metrics.avgBuyBoxWin !== null
+              ? 'محسوب من أسعار المنتجات ومنافسة السوق الفعلية'
+              : 'لا توجد بيانات Buy Box مسجلة بعد'}
           </div>
         </div>
-
       </div>
 
       {/* Main Interactive Recharts Diagram Card */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-6 shadow-xl">
-        
         {/* Chart View Switcher Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <span>الرسم البياني التفاعلي لحركة المبيعات والأرباح</span>
+            <h3 className="text-base font-black text-white">
+              الرسم البياني التفاعلي لحركة المبيعات والأرباح
             </h3>
             <p className="text-xs text-slate-400">
-              تصفح التطور اليومي لحجم الإيرادات، هامش الربح %، وتطور الشراء
+              تطور الإيرادات وهامش الربح والطلبات من الفواتير الحقيقية المرتبة حسب التاريخ
             </p>
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
             <button
+              type="button"
               onClick={() => setActiveChartView('overview')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                 activeChartView === 'overview'
-                  ? 'bg-indigo-600 text-white shadow-md'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📊 نظرة شاملة
+              نظرة شاملة
             </button>
             <button
+              type="button"
               onClick={() => setActiveChartView('profit_margin')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                 activeChartView === 'profit_margin'
-                  ? 'bg-amber-600 text-white shadow-md'
+                  ? 'bg-sky-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📈 هامش الربح %
+              هامش الربح %
             </button>
             <button
+              type="button"
               onClick={() => setActiveChartView('orders_growth')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                 activeChartView === 'orders_growth'
-                  ? 'bg-emerald-600 text-white shadow-md'
+                  ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🛍️ الطلبات والنمو
+              الطلبات
             </button>
           </div>
         </div>
 
-        {/* Pure Tailwind CSS Chart Container (No Recharts) */}
-        <div className="h-80 sm:h-96 w-full pt-4 flex flex-col justify-end bg-slate-950/80 p-4 rounded-2xl border border-slate-800" dir="ltr">
-          <div className="flex items-end justify-between gap-1 h-64">
-            {chartData.map((pt, idx) => {
-              const maxRev = Math.max(...chartData.map(d => activeChartView === 'overview' ? d.revenueEGP : activeChartView === 'profit_margin' ? d.profitMarginPercent : d.ordersCount));
-              const currentVal = activeChartView === 'overview' ? pt.revenueEGP : activeChartView === 'profit_margin' ? pt.profitMarginPercent : pt.ordersCount;
-              const heightPct = Math.max(15, Math.round((currentVal / (maxRev || 1)) * 100));
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
-                    <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
-                      <div>{pt.dateStr}</div>
-                      <div className="text-amber-400 font-bold">
-                        {activeChartView === 'overview' ? `${pt.revenueEGP.toLocaleString()} ${currency}` : activeChartView === 'profit_margin' ? `${pt.profitMarginPercent}%` : `${pt.ordersCount} طلب`}
+        {/* Real Invoices Chart or Empty State */}
+        {chartData.length === 0 ? (
+          <div
+            data-testid="reports-chart-empty"
+            className="h-72 w-full rounded-2xl bg-slate-950/80 border border-dashed border-slate-800 flex flex-col items-center justify-center text-center p-6 space-y-2"
+          >
+            <ShoppingCart className="w-10 h-10 text-slate-600" aria-hidden="true" />
+            <p className="text-sm font-black text-white">لا توجد بيانات بعد</p>
+            <p className="text-xs font-bold text-slate-400">
+              لا توجد مبيعات بعد - أضف منتجات وابدأ البيع
+            </p>
+          </div>
+        ) : (
+          <div
+            data-testid="reports-invoices-chart"
+            className="h-80 sm:h-96 w-full bg-slate-950/80 p-4 rounded-2xl border border-slate-800"
+            dir="ltr"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <defs>
+                  <linearGradient id="reportsRealSeriesFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={activeSeriesColor} stopOpacity={0.32} />
+                    <stop offset="95%" stopColor={activeSeriesColor} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis
+                  dataKey="dayLabel"
+                  stroke="#64748b"
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  width={56}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const pt = payload[0]?.payload as DailyMetricsPoint | undefined;
+                    if (!pt) return null;
+                    return (
+                      <div
+                        dir="rtl"
+                        className="rounded-xl bg-slate-950 border border-slate-700 p-3 shadow-xl text-xs space-y-1.5"
+                      >
+                        <div className="font-bold text-slate-200 border-b border-slate-800 pb-1">
+                          {pt.dateStr}
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-amber-300">المبيعات:</span>
+                          <span className="font-mono font-black text-white tabular-nums">
+                            {pt.revenueEGP.toLocaleString()} {currency}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-emerald-300">صافي الربح:</span>
+                          <span className="font-mono font-black text-emerald-400 tabular-nums">
+                            {pt.netProfitEGP.toLocaleString()} {currency} ({pt.profitMarginPercent}%)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-sky-300">الطلبات:</span>
+                          <span className="font-mono font-bold text-white tabular-nums">
+                            {pt.ordersCount}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
-                  </div>
-
-                  {/* Vertical Bar */}
-                  <div
-                    className={`w-full rounded-t-sm transition-all duration-300 ${
-                      activeChartView === 'overview' ? 'bg-indigo-500 group-hover:bg-indigo-400' : activeChartView === 'profit_margin' ? 'bg-amber-500 group-hover:bg-amber-400' : 'bg-emerald-500 group-hover:bg-emerald-400'
-                    }`}
-                    style={{ height: `${Math.min(100, heightPct)}%` }}
-                  />
-                  <span className="text-[9px] text-slate-500 font-mono mt-1 truncate">
-                    {idx % 5 === 0 ? pt.dayLabel : ''}
-                  </span>
-                </div>
-              );
-            })}
+                    );
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey={activeSeriesKey}
+                  name={activeSeriesLabel}
+                  stroke={activeSeriesColor}
+                  strokeWidth={2.5}
+                  isAnimationActive={!isPerformanceMode}
+                  fill="url(#reportsRealSeriesFill)"
+                  activeDot={{ r: 5, fill: activeSeriesColor, stroke: '#0f172a', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 font-mono">
-            <span>بداية الفترة</span>
-            <span className="text-amber-400 font-bold">
-              {activeChartView === 'overview' ? 'إجمالي الإيرادات اليومية' : activeChartView === 'profit_margin' ? 'هامش الربح الصافي %' : 'حجم الطلبات'}
-            </span>
-            <span>اليوم</span>
-          </div>
-        </div>
+        )}
 
         <p className="text-[11px] text-slate-400 text-center leading-relaxed border-t border-slate-800/80 pt-3">
-          💡 تعكس هذه المؤشرات التفاعلية البيانات المحسوبة على مدار الـ 30 يوماً الماضية وفقاً لمبيعات الكتالوج وبوالص الشحن المسجلة في مصر.
+          تعكس هذه المؤشرات البيانات الفعلية المسجلة في جداول المنتجات والفواتير عبر Supabase فقط.
         </p>
-
       </div>
 
       {/* Market Trends & Next-Period Price Forecast Analysis */}
-      <MarketTrendsAnalysis currency={currency} onShowToast={onShowToast} />
-
+      <DeferredViewportMount
+        sectionId="reports-market-trends"
+        minHeight={240}
+        label="تحليل اتجاهات السوق والتوقعات"
+      >
+        <MarketTrendsAnalysis currency={currency} onShowToast={onShowToast} />
+      </DeferredViewportMount>
     </div>
   );
 };

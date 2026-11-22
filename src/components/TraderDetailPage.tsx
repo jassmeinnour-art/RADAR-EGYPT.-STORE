@@ -18,12 +18,25 @@ import {
   DollarSign,
   ArrowLeft,
   Filter,
-  Trash2
+  Trash2,
+  Pencil,
+  FileSpreadsheet,
+  Hash,
+  Receipt
 } from 'lucide-react';
-import { supabase, Trader, Product } from '../lib/supabase';
+import {
+  supabase,
+  isDemoOrOrphanProduct,
+  Trader,
+  Product,
+} from '../lib/supabase';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
+import { EditTraderModal } from './EditTraderModal';
+import { FetchProductsModal } from './FetchProductsModal';
+import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
+import { dataCache } from '../utils/dataCache';
 
 
 interface TraderDetailPageProps {
@@ -32,19 +45,40 @@ interface TraderDetailPageProps {
   onShowToast?: (msg: string) => void;
 }
 
+function safeFormatSupabaseError(err: any): string {
+  if (!err) return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات';
+  if (typeof err === 'string') return err;
+  const msg = String(err.message || err.error_description || err.error || '').trim();
+  const details = String(err.details || '').trim();
+  return [msg, details && !msg.includes(details) ? details : ''].filter(Boolean).join(' — ') || 'Supabase Error';
+}
+
 export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   traderId: propTraderId,
   onBack,
   onShowToast
 }) => {
   // Extract id from prop or window location
-  const id = propTraderId || (typeof window !== 'undefined' ? window.location.pathname.replace('/traders/', '') : '');
+  const rawId =
+    propTraderId ||
+    (typeof window !== 'undefined' ? window.location.pathname.replace(/^\/traders\//, '').split('/')[0] : '');
+  const id = (() => {
+    try {
+      return decodeURIComponent(rawId);
+    } catch {
+      return rawId;
+    }
+  })();
 
   const [trader, setTrader] = useState<Trader | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<boolean>(false);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activePlatformFilter, setActivePlatformFilter] = useState<string>('all');
 
@@ -58,9 +92,10 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   const loadTraderAndProducts = async () => {
     if (!id) return;
     setIsLoading(true);
+    setFetchError(false);
+    setFetchErrorMessage(null);
     try {
-      // 1. Fetch trader via exact query requirement:
-      // supabase.from('traders').select('*').eq('id', id).single()
+      // 1. Fetch trader: supabase.from('traders').select('*').eq('id', id).single()
       const { data: traderData, error: traderError } = await supabase
         .from('traders')
         .select('*')
@@ -68,26 +103,35 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         .single();
 
       if (traderError) {
-        console.error('Error fetching trader by id:', traderError);
+        console.error('[TraderDetailPage] Error fetching trader by id:', traderError);
         setFetchError(true);
-      } else {
-        setFetchError(false);
+        setFetchErrorMessage(safeFormatSupabaseError(traderError));
       }
       setTrader(traderData as Trader | null);
 
-      const { data: prodsData, error: prodsError } = await supabase
-        .from('products')
-        .select('*')
-        .eq('trader_id', id);
+      const [prodsRes, invoicesRes] = await Promise.all([
+        supabase.from('products').select('*').eq('trader_id', id),
+        supabase.from('invoices').select('*').eq('trader_id', id),
+      ]);
 
-      if (prodsError) {
-        console.error('Error fetching trader products:', prodsError);
+      if (prodsRes.error) {
+        console.error('[TraderDetailPage] Error fetching trader products:', prodsRes.error);
+        const msg = safeFormatSupabaseError(prodsRes.error);
         setFetchError(true);
+        setFetchErrorMessage((prev) => prev || msg);
       }
-      setProducts(Array.isArray(prodsData) ? (prodsData as Product[]) : []);
+      if (invoicesRes.error) {
+        console.error('[TraderDetailPage] Error fetching trader invoices:', invoicesRes.error);
+      }
+
+      const rawProds = Array.isArray(prodsRes.data) ? (prodsRes.data as Product[]) : [];
+      const cleanProds = rawProds.filter((p) => !isDemoOrOrphanProduct(p));
+      setProducts(cleanProds);
+      setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
     } catch (err) {
-      console.error('Failed to load trader detail:', err);
+      console.error('[TraderDetailPage] Failed to load trader detail:', err);
       setFetchError(true);
+      setFetchErrorMessage(safeFormatSupabaseError(err));
     } finally {
       setIsLoading(false);
     }
@@ -200,6 +244,20 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
     return products.reduce((acc, p) => acc + ((p.price || 0) * (p.stock || 1)), 0) || (amazonStats.value + noonStats.value);
   }, [products, amazonStats, noonStats]);
 
+  const totalSales = useMemo(() => {
+    const productsSales = products.reduce((sum, p: any) => {
+      const price = Number(p?.price) || 0;
+      const soldQty = Number(p?.sold_quantity);
+      const qty = Number.isFinite(soldQty) && soldQty > 0 ? soldQty : 1;
+      return sum + price * qty;
+    }, 0);
+    const invoicesSales = invoices.reduce((sum, inv: any) => {
+      const amt = Number(inv?.total_amount ?? inv?.total ?? inv?.amount ?? 0) || 0;
+      return sum + amt;
+    }, 0);
+    return Math.round(productsSales + invoicesSales);
+  }, [products, invoices]);
+
   // Filtered products according to tab selection: [الكل] [Amazon] [Noon] [Jumia]
   const displayedProducts = useMemo(() => {
     if (activePlatformFilter === 'all') return products;
@@ -209,16 +267,33 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   if (!trader) {
     return (
       <div className="w-full py-12 text-center space-y-4 font-['Cairo']" dir="rtl">
-        {fetchError && <EmergencyErrorBanner message="تعذر جلب بيانات التاجر من قاعدة البيانات." />}
+        {fetchError && (
+          <EmergencyErrorBanner
+            message={
+              fetchErrorMessage
+                ? `خطأ Supabase: ${fetchErrorMessage}`
+                : 'تعذر جلب بيانات التاجر من قاعدة البيانات.'
+            }
+          />
+        )}
         <Building2 className="w-14 h-14 text-slate-600 mx-auto" />
         <h3 className="text-lg font-black text-white">
-          {isLoading ? 'لا توجد بيانات معروضة بعد' : 'لا توجد بيانات لهذا التاجر'}
+          {isLoading ? 'جاري تحميل بيانات التاجر...' : 'لا توجد بيانات لهذا التاجر'}
         </h3>
         <p className="text-xs text-slate-400">لم يتم العثور على أي تاجر مسجل بهذا المعرف ({id})</p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <button
+            type="button"
+            onClick={loadTraderAndProducts}
+            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>إعادة المحاولة</span>
+          </button>
+          <button
+            type="button"
             onClick={handleGoBack}
-            className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs inline-flex items-center gap-2"
+            className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs inline-flex items-center gap-2 cursor-pointer"
           >
             <ArrowRight className="w-4 h-4" />
             <span>العودة إلى دليل التجار</span>
@@ -227,6 +302,10 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
       </div>
     );
   }
+
+  const traderEmailDisplay = (trader.email || trader.gmail || '').trim();
+  const traderStoreUrl = (trader.store_url || trader.storefront_link || '').trim();
+  const traderDestUrl = (trader.destination_url || trader.seller_link || '').trim();
 
   return (
     <div className="w-full space-y-6 font-['Cairo']" dir="rtl">
@@ -265,59 +344,133 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Trader Identity Card */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      {/* Trader Identity Card & Profile Overview */}
+      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden space-y-5">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
               <Store className="w-8 h-8" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-black text-white">{trader.seller_name}</h1>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
                   {trader.platform?.toUpperCase()}
                 </span>
-                <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                  ID: {trader.seller_id || trader.id}
+                <span className="text-[11px] font-mono text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 inline-flex items-center gap-1">
+                  <Hash className="w-3 h-3" />
+                  <span>{trader.seller_id || trader.id}</span>
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap pt-1">
-                {trader.email && (
-                  <span className="flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{trader.email}</span>
-                  </span>
-                )}
-                {trader.phone && (
-                  <span className="flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{trader.phone}</span>
-                  </span>
-                )}
-                {trader.storefront_link && (
+              <div className="flex items-center gap-4 text-xs text-slate-300 flex-wrap pt-1">
+                <span className="flex items-center gap-1.5" dir="ltr">
+                  <Mail className="w-3.5 h-3.5 text-sky-400" />
+                  <span>{traderEmailDisplay || 'غير مضاف'}</span>
+                </span>
+                <span className="flex items-center gap-1.5" dir="ltr">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{trader.phone || 'غير مضاف'}</span>
+                </span>
+                {traderStoreUrl ? (
                   <a
-                    href={trader.storefront_link}
+                    href={traderStoreUrl}
                     target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-sky-400 hover:underline"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sky-400 hover:underline font-mono text-[11px]"
+                    dir="ltr"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    <span>رابط واجهة المتجر</span>
+                    <span>{traderStoreUrl}</span>
                   </a>
+                ) : traderDestUrl ? (
+                  <a
+                    href={traderDestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-amber-300 hover:underline font-mono text-[11px]"
+                    dir="ltr"
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>{traderDestUrl}</span>
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-1 text-slate-500">
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>رابط المتجر: غير مضاف</span>
+                  </span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-amber-500/40 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5 text-amber-400" />
+              <span>تعديل بيانات التاجر</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFetchModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>{IMPORT_BUTTON_LABEL}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => navigate(`/products?trader_id=${id}`)}
               className="px-4 py-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
             >
               <span>فتح إدارة المنتجات</span>
               <ArrowLeft className="w-3.5 h-3.5" />
             </button>
+          </div>
+        </div>
+
+        {/* Profile Summary Strip: Products Count + Total Sales */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800/80">
+          <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-sky-400" />
+              <span>عدد المنتجات</span>
+            </div>
+            <div data-testid="trader-detail-products-count" className="text-lg font-black text-white font-mono mt-1 tabular-nums">
+              {products.length.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+              <span>إجمالي المبيعات</span>
+            </div>
+            <div data-testid="trader-detail-total-sales" className="text-lg font-black text-emerald-400 font-mono mt-1 tabular-nums">
+              {totalSales.toLocaleString()} ج.م
+            </div>
+          </div>
+
+          <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+              <Boxes className="w-3.5 h-3.5 text-amber-400" />
+              <span>إجمالي المخزون</span>
+            </div>
+            <div className="text-lg font-black text-amber-300 font-mono mt-1 tabular-nums">
+              {totalStock.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-indigo-400" />
+              <span>عدد الفواتير</span>
+            </div>
+            <div className="text-lg font-black text-indigo-300 font-mono mt-1 tabular-nums">
+              {invoices.length.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
@@ -702,6 +855,39 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
             </form>
           </div>
         </div>
+      )}
+      {isEditModalOpen && trader && (
+        <EditTraderModal
+          trader={trader}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onUpdate={(updated) => {
+            setTrader((prev) => (prev ? { ...prev, ...updated } : updated));
+            dataCache.invalidate('traders');
+          }}
+          onShowToast={onShowToast}
+          onFetchProducts={() => {
+            setIsEditModalOpen(false);
+            setIsFetchModalOpen(true);
+          }}
+        />
+      )}
+
+      {isFetchModalOpen && trader && (
+        <FetchProductsModal
+          trader={trader}
+          isOpen={isFetchModalOpen}
+          onClose={() => setIsFetchModalOpen(false)}
+          onShowToast={onShowToast}
+          onSyncCompleted={() => {
+            const nowIso = new Date().toISOString();
+            setTrader((prev) =>
+              prev ? { ...prev, last_sync_at: nowIso, last_sync_timestamp: nowIso } : prev
+            );
+            dataCache.invalidate('traders');
+            loadTraderAndProducts();
+          }}
+        />
       )}
     </div>
   );

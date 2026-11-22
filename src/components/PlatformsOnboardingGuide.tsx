@@ -21,7 +21,12 @@ import {
   Info,
   BadgeCheck,
   CheckSquare,
-  Square
+  Square,
+  Video,
+  PlayCircle,
+  Loader2,
+  Download,
+  RotateCcw
 } from 'lucide-react';
 import { PlatformGuideItem } from '../types';
 import { EGYPTIAN_PLATFORMS_GUIDE } from '../data/platformsGuideData';
@@ -45,6 +50,70 @@ export const PlatformsOnboardingGuide: React.FC = () => {
 
   const toggleDoc = (docKey: string) => {
     setMerchantDocs(prev => ({ ...prev, [docKey]: !prev[docKey] }));
+  };
+
+  type OnboardingVideoFocus = 'all' | 'docs' | 'integration';
+  type OnboardingVideoDuration = '6s' | '8s' | '10s';
+
+  const [videoFocusByPlatform, setVideoFocusByPlatform] = useState<Record<string, OnboardingVideoFocus>>({});
+  const [videoDurationByPlatform, setVideoDurationByPlatform] = useState<Record<string, OnboardingVideoDuration>>({});
+  const [generatedVideos, setGeneratedVideos] = useState<
+    Record<string, { videoUrl: string; duration: string; focusMode: OnboardingVideoFocus; model?: string }>
+  >({});
+  const [generatingVideoFor, setGeneratingVideoFor] = useState<string | null>(null);
+  const [videoErrors, setVideoErrors] = useState<Record<string, string>>({});
+
+  const handleGenerateOnboardingVideo = async (platform: PlatformGuideItem) => {
+    const focusMode = videoFocusByPlatform[platform.id] || 'all';
+    const duration = videoDurationByPlatform[platform.id] || '8s';
+
+    setGeneratingVideoFor(platform.id);
+    setVideoErrors((prev) => {
+      const next = { ...prev };
+      delete next[platform.id];
+      return next;
+    });
+
+    try {
+      const response = await fetch('/api/platforms/onboarding-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platformId: platform.id,
+          platformName: platform.name,
+          arabicName: platform.arabicName,
+          focusMode,
+          duration,
+          requirementsSummary: platform.requirements
+            .filter((r) => r.isRequired)
+            .map((r) => r.title)
+            .join('، '),
+          fulfillmentSummary: platform.fulfillmentOptions.map((f) => f.name).join('، '),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.success || !data?.videoUrl) {
+        throw new Error(data?.error || 'تعذر توليد الفيديو التوضيحي بالذكاء الاصطناعي حالياً');
+      }
+
+      setGeneratedVideos((prev) => ({
+        ...prev,
+        [platform.id]: {
+          videoUrl: data.videoUrl,
+          duration: data.duration || duration,
+          focusMode,
+          model: data.model,
+        },
+      }));
+    } catch (err: any) {
+      setVideoErrors((prev) => ({
+        ...prev,
+        [platform.id]: err?.message || 'حدث خطأ أثناء توليد الفيديو التوضيحي',
+      }));
+    } finally {
+      setGeneratingVideoFor((current) => (current === platform.id ? null : current));
+    }
   };
 
   // Filter platforms
@@ -290,7 +359,9 @@ export const PlatformsOnboardingGuide: React.FC = () => {
               setSelectedCategory('all');
               setExpandedPlatformId(item.id);
               const el = document.getElementById(`platform-guide-${item.id}`);
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (el && typeof el.scrollIntoView === 'function') {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
             }}
             className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] whitespace-nowrap transition-all cursor-pointer ${item.color}`}
           >
@@ -381,6 +452,241 @@ export const PlatformsOnboardingGuide: React.FC = () => {
                   <p className="text-xs text-slate-700 leading-relaxed bg-white p-3.5 rounded-xl border border-slate-200/80">
                     {platform.description}
                   </p>
+
+                  {/* AI Explanatory Video Guide Section */}
+                  {(() => {
+                    const currentFocus = videoFocusByPlatform[platform.id] || 'all';
+                    const currentDuration = videoDurationByPlatform[platform.id] || '8s';
+                    const isGeneratingVideo = generatingVideoFor === platform.id;
+                    const generatedVideo = generatedVideos[platform.id];
+                    const videoError = videoErrors[platform.id];
+                    const requiredDocsPreview = platform.requirements
+                      .filter((r) => r.isRequired)
+                      .slice(0, 3)
+                      .map((r) => r.title)
+                      .join(' · ');
+
+                    return (
+                      <section
+                        data-testid={`platform-video-section-${platform.id}`}
+                        aria-label={`فيديو توضيحي لخطوات الربط مع ${platform.arabicName}`}
+                        className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-4 shadow-2xs"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                          <div className="space-y-0.5">
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                              <Video className="w-4 h-4 text-indigo-600 shrink-0" aria-hidden="true" />
+                              <span>فيديو توضيحي بالذكاء الاصطناعي لخطوات الربط ({platform.name})</span>
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                              أنشئ فيديو قصيراً يشرح عملياً خطوات التجهيز والتسجيل وتفعيل الربط التجاري مع المنصة.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <div
+                              role="group"
+                              aria-label="محور الفيديو التوضيحي"
+                              className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg"
+                            >
+                              {[
+                                { id: 'all', label: 'الربط الشامل' },
+                                { id: 'docs', label: 'الأوراق الرسمية' },
+                                { id: 'integration', label: 'الشحن والمزامنة' },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setVideoFocusByPlatform((prev) => ({
+                                      ...prev,
+                                      [platform.id]: opt.id as OnboardingVideoFocus,
+                                    }))
+                                  }
+                                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                                    currentFocus === opt.id
+                                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div
+                              role="group"
+                              aria-label="مدة الفيديو"
+                              className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg"
+                            >
+                              {(['6s', '8s', '10s'] as OnboardingVideoDuration[]).map((dur) => (
+                                <button
+                                  key={dur}
+                                  type="button"
+                                  onClick={() =>
+                                    setVideoDurationByPlatform((prev) => ({
+                                      ...prev,
+                                      [platform.id]: dur,
+                                    }))
+                                  }
+                                  className={`px-2 py-1.5 rounded-md text-xs font-mono tabular-nums transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                                    currentDuration === dur
+                                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {dur}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                          {/* Video Stage / Player */}
+                          <div className="lg:col-span-7 flex flex-col justify-between space-y-3">
+                            {generatedVideo?.videoUrl ? (
+                              <div className="space-y-3">
+                                <video
+                                  data-testid={`platform-video-player-${platform.id}`}
+                                  src={generatedVideo.videoUrl}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="w-full aspect-video rounded-xl bg-slate-950 border border-slate-200"
+                                />
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                  <span className="text-slate-500">
+                                    المدة: <strong className="font-mono tabular-nums text-slate-800">{generatedVideo.duration}</strong> · دقة 720p
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={isGeneratingVideo}
+                                      onClick={() => handleGenerateOnboardingVideo(platform)}
+                                      className="min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-60"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                                      <span>إعادة توليد الفيديو</span>
+                                    </button>
+                                    <a
+                                      href={generatedVideo.videoUrl}
+                                      download={`${platform.id}-onboarding-guide.mp4`}
+                                      className="min-h-[38px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                                    >
+                                      <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                                      <span>تحميل الفيديو (MP4)</span>
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-full min-h-[230px] rounded-xl bg-slate-950 text-white p-6 flex flex-col items-center justify-center text-center space-y-4">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                                  {isGeneratingVideo ? (
+                                    <Loader2 className="w-6 h-6 animate-spin" aria-hidden="true" />
+                                  ) : (
+                                    <PlayCircle className="w-6 h-6" aria-hidden="true" />
+                                  )}
+                                </div>
+                                <div className="space-y-1.5 max-w-md">
+                                  <h5 className="text-sm font-bold text-white">
+                                    {isGeneratingVideo
+                                      ? `جاري إنشاء الفيديو التوضيحي لمنصة ${platform.arabicName}...`
+                                      : `شاهد خطوات الربط مع ${platform.arabicName} في فيديو قصير`}
+                                  </h5>
+                                  <p className="text-xs text-slate-300 leading-relaxed">
+                                    {isGeneratingVideo
+                                      ? 'يقوم نموذج الذكاء الاصطناعي بتوليد مشهد مرئي يشرح خطوات التسجيل والربط (قد يستغرق ذلك عدة ثوانٍ).'
+                                      : `توليد عرض بصري مدته ${currentDuration} يوضح تجهيز المستندات وإنشاء حساب البائع وتفعيل الشحن.`}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isGeneratingVideo}
+                                  onClick={() => handleGenerateOnboardingVideo(platform)}
+                                  className="min-h-[42px] px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-60 text-white font-bold text-xs inline-flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                                >
+                                  {isGeneratingVideo ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                      <span>جاري التوليد...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Video className="w-4 h-4" aria-hidden="true" />
+                                      <span>توليد فيديو توضيحي بالذكاء الاصطناعي</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+
+                            {videoError && (
+                              <div
+                                role="alert"
+                                className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" aria-hidden="true" />
+                                  <span>{videoError}</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateOnboardingVideo(platform)}
+                                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer whitespace-nowrap shrink-0"
+                                >
+                                  إعادة المحاولة
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3-Step Onboarding Narrative Summary */}
+                          <div className="lg:col-span-5 flex flex-col justify-between border-t lg:border-t-0 lg:border-r border-slate-100 pt-4 lg:pt-0 lg:pr-5 space-y-4">
+                            <div className="space-y-3">
+                              <h5 className="text-xs font-bold text-slate-900">
+                                ملخص الخطوات المشروحة في الفيديو
+                              </h5>
+
+                              <div className="space-y-3 divide-y divide-slate-100">
+                                <div className="pt-1 space-y-1">
+                                  <div className="text-xs font-bold text-slate-900">
+                                    01. تجهيز الأوراق الرسمية
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                                    {requiredDocsPreview || 'السجل التجاري، البطاقة الضريبية، ورقم الحساب البنكي IBAN.'}
+                                  </p>
+                                </div>
+
+                                <div className="pt-3 space-y-1">
+                                  <div className="text-xs font-bold text-slate-900">
+                                    02. التسجيل وتفعيل بوابة البائعين
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                                    توثيق الحساب عبر بوابة {platform.name} وضبط دورة التحويل ({platform.payoutCycle}).
+                                  </p>
+                                </div>
+
+                                <div className="pt-3 space-y-1">
+                                  <div className="text-xs font-bold text-slate-900">
+                                    03. ربط المنتجات والشحن الذكي
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                                    تفعيل {platform.fulfillmentOptions[0]?.name || 'قناة الشحن المعتمدة'} ومزامنة الأسعار والمخزون.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                              القناة الرسمية: <span className="font-mono text-slate-700" dir="ltr">{platform.registrationUrl}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    );
+                  })()}
 
                   {/* 1. Required Legal & Official Documents (الأوراق والمستندات الرسمية) */}
                   <div className="space-y-3">

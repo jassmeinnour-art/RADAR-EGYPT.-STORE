@@ -1,5 +1,7 @@
 import React, { useState, Suspense, lazy, useEffect, useCallback } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { useAuth } from './context/AuthContext';
+import { usePerformanceMode } from './context/PerformanceModeContext';
 import { OfflineNoticeBanner } from './components/OfflineNoticeBanner';
 import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -7,8 +9,9 @@ import LoginPage from './components/LoginPage';
 import DashboardHome from './components/DashboardHome';
 import { PullToRefresh, RADAR_PULL_TO_REFRESH_EVENT } from './components/PullToRefresh';
 import { TabTransitionContainer } from './components/TabTransitionContainer';
+import { QuickAccessDock } from './components/QuickAccessDock';
 import { dataCache } from './utils/dataCache';
-import { navigate, resolvePathToTab, type WorkspaceTab } from './utils/navigation';
+import { navigate, resolvePathToTab, resolveTabToPath, type WorkspaceTab } from './utils/navigation';
 import { MaintenanceModeBanner } from './components/MaintenanceModeControl';
 import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from './utils/maintenanceMode';
 import { multiTenantDb, type Trader } from './lib/supabase';
@@ -59,6 +62,7 @@ const NotificationsModal = lazyWithPreload(() =>
 
 const DashboardOverviewPage = lazyWithPreload(() => import('./components/DashboardOverviewPage'));
 const TradersPage = lazyWithPreload(() => import('./components/TradersPage'));
+const TraderDetailPage = lazyWithPreload(() => import('./components/TraderDetailPage'));
 const ProductsPage = lazyWithPreload(() => import('./components/ProductsPage'));
 const InventoryPage = lazyWithPreload(() => import('./components/InventoryPage'));
 const ImportHistoryPage = lazyWithPreload(() => import('./components/ImportHistoryPage'));
@@ -127,6 +131,12 @@ export default function App() {
     }
     return 'home';
   });
+  const [currentPathname, setCurrentPathname] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.pathname;
+    }
+    return '/';
+  });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -152,10 +162,15 @@ export default function App() {
 
   const { user, isOwner, authInitError, isPasswordRecovery } = useAuth();
   const { isMaintenanceMode } = useMaintenanceMode();
+  const { isPerformanceMode } = usePerformanceMode();
 
-  const handlePrefetchTab = useCallback((tab: WorkspaceTab) => {
-    TAB_PRELOADERS[tab]?.();
-  }, []);
+  const handlePrefetchTab = useCallback(
+    (tab: WorkspaceTab) => {
+      if (isPerformanceMode) return;
+      TAB_PRELOADERS[tab]?.();
+    },
+    [isPerformanceMode]
+  );
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -187,9 +202,9 @@ export default function App() {
   }, [user, isOwner]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isPerformanceMode) return;
     preloadFirstScreenComponents(activeWorkspaceTab);
-  }, [user, activeWorkspaceTab]);
+  }, [user, activeWorkspaceTab, isPerformanceMode]);
 
   useEffect(() => {
     if (!user) return;
@@ -213,7 +228,10 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isPerformanceMode) {
+      setMountDeferredOverlays(false);
+      return;
+    }
     const win = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
@@ -226,11 +244,13 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => setMountDeferredOverlays(true), 800);
     return () => window.clearTimeout(timeoutId);
-  }, [user]);
+  }, [user, isPerformanceMode]);
 
   useEffect(() => {
     const handlePopState = () => {
-      setActiveWorkspaceTab(resolvePathToTab(window.location.pathname));
+      const nextPath = window.location.pathname;
+      setCurrentPathname(nextPath);
+      setActiveWorkspaceTab(resolvePathToTab(nextPath));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -278,6 +298,7 @@ export default function App() {
           onLoginSuccess={() => {
             preloadFirstScreenComponents('home');
             setActiveWorkspaceTab('home');
+            setCurrentPathname('/');
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
           }}
         />
@@ -291,10 +312,24 @@ export default function App() {
       return <DashboardHome onShowToast={showToast} />;
     }
 
+    const traderDetailMatch = currentPathname.replace(/\/+$/, '').match(/^\/traders\/([^/]+)$/);
+    const activeTraderDetailId = traderDetailMatch ? decodeURIComponent(traderDetailMatch[1]) : null;
+
     const componentMap: Record<string, React.ReactNode> = {
       home: <DashboardHome onShowToast={showToast} />,
       dashboard: <DashboardOverviewPage onShowToast={showToast} />,
-      traders: <TradersPage onShowToast={showToast} />,
+      traders: activeTraderDetailId ? (
+        <TraderDetailPage
+          traderId={activeTraderDetailId}
+          onBack={() => navigate('/traders')}
+          onShowToast={showToast}
+        />
+      ) : (
+        <TradersPage
+          onShowToast={showToast}
+          onSelectTrader={(tid) => navigate(`/traders/${encodeURIComponent(tid)}`)}
+        />
+      ),
       products: <ProductsPage onShowToast={showToast} />,
       merchants: <ProductsPage onShowToast={showToast} />,
       inventory: <InventoryPage onShowToast={showToast} />,
@@ -383,8 +418,13 @@ export default function App() {
   };
 
   return (
-    <div dir="rtl" className="w-full min-h-screen bg-[var(--app-bg)] text-[var(--text-primary)] pb-12 relative font-['Cairo'] transition-colors duration-200">
-      <OfflineNoticeBanner onShowToast={showToast} />
+    <MotionConfig reducedMotion={isPerformanceMode ? 'always' : 'user'}>
+      <div
+        dir="rtl"
+        data-performance-mode={isPerformanceMode ? 'true' : 'false'}
+        className="w-full min-h-screen bg-[var(--app-bg)] text-[var(--text-primary)] pb-20 lg:pb-12 relative font-['Cairo'] transition-colors duration-200"
+      >
+        <OfflineNoticeBanner onShowToast={showToast} />
 
       <ErrorBoundary silent fallback={null} sectionName="sidebar">
         <Suspense fallback={null}>
@@ -429,6 +469,7 @@ export default function App() {
                 };
                 if (pathMap[tab]) {
                   window.history.pushState({}, '', pathMap[tab]);
+                  setCurrentPathname(pathMap[tab]);
                 }
               }
             }}
@@ -613,6 +654,7 @@ export default function App() {
                   };
                   if (pathMap[tab]) {
                     window.history.pushState({}, '', pathMap[tab]);
+                    setCurrentPathname(pathMap[tab]);
                   }
                 }
               }}
@@ -621,11 +663,25 @@ export default function App() {
         </ErrorBoundary>
       )}
 
+      <ErrorBoundary silent fallback={null} sectionName="quick-access-dock">
+        <QuickAccessDock
+          activeTab={activeWorkspaceTab}
+          onPrefetchTab={handlePrefetchTab}
+          onSelectTab={(tab) => {
+            setHasLazyLoadError(false);
+            setActiveWorkspaceTab(tab);
+            setShowOwnerDashboard(false);
+            setIsSidebarOpen(false);
+            setCurrentPathname(resolveTabToPath(tab));
+          }}
+        />
+      </ErrorBoundary>
+
       {toastMessage && (
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 left-5 z-[200] max-w-md bg-slate-900 text-white border border-indigo-500/60 shadow-2xl rounded-2xl px-4 py-3 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-3"
+          className="fixed bottom-20 lg:bottom-5 left-5 z-[200] max-w-md bg-slate-900 text-white border border-indigo-500/60 shadow-2xl rounded-2xl px-4 py-3 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-3"
         >
           <span className="text-xs sm:text-sm font-bold leading-relaxed flex-1">
             {toastMessage}
@@ -640,6 +696,7 @@ export default function App() {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </MotionConfig>
   );
 }
