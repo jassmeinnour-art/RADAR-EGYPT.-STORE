@@ -252,7 +252,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 {AMAZON_TXT_GUIDE_TEXT}
               </p>
               <p className="text-[11px] text-slate-300 leading-relaxed">
-                يدعم ملفات <span className="font-mono font-bold text-white">.txt</span> (Tab-separated UTF-8)، و{' '}
+                يدعم ملفات <span className="font-mono font-bold text-white">.txt</span> (Tab-separated UTF-16 / UTF-8)، و{' '}
                 <span className="font-mono font-bold text-white">.tsv</span>، و{' '}
                 <span className="font-mono font-bold text-white">.csv</span>، و{' '}
                 <span className="font-mono font-bold text-white">.xlsx</span> للتاجر{' '}
@@ -306,6 +306,16 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                   {previewData.summaryMessage}
                 </span>
               </div>
+
+              {(previewData.linePreviewMessage || previewData.rows[0]?.title) && (
+                <p
+                  data-testid="import-line-preview-banner"
+                  className="text-xs font-bold text-emerald-300 bg-emerald-950/35 border border-emerald-500/30 rounded-xl px-3 py-2"
+                >
+                  {previewData.linePreviewMessage ||
+                    `تم قراءة ${previewData.totalRead} سطر - أول منتج: ${previewData.rows[0]?.title || '—'}`}
+                </p>
+              )}
 
               <div className="overflow-x-auto rounded-xl border border-slate-800">
                 <table className="w-full text-right text-[11px]">

@@ -33,6 +33,12 @@ export const UNSUPPORTED_FILE_ERROR_MESSAGE =
 export const EMPTY_FILE_ERROR_MESSAGE =
   'الملف فارغ - اطلب تقرير جديد من Seller Central > Reports > Inventory Reports';
 
+export const REPORT_STILL_PROCESSING_MESSAGE =
+  'التقرير لسه مجهزش في أمازون - استنى 5 دقايق واطلب تقرير جديد';
+
+export const UNRECOGNIZED_COLUMNS_PREFIX =
+  'لم أستطع قراءة أعمدة الملف - الأعمدة الموجودة: ';
+
 export const AMAZON_TXT_GUIDE_TEXT =
   'من Seller Central > التقارير > تقارير المخزون > اطلب All Listings Report > نزل ملف .txt > ارفعه هنا';
 
@@ -87,6 +93,7 @@ export interface SellerCentralImportPreview {
   errorBreakdown?: ImportErrorBreakdown;
   rowErrors?: ImportRowErrorDetail[];
   summaryMessage: string;
+  linePreviewMessage?: string;
 }
 
 export interface ExcelImportSummary {
@@ -138,7 +145,9 @@ export function sanitizeProductPullError(err: unknown): string {
   if (
     normalized === DIRECT_FETCH_BLOCKED_MESSAGE ||
     normalized === UNSUPPORTED_FILE_ERROR_MESSAGE ||
-    normalized === EMPTY_FILE_ERROR_MESSAGE
+    normalized === EMPTY_FILE_ERROR_MESSAGE ||
+    normalized === REPORT_STILL_PROCESSING_MESSAGE ||
+    normalized.startsWith(UNRECOGNIZED_COLUMNS_PREFIX)
   ) {
     return normalized;
   }
@@ -299,43 +308,137 @@ function parseNumericValue(raw: string, integer = false): number {
   return Number.isFinite(num) ? num : 0;
 }
 
-/**
- * Parses UTF-8 Tab-separated (.txt / .tsv) or comma-separated (.csv) text,
- * stripping UTF-8 BOM (\uFEFF) and separating header row from data rows.
- */
-export function parseDelimitedRecordsToObjects(
-  rawText: string,
-  delimiter: '\t' | ','
-): { rawObjects: Array<Record<string, string>>; skippedBlankLines: number } {
-  // Strip UTF-8 BOM and normalize line endings
-  const withoutBom = String(rawText || '').replace(/^\uFEFF/, '');
-  const normalized = withoutBom.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  // Strip single trailing EOF newline so normal trailing newline isn't counted as a skipped blank row
-  const trimmedEnd = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
+const HEADER_SIGNATURE_KEYS = new Set([
+  'seller sku',
+  'sku',
+  'merchant sku',
+  'asin',
+  'asin1',
+  'amazon asin',
+  'item name',
+  'title',
+  'product name',
+  'product title',
+  'listing title',
+  'price',
+  'your price',
+  'standard price',
+  'quantity',
+  'stock',
+  'qty',
+  'اسم المنتج',
+  'السعر',
+  'الكمية',
+  'المخزون',
+]);
 
-  if (!trimmedEnd.trim()) {
-    return { rawObjects: [], skippedBlankLines: 0 };
+const PRIMARY_HEADER_ANCHORS = new Set([
+  'seller sku',
+  'sku',
+  'merchant sku',
+  'asin',
+  'asin1',
+  'item name',
+  'title',
+  'product name',
+  'product title',
+  'اسم المنتج',
+]);
+
+function decodeUtf16LeFallback(bytes: Uint8Array, startOffset = 0): string {
+  let out = '';
+  for (let i = startOffset; i + 1 < bytes.length; i += 2) {
+    const codeUnit = bytes[i] | (bytes[i + 1] << 8);
+    out += String.fromCharCode(codeUnit);
+  }
+  return out;
+}
+
+function decodeUtf16BeFallback(bytes: Uint8Array, startOffset = 0): string {
+  let out = '';
+  for (let i = startOffset; i + 1 < bytes.length; i += 2) {
+    const codeUnit = (bytes[i] << 8) | bytes[i + 1];
+    out += String.fromCharCode(codeUnit);
+  }
+  return out;
+}
+
+/**
+ * Decodes raw file bytes supporting UTF-16LE, UTF-16BE, UTF-8 (with or without BOM),
+ * and strips any leading BOM character (\uFEFF) before parsing.
+ */
+export function decodeDelimitedBytesToUtf8Text(input: Uint8Array | ArrayBuffer): string {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  if (bytes.byteLength === 0) return '';
+
+  // 1. UTF-16LE BOM: 0xFF 0xFE
+  if (bytes.byteLength >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    let text = '';
+    try {
+      text = new TextDecoder('utf-16le').decode(bytes);
+    } catch {
+      text = decodeUtf16LeFallback(bytes, 2);
+    }
+    return text.replace(/^\uFEFF/, '');
   }
 
-  // Auto-detect tab delimiter if CSV file is actually tab-delimited
-  const firstLineEnd = trimmedEnd.indexOf('\n');
-  const firstLine = firstLineEnd >= 0 ? trimmedEnd.slice(0, firstLineEnd) : trimmedEnd;
-  const effectiveDelimiter: '\t' | ',' =
-    delimiter === '\t'
-      ? '\t'
-      : firstLine.includes('\t') && !firstLine.includes(',')
-      ? '\t'
-      : ',';
+  // 2. UTF-16BE BOM: 0xFE 0xFF
+  if (bytes.byteLength >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    let text = '';
+    try {
+      text = new TextDecoder('utf-16be').decode(bytes);
+    } catch {
+      text = decodeUtf16BeFallback(bytes, 2);
+    }
+    return text.replace(/^\uFEFF/, '');
+  }
 
-  // Split into lines while respecting quoted fields containing newlines
+  // 3. UTF-8 BOM: 0xEF 0xBB 0xBF
+  if (bytes.byteLength >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(bytes.subarray(3)).replace(/^\uFEFF/, '');
+  }
+
+  // 4. Heuristic UTF-16 detection without BOM (e.g., stripped BOM files)
+  if (bytes.byteLength >= 4 && bytes.byteLength % 2 === 0) {
+    const sampleLen = Math.min(bytes.byteLength, 240);
+    let oddNulls = 0;
+    let evenNulls = 0;
+    const pairs = Math.floor(sampleLen / 2);
+    for (let i = 0; i + 1 < sampleLen; i += 2) {
+      if (bytes[i] === 0 && bytes[i + 1] !== 0) evenNulls++;
+      if (bytes[i + 1] === 0 && bytes[i] !== 0) oddNulls++;
+    }
+    if (oddNulls >= Math.max(2, Math.floor(pairs * 0.25)) && evenNulls === 0) {
+      try {
+        return new TextDecoder('utf-16le').decode(bytes).replace(/^\uFEFF/, '');
+      } catch {
+        return decodeUtf16LeFallback(bytes, 0).replace(/^\uFEFF/, '');
+      }
+    }
+    if (evenNulls >= Math.max(2, Math.floor(pairs * 0.25)) && oddNulls === 0) {
+      try {
+        return new TextDecoder('utf-16be').decode(bytes).replace(/^\uFEFF/, '');
+      } catch {
+        return decodeUtf16BeFallback(bytes, 0).replace(/^\uFEFF/, '');
+      }
+    }
+  }
+
+  // 5. Default UTF-8
+  return new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
+}
+
+export type SupportedDelimiter = '\t' | ',' | ';';
+
+function splitDelimitedLines(text: string, delimiter: SupportedDelimiter): string[][] {
   const parsedLines: string[][] = [];
   let currentRow: string[] = [];
   let currentCell = '';
   let inQuotes = false;
 
-  for (let i = 0; i < trimmedEnd.length; i++) {
-    const ch = trimmedEnd[i];
-    const next = trimmedEnd[i + 1];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
 
     if (inQuotes) {
       if (ch === '"' && next === '"') {
@@ -348,7 +451,7 @@ export function parseDelimitedRecordsToObjects(
       }
     } else if (ch === '"' && currentCell === '') {
       inQuotes = true;
-    } else if (ch === effectiveDelimiter) {
+    } else if (ch === delimiter) {
       currentRow.push(currentCell);
       currentCell = '';
     } else if (ch === '\n') {
@@ -362,19 +465,144 @@ export function parseDelimitedRecordsToObjects(
   }
   currentRow.push(currentCell);
   parsedLines.push(currentRow);
+  return parsedLines;
+}
 
-  // Locate header row (first non-empty row)
-  const headerIdx = parsedLines.findIndex((cells) =>
-    cells.some((c) => String(c || '').trim() !== '')
-  );
+function findAmazonHeaderRowIndex(parsedLines: string[][]): {
+  headerIdx: number;
+  hasRecognizedHeader: boolean;
+} {
+  let fallbackHeaderIdx = -1;
+  for (let i = 0; i < parsedLines.length; i++) {
+    const cells = parsedLines[i];
+    const hasContent = cells.some((c) => String(c || '').trim() !== '');
+    if (!hasContent) continue;
+
+    if (fallbackHeaderIdx === -1) {
+      fallbackHeaderIdx = i;
+    }
+
+    const normalizedCells = cells.map((c) => normalizeHeaderKey(c));
+    const anchorMatches = normalizedCells.filter((k) => PRIMARY_HEADER_ANCHORS.has(k)).length;
+    const signatureMatches = normalizedCells.filter((k) => HEADER_SIGNATURE_KEYS.has(k)).length;
+
+    if (anchorMatches >= 1 && signatureMatches >= 2) {
+      return { headerIdx: i, hasRecognizedHeader: true };
+    }
+    if (anchorMatches === 1 && cells.filter((c) => c.trim() !== '').length >= 2) {
+      return { headerIdx: i, hasRecognizedHeader: true };
+    }
+  }
+
+  return { headerIdx: fallbackHeaderIdx, hasRecognizedHeader: false };
+}
+
+/**
+ * Tests Tab (\t) first, then Comma (,), then Semicolon (;) and selects
+ * the delimiter producing the highest column count in the header / first data line.
+ */
+export function detectBestDelimiter(rawText: string): SupportedDelimiter {
+  const candidates: SupportedDelimiter[] = ['\t', ',', ';'];
+  const withoutBom = String(rawText || '').replace(/^\uFEFF/, '');
+  const normalized = withoutBom.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Inspect only a generous leading slice for fast detection
+  const sampleLines = normalized
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .slice(0, 20)
+    .join('\n');
+
+  if (!sampleLines) return '\t';
+
+  let bestDelimiter: SupportedDelimiter = '\t';
+  let bestScore = -1;
+
+  for (const delim of candidates) {
+    const rows = splitDelimitedLines(sampleLines, delim).filter((r) =>
+      r.some((c) => c.trim() !== '')
+    );
+    if (rows.length === 0) continue;
+
+    const { headerIdx, hasRecognizedHeader } = findAmazonHeaderRowIndex(rows);
+    const headerRow = headerIdx >= 0 ? rows[headerIdx] : rows[0];
+    const firstDataRow =
+      headerIdx >= 0 && rows[headerIdx + 1] ? rows[headerIdx + 1] : headerRow;
+
+    const firstDataCols = firstDataRow.length;
+    const headerCols = headerRow.length;
+    const colCount = Math.max(firstDataCols, headerCols);
+    // Boost recognized Amazon headers so metadata lines with commas don't fool Tab-separated files
+    const score = colCount + (hasRecognizedHeader ? 1000 : 0);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestDelimiter = delim;
+    }
+  }
+
+  return bestDelimiter;
+}
+
+/**
+ * Parses Tab (\t), Comma (,), or Semicolon (;) delimited text (supporting UTF-8 / UTF-16 decoded text),
+ * stripping BOM, skipping preamble/blank lines before Amazon's header row (seller-sku/asin/item-name),
+ * detecting Amazon "Report is still processing", and separating header row from data rows.
+ */
+export function parseDelimitedRecordsToObjects(
+  rawText: string,
+  _preferredDelimiter?: SupportedDelimiter
+): {
+  rawObjects: Array<Record<string, string>>;
+  skippedBlankLines: number;
+  hasRecognizedHeader: boolean;
+  firstNonEmptyLine: string;
+  headerLineText: string;
+} {
+  // Strip any stray BOM and normalize line endings
+  const withoutBom = String(rawText || '')
+    .replace(/\uFEFF/g, '')
+    .replace(/\0/g, '');
+  const normalized = withoutBom.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Strip single trailing EOF newline so normal trailing newline isn't counted as a skipped blank row
+  const trimmedEnd = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
+
+  if (!trimmedEnd.trim()) {
+    return {
+      rawObjects: [],
+      skippedBlankLines: 0,
+      hasRecognizedHeader: false,
+      firstNonEmptyLine: '',
+      headerLineText: '',
+    };
+  }
+
+  if (trimmedEnd.toLowerCase().includes('report is still processing')) {
+    throw new Error(REPORT_STILL_PROCESSING_MESSAGE);
+  }
+
+  const physicalLines = trimmedEnd.split('\n');
+  const firstNonEmptyLine = (physicalLines.find((l) => l.trim() !== '') || '').trim();
+
+  const effectiveDelimiter = detectBestDelimiter(trimmedEnd);
+  const parsedLines = splitDelimitedLines(trimmedEnd, effectiveDelimiter);
+
+  const { headerIdx, hasRecognizedHeader } = findAmazonHeaderRowIndex(parsedLines);
   if (headerIdx === -1) {
-    return { rawObjects: [], skippedBlankLines: 0 };
+    return {
+      rawObjects: [],
+      skippedBlankLines: 0,
+      hasRecognizedHeader: false,
+      firstNonEmptyLine,
+      headerLineText: '',
+    };
   }
 
   const headers = parsedLines[headerIdx].map((h, colIdx) => {
-    const cleaned = String(h || '').replace(/^\uFEFF/, '').trim();
+    const cleaned = String(h || '').replace(/\uFEFF/g, '').trim();
     return cleaned || `col_${colIdx}`;
   });
+  const headerLineText = headers.join(effectiveDelimiter === '\t' ? ' | ' : ` ${effectiveDelimiter} `);
 
   const rawObjects: Array<Record<string, string>> = [];
   let skippedBlankLines = 0;
@@ -393,7 +621,13 @@ export function parseDelimitedRecordsToObjects(
     rawObjects.push(obj);
   }
 
-  return { rawObjects, skippedBlankLines };
+  return {
+    rawObjects,
+    skippedBlankLines,
+    hasRecognizedHeader,
+    firstNonEmptyLine,
+    headerLineText,
+  };
 }
 
 export function mapRawSheetRowsToProductsDetailed(
@@ -615,9 +849,30 @@ export function mapRawSheetRowsToProducts(
   return mapRawSheetRowsToProductsDetailed(rows, options).rows;
 }
 
+function buildDelimitedParseFailureError(
+  rawText: string,
+  parsed: ReturnType<typeof parseDelimitedRecordsToObjects>
+): Error {
+  if (!rawText.trim()) {
+    return new Error(EMPTY_FILE_ERROR_MESSAGE);
+  }
+  if (!parsed.hasRecognizedHeader) {
+    const sample = (parsed.firstNonEmptyLine || parsed.headerLineText || rawText.trim())
+      .slice(0, 180)
+      .trim();
+    return new Error(`${UNRECOGNIZED_COLUMNS_PREFIX}[${sample}]`);
+  }
+  if (parsed.rawObjects.length === 0) {
+    // Recognized Amazon header with zero data rows
+    return new Error(EMPTY_FILE_ERROR_MESSAGE);
+  }
+  const sample = (parsed.headerLineText || parsed.firstNonEmptyLine || '').slice(0, 180).trim();
+  return new Error(`${UNRECOGNIZED_COLUMNS_PREFIX}[${sample}]`);
+}
+
 /**
- * Detailed parser supporting Amazon .txt (Tab-separated UTF-8 + BOM removal),
- * .tsv, .csv, and .xlsx / .xls Excel files.
+ * Detailed parser supporting Amazon .txt / .tsv / .csv (UTF-16LE, UTF-16BE, UTF-8 + BOM removal,
+ * Tab / Comma / Semicolon auto-detection, preamble title skipping) and .xlsx / .xls Excel files.
  */
 export async function parseSellerCentralWorkbookDetailed(
   data: ArrayBuffer | Uint8Array | string,
@@ -627,17 +882,17 @@ export async function parseSellerCentralWorkbookDetailed(
 
   if (typeof data === 'string') {
     const isTabText = ext === '.txt' || ext === '.tsv';
-    const delimiter: '\t' | ',' = isTabText ? '\t' : ',';
-    const { rawObjects, skippedBlankLines } = parseDelimitedRecordsToObjects(data, delimiter);
-    if (rawObjects.length === 0) {
-      throw new Error(EMPTY_FILE_ERROR_MESSAGE);
+    const preferredDelimiter: SupportedDelimiter = isTabText ? '\t' : ',';
+    const parsedDelim = parseDelimitedRecordsToObjects(data, preferredDelimiter);
+    if (parsedDelim.rawObjects.length === 0) {
+      throw buildDelimitedParseFailureError(data, parsedDelim);
     }
-    const result = mapRawSheetRowsToProductsDetailed(rawObjects, {
+    const result = mapRawSheetRowsToProductsDetailed(parsedDelim.rawObjects, {
       ...options,
-      initialSkippedCount: skippedBlankLines,
+      initialSkippedCount: parsedDelim.skippedBlankLines,
     });
     if (result.rows.length === 0) {
-      throw new Error(EMPTY_FILE_ERROR_MESSAGE);
+      throw buildDelimitedParseFailureError(data, parsedDelim);
     }
     return result;
   }
@@ -648,19 +903,18 @@ export async function parseSellerCentralWorkbookDetailed(
   }
 
   if (ext === '.txt' || ext === '.tsv' || ext === '.csv') {
-    const decoder = new TextDecoder('utf-8');
-    const text = decoder.decode(bytes);
-    const delimiter: '\t' | ',' = ext === '.csv' ? ',' : '\t';
-    const { rawObjects, skippedBlankLines } = parseDelimitedRecordsToObjects(text, delimiter);
-    if (rawObjects.length === 0) {
-      throw new Error(EMPTY_FILE_ERROR_MESSAGE);
+    const text = decodeDelimitedBytesToUtf8Text(bytes);
+    const preferredDelimiter: SupportedDelimiter = ext === '.csv' ? ',' : '\t';
+    const parsedDelim = parseDelimitedRecordsToObjects(text, preferredDelimiter);
+    if (parsedDelim.rawObjects.length === 0) {
+      throw buildDelimitedParseFailureError(text, parsedDelim);
     }
-    const result = mapRawSheetRowsToProductsDetailed(rawObjects, {
+    const result = mapRawSheetRowsToProductsDetailed(parsedDelim.rawObjects, {
       ...options,
-      initialSkippedCount: skippedBlankLines,
+      initialSkippedCount: parsedDelim.skippedBlankLines,
     });
     if (result.rows.length === 0) {
-      throw new Error(EMPTY_FILE_ERROR_MESSAGE);
+      throw buildDelimitedParseFailureError(text, parsedDelim);
     }
     return result;
   }
@@ -682,7 +936,8 @@ export async function parseSellerCentralWorkbookDetailed(
 
   const result = mapRawSheetRowsToProductsDetailed(rawRows, options);
   if (result.rows.length === 0) {
-    throw new Error(EMPTY_FILE_ERROR_MESSAGE);
+    const headerKeys = Object.keys(rawRows[0] || {}).join(' | ');
+    throw new Error(`${UNRECOGNIZED_COLUMNS_PREFIX}[${headerKeys || 'غير معروف'}]`);
   }
   return result;
 }
@@ -831,6 +1086,7 @@ export async function previewSellerCentralFile(
       updatedCount,
       parsed.skippedCount
     ),
+    linePreviewMessage: `تم قراءة ${parsed.totalRead} سطر - أول منتج: ${parsed.rows[0]?.title || '—'}`,
   };
 }
 
