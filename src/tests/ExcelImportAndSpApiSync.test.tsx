@@ -10,7 +10,9 @@ import {
   FOUNDER_AMAZON_WARNING_TEXT,
   FRIENDLY_PULL_FAILURE_MESSAGE,
   IMPORT_BUTTON_LABEL,
+  REPORT_STILL_PROCESSING_MESSAGE,
   SP_API_SETTINGS_STORAGE_KEY,
+  UNRECOGNIZED_COLUMNS_PREFIX,
   UNSUPPORTED_FILE_ERROR_MESSAGE,
   sanitizeProductPullError,
   parseSellerCentralWorkbook,
@@ -566,5 +568,119 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     const failedOutcome = await invokeAmazonSpApiSyncEdgeFunction('A37JIM7LHQI6IM');
     expect(failedOutcome.success).toBe(false);
     expect(failedOutcome.message).toBe(FRIENDLY_PULL_FAILURE_MESSAGE);
+  });
+
+  it('decodes UTF-16LE (with BOM) Tab-separated 103-product Amazon TXT report and skips preamble title/blank lines', async () => {
+    const encodeUtf16 = (str: string, littleEndian: boolean): Uint8Array => {
+      const withBom = '\uFEFF' + str;
+      const out = new Uint8Array(withBom.length * 2);
+      for (let i = 0; i < withBom.length; i++) {
+        const code = withBom.charCodeAt(i);
+        if (littleEndian) {
+          out[i * 2] = code & 0xff;
+          out[i * 2 + 1] = (code >> 8) & 0xff;
+        } else {
+          out[i * 2] = (code >> 8) & 0xff;
+          out[i * 2 + 1] = code & 0xff;
+        }
+      }
+      return out;
+    };
+
+    const header = 'item-name\tseller-sku\tasin\tprice\tquantity';
+    const dataLines = Array.from({ length: 103 }, (_, i) => {
+      const idx = i + 1;
+      return `منتج أمازون حقيقي ${idx}\tAMZ-U16-${idx}\tB09U16${String(idx).padStart(4, '0')}\t${200 + idx}\t${idx % 20}`;
+    });
+
+    // Include blank lines and report title lines BEFORE header
+    const fullText = [
+      '',
+      'Amazon Seller Central - All Listings Report',
+      'Generated Date: 2026-11-22',
+      '',
+      header,
+      ...dataLines,
+    ].join('\r\n');
+
+    const utf16LeBytes = encodeUtf16(fullText, true);
+    const parsedLe = await parseSellerCentralWorkbookDetailed(utf16LeBytes, {
+      fileName: 'AllListings-utf16le.txt',
+      traderId: DEFAULT_TRADER_ID,
+    });
+    expect(parsedLe.totalRead).toBe(103);
+    expect(parsedLe.rows[0].title).toBe('منتج أمازون حقيقي 1');
+    expect(parsedLe.rows[0].sku).toBe('AMZ-U16-1');
+
+    // Also verify UTF-16BE + BOM works seamlessly
+    const utf16BeBytes = encodeUtf16(fullText, false);
+    const parsedBe = await parseSellerCentralWorkbookDetailed(utf16BeBytes, {
+      fileName: 'AllListings-utf16be.txt',
+      traderId: DEFAULT_TRADER_ID,
+    });
+    expect(parsedBe.totalRead).toBe(103);
+
+    // Verify FetchProductsModal displays preview with line count & first product name for UTF-16LE file
+    const utf16File = new File([utf16LeBytes], 'All+Listings+Report.txt', { type: 'text/plain' });
+    (utf16File as any).arrayBuffer = async () =>
+      utf16LeBytes.buffer.slice(utf16LeBytes.byteOffset, utf16LeBytes.byteOffset + utf16LeBytes.byteLength);
+
+    render(
+      <FetchProductsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onShowToast={vi.fn()}
+        trader={{
+          id: DEFAULT_TRADER_ID,
+          user_id: 'founder',
+          seller_name: 'محمود سعيد',
+          email: 'mahmeudsaid4@gmail.com',
+          phone: '',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: DEFAULT_TRADER_ID,
+        }}
+      />
+    );
+
+    const fileInput = screen.getByTestId('modal-excel-file-input') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [utf16File] } });
+
+    const banner = await screen.findByTestId('import-line-preview-banner');
+    expect(banner).toHaveTextContent('تم قراءة 103 سطر - أول منتج: منتج أمازون حقيقي 1');
+  });
+
+  it('auto-detects semicolon (;) and comma (,) delimiters, handles "Report is still processing", and reports unrecognized columns', async () => {
+    // 1. Semicolon-delimited report with flexible Capitalized headers
+    const semiCsv = [
+      'Seller SKU;ASIN;Item Name;Price;Quantity',
+      'SEMI-001;B08SEMI001;سماعة بلوتوث احترافية;1299.5;7',
+      'SEMI-002;B08SEMI002;شاحن سريع 65 وات;650;12',
+    ].join('\n');
+
+    const semiRows = await parseSellerCentralWorkbook(new TextEncoder().encode(semiCsv), {
+      fileName: 'listings-semi.txt',
+      traderId: DEFAULT_TRADER_ID,
+    });
+    expect(semiRows).toHaveLength(2);
+    expect(semiRows[0].sku).toBe('SEMI-001');
+    expect(semiRows[0].title).toBe('سماعة بلوتوث احترافية');
+    expect(semiRows[0].price).toBe(1299.5);
+    expect(semiRows[0].stock).toBe(7);
+
+    // 2. "Report is still processing" message
+    const processingFile = makeMockTextFile(
+      'pending.txt',
+      'Report is still processing. Please wait and request again.'
+    );
+    await expect(importSellerCentralFile(processingFile, DEFAULT_TRADER_ID)).rejects.toThrow(
+      REPORT_STILL_PROCESSING_MESSAGE
+    );
+
+    // 3. Unrecognized columns must NOT show "الملف فارغ", must include actual first line
+    const weirdFile = makeMockTextFile('weird.txt', 'col_alpha|col_beta|col_gamma\n1|2|3');
+    await expect(importSellerCentralFile(weirdFile, DEFAULT_TRADER_ID)).rejects.toThrow(
+      `${UNRECOGNIZED_COLUMNS_PREFIX}[col_alpha|col_beta|col_gamma]`
+    );
   });
 });
