@@ -441,26 +441,6 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
 
       let list = Array.isArray(data) ? (data as Trader[]) : [];
 
-      if (targetPage === 1 && list.length === 0) {
-        list = [
-          {
-            id: 'A37JIM7LHQI6IM',
-            user_id: user?.uid || 'founder',
-            seller_name: 'محمود سعيد',
-            email: 'mahmeudsaid4@gmail.com',
-            gmail: 'mahmeudsaid4@gmail.com',
-            phone: '+20 100 000 0000',
-            platform: 'amazon',
-            status: 'active',
-            seller_id: 'A37JIM7LHQI6IM',
-            destination_url: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
-            seller_link: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
-            store_url: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
-            storefront_link: 'https://www.amazon.eg/s?me=A37JIM7LHQI6IM',
-          },
-        ];
-      }
-
       list = list.map((t) => {
         const syncedTs = getTraderLastSyncAt(t.id, t.last_sync_at, t.last_sync_timestamp) || undefined;
         return {
@@ -767,11 +747,11 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast }) => {
     return (
       <div className="w-full font-['Cairo'] space-y-4" dir="rtl">
         {fetchError && (
-          <EmergencyErrorBanner message="تعذر جلب بيانات التجار من قاعدة البيانات — لا توجد بيانات." />
+          <EmergencyErrorBanner message="فشل الاتصال - حاول مرة أخرى" />
         )}
         <GlobalEmptyState
           icon={<Users className="w-10 h-10 text-amber-400" />}
-          message={fetchError ? 'لا توجد بيانات' : 'لم يتم العثور على تجار مسجلين'}
+          message={fetchError ? 'فشل الاتصال - حاول مرة أخرى' : 'لا يوجد تجار - أضف تاجر جديد'}
           description="سجل التجار فارغ حالياً. أضف تاجراً جديداً لإدارة متجره ومنتجاته."
           actionLabel="➕ إضافة تاجر جديد"
           onActionClick={() => setIsAddModalOpen(true)}

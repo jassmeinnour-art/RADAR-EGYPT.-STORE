@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Menu, Search, Pencil, Ruler } from 'lucide-react';
+import { Menu, Search, Pencil, Ruler, Crown } from 'lucide-react';
 import { ConnectedMerchantPlatform } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { AppUpdateState } from '../hooks/useAppUpdate';
@@ -59,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   onShowToast,
   onToggleSidebar,
 }) => {
-  const { user, profile, isOwner, isFounderMode, toggleFounderMode } = useAuth();
+  const { user, profile, isOwner, isFounderMode, toggleFounderMode, signOut } = useAuth();
 
   const isFounderUserStrict = useMemo(() => {
     if (!user || user.isAnonymous || !isOwner) return false;
@@ -134,8 +134,37 @@ export const Header: React.FC<HeaderProps> = ({
         />
       </div>
 
-      {/* 3. Left (RTL end): Sidebar toggle (☰) + Founder Mode button only */}
+      {/* 3. Left (RTL end): Login/Logout + Sidebar toggle */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {user ? (
+          <div className="flex items-center gap-1.5 bg-[var(--card-bg)] border border-[var(--card-border)] px-2.5 py-1 rounded-lg shrink-0">
+            <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="text-xs font-black text-[var(--header-text)] whitespace-nowrap">جاسمين</span>
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut();
+                if (typeof window !== 'undefined') window.location.href = '/login';
+              }}
+              className="text-xs font-bold text-rose-500 hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-500/10 cursor-pointer whitespace-nowrap"
+              title="خروج"
+            >
+              خروج
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('login');
+              if (typeof window !== 'undefined') window.history.pushState({}, '', '/login');
+            }}
+            className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            تسجيل الدخول
+          </button>
+        )}
+
         {isFounderUserStrict && (
           <button
             type="button"
