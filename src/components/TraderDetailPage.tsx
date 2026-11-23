@@ -162,9 +162,8 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
         sku: newSku.trim().toUpperCase(),
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
-        platform: newPlatform,
         trader_id: id,
-        created_at: new Date().toISOString()
+        status: 'active',
       };
 
       const { error } = await supabase.from('products').insert([prodRecord]);

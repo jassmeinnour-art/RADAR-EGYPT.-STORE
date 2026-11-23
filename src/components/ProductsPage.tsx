@@ -185,7 +185,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 200;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -301,11 +301,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       const from = (page - 1) * PAGE_SIZE;
       const to = page * PAGE_SIZE - 1;
 
-      const buildProductQuery = (fields: string) => {
+      const buildProductQuery = (withCreatedAtOrder = true) => {
         let q: any = supabase
           .from('products')
-          .select(fields, { count: 'exact' })
-          .order('created_at', { ascending: false });
+          .select('*', { count: 'exact' });
+        if (withCreatedAtOrder) {
+          q = q.order('created_at', { ascending: false });
+        }
         if (trader_id && trader_id !== 'all') {
           q = q.eq('trader_id', trader_id);
         }
@@ -315,16 +317,12 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         return q.range(from, to);
       };
 
-      let { data: prodsData, error: prodsError, count } = await buildProductQuery(
-        'id, title, sku, asin, price, stock, platform, image, image_url, product_url, trader_id, buybox_price, competitor_price, created_at'
-      );
+      let { data: prodsData, error: prodsError, count } = await buildProductQuery(true);
 
       if (prodsError) {
         const errMsg = String(prodsError?.message || '').toLowerCase();
-        if (errMsg.includes('asin') || errMsg.includes('image_url') || errMsg.includes('product_url') || errMsg.includes('column')) {
-          const fallbackRes = await buildProductQuery(
-            'id, title, sku, price, stock, platform, image, trader_id, buybox_price, competitor_price, created_at'
-          );
+        if (errMsg.includes('created_at') || errMsg.includes('column')) {
+          const fallbackRes = await buildProductQuery(false);
           prodsData = fallbackRes.data;
           prodsError = fallbackRes.error;
           count = fallbackRes.count;
@@ -496,9 +494,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       sku: newSku.trim().toUpperCase(),
       price: parseFloat(newPrice) || 0,
       stock: parseInt(newStock, 10) || 0,
-      platform: newPlatform,
       trader_id: targetTrader,
-      created_at: new Date().toISOString(),
+      status: 'active',
     };
 
     setIsSubmitting(true);
@@ -945,7 +942,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             className="px-8 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors duration-200 shadow-lg inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isLoadingMore ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            <span>{isLoadingMore ? 'جاري التحميل...' : 'عرض المزيد (20 منتج إضافي)'}</span>
+            <span>{isLoadingMore ? 'جاري التحميل...' : 'عرض المزيد (200 منتج إضافي)'}</span>
           </button>
         </div>
       )}

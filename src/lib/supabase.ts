@@ -752,7 +752,7 @@ export const multiTenantDb = {
     if (!traderId || !Array.isArray(scraped) || scraped.length === 0) return [];
 
     const newProducts: Product[] = scraped.map(s => ({
-      id: `prd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)}`,
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`,
       trader_id: traderId,
       title: s.title || 'منتج مستورد',
       sku: s.sku || s.asin || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
@@ -794,10 +794,25 @@ export const multiTenantDb = {
       window.dispatchEvent(new CustomEvent('multi_tenant_products_updated', { detail: { traderId } }));
     } catch {}
 
-    // Save to Supabase if available
+    // Save to Supabase if available — never pass manual `id` (`prd-...`), `image`, or timestamps
     if (supabaseClient) {
       try {
-        await supabaseClient.from('products').insert(newProducts);
+        const supabaseReady = newProducts.map((p) => {
+          const clean: Record<string, any> = {
+            title: p.title,
+            sku: p.sku,
+            asin: p.asin || null,
+            price: p.price,
+            stock: p.stock,
+            image_url: p.image_url ? p.image_url : null,
+            product_url: p.product_url ? p.product_url : null,
+            trader_id: p.trader_id,
+            status: 'active',
+          };
+          if ((p as any).condition) clean.condition = (p as any).condition;
+          return clean;
+        });
+        await supabaseClient.from('products').insert(supabaseReady);
       } catch (err) {
         console.warn('[MultiTenant Products Insert Warning]:', err);
       }
@@ -1094,7 +1109,7 @@ export const multiTenantDb = {
    * Add a product for a specific trader
    */
   async createProduct(productData: Omit<Product, 'id'>): Promise<Product> {
-    const id = `prd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8)}`;
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
     const newProduct: Product = {
       ...productData,
       id,
@@ -1113,13 +1128,29 @@ export const multiTenantDb = {
 
     if (supabaseClient) {
       try {
+        const cleanInsert: Record<string, any> = {
+          title: newProduct.title,
+          sku: newProduct.sku,
+          asin: (newProduct as any).asin || null,
+          price: newProduct.price,
+          stock: newProduct.stock,
+          image_url: (newProduct as any).image_url || (newProduct as any).image || null,
+          product_url: (newProduct as any).product_url || null,
+          trader_id: newProduct.trader_id,
+          status: (newProduct as any).status || 'active',
+        };
+        if ((newProduct as any).condition) cleanInsert.condition = (newProduct as any).condition;
+
         const { data, error } = await supabaseClient
           .from('products')
-          .insert([newProduct])
+          .insert([cleanInsert])
           .select()
           .single();
 
         if (!error && data) {
+          if (data.id) {
+            newProduct.id = String(data.id);
+          }
           // Update trader products count in Supabase
           try {
             await supabaseClient.rpc('increment_trader_products', { trader_id_arg: productData.trader_id });
@@ -1268,7 +1299,31 @@ class SupabaseQueryBuilder {
 
     if (supabaseClient) {
       try {
-        const res = await supabaseClient.from(this.tableName).insert(arr).select();
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const payloadForSupabase =
+          this.tableName === 'products'
+            ? arr.map((item: any) => {
+                if (!item || typeof item !== 'object') return item;
+                const {
+                  id: rawId,
+                  image: _ignoredImage,
+                  name: _ignoredName,
+                  product_name: _ignoredProductName,
+                  quantity: _ignoredQuantity,
+                  qty: _ignoredQty,
+                  description: _ignoredDescription,
+                  created_at: _ignoredCreatedAt,
+                  updated_at: _ignoredUpdatedAt,
+                  ...rest
+                } = item;
+                if (rawId && uuidPattern.test(String(rawId).trim())) {
+                  return { id: String(rawId).trim(), ...rest };
+                }
+                return rest;
+              })
+            : arr;
+
+        const res = await supabaseClient.from(this.tableName).insert(payloadForSupabase).select();
         if (!res.error && res.data) {
           return { data: this.isSingle ? res.data[0] : res.data, error: null };
         }
@@ -1302,7 +1357,11 @@ class SupabaseQueryBuilder {
         const existing: any[] = raw ? JSON.parse(raw) : [];
         const toAdd = arr.map((item: any) => ({
           ...item,
-          id: item.id || `prd-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          id:
+            item.id ||
+            (typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`),
           created_at: item.created_at || new Date().toISOString()
         }));
         const combined = [...toAdd, ...existing];

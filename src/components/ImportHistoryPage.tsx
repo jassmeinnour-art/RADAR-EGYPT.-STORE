@@ -29,6 +29,7 @@ import {
   rollbackImportOperation,
   syncImportHistoryFromFirestoreIfEmpty,
 } from '../utils/importHistoryService';
+import { ImportErrorLog } from './ImportErrorLog';
 
 interface ImportHistoryPageProps {
   onShowToast?: (message: string) => void;
@@ -73,6 +74,7 @@ export const ImportHistoryPage: React.FC<ImportHistoryPageProps> = ({ onShowToas
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'operations' | 'errors'>('operations');
 
   const reloadHistory = useCallback(async () => {
     setIsRefreshing(true);
@@ -200,11 +202,16 @@ export const ImportHistoryPage: React.FC<ImportHistoryPageProps> = ({ onShowToas
     const totalNewAdded = entries
       .filter((e) => e.status === 'completed')
       .reduce((acc, e) => acc + (e.newCount || 0), 0);
+    const totalErrorRows = entries.reduce(
+      (acc, e) => acc + (Array.isArray(e.rowErrors) ? e.rowErrors.length : 0),
+      0
+    );
     return {
       totalOperations,
       activeOperations,
       rolledBackOperations,
       totalNewAdded,
+      totalErrorRows,
     };
   }, [entries]);
 
@@ -639,6 +646,47 @@ export const ImportHistoryPage: React.FC<ImportHistoryPageProps> = ({ onShowToas
         </div>
       )}
 
+      {/* View Switcher: Operations Log vs Error Log */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveView('operations')}
+            className={`px-4 py-2 rounded-lg text-xs font-black whitespace-nowrap cursor-pointer transition-colors ${
+              activeView === 'operations'
+                ? 'bg-amber-500 text-slate-950'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            سجل عمليات الاستيراد ({entries.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView('errors')}
+            data-testid="tab-import-errors-log"
+            className={`px-4 py-2 rounded-lg text-xs font-black whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 ${
+              activeView === 'errors'
+                ? 'bg-rose-500 text-white'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>سجل أخطاء الاستيراد ({summaryStats.totalErrorRows})</span>
+          </button>
+        </div>
+      </div>
+
+      {activeView === 'errors' ? (
+        <ImportErrorLog
+          entries={entries}
+          onShowToast={onShowToast}
+          onSelectOperation={(entry) => {
+            setDetailSearch('');
+            setSelectedEntry(entry);
+          }}
+        />
+      ) : (
+        <>
       {/* Search & Filters */}
       <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
@@ -855,6 +903,8 @@ export const ImportHistoryPage: React.FC<ImportHistoryPageProps> = ({ onShowToas
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* File Details Modal */}
       {selectedEntry && (
@@ -965,12 +1015,15 @@ export const ImportHistoryPage: React.FC<ImportHistoryPageProps> = ({ onShowToas
                     </p>
                   )}
                   {Array.isArray(selectedEntry.rowErrors) && selectedEntry.rowErrors.length > 0 && (
-                    <div className="text-rose-300/90 pt-0.5">
-                      أمثلة الصفوف المرفوضة:{' '}
-                      {selectedEntry.rowErrors
-                        .slice(0, 3)
-                        .map((re) => `صف ${re.rowNumber} (${re.reason})`)
-                        .join(' · ')}
+                    <div className="pt-2">
+                      <ImportErrorLog
+                        errors={selectedEntry.rowErrors}
+                        fileName={selectedEntry.fileName}
+                        title="أخطاء الصفوف داخل هذا الملف"
+                        subtitle="صدّر الأخطاء بصيغة CSV لإصلاحها وإعادة المحاولة"
+                        compact
+                        onShowToast={onShowToast}
+                      />
                     </div>
                   )}
                 </div>

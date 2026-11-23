@@ -53,11 +53,29 @@ export interface ImportErrorBreakdown {
   dbWriteErrors?: number;
 }
 
+export type ImportErrorCategory =
+  | 'missing_sku'
+  | 'blank_or_invalid'
+  | 'orphan_or_blocked'
+  | 'db_write_error'
+  | 'other';
+
 export interface ImportRowErrorDetail {
   rowNumber: number;
   sku?: string;
   title?: string;
+  asin?: string;
+  price?: number | string;
+  stock?: number | string;
+  errorCategory?: ImportErrorCategory;
   reason: string;
+}
+
+export interface ImportErrorLogExportRow extends ImportRowErrorDetail {
+  fileName?: string;
+  recordedAt?: string;
+  importId?: string;
+  traderName?: string;
 }
 
 export interface ImportSuccessRatioMetrics {
@@ -329,7 +347,7 @@ export function recordImportHistoryEntry(input: RecordImportHistoryInput): Impor
     failedCount: resolvedFailedCount,
     ...(input.errorBreakdown ? { errorBreakdown: input.errorBreakdown } : {}),
     ...(input.rowErrors && input.rowErrors.length > 0
-      ? { rowErrors: input.rowErrors.slice(0, 50) }
+      ? { rowErrors: input.rowErrors.slice(0, 300) }
       : {}),
     summaryMessage: input.summaryMessage,
     status: 'completed',
@@ -362,6 +380,7 @@ export function recordImportHistoryEntry(input: RecordImportHistoryInput): Impor
           itemsPreview: entry.itemsPreview.slice(0, 60),
           updatedSnapshots: entry.updatedSnapshots.slice(0, 120),
           insertedProductIds: entry.insertedProductIds.slice(0, 200),
+          ...(entry.rowErrors ? { rowErrors: entry.rowErrors.slice(0, 100) } : {}),
         },
       },
     });
@@ -389,6 +408,7 @@ export function recordImportHistoryEntry(input: RecordImportHistoryInput): Impor
           itemsPreview: entry.itemsPreview.slice(0, 60),
           updatedSnapshots: entry.updatedSnapshots.slice(0, 120),
           insertedProductIds: entry.insertedProductIds.slice(0, 200),
+          ...(entry.rowErrors ? { rowErrors: entry.rowErrors.slice(0, 100) } : {}),
         },
       },
     }).catch((err) => {
@@ -633,3 +653,77 @@ export async function rollbackImportOperation(importId: string): Promise<Rollbac
     entry: updatedEntry,
   };
 }
+
+function escapeCsvCell(value: unknown): string {
+  const str = value === null || value === undefined ? '' : String(value);
+  const safeFormula = /^[=+\-@]/.test(str) ? `'${str}` : str;
+  if (/[",\r\n]/.test(safeFormula)) {
+    return `"${safeFormula.replace(/"/g, '""')}"`;
+  }
+  return safeFormula;
+}
+
+/**
+ * Builds a UTF-8 BOM CSV containing Amazon Seller Central retry-compatible product columns
+ * (`seller-sku`, `item-name`, `asin`, `price`, `quantity`) plus error audit columns
+ * so the user can fix failed rows in Excel and re-upload directly.
+ */
+export function buildImportErrorsCsv(rows: ImportErrorLogExportRow[]): string {
+  const headers = [
+    'seller-sku',
+    'item-name',
+    'asin',
+    'price',
+    'quantity',
+    'error-reason',
+    'row-number',
+    'source-file',
+    'recorded-at',
+  ];
+
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    lines.push(
+      [
+        escapeCsvCell(row.sku || ''),
+        escapeCsvCell(row.title || ''),
+        escapeCsvCell(row.asin || ''),
+        escapeCsvCell(row.price ?? ''),
+        escapeCsvCell(row.stock ?? ''),
+        escapeCsvCell(row.reason || ''),
+        escapeCsvCell(row.rowNumber ?? ''),
+        escapeCsvCell(row.fileName || ''),
+        escapeCsvCell(row.recordedAt || ''),
+      ].join(',')
+    );
+  });
+
+  return `\uFEFF${lines.join('\r\n')}`;
+}
+
+export function downloadImportErrorsCsv(
+  rows: ImportErrorLogExportRow[],
+  sourceFileName?: string
+): { fileName: string; count: number; csvContent: string } {
+  const csvContent = buildImportErrorsCsv(rows);
+  const dateTag = new Date().toISOString().slice(0, 10);
+  const safeBase = sourceFileName
+    ? sourceFileName.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_\u0600-\u06FF-]+/g, '-')
+    : 'all';
+  const fileName = `import-errors-retry-${safeBase}-${dateTag}.csv`;
+
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return { fileName, count: rows.length, csvContent };
+}
+

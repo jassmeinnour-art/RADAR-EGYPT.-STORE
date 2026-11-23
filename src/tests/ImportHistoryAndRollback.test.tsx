@@ -4,13 +4,17 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import {
   DEFAULT_TRADER_ID,
   importSellerCentralFile,
+  parseSellerCentralWorkbookDetailed,
 } from '../utils/sellerCentralExcelImporter';
 import {
+  buildImportErrorsCsv,
   computeImportSuccessRatio,
   getImportHistoryEntries,
   rollbackImportOperation,
 } from '../utils/importHistoryService';
 import { ImportHistoryPage } from '../components/ImportHistoryPage';
+import { ImportErrorLog } from '../components/ImportErrorLog';
+import { FetchProductsModal } from '../components/FetchProductsModal';
 
 const {
   mockInsert,
@@ -30,8 +34,14 @@ const {
   const restoredUpdatesRef: { current: Array<{ id: string; payload: any }> } = { current: [] };
 
   const mockInsert = vi.fn(async (rows: any[]) => {
-    insertedRowsRef.current.push(...rows);
-    return { data: rows, error: null };
+    const dbRows = rows.map((r, idx) => ({
+      ...r,
+      id:
+        r.id ||
+        `99999999-9999-4999-8999-${String(insertedRowsRef.current.length + idx + 1).padStart(12, '0')}`,
+    }));
+    insertedRowsRef.current.push(...dbRows);
+    return { data: dbRows, error: null };
   });
 
   const mockDeleteInEq = vi.fn(async (_col: string, _val: any) => ({
@@ -123,6 +133,7 @@ vi.mock('../lib/supabase', () => {
     supabase: {
       from: vi.fn((tableName: string) => buildChain(tableName)),
     },
+    supabaseClient: null,
     isDemoOrOrphanProduct: vi.fn(() => false),
     recordTraderLastSyncAt: vi.fn(async () => new Date().toISOString()),
   };
@@ -206,6 +217,8 @@ describe('Import History Screen & Rollback Operations', () => {
     expect(entry.fileName).toBe('amazon-all-listings-2026-11.txt');
     expect(entry.fileType).toBe('txt');
     expect(entry.status).toBe('completed');
+    expect(mockInsert).toHaveBeenCalled();
+    expect(mockInsert.mock.calls[0][0][0]).not.toHaveProperty('id');
     expect(entry.insertedProductIds).toHaveLength(1);
     expect(entry.insertedProductIds[0]).toBe(insertedRowsRef.current[0].id);
 
@@ -407,7 +420,131 @@ describe('Import History Screen & Rollback Operations', () => {
     const detailsDialog = await screen.findByRole('dialog', {
       name: /تفاصيل عملية الاستيراد batch-alpha\.txt/i,
     });
-    expect(within(detailsDialog).getByText(/نقص SKU: 1/)).toBeInTheDocument();
+    expect(within(detailsDialog).getByText(/أسباب الفشل: نقص SKU: 1/)).toBeInTheDocument();
     expect(within(detailsDialog).getByText(/رمز SKU مفقود/)).toBeInTheDocument();
+  });
+
+  it('displays ImportErrorLog when products fail during import and exports retry-ready CSV', async () => {
+    const createObjectUrlSpy = vi.fn(() => 'blob:mock-errors-csv');
+    const revokeObjectUrlSpy = vi.fn();
+    const origCreateObjectURL = URL.createObjectURL;
+    const origRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectUrlSpy as any;
+    URL.revokeObjectURL = revokeObjectUrlSpy as any;
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+
+    try {
+      const mixedFileTxt = [
+        'item-name\tseller-sku\tasin\tprice\tquantity',
+        'شاحن جداري 65 وات\tSKU-VALID-1\tB00VAL001\t799\t12',
+        'كابل بيانات مفقود الكود\t\tB00MISS01\t199\t8',
+        'سماعة رأس بدون كود\t\tB00MISS02\t450\t4',
+      ].join('\n');
+
+      const file = makeMockTextFile('mixed-listings.txt', mixedFileTxt);
+
+      // 1. Render FetchProductsModal and upload mixed file -> preview shows ImportErrorLog automatically
+      const onShowToast = vi.fn();
+      render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={onShowToast}
+          trader={{
+            id: DEFAULT_TRADER_ID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            phone: '',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: DEFAULT_TRADER_ID,
+          }}
+        />
+      );
+
+      const modalInput = screen.getByTestId('modal-excel-file-input') as HTMLInputElement;
+      fireEvent.change(modalInput, { target: { files: [file] } });
+
+      const errorLog = await screen.findByTestId('import-error-log');
+      expect(errorLog).toBeInTheDocument();
+      expect(within(errorLog).getByText('كابل بيانات مفقود الكود')).toBeInTheDocument();
+      expect(within(errorLog).getByText('B00MISS01')).toBeInTheDocument();
+      expect(within(errorLog).getByText('سماعة رأس بدون كود')).toBeInTheDocument();
+      expect(within(errorLog).getByText('B00MISS02')).toBeInTheDocument();
+
+      // Export CSV directly from ImportErrorLog inside modal
+      const exportBtn = within(errorLog).getByTestId('export-import-errors-csv-btn');
+      expect(exportBtn).toHaveTextContent(/تصدير الأخطاء CSV لإعادة المحاولة \(2\)/);
+      fireEvent.click(exportBtn);
+
+      expect(createObjectUrlSpy).toHaveBeenCalledTimes(1);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('تم تصدير 2 صف فاشل'));
+
+      // 2. Confirm import and inspect ImportHistoryPage's "سجل أخطاء الاستيراد" tab
+      fireEvent.click(screen.getByRole('button', { name: /تأكيد الاستيراد/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('status')).toHaveTextContent('تم قراءة 1 منتج من الملف');
+      });
+
+      render(<ImportHistoryPage onShowToast={vi.fn()} />);
+      const errorsTab = screen.getByTestId('tab-import-errors-log');
+      expect(errorsTab).toHaveTextContent('سجل أخطاء الاستيراد (2)');
+      fireEvent.click(errorsTab);
+
+      const historyErrorLogs = await screen.findAllByTestId('import-error-log');
+      const activeHistoryErrorLog = historyErrorLogs[historyErrorLogs.length - 1];
+      expect(within(activeHistoryErrorLog).getByText('كابل بيانات مفقود الكود')).toBeInTheDocument();
+      expect(within(activeHistoryErrorLog).getByText('سماعة رأس بدون كود')).toBeInTheDocument();
+
+      // Filter by search input inside ImportErrorLog
+      const searchInput = within(activeHistoryErrorLog).getByPlaceholderText(
+        /بحث برقم الصف أو SKU أو اسم المنتج أو السبب/
+      );
+      fireEvent.change(searchInput, { target: { value: 'B00MISS01' } });
+      expect(within(activeHistoryErrorLog).getByText('كابل بيانات مفقود الكود')).toBeInTheDocument();
+      expect(within(activeHistoryErrorLog).queryByText('سماعة رأس بدون كود')).not.toBeInTheDocument();
+
+      // 3. Verify generated CSV has UTF-8 BOM, headers, and can be re-parsed after fixing missing SKU
+      const csvOutput = buildImportErrorsCsv([
+        {
+          rowNumber: 3,
+          sku: '',
+          title: 'كابل بيانات مفقود الكود',
+          asin: 'B00MISS01',
+          price: 199,
+          stock: 8,
+          reason: 'رمز SKU مفقود',
+          fileName: 'mixed-listings.txt',
+          recordedAt: '2026-11-23T04:00:00.000Z',
+        },
+      ]);
+      expect(csvOutput.startsWith('\uFEFFseller-sku,item-name,asin,price,quantity,error-reason')).toBe(true);
+      const fixedCsv = csvOutput.replace('\r\n,', '\r\nFIXED-RETRY-SKU,');
+      const reParsed = await parseSellerCentralWorkbookDetailed(new TextEncoder().encode(fixedCsv), {
+        fileName: 'import-errors-retry.csv',
+        traderId: DEFAULT_TRADER_ID,
+      });
+      expect(reParsed.rows).toHaveLength(1);
+      expect(reParsed.rows[0].sku).toBe('FIXED-RETRY-SKU');
+      expect(reParsed.rows[0].title).toBe('كابل بيانات مفقود الكود');
+      expect(reParsed.rows[0].asin).toBe('B00MISS01');
+      expect(reParsed.rows[0].price).toBe(199);
+      expect(reParsed.rows[0].stock).toBe(8);
+
+      // 4. Verify standalone ImportErrorLog hides cleanly when hideWhenEmpty is set and shows empty state otherwise
+      const { rerender } = render(<ImportErrorLog errors={[]} hideWhenEmpty />);
+      expect(screen.queryByTestId('import-error-log-empty')).not.toBeInTheDocument();
+      rerender(<ImportErrorLog errors={[]} />);
+      expect(screen.getByTestId('import-error-log-empty')).toBeInTheDocument();
+    } finally {
+      clickSpy.mockRestore();
+      URL.createObjectURL = origCreateObjectURL;
+      URL.revokeObjectURL = origRevokeObjectURL;
+    }
   });
 });

@@ -21,6 +21,7 @@ import {
   parseSellerCentralWorkbookDetailed,
   importSellerCentralFile,
   invokeAmazonSpApiSyncEdgeFunction,
+  resolveValidTraderUuid,
   saveAmazonSpApiSettings,
 } from '../utils/sellerCentralExcelImporter';
 import { FetchProductsModal } from '../components/FetchProductsModal';
@@ -43,7 +44,13 @@ const {
 
   const mockInsert = vi.fn(async (rows: any[]) => {
     insertedBatchesRef.current.push(rows);
-    return { data: rows, error: null };
+    const dbRows = rows.map((r, idx) => ({
+      ...r,
+      id:
+        r.id ||
+        `11111111-1111-4111-8111-${String(insertedBatchesRef.current.length * 1000 + idx + 1).padStart(12, '0')}`,
+    }));
+    return { data: dbRows, error: null };
   });
 
   const mockUpdateEq = vi.fn(async (_col: string, id: string) => {
@@ -376,9 +383,9 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(totalInserted1).toBe(103);
     expect(updatedPayloadsRef.current).toHaveLength(0);
 
-    // Populate existing Supabase rows from Upload 1 so Upload 2 sees all 103 SKUs
-    existingProductRowsRef.current = insertedBatchesRef.current.flat().map((r) => ({
-      id: r.id,
+    // Populate existing Supabase rows (with DB-generated UUIDs) from Upload 1 so Upload 2 sees all 103 SKUs
+    existingProductRowsRef.current = insertedBatchesRef.current.flat().map((r, idx) => ({
+      id: `22222222-2222-4222-8222-${String(idx + 1).padStart(12, '0')}`,
       sku: r.sku,
       asin: r.asin,
     }));
@@ -766,5 +773,107 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     await expect(importSellerCentralFile(weirdFile, DEFAULT_TRADER_ID)).rejects.toThrow(
       `${UNRECOGNIZED_COLUMNS_PREFIX}[col_alpha|col_beta|col_gamma]`
     );
+  });
+
+  it('never sends manual prd- id, created_at, updated_at, or image on insert, resolves valid trader UUID, and renders all 106 imported products in ProductsPage', async () => {
+    const ALLOWED_KEYS = new Set([
+      'title',
+      'sku',
+      'asin',
+      'price',
+      'stock',
+      'image_url',
+      'product_url',
+      'trader_id',
+      'status',
+      'condition',
+    ]);
+    const FORBIDDEN_KEYS = [
+      'id',
+      'created_at',
+      'updated_at',
+      'image',
+      'name',
+      'product_name',
+      'quantity',
+      'qty',
+      'description',
+      'platform',
+    ];
+
+    const VALID_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+
+    // Temporarily override traders query via supabase.from mock to return UUID trader
+    const { supabase } = await import('../lib/supabase');
+    const origFrom = supabase.from as any;
+    const baseImpl = origFrom.getMockImplementation();
+    origFrom.mockImplementation((tableName: string) => {
+      const chain = baseImpl(tableName);
+      if (tableName === 'traders') {
+        const uuidTraderList = [
+          {
+            id: VALID_TRADER_UUID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: 'A37JIM7LHQI6IM',
+          },
+        ];
+        chain.then = (onFulfilled: any) =>
+          Promise.resolve({ data: uuidTraderList, error: null, count: 1 }).then(onFulfilled);
+        chain.range = vi.fn(async () => ({ data: uuidTraderList, error: null, count: 1 }));
+      }
+      return chain;
+    });
+
+    try {
+      // Passing seller_id ('A37JIM7LHQI6IM') or trader name must resolve to real UUID
+      expect(await resolveValidTraderUuid('A37JIM7LHQI6IM')).toBe(VALID_TRADER_UUID);
+      expect(await resolveValidTraderUuid('محمود سعيد')).toBe(VALID_TRADER_UUID);
+
+      // Build 106-product TXT file (Arabic Amazon Egypt format)
+      const header = 'sku-البائع\tasin\tالسعر الحالي\tالكمية';
+      const lines = Array.from({ length: 106 }, (_, i) => {
+        const idx = i + 1;
+        return `EG106-SKU-${idx}\tB09EG106${String(idx).padStart(2, '0')}\t${300 + idx}\t${(idx % 15) + 1}`;
+      });
+      const txtFile = makeMockTextFile('all-listings-106.txt', [header, ...lines].join('\n'));
+
+      const summary = await importSellerCentralFile(txtFile, 'A37JIM7LHQI6IM');
+      expect(summary.total).toBe(106);
+      expect(summary.newCount).toBe(106);
+      expect(summary.traderId).toBe(VALID_TRADER_UUID);
+
+      const allInserted = insertedBatchesRef.current.flat();
+      expect(allInserted).toHaveLength(106);
+
+      for (const row of allInserted) {
+        for (const forbidden of FORBIDDEN_KEYS) {
+          expect(row).not.toHaveProperty(forbidden);
+        }
+        for (const key of Object.keys(row)) {
+          expect(ALLOWED_KEYS.has(key)).toBe(true);
+        }
+        expect(row.trader_id).toBe(VALID_TRADER_UUID);
+        expect(row.status).toBe('active');
+      }
+
+      // Populate DB rows with Supabase-generated UUIDs and verify ProductsPage renders all 106
+      existingProductRowsRef.current = allInserted.map((r, i) => ({
+        ...r,
+        id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
+      }));
+
+      render(<ProductsPage onShowToast={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('virtual-product-grid')).toHaveAttribute('data-total-items', '106');
+        expect(screen.getByText(/SKU: EG106-SKU-1\b/)).toBeInTheDocument();
+      });
+    } finally {
+      if (baseImpl) origFrom.mockImplementation(baseImpl);
+    }
   });
 });
