@@ -10,10 +10,12 @@ import {
   FOUNDER_AMAZON_WARNING_TEXT,
   FRIENDLY_PULL_FAILURE_MESSAGE,
   IMPORT_BUTTON_LABEL,
+  MISSING_SKU_COLUMN_PREFIX,
   REPORT_STILL_PROCESSING_MESSAGE,
   SP_API_SETTINGS_STORAGE_KEY,
   UNRECOGNIZED_COLUMNS_PREFIX,
   UNSUPPORTED_FILE_ERROR_MESSAGE,
+  cleanHeaderKey,
   sanitizeProductPullError,
   parseSellerCentralWorkbook,
   parseSellerCentralWorkbookDetailed,
@@ -469,7 +471,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     // Must not have inserted before confirmation
     expect(insertedBatchesRef.current).toHaveLength(0);
 
-    fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد واستيراد المنتجات/i }));
+    fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد.*الاستيراد/i }));
 
     await waitFor(() => {
       expect(onShowToast).toHaveBeenCalledWith(
@@ -647,7 +649,89 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     fireEvent.change(fileInput, { target: { files: [utf16File] } });
 
     const banner = await screen.findByTestId('import-line-preview-banner');
-    expect(banner).toHaveTextContent('تم قراءة 103 سطر - أول منتج: منتج أمازون حقيقي 1');
+    expect(banner).toHaveTextContent(/تم قراءة 103 منتج - مثال: أول منتج: \[AMZ-U16-1\] - \[منتج أمازون حقيقي 1\] - \[201 ج\.م\]/);
+  });
+
+  it('normalizes Arabic and English column names cleanly via cleanHeaderKey', () => {
+    expect(cleanHeaderKey('sku-البائع')).toBe('skuالبائع');
+    expect(cleanHeaderKey('السعر الحالي')).toBe('السعرالحالي');
+    expect(cleanHeaderKey('  item-name  ')).toBe('itemname');
+    expect(cleanHeaderKey('seller-sku')).toBe('sellersku');
+    expect(cleanHeaderKey('رقم_asin')).toBe('رقمasin');
+    expect(cleanHeaderKey('صورة المنتج')).toBe('صورةالمنتج');
+    expect(cleanHeaderKey('\uFEFFكود-المنتج')).toBe('كودالمنتج');
+  });
+
+  it('imports Amazon Egypt All Listings Report with Arabic headers: sku-البائع | asin | السعر الحالي', async () => {
+    // Generate 103 real products with Amazon Egypt Arabic columns
+    const header = 'sku-البائع\tasin\tالسعر الحالي';
+    const lines = Array.from({ length: 103 }, (_, i) => {
+      const idx = i + 1;
+      return `EG-SKU-${idx}\tB09EG${String(idx).padStart(4, '0')}\t${250 + idx}`;
+    });
+
+    const fileContent = ['', 'Amazon Egypt Seller Central - All Listings Report', '', header, ...lines].join('\r\n');
+    const egFile = makeMockTextFile('amazon-eg-listings.txt', fileContent);
+
+    // 1. Must parse all 103 items without throwing "لم أستطع قراءة أعمدة الملف"
+    const parsed = await parseSellerCentralWorkbookDetailed(fileContent, {
+      fileName: 'amazon-eg-listings.txt',
+      traderId: DEFAULT_TRADER_ID,
+    });
+    expect(parsed.totalRead).toBe(103);
+    expect(parsed.rows).toHaveLength(103);
+    expect(parsed.rows[0].sku).toBe('EG-SKU-1');
+    expect(parsed.rows[0].asin).toBe('B09EG0001');
+    expect(parsed.rows[0].price).toBe(251);
+
+    // 2. FetchProductsModal renders preview with [SKU] - [Title] - [Price] and "تأكيد الاستيراد"
+    const onShowToast = vi.fn();
+    render(
+      <FetchProductsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onShowToast={onShowToast}
+        trader={{
+          id: DEFAULT_TRADER_ID,
+          user_id: 'founder',
+          seller_name: 'محمود سعيد',
+          email: 'mahmeudsaid4@gmail.com',
+          phone: '',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: DEFAULT_TRADER_ID,
+        }}
+      />
+    );
+
+    const fileInput = screen.getByTestId('modal-excel-file-input') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [egFile] } });
+
+    const banner = await screen.findByTestId('import-line-preview-banner');
+    expect(banner).toHaveTextContent(/تم قراءة 103 منتج - مثال: أول منتج: \[EG-SKU-1\] - \[منتج B09EG0001\] - \[251 ج\.م\]/);
+
+    const confirmBtn = screen.getByRole('button', { name: /تأكيد الاستيراد/i });
+    expect(confirmBtn).toBeInTheDocument();
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(
+        expect.stringContaining('تم قراءة 103 منتج من الملف')
+      );
+    });
+  });
+
+  it('rejects files missing SKU with explicit Arabic error showing present columns', async () => {
+    const noSkuContent = [
+      'asin\tالسعر الحالي\tالكمية',
+      'B09TEST001\t199\t10',
+      'B09TEST002\t299\t5',
+    ].join('\n');
+    const noSkuFile = makeMockTextFile('no-sku.txt', noSkuContent);
+
+    await expect(importSellerCentralFile(noSkuFile, DEFAULT_TRADER_ID)).rejects.toThrow(
+      `${MISSING_SKU_COLUMN_PREFIX}[asin | السعر الحالي | الكمية]`
+    );
   });
 
   it('auto-detects semicolon (;) and comma (,) delimiters, handles "Report is still processing", and reports unrecognized columns', async () => {
