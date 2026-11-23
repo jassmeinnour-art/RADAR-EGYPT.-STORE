@@ -25,6 +25,7 @@ import {
   invokeAmazonSpApiSyncEdgeFunction,
   resolveValidTraderUuid,
   saveAmazonSpApiSettings,
+  saveTraderAmazonConnection,
 } from '../utils/sellerCentralExcelImporter';
 import { FetchProductsModal } from '../components/FetchProductsModal';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -538,84 +539,26 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(screen.queryByPlaceholderText(/كلمة مرور أمازون/i)).not.toBeInTheDocument();
   });
 
-  it('shows founder/merchant separation warning and syncs via Edge Function in AccountSettingsPage', async () => {
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as any;
-
-    mockFunctionsInvoke.mockResolvedValue({
-      data: {
-        success: true,
-        products: [
-          {
-            title: 'منتج من SP-API',
-            sku: 'SPAPI-SKU-1',
-            asin: 'B0SPAPI001',
-            price: 1999,
-            stock: 15,
-            image_url: 'https://img.ex/sp.jpg',
-            product_url: 'https://www.amazon.eg/dp/B0SPAPI001',
-          },
-        ],
-      },
-      error: null,
-    });
-
+  it('shows global Radar keys banner and saves Client ID & Client Secret without Refresh Token in AccountSettingsPage', async () => {
     const onShowToast = vi.fn();
     render(<AccountSettingsPage onShowToast={onShowToast} />);
 
     expect(screen.getByTestId('founder-amazon-warning')).toHaveTextContent(FOUNDER_AMAZON_WARNING_TEXT);
+    expect(screen.getByText('مفاتيح رادار - نفس المفاتيح لكل التجار - لا تتغير بإضافة تاجر جديد')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Refresh Token')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Seller ID')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Refresh Token'), {
-      target: { value: 'Atzr|TestRefreshToken123' },
-    });
     fireEvent.change(screen.getByLabelText('Client ID'), {
       target: { value: 'amzn1.application-oa2-client.test' },
     });
     fireEvent.change(screen.getByLabelText('Client Secret'), {
       target: { value: 'secret-xyz' },
     });
-    fireEvent.change(screen.getByLabelText('Seller ID'), {
-      target: { value: 'A37JIM7LHQI6IM' },
-    });
 
     fireEvent.click(screen.getByRole('button', { name: /حفظ إعدادات SP-API/i }));
-    expect(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY)).toContain('Atzr|TestRefreshToken123');
-
-    fireEvent.click(screen.getByRole('button', { name: /سحب عبر SP-API/i }));
-
-    await waitFor(() => {
-      expect(mockFunctionsInvoke).toHaveBeenCalledWith('amazon-sp-api-sync', {
-        body: expect.objectContaining({
-          refreshToken: 'Atzr|TestRefreshToken123',
-          clientId: 'amzn1.application-oa2-client.test',
-          clientSecret: 'secret-xyz',
-          sellerId: 'A37JIM7LHQI6IM',
-          traderId: 'A37JIM7LHQI6IM',
-        }),
-      });
-    });
-
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    await waitFor(() => {
-      expect(onShowToast).toHaveBeenCalledWith(
-        'تم قراءة 1 منتج من الملف - جديد 1 - محدّث 0 - متخطى 0'
-      );
-    });
-
-    saveAmazonSpApiSettings({
-      refreshToken: 'r',
-      clientId: 'c',
-      clientSecret: 's',
-      sellerId: 'A37JIM7LHQI6IM',
-    });
-    mockFunctionsInvoke.mockResolvedValueOnce({
-      data: null,
-      error: new Error("Unexpected token '<', \"<!DOCTYPE html>\" is not valid JSON"),
-    });
-    const failedOutcome = await invokeAmazonSpApiSyncEdgeFunction('A37JIM7LHQI6IM');
-    expect(failedOutcome.success).toBe(false);
-    expect(failedOutcome.message).toBe(FRIENDLY_PULL_FAILURE_MESSAGE);
+    const savedSettings = JSON.parse(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY) || '{}');
+    expect(savedSettings.clientId).toBe('amzn1.application-oa2-client.test');
+    expect(savedSettings.clientSecret).toBe('secret-xyz');
   });
 
   it('decodes UTF-16LE (with BOM) Tab-separated 103-product Amazon TXT report and skips preamble title/blank lines', async () => {
@@ -1546,11 +1489,13 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     });
 
     const onShowToast = vi.fn();
+    await saveTraderAmazonConnection({
+      traderId: TARGET_TRADER_UUID,
+      sellerId: 'A37JIM7LHQI6IM',
+      refreshToken: 'Atzr|TestRefreshToken999',
+    });
     render(<AccountSettingsPage onShowToast={onShowToast} />);
 
-    fireEvent.change(screen.getByLabelText(/Refresh Token/i), {
-      target: { value: 'Atzr|TestRefreshToken999' },
-    });
     fireEvent.change(screen.getByLabelText(/Client ID/i), {
       target: { value: 'amzn1.application-oa2-client.test999' },
     });
@@ -1573,7 +1518,6 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
 
     const savedSettings = JSON.parse(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY) || '{}');
     expect(savedSettings.clientId).toBe('amzn1.application-oa2-client.test999');
-    expect(savedSettings.refreshToken).toBe('Atzr|TestRefreshToken999');
   });
 
   it('imports 4-column report (sku-البائع | asin1 | السعر الحالي | الحالة) with real price=1899, stock=null, title=ASIN, status=active, exact preview notices, and honest ProductCard UI', async () => {
@@ -1721,5 +1665,39 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       )
     ).toBe(true);
   });
+
+  it('AccountSettingsPage allows founder to wipe entire app database and storage after typing "حذف"', async () => {
+    localStorage.setItem(SP_API_SETTINGS_STORAGE_KEY, JSON.stringify({ clientId: 'amzn1.global.client', clientSecret: 'secret' }));
+    const onShowToast = vi.fn();
+    render(<AccountSettingsPage onShowToast={onShowToast} />);
+
+    const wipeBtn = screen.getByTestId('wipe-app-btn');
+    expect(wipeBtn).toBeInTheDocument();
+
+    fireEvent.click(wipeBtn);
+
+    const dialog = await screen.findByRole('dialog', { name: 'تأكيد تفريغ التطبيق بالكامل' });
+    expect(dialog).toBeInTheDocument();
+
+    const confirmInput = within(dialog).getByTestId('wipe-confirm-input');
+    const confirmBtn = within(dialog).getByTestId('confirm-wipe-btn');
+
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.change(confirmInput, { target: { value: 'حذف' } });
+    expect(confirmBtn).not.toBeDisabled();
+
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(
+        expect.stringContaining('تم تفريغ التطبيق بالكامل')
+      );
+    });
+
+    const savedSettings = JSON.parse(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY) || '{}');
+    expect(savedSettings.clientId).toBe('amzn1.global.client');
+  });
 });
+
 

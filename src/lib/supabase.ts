@@ -15,6 +15,8 @@ export interface Trader {
   api_keys?: Record<string, any>;   // { amazon: { clientId: '...', ... }, noon: '...' }
   created_at?: string;
   seller_id?: string;
+  refresh_token?: string;
+  amazon_refresh_token?: string;
   seller_link?: string;
   destination_url?: string;
   storefront_link?: string;
