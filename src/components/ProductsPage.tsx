@@ -13,7 +13,9 @@ import {
   FileSpreadsheet,
   ExternalLink,
   History,
-  Link2
+  Link2,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase, formatSupabaseError, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -45,7 +47,9 @@ import {
 } from '../utils/offlineActionQueue';
 import {
   ACCEPTED_IMPORT_EXTENSIONS,
+  COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE,
   IMPORT_BUTTON_LABEL,
+  MISSING_CATALOG_FIELDS_LINK_SP_API_MESSAGE,
   NO_TRADER_SELECTED_ERROR,
   RADAR_COMPETITOR_PRICES_UPDATED_EVENT,
   SellerCentralImportPreview,
@@ -85,7 +89,24 @@ const ProductCard: React.FC<{
   const resolvedImageSrc =
     product.image_url || product.image || buildAmazonAsinImageUrl(product.asin);
   const myPrice = Number(product.price || 0);
-  const myStock = Number(product.stock ?? 0);
+  const hasNumericStock =
+    product.stock !== null &&
+    product.stock !== undefined &&
+    Number.isFinite(Number(product.stock));
+  const myStock = hasNumericStock ? Number(product.stock) : null;
+  const isMissingRealTitle =
+    !product.title ||
+    (Boolean(product.asin) &&
+      product.title.trim().toUpperCase() === product.asin.trim().toUpperCase());
+  const hasMissingCatalogFields = !hasNumericStock || isMissingRealTitle;
+  const rawStatus = String(product.status || 'active').trim().toLowerCase();
+  const isStatusActive = rawStatus === 'active' || rawStatus === 'نشط' || rawStatus === '';
+  const statusDisplayLabel = isStatusActive
+    ? 'نشط ✓'
+    : rawStatus === 'inactive' || rawStatus === 'غير نشط'
+    ? 'غير نشط'
+    : product.status || 'نشط ✓';
+
   const rawCompetitor = Number(
     product.competitor_price || product.buy_box_price || product.buybox_price || 0
   );
@@ -136,6 +157,11 @@ const ProductCard: React.FC<{
           <h3 className="text-sm font-black text-white group-hover:text-orange-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-snug" title={product.title}>
             {product.title}
           </h3>
+          {isMissingRealTitle && (
+            <p className="text-[10px] font-bold text-amber-300/90 mt-0.5">
+              الاسم: يجلب من SP-API
+            </p>
+          )}
           <div className="flex items-center flex-wrap gap-2 mt-2 text-[11px] font-mono text-slate-400">
             <span className="inline-flex items-center gap-1">
               <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -171,9 +197,15 @@ const ProductCard: React.FC<{
 
           <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
             <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون المتوفر</div>
-            <div className="text-sm font-black text-emerald-400 font-mono">
-              {myStock.toLocaleString()} قطعة
-            </div>
+            {myStock !== null ? (
+              <div className="text-sm font-black text-emerald-400 font-mono">
+                {myStock.toLocaleString()} قطعة
+              </div>
+            ) : (
+              <div className="text-[10px] font-bold text-amber-300 leading-snug">
+                المخزون: غير متوفر في الملف - اجلبه من SP-API
+              </div>
+            )}
           </div>
         </div>
 
@@ -206,7 +238,9 @@ const ProductCard: React.FC<{
           ) : !spApiConfigured ? (
             <div className="pt-1 border-t border-slate-800/70 flex items-center justify-between gap-2">
               <span className="text-[10px] text-amber-300/90 font-bold leading-snug">
-                اربط SP-API لجلب أسعار المنافسين تلقائياً
+                {hasMissingCatalogFields
+                  ? MISSING_CATALOG_FIELDS_LINK_SP_API_MESSAGE
+                  : COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE}
               </span>
               <button
                 type="button"
@@ -233,7 +267,9 @@ const ProductCard: React.FC<{
           <BarChart3 className="w-3.5 h-3.5" />
           <span>تحليل السعر (30 يوم)</span>
         </button>
-        <span className="text-sky-400 font-bold">نشط ✓</span>
+        <span className={isStatusActive ? 'text-sky-400 font-bold' : 'text-amber-400 font-bold'}>
+          {statusDisplayLabel}
+        </span>
       </div>
     </div>
   );
@@ -268,6 +304,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [syncStats, setSyncStats] = useState<{
     total: number;
     dbTotal?: number;
+    dbPricedCount?: number;
+    dbFirstSamplePrice?: number | null;
     new: number;
     updated: number;
   } | null>(null);
@@ -275,6 +313,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isImportingExcel, setIsImportingExcel] = useState<boolean>(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [pendingImportPreview, setPendingImportPreview] = useState<SellerCentralImportPreview | null>(null);
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState<boolean>(false);
+  const [isDeletingAllProducts, setIsDeletingAllProducts] = useState<boolean>(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -731,6 +771,55 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const isFiltered = Boolean(activeTraderName || activePlatformName || heatmapFilter);
 
+  const deleteTargetTraderId = useMemo(() => {
+    if (urlTraderId && urlTraderId !== 'all') return urlTraderId.trim();
+    return activeTraderObj?.id?.trim() || '';
+  }, [urlTraderId, activeTraderObj]);
+
+  const handleConfirmDeleteAllTraderProducts = async () => {
+    if (!deleteTargetTraderId) {
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
+      setIsDeleteAllConfirmOpen(false);
+      return;
+    }
+    if (isMaintenanceModeActive()) {
+      onShowToast?.(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
+      setIsDeleteAllConfirmOpen(false);
+      return;
+    }
+
+    setIsDeletingAllProducts(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('trader_id', deleteTargetTraderId);
+      if (error) throw error;
+
+      try {
+        localStorage.removeItem(`radar_multi_tenant_products_${deleteTargetTraderId}`);
+        localStorage.removeItem('radar_last_sync_stats');
+      } catch {}
+
+      dataCache.invalidate('products_');
+      setProducts([]);
+      setTotalCount(0);
+      setSyncStats(null);
+      setHeatmapFilter(null);
+      setIsDeleteAllConfirmOpen(false);
+
+      const msg = '✅ تم حذف كل منتجات هذا التاجر بنجاح — يمكنك الآن إعادة استيراد الملف';
+      setImportFeedback(msg);
+      onShowToast?.(msg);
+    } catch (err) {
+      const errMsg = `❌ تعذر حذف منتجات التاجر: ${formatSupabaseError(err)}`;
+      setImportFeedback(errMsg);
+      onShowToast?.(errMsg);
+    } finally {
+      setIsDeletingAllProducts(false);
+    }
+  };
+
   const modalTargetTrader: Trader = useMemo(() => {
     if (activeTraderObj) return activeTraderObj;
     const resolvedId = urlTraderId && urlTraderId !== 'all' ? urlTraderId.trim() : '';
@@ -930,16 +1019,31 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           </div>
         </div>
 
-        {isFiltered && (
-          <button
-            type="button"
-            onClick={handleClearAllFilters}
-            className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm w-full sm:w-auto justify-center"
-          >
-            <X className="w-4 h-4" />
-            <span>عرض الكل (مسح الفلتر)</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {deleteTargetTraderId && (
+            <button
+              type="button"
+              data-testid="delete-all-trader-products-btn"
+              onClick={() => setIsDeleteAllConfirmOpen(true)}
+              disabled={isDeletingAllProducts}
+              className="px-4 py-2 rounded-2xl bg-rose-950/70 hover:bg-rose-900/90 text-rose-200 border border-rose-500/40 font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm w-full sm:w-auto justify-center disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>حذف كل منتجات هذا التاجر</span>
+            </button>
+          )}
+
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm w-full sm:w-auto justify-center"
+            >
+              <X className="w-4 h-4" />
+              <span>عرض الكل (مسح الفلتر)</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {importFeedback && (
@@ -1276,7 +1380,10 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                       </span>
                     )}
                     <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                      المخزون: {selectedProductForDetails.stock ?? 0} قطعة
+                      {selectedProductForDetails.stock !== null &&
+                      selectedProductForDetails.stock !== undefined
+                        ? `المخزون: ${selectedProductForDetails.stock} قطعة`
+                        : 'المخزون: غير متوفر في الملف'}
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white leading-snug">
@@ -1338,6 +1445,57 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer transition-colors"
               >
                 إغلاق النافذة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDeleteAllConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="تأكيد حذف كل منتجات التاجر"
+          dir="rtl"
+        >
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-md w-full p-6 text-right shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">تأكيد حذف كل منتجات التاجر</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  هل أنت متأكد من حذف جميع منتجات التاجر{' '}
+                  <strong className="text-amber-300">{activeTraderName || deleteTargetTraderId}</strong>{' '}
+                  من قاعدة البيانات ({totalCount} منتج) تمهيداً لإعادة استيراد الملف بالأسعار والصور الصحيحة؟
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDeleteAllConfirmOpen(false)}
+                disabled={isDeletingAllProducts}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-delete-all-products-btn"
+                onClick={handleConfirmDeleteAllTraderProducts}
+                disabled={isDeletingAllProducts}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingAllProducts ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isDeletingAllProducts ? 'جاري الحذف...' : 'تأكيد حذف الكل'}</span>
               </button>
             </div>
           </div>

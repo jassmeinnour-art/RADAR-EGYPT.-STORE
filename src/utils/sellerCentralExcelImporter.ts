@@ -70,6 +70,8 @@ export interface CompetitorPriceRecord {
   competitor_price: number | null;
   buy_box_price: number | null;
   competitors_count: number;
+  title?: string | null;
+  stock?: number | null;
   image_url?: string | null;
   updated_at: string;
 }
@@ -88,18 +90,34 @@ export interface SellerCentralImportedRow {
   sku: string;
   asin: string;
   price: number;
-  stock: number;
+  stock: number | null;
   image_url: string;
   product_url: string;
+  status?: string;
   condition?: string;
   platform: string;
   trader_id: string;
 }
 
+export const COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE =
+  'سعر المنافسين: غير متوفر - اربط SP-API';
+
+export const MISSING_CATALOG_FIELDS_LINK_SP_API_MESSAGE =
+  'اربط SP-API لجلب الاسم والصورة والمخزون';
+
+export const MISSING_CATALOG_COLUMNS_NOTICE =
+  'تنبيه: الملف لا يحتوي على كمية أو اسم أو صورة - سيتم جلبها من SP-API بعد الربط';
+
 export interface ParsedSellerCentralResult {
   rows: SellerCentralImportedRow[];
   totalRead: number;
   skippedCount: number;
+  priceWarning?: string;
+  missingCatalogNotice?: string;
+  hasTitleColumn?: boolean;
+  hasStockColumn?: boolean;
+  hasImageColumn?: boolean;
+  detectedHeaders?: string[];
   errorBreakdown?: ImportErrorBreakdown;
   rowErrors?: ImportRowErrorDetail[];
 }
@@ -116,6 +134,12 @@ export interface SellerCentralImportPreview {
   newCount: number;
   updatedCount: number;
   skippedCount: number;
+  priceWarning?: string;
+  missingCatalogNotice?: string;
+  hasTitleColumn?: boolean;
+  hasStockColumn?: boolean;
+  hasImageColumn?: boolean;
+  detectedHeaders?: string[];
   errorBreakdown?: ImportErrorBreakdown;
   rowErrors?: ImportRowErrorDetail[];
   summaryMessage: string;
@@ -128,6 +152,11 @@ export interface ExcelImportSummary {
   updatedCount: number;
   skippedCount: number;
   verifiedDbCount?: number;
+  dbPricedCount?: number;
+  dbFirstSamplePrice?: number | null;
+  dbFirstSampleTitle?: string;
+  dbFirstSampleStock?: number;
+  priceWarning?: string;
   message: string;
   traderId: string;
   rows: SellerCentralImportedRow[];
@@ -142,6 +171,7 @@ export interface ImportCommitMetadata {
   fileType?: ImportSourceType;
   fileSizeBytes?: number;
   traderName?: string;
+  priceWarning?: string;
   errorBreakdown?: ImportErrorBreakdown;
   rowErrors?: ImportRowErrorDetail[];
 }
@@ -329,7 +359,7 @@ export function validateImportFileExtension(fileName?: string): string {
  */
 export function cleanHeaderKey(key: string): string {
   return String(key || '')
-    .replace(/^\uFEFF/, '')
+    .replace(/[\uFEFF\u200B-\u200F\u202A-\u202E\u00A0]/g, '')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .trim()
     .toLowerCase()
@@ -342,25 +372,28 @@ export function cleanHeaderKey(key: string): string {
  */
 export function normalizeHeaderKey(key: string): string {
   return String(key || '')
-    .replace(/^\uFEFF/, '')
+    .replace(/[\uFEFF\u200B-\u200F\u202A-\u202E\u00A0]/g, ' ')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-–—/\\|:]+/g, ' ');
+    .replace(/[\s_\-–—/\\|:]+/g, ' ')
+    .trim();
 }
 
 export const SKU_COLUMN_ALIASES = [
+  'sku-البائع',
+  'sku البائع',
+  'skuالبائع',
   'seller-sku',
+  'seller sku',
   'sellersku',
   'sku',
-  'skuالبائع',
   'رمزالبائع',
   'رمزالمنتج',
   'كودالمنتج',
   'كود المنتج',
   'رمز البائع',
   'رمز المنتج',
-  'sku البائع',
   'merchantsku',
   'merchant sku',
   'كود',
@@ -370,8 +403,8 @@ export const SKU_COLUMN_ALIASES = [
 ];
 
 export const ASIN_COLUMN_ALIASES = [
-  'asin',
   'asin1',
+  'asin',
   'رقمasin',
   'رقم asin',
   'amazon asin',
@@ -385,16 +418,16 @@ export const ASIN_COLUMN_ALIASES = [
 ];
 
 export const TITLE_COLUMN_ALIASES = [
+  'اسم المنتج',
+  'اسمالمنتج',
+  'العنوان',
   'item-name',
   'itemname',
+  'item name',
   'title',
   'productname',
   'product name',
-  'item name',
-  'اسمالمنتج',
-  'اسم المنتج',
   'اسم',
-  'العنوان',
   'عنوان',
   'المنتج',
   'producttitle',
@@ -407,23 +440,30 @@ export const TITLE_COLUMN_ALIASES = [
 export const PRICE_COLUMN_ALIASES = [
   'السعر الحالي',
   'السعرالحالي',
-  'السعر الحالي (egp)',
-  'السعر الحالي (ج.م)',
+  'السعر',
+  'price',
   'current price',
   'currentprice',
-  'price',
+  'سعر البيع',
+  'سعرالبيع',
   'your price',
   'yourprice',
+  'sale price',
+  'saleprice',
+  'السعر الحالي (egp)',
+  'السعر الحالي (ج.م)',
+  'item price',
+  'item-price',
+  'itemprice',
   'standard price',
   'standardprice',
   'listing price',
   'listingprice',
-  'sale price',
-  'saleprice',
-  'السعر',
+  'offer price',
+  'offerprice',
+  'unit price',
+  'unitprice',
   'السعر (ج.م)',
-  'سعر البيع',
-  'سعرالبيع',
   'سعر العرض',
   'سعرالعرض',
   'سعر القائمة',
@@ -435,7 +475,13 @@ export const STOCK_COLUMN_ALIASES = [
   'الكمية',
   'المتاح',
   'quantity',
+  'available',
   'stock',
+  'المخزون المتوفر',
+  'المخزونالمتوفر',
+  'fulfillable quantity',
+  'fulfillable-quantity',
+  'fulfillablequantity',
   'qty',
   'الكمية المتاحة',
   'الكميةالمتاحة',
@@ -444,11 +490,8 @@ export const STOCK_COLUMN_ALIASES = [
   'المخزون',
   'المخزون المتاح',
   'fulfillment channel quantity',
-  'fulfillable quantity',
-  'fulfillable-quantity',
   'available quantity',
   'availablequantity',
-  'available',
   'كمية',
   'العدد',
 ];
@@ -475,9 +518,18 @@ export const CONDITION_COLUMN_ALIASES = [
   'condition',
   'itemcondition',
   'item condition',
-  'الحالة',
   'حالةالمنتج',
   'حالة المنتج',
+];
+
+export const STATUS_COLUMN_ALIASES = [
+  'الحالة',
+  'الحاله',
+  'status',
+  'listingstatus',
+  'listing status',
+  'حالةالعرض',
+  'حالة العرض',
 ];
 
 export const SKU_CANONICAL_SET = new Set(
@@ -501,6 +553,9 @@ export const IMAGE_CANONICAL_SET = new Set(
 export const CONDITION_CANONICAL_SET = new Set(
   CONDITION_COLUMN_ALIASES.flatMap((a) => [cleanHeaderKey(a), normalizeHeaderKey(a)])
 );
+export const STATUS_CANONICAL_SET = new Set(
+  STATUS_COLUMN_ALIASES.flatMap((a) => [cleanHeaderKey(a), normalizeHeaderKey(a)])
+);
 
 export const ALL_SIGNATURE_CANONICAL_KEYS = new Set([
   ...Array.from(SKU_CANONICAL_SET),
@@ -510,6 +565,7 @@ export const ALL_SIGNATURE_CANONICAL_KEYS = new Set([
   ...Array.from(STOCK_CANONICAL_SET),
   ...Array.from(IMAGE_CANONICAL_SET),
   ...Array.from(CONDITION_CANONICAL_SET),
+  ...Array.from(STATUS_CANONICAL_SET),
 ]);
 
 export const HEADER_SIGNATURE_KEYS = ALL_SIGNATURE_CANONICAL_KEYS;
@@ -521,7 +577,7 @@ export const PRIMARY_HEADER_ANCHORS = new Set([
 
 function normalizeFuzzyArabicHeader(key: string): string {
   return String(key || '')
-    .replace(/^\uFEFF/, '')
+    .replace(/[\uFEFF\u200B-\u200F\u202A-\u202E\u00A0]/g, ' ')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه')
@@ -551,20 +607,19 @@ function parseNumericValue(raw: string | number, integer = false): number {
     return integer ? Math.round(raw) : Math.round(raw * 100) / 100;
   }
   if (!raw) return 0;
-  // Convert Arabic-Indic & Extended Arabic-Indic numerals, Arabic decimal/thousands separators
+  // Convert Arabic-Indic numerals, strip bidi/NBSP marks, currency tokens ("ج.م", "EGP"), commas, spaces -> Number()
   let text = String(raw)
+    .replace(/[\uFEFF\u200B-\u200F\u202A-\u202E\u00A0]/g, ' ')
     .trim()
     .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
     .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
     .replace(/٫/g, '.')
     .replace(/٬/g, ',');
 
-  // Remove currency tokens BEFORE extracting numeric pattern so "ج.م." dot does not break decimals
   text = text
     .replace(/(ج\.?\s*م\.?|جنيه(?:\s+مصري)?|ر\.?\s*س\.?|د\.?\s*إ\.?|egp|sar|usd|aed|eur)/gi, ' ')
     .trim();
 
-  // Handle thousands commas (e.g. "1,899.50" or "1,899") vs European/Arabic comma decimal ("1899,50")
   if (text.includes(',') && !text.includes('.')) {
     if (/^\s*-?\d+,\d{1,2}\s*$/.test(text)) {
       text = text.replace(',', '.');
@@ -575,9 +630,15 @@ function parseNumericValue(raw: string | number, integer = false): number {
     text = text.replace(/,/g, '');
   }
 
-  // Strip spaces between thousands digits e.g. "1 899.50"
-  text = text.replace(/(?<=\d)\s+(?=\d)/g, '');
+  const compact = text.replace(/\s+/g, '');
+  if (compact && /^-?\d+(?:\.\d+)?$/.test(compact)) {
+    const directNum = Number(compact);
+    if (Number.isFinite(directNum) && directNum >= 0) {
+      return integer ? Math.round(directNum) : Math.round(directNum * 100) / 100;
+    }
+  }
 
+  text = text.replace(/(?<=\d)\s+(?=\d)/g, '');
   const match = text.match(/-?\d+(?:\.\d+)?/);
   if (!match) return 0;
   const num = integer ? parseInt(match[0], 10) : parseFloat(match[0]);
@@ -641,6 +702,10 @@ function isFuzzyPriceHeader(fuzzyKey: string): boolean {
     fuzzyKey.includes('السعر الحالي') ||
     fuzzyKey.includes('current price') ||
     fuzzyKey.includes('your price') ||
+    fuzzyKey.includes('sale price') ||
+    fuzzyKey.includes('item price') ||
+    fuzzyKey.includes('offer price') ||
+    fuzzyKey.includes('unit price') ||
     fuzzyKey.includes('standard price') ||
     fuzzyKey.includes('listing price') ||
     fuzzyKey.includes('سعر البيع') ||
@@ -1009,6 +1074,49 @@ export function mapRawSheetRowsToProductsDetailed(
       : '';
   const defaultPlatform = (options?.platform || 'amazon').toLowerCase();
 
+  const rawHeaders = Array.isArray(rows) && rows.length > 0 && rows[0] && typeof rows[0] === 'object'
+    ? Object.keys(rows[0])
+    : [];
+
+  if (rawHeaders.length > 0) {
+    console.log('[Amazon Import Debug] الهيدر كاملاً:', rawHeaders);
+    console.log('[Amazon Import Debug] أول صف كاملاً:', rows[0]);
+  }
+
+  const hasRecognizedPriceHeader = rawHeaders.some((rawK) => {
+    const cleanK = cleanHeaderKey(rawK);
+    const normK = normalizeHeaderKey(rawK);
+    const fuzzyK = normalizeFuzzyArabicHeader(rawK);
+    return (
+      PRICE_CANONICAL_SET.has(cleanK) ||
+      PRICE_CANONICAL_SET.has(normK) ||
+      (fuzzyK ? isFuzzyPriceHeader(fuzzyK) : false)
+    );
+  });
+
+  const hasStockColumn = rawHeaders.some((rawK) => {
+    const cleanK = cleanHeaderKey(rawK);
+    const normK = normalizeHeaderKey(rawK);
+    const fuzzyK = normalizeFuzzyArabicHeader(rawK);
+    return (
+      STOCK_CANONICAL_SET.has(cleanK) ||
+      STOCK_CANONICAL_SET.has(normK) ||
+      (fuzzyK ? isFuzzyStockHeader(fuzzyK) : false)
+    );
+  });
+
+  const hasTitleColumn = rawHeaders.some((rawK) => {
+    const cleanK = cleanHeaderKey(rawK);
+    const normK = normalizeHeaderKey(rawK);
+    return TITLE_CANONICAL_SET.has(cleanK) || TITLE_CANONICAL_SET.has(normK);
+  });
+
+  const hasImageColumn = rawHeaders.some((rawK) => {
+    const cleanK = cleanHeaderKey(rawK);
+    const normK = normalizeHeaderKey(rawK);
+    return IMAGE_CANONICAL_SET.has(cleanK) || IMAGE_CANONICAL_SET.has(normK);
+  });
+
   const dedupedBySku = new Map<string, SellerCentralImportedRow>();
   const initialBlankLines = options?.initialSkippedCount || 0;
   let skippedCount = initialBlankLines;
@@ -1039,6 +1147,7 @@ export function mapRawSheetRowsToProductsDetailed(
     Object.keys(rawRow).forEach((k) => {
       const cleanK = cleanHeaderKey(k);
       const normK = normalizeHeaderKey(k);
+      const strippedParensK = cleanHeaderKey(String(k || '').replace(/\([^)]*\)/g, ''));
       const lowerK = String(k || '').trim().toLowerCase();
       const val = rawRow[k];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
@@ -1049,6 +1158,9 @@ export function mapRawSheetRowsToProductsDetailed(
       }
       if (normK && (normRow[normK] === undefined || normRow[normK] === '')) {
         normRow[normK] = val;
+      }
+      if (strippedParensK && (normRow[strippedParensK] === undefined || normRow[strippedParensK] === '')) {
+        normRow[strippedParensK] = val;
       }
       if (lowerK && (normRow[lowerK] === undefined || normRow[lowerK] === '')) {
         normRow[lowerK] = val;
@@ -1106,7 +1218,8 @@ export function mapRawSheetRowsToProductsDetailed(
     ]).toUpperCase();
 
     const effectiveAsin = explicitAsin || productIdFallback || '';
-    const effectiveTitle = rawTitle || (effectiveAsin ? `منتج ${effectiveAsin}` : rawSku);
+    // If title column is missing/empty, set title = ASIN (never invent "منتج B0...")
+    const effectiveTitle = rawTitle || effectiveAsin || rawSku;
 
     const priceRaw = pickBestNumericField(
       normRow,
@@ -1122,6 +1235,28 @@ export function mapRawSheetRowsToProductsDetailed(
       isFuzzyStockHeader,
       true
     );
+    const parsedStock: number | null =
+      hasStockColumn && stockRaw !== ''
+        ? parseNumericValue(stockRaw, true)
+        : !hasStockColumn && stockRaw === ''
+        ? null
+        : stockRaw !== ''
+        ? parseNumericValue(stockRaw, true)
+        : null;
+
+    const rawStatus = pickField(normRow, STATUS_COLUMN_ALIASES);
+    let normalizedStatus = 'active';
+    if (rawStatus) {
+      const sLower = rawStatus.trim().toLowerCase();
+      if (['active', 'نشط', 'enabled', 'live', 'available'].includes(sLower)) {
+        normalizedStatus = 'active';
+      } else if (['inactive', 'غير نشط', 'disabled', 'paused', 'closed'].includes(sLower)) {
+        normalizedStatus = 'inactive';
+      } else {
+        normalizedStatus = rawStatus.trim();
+      }
+    }
+
     const condition = pickField(normRow, CONDITION_COLUMN_ALIASES);
     const explicitImageUrl = pickField(normRow, IMAGE_COLUMN_ALIASES);
     const imageUrl = explicitImageUrl || buildAmazonAsinImageUrl(effectiveAsin);
@@ -1149,9 +1284,10 @@ export function mapRawSheetRowsToProductsDetailed(
       sku: rawSku,
       asin: effectiveAsin,
       price: parseNumericValue(priceRaw, false),
-      stock: parseNumericValue(stockRaw, true),
+      stock: parsedStock,
       image_url: imageUrl,
       product_url: productUrl,
+      status: normalizedStatus,
       ...(condition ? { condition } : {}),
       platform,
       trader_id: targetTraderId,
@@ -1167,7 +1303,7 @@ export function mapRawSheetRowsToProductsDetailed(
           title: candidate.title,
           ...(candidate.asin ? { asin: candidate.asin } : {}),
           price: candidate.price,
-          stock: candidate.stock,
+          stock: candidate.stock ?? 0,
           errorCategory: 'orphan_or_blocked',
           reason: 'بيانات منتج تجريبية أو غير صالحة للاستيراد',
         });
@@ -1198,10 +1334,41 @@ export function mapRawSheetRowsToProductsDetailed(
     }
   }
 
+  const hasAnyPositivePrice = parsedRows.some((r) => r.price > 0);
+  let priceWarning: string | undefined;
+  if (parsedRows.length > 0 && !hasAnyPositivePrice) {
+    priceWarning = hasRecognizedPriceHeader
+      ? 'السعر في الملف نفسه 0 - تحقق من تقرير أمازون'
+      : `عمود السعر غير موجود - الأعمدة الموجودة: [${rawHeaders.join(' | ') || 'غير معروف'}]`;
+  }
+
+  let missingCatalogNotice: string | undefined;
+  if (parsedRows.length > 0 && (!hasStockColumn || !hasTitleColumn || !hasImageColumn)) {
+    if (!hasStockColumn && !hasTitleColumn && !hasImageColumn) {
+      missingCatalogNotice = MISSING_CATALOG_COLUMNS_NOTICE;
+    } else {
+      const missingParts: string[] = [];
+      if (!hasStockColumn) missingParts.push('كمية');
+      if (!hasTitleColumn) missingParts.push('اسم');
+      if (!hasImageColumn) missingParts.push('صورة');
+      missingCatalogNotice = `تنبيه: الملف لا يحتوي على ${missingParts.join(' أو ')} - سيتم جلبها من SP-API بعد الربط`;
+    }
+  }
+
+  if (priceWarning) {
+    console.warn('[Amazon Import Warning]', priceWarning);
+  }
+
   return {
     rows: parsedRows,
     totalRead: parsedRows.length,
     skippedCount,
+    ...(priceWarning ? { priceWarning } : {}),
+    ...(missingCatalogNotice ? { missingCatalogNotice } : {}),
+    hasTitleColumn,
+    hasStockColumn,
+    hasImageColumn,
+    ...(rawHeaders.length > 0 ? { detectedHeaders: rawHeaders } : {}),
     errorBreakdown,
     rowErrors,
   };
@@ -1498,16 +1665,20 @@ export function buildCleanProductInsertRecord(
   row: SellerCentralImportedRow,
   traderUuid: string
 ): Record<string, any> {
+  const resolvedImageUrl =
+    (row.image_url && String(row.image_url).trim()) ||
+    buildAmazonAsinImageUrl(row.asin);
+
   const rawCandidate: Record<string, any> = {
     title: row.title,
     sku: row.sku,
     asin: row.asin || null,
     price: row.price,
-    stock: row.stock,
-    image_url: row.image_url ? row.image_url : null,
+    stock: row.stock === null || row.stock === undefined ? null : row.stock,
+    image_url: resolvedImageUrl || null,
     product_url: row.product_url ? row.product_url : null,
     trader_id: traderUuid,
-    status: 'active',
+    status: row.status || 'active',
   };
   if (row.condition && String(row.condition).trim()) {
     rawCandidate.condition = String(row.condition).trim();
@@ -1661,6 +1832,12 @@ export async function previewSellerCentralFile(
     newCount,
     updatedCount,
     skippedCount: parsed.skippedCount,
+    ...(parsed.priceWarning ? { priceWarning: parsed.priceWarning } : {}),
+    ...(parsed.missingCatalogNotice ? { missingCatalogNotice: parsed.missingCatalogNotice } : {}),
+    hasTitleColumn: parsed.hasTitleColumn,
+    hasStockColumn: parsed.hasStockColumn,
+    hasImageColumn: parsed.hasImageColumn,
+    ...(parsed.detectedHeaders ? { detectedHeaders: parsed.detectedHeaders } : {}),
     ...(parsed.errorBreakdown ? { errorBreakdown: parsed.errorBreakdown } : {}),
     ...(parsed.rowErrors ? { rowErrors: parsed.rowErrors } : {}),
     summaryMessage: formatImportSummaryMessage(
@@ -1703,7 +1880,7 @@ export async function upsertImportedProductsToSupabase(
   const toUpdatePairs: Array<{
     id: string;
     skuKey: string;
-    payload: { price: number; stock: number; updated_at: string; image_url?: string };
+    payload: { price: number; stock: number | null; updated_at: string; image_url?: string };
   }> = [];
   const insertedProductIds: string[] = [];
   const productIdsBySku = new Map<string, string>();
@@ -1716,15 +1893,23 @@ export async function upsertImportedProductsToSupabase(
 
     if (matched) {
       productIdsBySku.set(skuKey, matched.id);
-      const updatePayload: { price: number; stock: number; updated_at: string; image_url?: string } = {
+      const resolvedImageUrl =
+        (row.image_url && String(row.image_url).trim()) ||
+        buildAmazonAsinImageUrl(row.asin);
+      const updatePayload: {
+        price: number;
+        stock: number | null;
+        updated_at: string;
+        image_url?: string;
+      } = {
         price: row.price,
-        stock: row.stock,
+        stock: row.stock === null || row.stock === undefined ? null : row.stock,
         updated_at: nowIso,
       };
-      if (matched.hasImageUrlField && !matched.image_url && row.image_url) {
-        updatePayload.image_url = row.image_url;
+      if (!matched.image_url && resolvedImageUrl) {
+        updatePayload.image_url = resolvedImageUrl;
       }
-      // Existing SKU: update price & stock (and backfill missing image_url if absent in DB) — do not duplicate!
+      // Existing SKU: update price & stock (and backfill missing ASIN image_url if absent in DB) — do not duplicate!
       toUpdatePairs.push({
         id: matched.id,
         skuKey,
@@ -1744,32 +1929,40 @@ export async function upsertImportedProductsToSupabase(
           title: row.title || matched.title,
           asin: row.asin,
           price: row.price,
-          stock: row.stock,
+          stock: row.stock ?? 0,
           previousPrice: matched.price,
           previousStock: matched.stock,
           action: 'updated',
           product_url: row.product_url,
           condition: row.condition,
-          image_url: row.image_url,
+          image_url: resolvedImageUrl,
         });
       }
     } else {
-      toInsertFull.push(buildCleanProductInsertRecord(row, targetTraderId));
+      const normalizedWithImage: SellerCentralImportedRow = {
+        ...row,
+        image_url:
+          (row.image_url && String(row.image_url).trim()) ||
+          buildAmazonAsinImageUrl(row.asin),
+      };
+      toInsertFull.push(buildCleanProductInsertRecord(normalizedWithImage, targetTraderId));
       if (itemsPreview.length < 200) {
         itemsPreview.push({
           sku: row.sku,
           title: row.title,
           asin: row.asin,
           price: row.price,
-          stock: row.stock,
+          stock: row.stock ?? 0,
           action: 'inserted',
           product_url: row.product_url,
           condition: row.condition,
-          image_url: row.image_url,
+          image_url: normalizedWithImage.image_url,
         });
       }
     }
   });
+
+  console.log('[Amazon Import Debug] أول سجل جاهز للإدخال/التحديث:', toInsertFull[0] || toUpdatePairs[0] || null);
 
   // Insert in chunks of 100 rows cleanly — never pass manual `id` so Supabase gen_random_uuid() generates UUID
   const INSERT_CHUNK_SIZE = 100;
@@ -1875,7 +2068,7 @@ export async function upsertImportedProductsToSupabase(
       updatedImagesCount: 0,
       message: isAmazonSpApiConfigured()
         ? 'تم حفظ المنتجات — تعذر إكمال تحليل أسعار المنافسين حالياً'
-        : 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+        : COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE,
     };
   }
 
@@ -1887,7 +2080,7 @@ export async function upsertImportedProductsToSupabase(
         title: r.title,
         sku: r.sku,
         price: r.price,
-        stock: r.stock,
+        stock: r.stock ?? 0,
         platform: r.platform,
         image: r.image_url,
       }))
@@ -1896,14 +2089,14 @@ export async function upsertImportedProductsToSupabase(
     // Non-blocking alert evaluation
   }
 
-  // Mandatory Post-Import Re-Fetch from Supabase to verify actual persisted product count
+  // Mandatory Post-Import Re-Fetch from Supabase to verify actual persisted count & real DB prices
   const {
     data: verifiedRows,
     error: verifyErr,
     count: verifyCount,
   } = await supabase
     .from('products')
-    .select('id', { count: 'exact' })
+    .select('id, title, sku, price, stock', { count: 'exact' })
     .eq('trader_id', targetTraderId);
 
   if (verifyErr) {
@@ -1913,12 +2106,9 @@ export async function upsertImportedProductsToSupabase(
     throw new Error(formatSupabaseImportError(verifyErr));
   }
 
+  const dbRowsList = Array.isArray(verifiedRows) ? verifiedRows : [];
   const verifiedDbCount =
-    typeof verifyCount === 'number'
-      ? verifyCount
-      : Array.isArray(verifiedRows)
-      ? verifiedRows.length
-      : 0;
+    typeof verifyCount === 'number' ? verifyCount : dbRowsList.length;
 
   if (verifiedDbCount === 0) {
     try {
@@ -1929,10 +2119,27 @@ export async function upsertImportedProductsToSupabase(
     );
   }
 
+  const dbPricedCount = dbRowsList.filter((r: any) => Number(r?.price || 0) > 0).length;
+  const firstDbPricedRow =
+    dbRowsList.find((r: any) => Number(r?.price || 0) > 0) || dbRowsList[0] || null;
+  const dbFirstSamplePrice = firstDbPricedRow ? Number(firstDbPricedRow.price || 0) : null;
+  const dbFirstSampleTitle = firstDbPricedRow?.title ? String(firstDbPricedRow.title) : undefined;
+  const dbFirstSampleStock = firstDbPricedRow ? Number(firstDbPricedRow.stock ?? 0) : undefined;
+
+  const effectivePriceWarning =
+    importMeta?.priceWarning ||
+    (dbRowsList.length > 0 && dbPricedCount === 0
+      ? 'السعر في الملف نفسه 0 - تحقق من تقرير أمازون'
+      : normalizedRows.length > 0 && normalizedRows.every((r) => Number(r.price || 0) <= 0)
+      ? 'السعر في الملف نفسه 0 - تحقق من تقرير أمازون'
+      : undefined);
+
   try {
     const stats = {
       total: verifiedDbCount,
       dbTotal: verifiedDbCount,
+      dbPricedCount,
+      dbFirstSamplePrice,
       traderId: targetTraderId,
       new: toInsertFull.length,
       updated: toUpdatePairs.length,
@@ -1986,6 +2193,11 @@ export async function upsertImportedProductsToSupabase(
     updatedCount,
     skippedCount,
     verifiedDbCount,
+    dbPricedCount,
+    dbFirstSamplePrice,
+    ...(dbFirstSampleTitle ? { dbFirstSampleTitle } : {}),
+    ...(typeof dbFirstSampleStock === 'number' ? { dbFirstSampleStock } : {}),
+    ...(effectivePriceWarning ? { priceWarning: effectivePriceWarning } : {}),
     message,
     traderId: targetTraderId,
     rows: normalizedRows,
@@ -2015,6 +2227,7 @@ export async function confirmSellerCentralImport(
       fileType: detectImportSourceType(preview.fileName),
       fileSizeBytes: preview.fileSizeBytes,
       traderName: preview.traderName,
+      priceWarning: preview.priceWarning,
       errorBreakdown: preview.errorBreakdown,
       rowErrors: preview.rowErrors,
     }
@@ -2191,6 +2404,8 @@ export function saveCompetitorPricesLocally(records: CompetitorPriceRecord[]): v
             ? Math.round(rec.buy_box_price * 100) / 100
             : null,
         competitors_count: Math.max(0, Math.round(Number(rec.competitors_count || 0))),
+        ...(rec.title ? { title: rec.title } : {}),
+        ...(typeof rec.stock === 'number' ? { stock: rec.stock } : {}),
         ...(rec.image_url ? { image_url: rec.image_url } : {}),
         updated_at: rec.updated_at || new Date().toISOString(),
       };
@@ -2315,7 +2530,7 @@ export async function syncCompetitorPricesAfterImport(
       updatedImagesCount: 0,
       message: spApiConfigured
         ? 'لا توجد أكواد ASIN لتحليل أسعار المنافسين'
-        : 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+        : COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE,
     };
   }
 
@@ -2326,7 +2541,7 @@ export async function syncCompetitorPricesAfterImport(
       analyzedCount: uniqueItems.length,
       pricedCount: 0,
       updatedImagesCount: 0,
-      message: 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+      message: COMPETITOR_UNAVAILABLE_LINK_SP_API_MESSAGE,
     };
   }
 
@@ -2343,7 +2558,13 @@ export async function syncCompetitorPricesAfterImport(
 
   const nowIso = new Date().toISOString();
   const collectedRecords: CompetitorPriceRecord[] = [];
-  const catalogImageUpdates: Array<{ productId?: string; asin: string; imageUrl: string }> = [];
+  const catalogUpdates: Array<{
+    productId?: string;
+    asin: string;
+    imageUrl?: string;
+    title?: string;
+    stock?: number;
+  }> = [];
   const BATCH_SIZE = 20;
 
   for (let i = 0; i < uniqueItems.length; i += BATCH_SIZE) {
@@ -2360,6 +2581,7 @@ export async function syncCompetitorPricesAfterImport(
           region: settings.region || 'eu-west-1',
           traderId,
           includeCatalogImages: true,
+          includeCatalogDetails: true,
           catalogEndpointTemplate: '/catalog/2022-04-01/items/{asin}',
           asins: batch.map((b) => b.asin),
           items: batch.map((b) => ({
@@ -2415,6 +2637,21 @@ export async function syncCompetitorPricesAfterImport(
         const catalogImg = String(
           item.image_url ?? item.catalog_image_url ?? item.mainImageUrl ?? ''
         ).trim();
+        const catalogTitle = String(
+          item.title ?? item.item_name ?? item.itemName ?? item.product_title ?? ''
+        ).trim();
+        const rawCatalogQty =
+          item.quantity ?? item.stock ?? item.available ?? item.fulfillable_quantity;
+        const parsedCatalogQty =
+          rawCatalogQty !== undefined &&
+          rawCatalogQty !== null &&
+          String(rawCatalogQty).trim() !== ''
+            ? Number(rawCatalogQty)
+            : NaN;
+        const validCatalogQty =
+          Number.isFinite(parsedCatalogQty) && parsedCatalogQty >= 0
+            ? Math.round(parsedCatalogQty)
+            : undefined;
 
         const validCompetitorPrice =
           Number.isFinite(rawCompetitorPrice) && rawCompetitorPrice > 0
@@ -2425,23 +2662,35 @@ export async function syncCompetitorPricesAfterImport(
             ? Math.round(rawBuyBox * 100) / 100
             : null;
 
-        if (validCompetitorPrice !== null || validBuyBoxPrice !== null || competitorsCount > 0) {
+        if (
+          validCompetitorPrice !== null ||
+          validBuyBoxPrice !== null ||
+          competitorsCount > 0 ||
+          catalogTitle ||
+          typeof validCatalogQty === 'number'
+        ) {
           collectedRecords.push({
             product_id: item.product_id || candidate?.productId || null,
             asin,
             competitor_price: validCompetitorPrice,
             buy_box_price: validBuyBoxPrice,
             competitors_count: competitorsCount,
+            ...(catalogTitle ? { title: catalogTitle } : {}),
+            ...(typeof validCatalogQty === 'number' ? { stock: validCatalogQty } : {}),
             ...(catalogImg ? { image_url: catalogImg } : {}),
             updated_at: item.updated_at || nowIso,
           });
         }
 
-        if (catalogImg && /^https?:\/\//i.test(catalogImg)) {
-          catalogImageUpdates.push({
+        const validImgUrl =
+          catalogImg && /^https?:\/\//i.test(catalogImg) ? catalogImg : undefined;
+        if (validImgUrl || catalogTitle || typeof validCatalogQty === 'number') {
+          catalogUpdates.push({
             productId: item.product_id || candidate?.productId,
             asin,
-            imageUrl: catalogImg,
+            ...(validImgUrl ? { imageUrl: validImgUrl } : {}),
+            ...(catalogTitle ? { title: catalogTitle } : {}),
+            ...(typeof validCatalogQty === 'number' ? { stock: validCatalogQty } : {}),
           });
         }
       }
@@ -2455,17 +2704,22 @@ export async function syncCompetitorPricesAfterImport(
   }
 
   let updatedImagesCount = 0;
-  for (const imgUpd of catalogImageUpdates) {
+  for (const catUpd of catalogUpdates) {
     try {
-      if (imgUpd.productId) {
-        const { error: imgErr } = await supabase
+      if (catUpd.productId) {
+        const productUpdatePayload: Record<string, any> = { updated_at: nowIso };
+        if (catUpd.imageUrl) productUpdatePayload.image_url = catUpd.imageUrl;
+        if (catUpd.title) productUpdatePayload.title = catUpd.title;
+        if (typeof catUpd.stock === 'number') productUpdatePayload.stock = catUpd.stock;
+
+        const { error: catErr } = await supabase
           .from('products')
-          .update({ image_url: imgUpd.imageUrl, updated_at: nowIso })
-          .eq('id', imgUpd.productId);
-        if (!imgErr) updatedImagesCount++;
+          .update(productUpdatePayload)
+          .eq('id', catUpd.productId);
+        if (!catErr && catUpd.imageUrl) updatedImagesCount++;
       }
     } catch {
-      // ignore non-fatal image update failure
+      // ignore non-fatal catalog update failure
     }
   }
 
@@ -2481,7 +2735,9 @@ export async function syncCompetitorPricesAfterImport(
     updatedImagesCount,
     message:
       pricedCount > 0
-        ? `تم تحليل أسعار المنافسين لـ ${pricedCount} منتج تلقائياً`
+        ? `تم تحليل أسعار المنافسين وتحديث الكتالوج لـ ${pricedCount} منتج تلقائياً`
+        : catalogUpdates.length > 0
+        ? `تم تحديث الاسم والصورة والمخزون لـ ${catalogUpdates.length} منتج من SP-API`
         : 'تم تشغيل تحليل أسعار المنافسين عبر SP-API',
   };
 }
@@ -2563,10 +2819,21 @@ export async function mergeCompetitorPricesOntoProducts<T extends Record<string,
         ? p.competitors_count
         : undefined;
 
-    const fallbackImageUrl = p?.image_url || p?.image || buildAmazonAsinImageUrl(asinKey);
+    const resolvedTitle =
+      (!p?.title || (asinKey && String(p.title).trim().toUpperCase() === asinKey)) && match?.title
+        ? match.title
+        : p?.title;
+    const resolvedStock =
+      (p?.stock === null || p?.stock === undefined) && typeof match?.stock === 'number'
+        ? match.stock
+        : p?.stock ?? null;
+
+    const fallbackImageUrl = p?.image_url || p?.image || match?.image_url || buildAmazonAsinImageUrl(asinKey);
 
     return {
       ...p,
+      ...(resolvedTitle ? { title: resolvedTitle } : {}),
+      stock: resolvedStock,
       ...(fallbackImageUrl && !p?.image_url ? { image_url: fallbackImageUrl } : {}),
       ...(competitorPrice !== undefined ? { competitor_price: competitorPrice } : {}),
       ...(buyBoxPrice !== undefined ? { buybox_price: buyBoxPrice, buy_box_price: buyBoxPrice } : {}),

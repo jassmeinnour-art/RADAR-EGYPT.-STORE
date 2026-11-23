@@ -107,6 +107,7 @@ vi.mock('../lib/supabase', () => {
 
   const buildChain = (tableName: string) => {
     let activeTraderFilter: string | null = null;
+    let isDeleteQuery = false;
     const getFilteredProducts = () =>
       activeTraderFilter
         ? existingProductRowsRef.current.filter(
@@ -137,9 +138,22 @@ vi.mock('../lib/supabase', () => {
       }),
       insert: mockInsert,
       update: mockUpdate,
-      delete: vi.fn(() => chain),
+      delete: vi.fn(() => {
+        isDeleteQuery = true;
+        return chain;
+      }),
       single: vi.fn(async () => ({ data: null, error: null })),
       then: (onFulfilled: any) => {
+        if (isDeleteQuery && tableName === 'products') {
+          if (activeTraderFilter) {
+            existingProductRowsRef.current = existingProductRowsRef.current.filter(
+              (r) => r.trader_id !== activeTraderFilter
+            );
+          } else {
+            existingProductRowsRef.current = [];
+          }
+          return Promise.resolve({ data: [], error: null, count: 0 }).then(onFulfilled);
+        }
         const data =
           tableName === 'traders' ? mahmoudTraderFixture : getFilteredProducts();
         return Promise.resolve({
@@ -317,6 +331,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       asin: 'B09ARAB001',
       price: 3299.5,
       stock: 8,
+      status: 'active',
       condition: 'New',
       image_url: 'https://img.ex/vac.jpg',
       product_url: 'https://www.amazon.eg/dp/B09ARAB001',
@@ -363,6 +378,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       asin: 'B09TRN1234',
       price: 3499.5,
       stock: 12,
+      status: 'active',
       image_url: 'https://images.example.com/vacuum.jpg',
       product_url: 'https://www.amazon.eg/dp/B09TRN1234',
       platform: 'amazon',
@@ -410,6 +426,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       id: `22222222-2222-4222-8222-${String(idx + 1).padStart(12, '0')}`,
       sku: r.sku,
       asin: r.asin,
+      image_url: r.image_url,
     }));
     insertedBatchesRef.current = [];
     updatedPayloadsRef.current = [];
@@ -737,7 +754,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     fireEvent.change(fileInput, { target: { files: [egFile] } });
 
     const banner = await screen.findByTestId('import-line-preview-banner');
-    expect(banner).toHaveTextContent(/تم قراءة 103 منتج - مثال: أول منتج: \[EG-SKU-1\] - \[منتج B09EG0001\] - \[251 ج\.م\]/);
+    expect(banner).toHaveTextContent(/تم قراءة 103 منتج - مثال: أول منتج: \[EG-SKU-1\] - \[B09EG0001\] - \[251 ج\.م\]/);
 
     const confirmBtn = screen.getByRole('button', { name: /تأكيد الاستيراد/i });
     expect(confirmBtn).toBeInTheDocument();
@@ -1062,10 +1079,11 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       render(<ProductsPage onShowToast={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/1,899 ج\.م/)).toBeInTheDocument();
-        expect(screen.getByText(/1,750 ج\.م/)).toBeInTheDocument();
-        expect(screen.getByText(/أغلى بـ 149 ج\.م/)).toBeInTheDocument();
-        expect(screen.getByText(/أرخص بـ 100 ج\.م/)).toBeInTheDocument();
+        const grid = screen.getByTestId('virtual-product-grid');
+        expect(within(grid).getByText(/1,899 ج\.م/)).toBeInTheDocument();
+        expect(within(grid).getByText(/1,750 ج\.م/)).toBeInTheDocument();
+        expect(within(grid).getByText(/أغلى بـ 149 ج\.م/)).toBeInTheDocument();
+        expect(within(grid).getByText(/أرخص بـ 100 ج\.م/)).toBeInTheDocument();
       });
 
       // Open 30-day price analysis modal and confirm competitor comparison renders cleanly
@@ -1099,7 +1117,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     render(<ProductsPage onShowToast={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText('اربط SP-API لجلب أسعار المنافسين تلقائياً')).toBeInTheDocument();
+      expect(screen.getByText('سعر المنافسين: غير متوفر - اربط SP-API')).toBeInTheDocument();
       expect(screen.getByText('سعر المنافس الأقل:')).toBeInTheDocument();
     });
 
@@ -1272,6 +1290,436 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     } finally {
       if (baseImpl) origFrom.mockImplementation(baseImpl);
     }
+  });
+
+  it('logs headers & first row to console, shows "الأعمدة الموجودة" in preview, parses Arabic headers with EGP/commas/spaces, assigns ASIN images, and shows verified DB price after import', async () => {
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      const txtContent = [
+        'اسم_المنتج\tsku-البائع\tASIN\tالسعر الحالي\tالمخزون_المتوفر',
+        'غلاية كهربائية ستانلس 2 لتر\tAR-SKU-01\tB09ALLOFR1\t1,450 ج.م\t18 قطعة',
+        'شواية كهربائية بدون دخان\tAR-SKU-02\tB09ALLOFR2\t2,990 EGP\t7',
+      ].join('\n');
+      const file = makeMockTextFile('all-offers-report.txt', txtContent);
+
+      render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={vi.fn()}
+          trader={{
+            id: TARGET_TRADER_UUID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            phone: '',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: 'A37JIM7LHQI6IM',
+          }}
+        />
+      );
+
+      fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+        target: { files: [file] },
+      });
+
+      const previewPanel = await screen.findByTestId('import-preview-panel');
+      expect(within(previewPanel).getByTestId('detected-headers-banner')).toHaveTextContent(
+        'الأعمدة الموجودة:'
+      );
+      expect(within(previewPanel).getByTestId('detected-headers-banner')).toHaveTextContent(
+        'السعر الحالي'
+      );
+      expect(within(previewPanel).getByText('1,450 ج.م')).toBeInTheDocument();
+      expect(within(previewPanel).getByText('2,990 ج.م')).toBeInTheDocument();
+
+      // Console diagnostics printed headers & first row
+      expect(logSpy).toHaveBeenCalledWith(
+        '[Amazon Import Debug] الهيدر كاملاً:',
+        expect.arrayContaining(['اسم_المنتج', 'sku-البائع', 'ASIN', 'السعر الحالي', 'المخزون_المتوفر'])
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        '[Amazon Import Debug] أول صف كاملاً:',
+        expect.objectContaining({ 'sku-البائع': 'AR-SKU-01', 'السعر الحالي': '1,450 ج.م' })
+      );
+
+      fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد الاستيراد/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('db-verified-price-summary')).toHaveTextContent(
+          'السعر الحقيقي في قاعدة البيانات: 1,450 ج.م'
+        );
+      });
+
+      const inserted = insertedBatchesRef.current.flat();
+      expect(inserted).toHaveLength(2);
+      expect(inserted[0]).toEqual(
+        expect.objectContaining({
+          title: 'غلاية كهربائية ستانلس 2 لتر',
+          sku: 'AR-SKU-01',
+          asin: 'B09ALLOFR1',
+          price: 1450,
+          stock: 18,
+          image_url: 'https://images-na.ssl-images-amazon.com/images/P/B09ALLOFR1.01.L.jpg',
+          trader_id: TARGET_TRADER_UUID,
+        })
+      );
+      expect(inserted[1].price).toBe(2990);
+      expect(inserted[1].stock).toBe(7);
+      expect(inserted[1].image_url).toBe(
+        'https://images-na.ssl-images-amazon.com/images/P/B09ALLOFR2.01.L.jpg'
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('shows exact warning for missing price column vs zero/empty price values in file without silent zero save', async () => {
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      // Case 1: Price column completely missing
+      const noPriceFile = makeMockTextFile(
+        'no-price-col.txt',
+        'اسم المنتج\tsku-البائع\tasin\tالكمية\nمنتج بلا سعر\tNP-SKU-1\tB09NOPR01\t5'
+      );
+      const { unmount } = render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={vi.fn()}
+          trader={{
+            id: TARGET_TRADER_UUID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            phone: '',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: TARGET_TRADER_UUID,
+          }}
+        />
+      );
+
+      fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+        target: { files: [noPriceFile] },
+      });
+
+      const missingWarning = await screen.findByTestId('missing-price-column-warning');
+      expect(missingWarning).toHaveTextContent('عمود السعر غير موجود - الأعمدة الموجودة:');
+      unmount();
+
+      // Case 2: Price column EXISTS ("السعر الحالي") but its value is 0 / empty in the file
+      const zeroPriceFile = makeMockTextFile(
+        'zero-price-col.txt',
+        'اسم المنتج\tsku-البائع\tasin\tالسعر الحالي\tالكمية\nمنتج بسعر صفر\tZP-SKU-1\tB09ZERO01\t0\t9'
+      );
+      render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={vi.fn()}
+          trader={{
+            id: TARGET_TRADER_UUID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            phone: '',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: TARGET_TRADER_UUID,
+          }}
+        />
+      );
+
+      fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+        target: { files: [zeroPriceFile] },
+      });
+
+      const zeroWarning = await screen.findByTestId('missing-price-column-warning');
+      expect(zeroWarning).toHaveTextContent('السعر في الملف نفسه 0 - تحقق من تقرير أمازون');
+
+      const previewPanel = screen.getByTestId('import-preview-panel');
+      fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد الاستيراد/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('post-import-price-warning')).toHaveTextContent(
+          'السعر في الملف نفسه 0 - تحقق من تقرير أمازون'
+        );
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('deletes all products for current trader via "حذف كل منتجات هذا التاجر" confirmation dialog before re-import', async () => {
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    const OTHER_TRADER_UUID = '99999999-9999-4999-8999-999999999999';
+    window.history.replaceState({}, '', `/products?trader_id=${TARGET_TRADER_UUID}`);
+
+    existingProductRowsRef.current = [
+      {
+        id: '77777777-7777-4777-8777-000000000001',
+        trader_id: TARGET_TRADER_UUID,
+        title: 'منتج قديم بسعر 0',
+        sku: 'OLD-ZERO-1',
+        asin: 'B09OLD001',
+        price: 0,
+        stock: 0,
+        platform: 'amazon',
+      },
+      {
+        id: '77777777-7777-4777-8777-000000000002',
+        trader_id: OTHER_TRADER_UUID,
+        title: 'منتج تاجر آخر لا يحذف',
+        sku: 'OTHER-1',
+        asin: 'B09OTHER1',
+        price: 555,
+        stock: 3,
+        platform: 'amazon',
+      },
+    ];
+
+    const onShowToast = vi.fn();
+    render(<ProductsPage onShowToast={onShowToast} />);
+
+    const deleteAllBtn = await screen.findByTestId('delete-all-trader-products-btn');
+    expect(deleteAllBtn).toHaveTextContent('حذف كل منتجات هذا التاجر');
+
+    fireEvent.click(deleteAllBtn);
+
+    const dialog = await screen.findByRole('dialog', { name: 'تأكيد حذف كل منتجات التاجر' });
+    fireEvent.click(within(dialog).getByTestId('confirm-delete-all-products-btn'));
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(
+        expect.stringContaining('تم حذف كل منتجات هذا التاجر بنجاح')
+      );
+    });
+
+    // Current trader's products deleted, other trader's product untouched
+    expect(
+      existingProductRowsRef.current.filter((r) => r.trader_id === TARGET_TRADER_UUID)
+    ).toHaveLength(0);
+    expect(
+      existingProductRowsRef.current.filter((r) => r.trader_id === OTHER_TRADER_UUID)
+    ).toHaveLength(1);
+  });
+
+  it('AccountSettingsPage "ربط وجلب أسعار المنافسين" saves SP-API credentials and triggers competitor sync for existing ASIN products', async () => {
+    localStorage.removeItem(SP_API_SETTINGS_STORAGE_KEY);
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    existingProductRowsRef.current = [
+      {
+        id: '88888888-8888-4888-8888-000000000001',
+        trader_id: TARGET_TRADER_UUID,
+        title: 'منتج للتحليل التنافسي',
+        sku: 'SET-COMP-1',
+        asin: 'B09SETCOMP1',
+        price: 1200,
+        stock: 5,
+      },
+    ];
+
+    mockFunctionsInvoke.mockImplementation(async (fnName: string) => {
+      if (fnName === 'amazon-competitor-prices') {
+        return {
+          data: {
+            items: [
+              {
+                asin: 'B09SETCOMP1',
+                competitor_price: 1120,
+                buy_box_price: 1150,
+                competitors_count: 4,
+                image_url: 'https://images-na.ssl-images-amazon.com/images/P/B09SETCOMP1.01.L.jpg',
+              },
+            ],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const onShowToast = vi.fn();
+    render(<AccountSettingsPage onShowToast={onShowToast} />);
+
+    fireEvent.change(screen.getByLabelText(/Refresh Token/i), {
+      target: { value: 'Atzr|TestRefreshToken999' },
+    });
+    fireEvent.change(screen.getByLabelText(/Client ID/i), {
+      target: { value: 'amzn1.application-oa2-client.test999' },
+    });
+    fireEvent.change(screen.getByLabelText(/Client Secret/i), {
+      target: { value: 'amzn1.oa2-cs.v1.secret999' },
+    });
+
+    fireEvent.click(screen.getByTestId('connect-and-fetch-competitors-btn'));
+
+    await waitFor(() => {
+      expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+        'amazon-competitor-prices',
+        expect.objectContaining({
+          body: expect.objectContaining({
+            asins: ['B09SETCOMP1'],
+          }),
+        })
+      );
+    });
+
+    const savedSettings = JSON.parse(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY) || '{}');
+    expect(savedSettings.clientId).toBe('amzn1.application-oa2-client.test999');
+    expect(savedSettings.refreshToken).toBe('Atzr|TestRefreshToken999');
+  });
+
+  it('imports 4-column report (sku-البائع | asin1 | السعر الحالي | الحالة) with real price=1899, stock=null, title=ASIN, status=active, exact preview notices, and honest ProductCard UI', async () => {
+    localStorage.removeItem(SP_API_SETTINGS_STORAGE_KEY);
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    window.history.replaceState({}, '', `/products?trader_id=${TARGET_TRADER_UUID}`);
+
+    const txtContent = [
+      'sku-البائع\tasin1\tالسعر الحالي\tالحالة',
+      'BU4Z-UNTJ-05\tB0HBWL1V1J\t1899\tActive',
+    ].join('\n');
+    const file = makeMockTextFile('all-offers-4-cols.txt', txtContent);
+
+    const { unmount } = render(
+      <FetchProductsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onShowToast={vi.fn()}
+        trader={{
+          id: TARGET_TRADER_UUID,
+          user_id: 'founder',
+          seller_name: 'محمود سعيد',
+          email: 'mahmeudsaid4@gmail.com',
+          phone: '',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: 'A37JIM7LHQI6IM',
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+      target: { files: [file] },
+    });
+
+    const previewPanel = await screen.findByTestId('import-preview-panel');
+    expect(within(previewPanel).getByTestId('detected-headers-banner')).toHaveTextContent(
+      'تم قراءة 1 منتج - الأعمدة الموجودة: sku-البائع - asin1 - السعر الحالي - الحالة'
+    );
+    expect(within(previewPanel).getByTestId('missing-catalog-columns-warning')).toHaveTextContent(
+      'تنبيه: الملف لا يحتوي على كمية أو اسم أو صورة - سيتم جلبها من SP-API بعد الربط'
+    );
+    expect(within(previewPanel).getByText('1,899 ج.م')).toBeInTheDocument();
+    expect(within(previewPanel).getByText('غير متوفر')).toBeInTheDocument();
+    expect(within(previewPanel).getByText('نشط')).toBeInTheDocument();
+
+    fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد الاستيراد/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('db-verified-price-summary')).toHaveTextContent('1,899 ج.م');
+    });
+
+    const inserted = insertedBatchesRef.current.flat();
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toEqual(
+      expect.objectContaining({
+        sku: 'BU4Z-UNTJ-05',
+        asin: 'B0HBWL1V1J',
+        price: 1899,
+        stock: null,
+        title: 'B0HBWL1V1J',
+        status: 'active',
+        image_url: 'https://images-na.ssl-images-amazon.com/images/P/B0HBWL1V1J.01.L.jpg',
+        trader_id: TARGET_TRADER_UUID,
+      })
+    );
+
+    unmount();
+
+    // Verify ProductsPage displays real price 1899, ASIN, status, and SP-API missing catalog prompts
+    render(<ProductsPage onShowToast={vi.fn()} />);
+
+    const grid = await screen.findByTestId('virtual-product-grid');
+    await waitFor(() => {
+      expect(within(grid).getByText(/1,899 ج\.م/)).toBeInTheDocument();
+      expect(within(grid).getByText(/ASIN: B0HBWL1V1J/)).toBeInTheDocument();
+      expect(within(grid).getByText(/SKU: BU4Z-UNTJ-05/)).toBeInTheDocument();
+      expect(within(grid).getByText('الاسم: يجلب من SP-API')).toBeInTheDocument();
+      expect(
+        within(grid).getByText('المخزون: غير متوفر في الملف - اجلبه من SP-API')
+      ).toBeInTheDocument();
+      expect(
+        within(grid).getByText('اربط SP-API لجلب الاسم والصورة والمخزون')
+      ).toBeInTheDocument();
+      expect(within(grid).getByText('نشط ✓')).toBeInTheDocument();
+    });
+  });
+
+  it('automatically enriches missing title, stock, and image_url from SP-API Catalog Edge Function after import when SP-API is configured', async () => {
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    saveAmazonSpApiSettings({
+      refreshToken: 'Atzr|EnrichToken',
+      clientId: 'amzn1.client.enrich',
+      clientSecret: 'amzn1.secret.enrich',
+      sellerId: TARGET_TRADER_UUID,
+    });
+
+    mockFunctionsInvoke.mockImplementation(async (fnName: string) => {
+      if (fnName === 'amazon-competitor-prices') {
+        return {
+          data: {
+            results: [
+              {
+                asin: 'B0HBWL1V1J',
+                title: 'ماكينة قهوة إسبريسو احترافية',
+                quantity: 14,
+                image_url: 'https://m.media-amazon.com/images/I/real-coffee.jpg',
+                competitor_price: 1750,
+                buy_box_price: 1790,
+                competitors_count: 3,
+              },
+            ],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    const txtContent = [
+      'sku-البائع\tasin1\tالسعر الحالي\tالحالة',
+      'BU4Z-UNTJ-05\tB0HBWL1V1J\t1899\tActive',
+    ].join('\n');
+    const file = makeMockTextFile('all-offers-spapi-enrich.txt', txtContent);
+
+    await importSellerCentralFile(file, TARGET_TRADER_UUID);
+
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+      'amazon-competitor-prices',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          asins: ['B0HBWL1V1J'],
+          includeCatalogImages: true,
+          includeCatalogDetails: true,
+        }),
+      })
+    );
+
+    expect(
+      updatedPayloadsRef.current.some(
+        (u) =>
+          u.payload.title === 'ماكينة قهوة إسبريسو احترافية' &&
+          u.payload.stock === 14 &&
+          u.payload.image_url === 'https://m.media-amazon.com/images/I/real-coffee.jpg'
+      )
+    ).toBe(true);
   });
 });
 

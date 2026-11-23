@@ -42,6 +42,8 @@ interface FetchProductsModalProps {
   onSyncCompleted?: (stats: {
     total: number;
     dbTotal?: number;
+    dbPricedCount?: number;
+    dbFirstSamplePrice?: number | null;
     new: number;
     updated: number;
     skipped?: number;
@@ -65,11 +67,14 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   const [fetchStats, setFetchStats] = useState<{
     total: number;
     dbTotal?: number;
+    dbPricedCount?: number;
+    dbFirstSamplePrice?: number | null;
     new: number;
     updated: number;
     skipped?: number;
   } | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [postImportPriceWarning, setPostImportPriceWarning] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [competitorSyncStatus, setCompetitorSyncStatus] = useState<CompetitorSyncStatus | null>(null);
   const [lastImportErrors, setLastImportErrors] = useState<ImportRowErrorDetail[]>([]);
@@ -80,6 +85,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setPreviewData(initialPreview || null);
     setFetchStats(null);
     setImportMessage(null);
+    setPostImportPriceWarning(null);
     setFetchError(null);
     setCompetitorSyncStatus(null);
     setLastImportErrors([]);
@@ -170,6 +176,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setFetchError(null);
     setFetchStats(null);
     setImportMessage(null);
+    setPostImportPriceWarning(null);
     setPreviewData(null);
 
     try {
@@ -182,6 +189,9 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
         ...preview,
         traderName: trader.seller_name || preview.traderName,
       });
+      if (preview.priceWarning) {
+        onShowToast?.(preview.priceWarning);
+      }
     } catch (err) {
       const cleanMsg = sanitizeProductPullError(err);
       setFetchError(cleanMsg);
@@ -211,6 +221,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
 
     setIsConfirmingImport(true);
     setFetchError(null);
+    setPostImportPriceWarning(null);
     setCompetitorSyncStatus(null);
     try {
       const summary = await confirmSellerCentralImport({
@@ -221,6 +232,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       const stats = {
         total: summary.verifiedDbCount ?? summary.total,
         dbTotal: summary.verifiedDbCount,
+        dbPricedCount: summary.dbPricedCount,
+        dbFirstSamplePrice: summary.dbFirstSamplePrice,
         new: summary.newCount,
         updated: summary.updatedCount,
         skipped: summary.skippedCount,
@@ -230,9 +243,10 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       setCompetitorSyncStatus(summary.competitorSync || null);
       setFetchStats(stats);
       setImportMessage(summary.message);
+      setPostImportPriceWarning(summary.priceWarning || previewData.priceWarning || null);
       setPreviewData(null);
       onSyncCompleted?.(stats);
-      onShowToast?.(summary.message);
+      onShowToast?.(summary.priceWarning ? `${summary.message} — ⚠️ ${summary.priceWarning}` : summary.message);
     } catch (err) {
       const cleanMsg = sanitizeProductPullError(err);
       setFetchStats(null);
@@ -365,6 +379,40 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 </p>
               )}
 
+              {previewData.detectedHeaders && previewData.detectedHeaders.length > 0 && (
+                <div
+                  data-testid="detected-headers-banner"
+                  className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-[11px] text-slate-300 font-mono leading-relaxed break-words"
+                >
+                  <span className="font-bold text-sky-300 font-['Cairo']">
+                    تم قراءة {previewData.totalRead} منتج - الأعمدة الموجودة:{' '}
+                  </span>
+                  <span>{previewData.detectedHeaders.join(' - ')}</span>
+                </div>
+              )}
+
+              {previewData.missingCatalogNotice && (
+                <div
+                  role="status"
+                  data-testid="missing-catalog-columns-warning"
+                  className="p-3 rounded-xl bg-sky-950/60 border border-sky-500/45 text-sky-200 text-xs font-bold flex items-start gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                  <span>{previewData.missingCatalogNotice}</span>
+                </div>
+              )}
+
+              {previewData.priceWarning && (
+                <div
+                  role="alert"
+                  data-testid="missing-price-column-warning"
+                  className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-bold flex items-start gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>{previewData.priceWarning}</span>
+                </div>
+              )}
+
               <div className="overflow-x-auto rounded-xl border border-slate-800">
                 <table className="w-full text-right text-[11px]">
                   <thead className="bg-slate-900 text-slate-300 font-black border-b border-slate-800">
@@ -379,7 +427,18 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/70">
-                    {previewData.previewRows.map((row, idx) => (
+                    {previewData.previewRows.map((row, idx) => {
+                      const hasNumericRowStock =
+                        row.stock !== null &&
+                        row.stock !== undefined &&
+                        Number.isFinite(Number(row.stock));
+                      const rowStatusLabel =
+                        row.status === 'active'
+                          ? 'نشط'
+                          : row.status === 'inactive'
+                          ? 'غير نشط'
+                          : row.status || row.condition || 'نشط';
+                      return (
                       <tr key={`${row.sku}-${idx}`} className="hover:bg-slate-900/50">
                         <td className="p-2 font-bold text-white max-w-[180px] truncate" title={row.title}>
                           {row.title}
@@ -394,10 +453,10 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                           {row.price.toLocaleString()} ج.م
                         </td>
                         <td className="p-2 text-center font-mono font-bold text-emerald-400">
-                          {row.stock}
+                          {hasNumericRowStock ? row.stock : 'غير متوفر'}
                         </td>
                         <td className="p-2 text-center text-slate-300">
-                          {row.condition || '—'}
+                          {rowStatusLabel}
                         </td>
                         <td className="p-2 text-center">
                           {row.product_url ? (
@@ -414,7 +473,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -495,6 +555,33 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
               <p className="text-xs text-emerald-200 font-mono">
                 في قاعدة البيانات: {fetchStats.dbTotal ?? fetchStats.total} | جديد: {fetchStats.new} | محدّث: {fetchStats.updated} | متخطى: {fetchStats.skipped || 0}
               </p>
+
+              {typeof fetchStats.dbFirstSamplePrice === 'number' && (
+                <p data-testid="db-verified-price-summary" className="text-xs text-sky-300 font-bold">
+                  السعر الحقيقي في قاعدة البيانات:{' '}
+                  <span className="font-mono text-white">
+                    {fetchStats.dbFirstSamplePrice.toLocaleString()} ج.م
+                  </span>
+                  {typeof fetchStats.dbPricedCount === 'number' && (
+                    <>
+                      {' '}
+                      | منتجات مسعّرة: <span className="font-mono text-emerald-300">{fetchStats.dbPricedCount}</span> من{' '}
+                      <span className="font-mono text-white">{fetchStats.dbTotal ?? fetchStats.total}</span>
+                    </>
+                  )}
+                </p>
+              )}
+
+              {postImportPriceWarning && (
+                <div
+                  role="alert"
+                  data-testid="post-import-price-warning"
+                  className="p-2.5 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-bold flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{postImportPriceWarning}</span>
+                </div>
+              )}
 
               {competitorSyncStatus && (
                 <div
