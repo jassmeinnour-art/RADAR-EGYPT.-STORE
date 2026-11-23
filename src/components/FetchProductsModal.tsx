@@ -14,6 +14,8 @@ import {
   History,
 } from 'lucide-react';
 import { Trader } from '../lib/supabase';
+import { ImportRowErrorDetail } from '../utils/importHistoryService';
+import { ImportErrorLog } from './ImportErrorLog';
 import { useMaintenanceMode, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { navigate } from '../utils/navigation';
 import {
@@ -61,6 +63,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   } | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [lastImportErrors, setLastImportErrors] = useState<ImportRowErrorDetail[]>([]);
+  const [lastImportFileName, setLastImportFileName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -68,6 +72,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setFetchStats(null);
     setImportMessage(null);
     setFetchError(null);
+    setLastImportErrors([]);
+    setLastImportFileName(undefined);
   }, [trader, isOpen, initialPreview]);
 
   if (!isOpen) return null;
@@ -182,6 +188,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
         updated: summary.updatedCount,
         skipped: summary.skippedCount,
       };
+      setLastImportErrors(summary.rowErrors || previewData.rowErrors || []);
+      setLastImportFileName(previewData.fileName);
       setFetchStats(stats);
       setImportMessage(summary.message);
       setPreviewData(null);
@@ -371,6 +379,19 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 </table>
               </div>
 
+              {(previewData.rowErrors?.length || previewData.skippedCount > 0) && (
+                <ImportErrorLog
+                  errors={previewData.rowErrors || []}
+                  fileName={previewData.fileName}
+                  skippedFallbackCount={previewData.skippedCount}
+                  title="سجل أخطاء الملف (منتجات لن تُستورد)"
+                  subtitle="يمكنك تصدير الصفوف المتعثرة بصيغة CSV لإصلاحها وإعادة المحاولة"
+                  compact
+                  hideWhenEmpty
+                  onShowToast={onShowToast}
+                />
+              )}
+
               <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
@@ -448,6 +469,19 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 </button>
               </div>
             </div>
+          )}
+
+          {fetchStats && (lastImportErrors.length > 0 || (fetchStats.skipped || 0) > 0) && (
+            <ImportErrorLog
+              errors={lastImportErrors}
+              fileName={lastImportFileName}
+              skippedFallbackCount={fetchStats.skipped || 0}
+              title="المنتجات التي تعذر استيرادها"
+              subtitle="صدّر هذه الصفوف إلى ملف CSV لتصحيح البيانات الناقصة وإعادة رفعها"
+              compact
+              hideWhenEmpty
+              onShowToast={onShowToast}
+            />
           )}
 
           {/* Security Warning against Linked Accounts */}
