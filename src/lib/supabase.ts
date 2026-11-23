@@ -38,8 +38,9 @@ export interface Product {
   sku: string;
   asin?: string;
   price: number;
-  stock: number;
+  stock: number | null;
   platform: string;
+  status?: string;
   image?: string;
   image_url?: string;
   product_url?: string;

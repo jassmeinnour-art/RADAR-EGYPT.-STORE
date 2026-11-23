@@ -27,14 +27,17 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { usePerformanceMode } from '../context/PerformanceModeContext';
 import { ThemeToggle } from './ThemeToggle';
+import { supabase } from '../lib/supabase';
 import {
   DEFAULT_TRADER_ID,
   FOUNDER_AMAZON_WARNING_TEXT,
+  RADAR_COMPETITOR_PRICES_UPDATED_EVENT,
   getAmazonSpApiSettings,
   invokeAmazonSpApiSyncEdgeFunction,
   isAmazonSpApiConfigured,
   sanitizeProductPullError,
   saveAmazonSpApiSettings,
+  syncCompetitorPricesAfterImport,
 } from '../utils/sellerCentralExcelImporter';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -128,6 +131,7 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
   const [spApiCreds, setSpApiCreds] = useState(() => getAmazonSpApiSettings());
   const [showSpApiSecrets, setShowSpApiSecrets] = useState(false);
   const [isSyncingSpApi, setIsSyncingSpApi] = useState(false);
+  const [isFetchingCompetitors, setIsFetchingCompetitors] = useState(false);
   const [spApiFeedback, setSpApiFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -346,6 +350,70 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
       onShowToast?.(cleanMsg);
     } finally {
       setIsSyncingSpApi(false);
+    }
+  };
+
+  const handleConnectAndFetchCompetitorPrices = async () => {
+    if (
+      !spApiCreds.clientId.trim() ||
+      !spApiCreds.clientSecret.trim() ||
+      !spApiCreds.refreshToken.trim()
+    ) {
+      const msg = 'يرجى إدخال Client ID و Client Secret و Refresh Token أولاً لربط SP-API.';
+      setSpApiFeedback(msg);
+      onShowToast?.(msg);
+      return;
+    }
+
+    const saved = saveAmazonSpApiSettings(spApiCreds);
+    setSpApiCreds(saved);
+    setIsFetchingCompetitors(true);
+    setSpApiFeedback(null);
+
+    try {
+      const { data: prodRows, error } = await supabase
+        .from('products')
+        .select('id, sku, asin, price, image_url, trader_id');
+      if (error) throw error;
+
+      const candidates = (Array.isArray(prodRows) ? prodRows : [])
+        .filter((r: any) => String(r?.asin || '').trim().length > 0)
+        .map((r: any) => ({
+          productId: r.id,
+          sku: String(r.sku || ''),
+          asin: String(r.asin || '').trim().toUpperCase(),
+          price: Number(r.price || 0),
+          image_url: r.image_url || undefined,
+          trader_id: r.trader_id || undefined,
+        }));
+
+      if (candidates.length === 0) {
+        const msg =
+          'تم ربط SP-API وحفظ المفاتيح بنجاح. لا توجد منتجات برمز ASIN حالياً في قاعدة البيانات لجلب أسعار المنافسين لها.';
+        setSpApiFeedback(msg);
+        setStatusMessage(msg);
+        onShowToast?.(msg);
+        return;
+      }
+
+      const syncOutcome = await syncCompetitorPricesAfterImport(
+        candidates,
+        saved.sellerId || candidates[0]?.trader_id || DEFAULT_TRADER_ID
+      );
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(RADAR_COMPETITOR_PRICES_UPDATED_EVENT));
+      }
+
+      setSpApiFeedback(syncOutcome.message);
+      setStatusMessage(syncOutcome.message);
+      onShowToast?.(syncOutcome.message);
+    } catch (err) {
+      const cleanMsg = sanitizeProductPullError(err);
+      setSpApiFeedback(cleanMsg);
+      onShowToast?.(cleanMsg);
+    } finally {
+      setIsFetchingCompetitors(false);
     }
   };
 
@@ -982,11 +1050,22 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
           <button
             type="button"
             onClick={handleSyncViaSpApiEdge}
-            disabled={isSyncingSpApi}
+            disabled={isSyncingSpApi || isFetchingCompetitors}
             className="min-h-[40px] px-5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-xs font-black flex items-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isSyncingSpApi ? 'animate-spin' : ''}`} />
             <span>سحب عبر SP-API (Edge Function)</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="connect-and-fetch-competitors-btn"
+            onClick={handleConnectAndFetchCompetitorPrices}
+            disabled={isFetchingCompetitors || isSyncingSpApi}
+            className="min-h-[40px] px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isFetchingCompetitors ? 'animate-spin' : ''}`} />
+            <span>{isFetchingCompetitors ? 'جاري جلب أسعار المنافسين...' : 'ربط وجلب أسعار المنافسين'}</span>
           </button>
         </div>
       </div>
