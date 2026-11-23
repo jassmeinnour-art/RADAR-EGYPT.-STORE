@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Package } from 'lucide-react';
 
 const LOADED_CACHE_KEY = 'radar_loaded_images_v1';
 
@@ -61,6 +62,7 @@ export function getOptimizedThumbnailUrl(rawUrl?: string | null, maxWidth = 360)
 interface OptimizedImageProps {
   src?: string | null;
   alt: string;
+  asin?: string | null;
   width?: number;
   height?: number;
   className?: string;
@@ -73,6 +75,7 @@ interface OptimizedImageProps {
 export const OptimizedImage: React.FC<OptimizedImageProps> = React.memo(({
   src,
   alt,
+  asin,
   width = 320,
   height = 200,
   className = '',
@@ -81,19 +84,41 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = React.memo(({
   emptyLabel = 'لا توجد صورة',
   maxThumbWidth = 360,
 }) => {
+  const cleanAsin = useMemo(() => String(asin || '').trim().toUpperCase(), [asin]);
   const optimizedSrc = useMemo(() => getOptimizedThumbnailUrl(src, maxThumbWidth), [src, maxThumbWidth]);
   const [hasError, setHasError] = useState<boolean>(false);
   const [isLoaded, setIsLoaded] = useState<boolean>(() => Boolean(optimizedSrc && loadedImageUrls.has(optimizedSrc)));
+
+  useEffect(() => {
+    setHasError(false);
+    setIsLoaded(Boolean(optimizedSrc && loadedImageUrls.has(optimizedSrc)));
+  }, [optimizedSrc]);
 
   const showFallback = !optimizedSrc || hasError;
 
   if (showFallback) {
     return (
       <div
-        className={`${containerClassName} bg-slate-800 rounded-2xl border border-slate-700/80 flex items-center justify-center text-slate-400 text-xs font-bold select-none shrink-0`}
+        data-testid={cleanAsin ? `asin-placeholder-${cleanAsin}` : 'image-placeholder'}
+        className={`${containerClassName} bg-gradient-to-br from-slate-900 via-slate-800/90 to-slate-900 rounded-2xl border border-slate-700/80 flex flex-col items-center justify-center gap-2 text-slate-300 select-none shrink-0 p-3`}
         style={{ height: height ? `${height}px` : undefined }}
       >
-        <span>{emptyLabel}</span>
+        {cleanAsin ? (
+          <>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Package className="w-5 h-5" />
+            </div>
+            <span
+              dir="ltr"
+              className="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-700 font-mono text-xs font-black text-sky-300 tracking-wider"
+            >
+              ASIN: {cleanAsin}
+            </span>
+            <span className="text-[10px] text-slate-400 font-bold">صورة المنتج غير متوفرة حالياً</span>
+          </>
+        ) : (
+          <span className="text-xs font-bold text-slate-400">{emptyLabel}</span>
+        )}
       </div>
     );
   }
@@ -110,7 +135,14 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = React.memo(({
         height={height}
         loading="lazy"
         decoding="async"
-        onLoad={() => {
+        referrerPolicy="no-referrer"
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          // Amazon P-style CDN sometimes returns a 1x1 transparent GIF for missing catalog images
+          if (img.naturalWidth > 0 && (img.naturalWidth <= 1 || img.naturalHeight <= 1)) {
+            setHasError(true);
+            return;
+          }
           markImageLoaded(optimizedSrc);
           if (!isLoaded) setIsLoaded(true);
         }}

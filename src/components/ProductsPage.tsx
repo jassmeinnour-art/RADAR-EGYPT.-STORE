@@ -12,9 +12,10 @@ import {
   Sliders,
   FileSpreadsheet,
   ExternalLink,
-  History
+  History,
+  Link2
 } from 'lucide-react';
-import { supabase, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
+import { supabase, formatSupabaseError, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
@@ -44,9 +45,13 @@ import {
 } from '../utils/offlineActionQueue';
 import {
   ACCEPTED_IMPORT_EXTENSIONS,
-  DEFAULT_TRADER_ID,
   IMPORT_BUTTON_LABEL,
+  NO_TRADER_SELECTED_ERROR,
+  RADAR_COMPETITOR_PRICES_UPDATED_EVENT,
   SellerCentralImportPreview,
+  buildAmazonAsinImageUrl,
+  isAmazonSpApiConfigured,
+  mergeCompetitorPricesOntoProducts,
   previewSellerCentralFile,
   sanitizeProductPullError,
 } from '../utils/sellerCentralExcelImporter';
@@ -57,9 +62,10 @@ interface ProductsPageProps {
 
 const ProductCard: React.FC<{
   product: Product;
+  spApiConfigured: boolean;
   onPlatformChange: (p: string) => void;
   onViewDetails: (product: Product) => void;
-}> = React.memo(({ product, onPlatformChange, onViewDetails }) => {
+}> = React.memo(({ product, spApiConfigured, onPlatformChange, onViewDetails }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const hasPlatform = Boolean(product.platform && product.platform.trim());
   const platLower = (product.platform || '').toLowerCase();
@@ -75,6 +81,20 @@ const ProductCard: React.FC<{
     : 'text-sky-300 bg-sky-500/15 border-sky-500/30';
 
   const platformDisplayLabel = hasPlatform ? product.platform!.toUpperCase() : 'غير محدد';
+
+  const resolvedImageSrc =
+    product.image_url || product.image || buildAmazonAsinImageUrl(product.asin);
+  const myPrice = Number(product.price || 0);
+  const myStock = Number(product.stock ?? 0);
+  const rawCompetitor = Number(
+    product.competitor_price || product.buy_box_price || product.buybox_price || 0
+  );
+  const lowestCompetitorPrice =
+    Number.isFinite(rawCompetitor) && rawCompetitor > 0 ? rawCompetitor : null;
+  const priceDiff =
+    myPrice > 0 && lowestCompetitorPrice !== null
+      ? Math.round((myPrice - lowestCompetitorPrice) * 100) / 100
+      : null;
 
   return (
     <div
@@ -105,11 +125,12 @@ const ProductCard: React.FC<{
           title="اضغط لعرض تفاصيل المنتج والرسم البياني للأسعار"
         >
           <OptimizedImage
-            src={product.image_url || product.image}
+            src={resolvedImageSrc}
             alt={product.title}
+            asin={product.asin}
             width={320}
-            height={200}
-            containerClassName="w-full h-[200px] mb-2"
+            height={180}
+            containerClassName="w-full h-[180px] mb-2"
             maxThumbWidth={360}
           />
           <h3 className="text-sm font-black text-white group-hover:text-orange-400 transition-colors whitespace-nowrap overflow-hidden text-ellipsis leading-snug" title={product.title}>
@@ -142,18 +163,64 @@ const ProductCard: React.FC<{
 
         <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
           <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
-            <div className="text-[10px] text-slate-400 font-bold mb-0.5">السعر الحالي</div>
+            <div className="text-[10px] text-slate-400 font-bold mb-0.5">سعرك</div>
             <div className="text-sm font-black text-white font-mono">
-              {Number(product.price || 0).toLocaleString()} ج.م
+              {myPrice.toLocaleString()} ج.م
             </div>
           </div>
 
           <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
             <div className="text-[10px] text-slate-400 font-bold mb-0.5">المخزون المتوفر</div>
             <div className="text-sm font-black text-emerald-400 font-mono">
-              {product.stock || 0} قطعة
+              {myStock.toLocaleString()} قطعة
             </div>
           </div>
+        </div>
+
+        {/* Competitor lowest price & comparison */}
+        <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-1.5 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-slate-400 font-bold">سعر المنافس الأقل:</span>
+            <span className="font-mono font-black text-sky-300">
+              {lowestCompetitorPrice !== null
+                ? `${lowestCompetitorPrice.toLocaleString()} ج.م`
+                : '-'}
+            </span>
+          </div>
+
+          {priceDiff !== null ? (
+            <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-800/70">
+              <span className="text-[11px] text-slate-400 font-bold">الفرق:</span>
+              {priceDiff > 0 ? (
+                <span className="text-[11px] font-black text-rose-400">
+                  أغلى بـ {priceDiff.toLocaleString()} ج.م
+                </span>
+              ) : priceDiff < 0 ? (
+                <span className="text-[11px] font-black text-emerald-400">
+                  أرخص بـ {Math.abs(priceDiff).toLocaleString()} ج.م
+                </span>
+              ) : (
+                <span className="text-[11px] font-black text-sky-400">مطابق لأقل منافس</span>
+              )}
+            </div>
+          ) : !spApiConfigured ? (
+            <div className="pt-1 border-t border-slate-800/70 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-amber-300/90 font-bold leading-snug">
+                اربط SP-API لجلب أسعار المنافسين تلقائياً
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/settings');
+                }}
+                className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-black cursor-pointer transition-colors"
+              >
+                <Link2 className="w-3 h-3" />
+                <span>ربط</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -190,6 +257,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<boolean>(false);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
@@ -197,7 +265,12 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [heatmapFilter, setHeatmapFilter] = useState<ActiveHeatmapSelection | null>(null);
   const [isSyncingInBackground, setIsSyncingInBackground] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [syncStats, setSyncStats] = useState<{ total: number; new: number; updated: number } | null>(null);
+  const [syncStats, setSyncStats] = useState<{
+    total: number;
+    dbTotal?: number;
+    new: number;
+    updated: number;
+  } | null>(null);
   const [isAutoPricingSettingsOpen, setIsAutoPricingSettingsOpen] = useState<boolean>(false);
   const [isImportingExcel, setIsImportingExcel] = useState<boolean>(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
@@ -223,13 +296,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const tradersCacheKey = `traders_dropdown_options_${userEmail || 'anon'}_v2`;
 
-  const ensureTraderOptions = useCallback(async () => {
-    if (!userEmail) return;
+  const ensureTraderOptions = useCallback(async (): Promise<Trader[]> => {
+    if (!userEmail) return [];
     const cachedTraders = dataCache.getStale<Trader[]>(tradersCacheKey);
     if (cachedTraders && cachedTraders.data.length > 0) {
       setTraderOptions(cachedTraders.data);
       if (!newTraderId) setNewTraderId(cachedTraders.data[0].id);
-      if (cachedTraders.isFresh) return;
+      if (cachedTraders.isFresh) return cachedTraders.data;
     }
 
     try {
@@ -239,14 +312,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         .order('created_at', { ascending: false });
 
       if (Array.isArray(tradersData)) {
-        setTraderOptions(tradersData as Trader[]);
-        dataCache.set(tradersCacheKey, tradersData);
-        if (tradersData.length > 0 && !newTraderId) {
-          setNewTraderId(tradersData[0].id);
+        const list = tradersData as Trader[];
+        setTraderOptions(list);
+        dataCache.set(tradersCacheKey, list);
+        if (list.length > 0 && !newTraderId) {
+          setNewTraderId(list[0].id);
         }
+        return list;
       }
     } catch {}
-  }, [newTraderId, tradersCacheKey, userEmail]);
+    return cachedTraders?.data || traderOptions;
+  }, [newTraderId, tradersCacheKey, userEmail, traderOptions]);
 
   const readQueryParams = useCallback(() => {
     if (typeof window === 'undefined') return { trader_id: null, platform: null };
@@ -308,11 +384,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         if (withCreatedAtOrder) {
           q = q.order('created_at', { ascending: false });
         }
+        // Filter Supabase products query strictly by trader_id ONLY (never eq('platform', ...))
         if (trader_id && trader_id !== 'all') {
           q = q.eq('trader_id', trader_id);
-        }
-        if (platform && platform !== 'all') {
-          q = q.eq('platform', platform);
         }
         return q.range(from, to);
       };
@@ -331,13 +405,17 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
       if (prodsError) {
         console.error('Error fetching products:', prodsError);
+        const formattedErr = formatSupabaseError(prodsError);
         setFetchError(true);
+        setFetchErrorMessage(formattedErr);
+        setSyncStats(null);
       } else {
         setFetchError(false);
+        setFetchErrorMessage(null);
       }
       const fetchedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
 
-      const cleanedProds = fetchedProds
+      const baseCleanedProds = fetchedProds
         .filter((p) => !isDemoOrOrphanProduct(p))
         .map((p) => ({
           ...p,
@@ -348,25 +426,40 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
             : p.platform,
         }));
 
+      const cleanedProds = await mergeCompetitorPricesOntoProducts(baseCleanedProds);
+
       if (cleanedProds.length > 0 && !prodsError) {
         void cacheProductsLocally(cleanedProds);
       }
 
       if (prodsError && typeof navigator !== 'undefined' && !navigator.onLine) {
         const localSaved = await getLocallySavedProducts();
-        const filteredLocal = localSaved.filter((p) => {
-          if (isDemoOrOrphanProduct(p)) return false;
-          if (trader_id && trader_id !== 'all' && p.trader_id !== trader_id) return false;
-          if (platform && platform !== 'all' && p.platform !== platform) return false;
-          return true;
-        });
+        const filteredLocal = await mergeCompetitorPricesOntoProducts(
+          localSaved.filter((p) => {
+            if (isDemoOrOrphanProduct(p)) return false;
+            if (trader_id && trader_id !== 'all' && p.trader_id !== trader_id) return false;
+            return true;
+          })
+        );
         setProducts(filteredLocal);
         setTotalCount(filteredLocal.length);
         setFetchError(false);
+        setFetchErrorMessage(null);
         return;
       }
 
       const total = typeof count === 'number' ? count : cleanedProds.length;
+
+      if (!prodsError) {
+        if (total === 0) {
+          setSyncStats(null);
+          try {
+            localStorage.removeItem('radar_last_sync_stats');
+          } catch {}
+        } else {
+          setSyncStats((prev) => (prev ? { ...prev, total, dbTotal: total } : prev));
+        }
+      }
 
       if (append) {
         setProducts((prev) => {
@@ -381,21 +474,23 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       setCurrentPage(page);
 
       dataCache.set(cacheKey, { products: cleanedProds, total });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load products data:', err);
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         const localSaved = await getLocallySavedProducts();
         const filteredLocal = localSaved.filter((p) => {
           if (isDemoOrOrphanProduct(p)) return false;
           if (trader_id && trader_id !== 'all' && p.trader_id !== trader_id) return false;
-          if (platform && platform !== 'all' && p.platform !== platform) return false;
           return true;
         });
         setProducts(filteredLocal);
         setTotalCount(filteredLocal.length);
         setFetchError(false);
+        setFetchErrorMessage(null);
       } else {
         setFetchError(true);
+        setFetchErrorMessage(formatSupabaseError(err));
+        setSyncStats(null);
         if (!cached && !append) setProducts([]);
       }
     } finally {
@@ -430,13 +525,24 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       fetchProductsAndTraders(current.trader_id, current.platform, 1, true);
     };
 
+    const handleCompetitorPricesUpdated = () => {
+      setProducts((prev) => {
+        void mergeCompetitorPricesOntoProducts(prev).then((merged) => {
+          setProducts(merged);
+        });
+        return prev;
+      });
+    };
+
     window.addEventListener('popstate', handlePopState);
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     window.addEventListener(RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT as any, handleOfflineProductsSynced);
+    window.addEventListener(RADAR_COMPETITOR_PRICES_UPDATED_EVENT as any, handleCompetitorPricesUpdated);
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
       window.removeEventListener(RADAR_OFFLINE_PRODUCTS_SYNCED_EVENT as any, handleOfflineProductsSynced);
+      window.removeEventListener(RADAR_COMPETITOR_PRICES_UPDATED_EVENT as any, handleCompetitorPricesUpdated);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
@@ -559,6 +665,16 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const filteredProducts = useMemo(() => {
     let list = products;
 
+    // Optional client-side platform filtering ONLY for products that explicitly store platform
+    if (urlPlatform && urlPlatform !== 'all') {
+      const targetPlat = urlPlatform.trim().toLowerCase();
+      list = list.filter((p) => {
+        const plat = String(p.platform || '').trim().toLowerCase();
+        if (!plat) return true;
+        return plat === targetPlat || plat.includes(targetPlat);
+      });
+    }
+
     if (heatmapFilter) {
       list = list.filter((p) => {
         const zone = getPriceZoneForAmount(Number(p.price) || 0);
@@ -587,7 +703,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       const traderMatch = (p as any).traders?.seller_name && (p as any).traders.seller_name.toLowerCase().includes(q);
       return titleMatch || skuMatch || platformMatch || traderMatch;
     });
-  }, [products, searchQuery, heatmapFilter]);
+  }, [products, searchQuery, heatmapFilter, urlPlatform]);
 
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
@@ -600,8 +716,10 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   }, [products]);
 
   const activeTraderObj = useMemo(() => {
-    if (!urlTraderId || urlTraderId === 'all') return traderOptions[0] || null;
-    return traderOptions.find((t) => t.id === urlTraderId) || null;
+    if (urlTraderId && urlTraderId !== 'all') {
+      return traderOptions.find((t) => t.id === urlTraderId) || null;
+    }
+    return traderOptions.length === 1 ? traderOptions[0] : null;
   }, [urlTraderId, traderOptions]);
 
   const activeTraderName = urlTraderId && urlTraderId !== 'all'
@@ -615,12 +733,12 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
 
   const modalTargetTrader: Trader = useMemo(() => {
     if (activeTraderObj) return activeTraderObj;
-    const resolvedId = urlTraderId && urlTraderId !== 'all' ? urlTraderId : DEFAULT_TRADER_ID;
+    const resolvedId = urlTraderId && urlTraderId !== 'all' ? urlTraderId.trim() : '';
     return {
       id: resolvedId,
       user_id: 'founder',
-      seller_name: resolvedId === DEFAULT_TRADER_ID ? 'محمود سعيد' : 'التاجر المحدد',
-      email: 'mahmeudsaid4@gmail.com',
+      seller_name: resolvedId ? 'التاجر المحدد' : NO_TRADER_SELECTED_ERROR,
+      email: '',
       phone: '',
       platform: urlPlatform || 'amazon',
       status: 'active',
@@ -634,8 +752,19 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       return;
     }
     setIsSyncingInBackground(true);
-    await ensureTraderOptions();
+    const loadedTraders = await ensureTraderOptions();
     setIsSyncingInBackground(false);
+    const explicitTraderId =
+      urlTraderId && urlTraderId !== 'all'
+        ? urlTraderId.trim()
+        : loadedTraders.length === 1
+        ? loadedTraders[0].id
+        : '';
+    if (!explicitTraderId) {
+      setImportFeedback(NO_TRADER_SELECTED_ERROR);
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
+      return;
+    }
     setIsFetchModalOpen(true);
   };
 
@@ -649,10 +778,18 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
     setIsImportingExcel(true);
     setImportFeedback(null);
     try {
-      const targetId =
-        urlTraderId && urlTraderId !== 'all'
-          ? urlTraderId
-          : activeTraderObj?.id || DEFAULT_TRADER_ID;
+      let targetId = urlTraderId && urlTraderId !== 'all' ? urlTraderId.trim() : '';
+      let matchedTrader = activeTraderObj;
+      if (!targetId) {
+        const loaded = traderOptions.length > 0 ? traderOptions : await ensureTraderOptions();
+        if (loaded.length === 1) {
+          targetId = loaded[0].id;
+          matchedTrader = loaded[0];
+        }
+      }
+      if (!targetId) {
+        throw new Error(NO_TRADER_SELECTED_ERROR);
+      }
       const preview = await previewSellerCentralFile(
         file,
         targetId,
@@ -660,7 +797,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       );
       setPendingImportPreview({
         ...preview,
-        traderName: activeTraderObj?.seller_name || modalTargetTrader.seller_name,
+        traderName: matchedTrader?.seller_name || modalTargetTrader.seller_name,
       });
       setIsFetchModalOpen(true);
     } catch (err) {
@@ -895,7 +1032,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       )}
 
       {fetchError && (
-        <EmergencyErrorBanner message="تعذر جلب المنتجات من قاعدة البيانات — لا توجد بيانات." />
+        <EmergencyErrorBanner
+          message={
+            fetchErrorMessage
+              ? `تعذر جلب المنتجات من Supabase: ${fetchErrorMessage}`
+              : 'تعذر جلب المنتجات من قاعدة البيانات — لا توجد بيانات.'
+          }
+          onRetry={() => fetchProductsAndTraders(urlTraderId, urlPlatform, 1, true)}
+        />
       )}
 
       <ErrorBoundary
@@ -906,7 +1050,15 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
         {filteredProducts.length === 0 ? (
           <GlobalEmptyState
             icon={<Package className="w-10 h-10 text-amber-400" />}
-            message={fetchError ? 'لا توجد بيانات' : urlTraderId && urlTraderId !== 'all' ? 'لا توجد منتجات لهذا التاجر' : 'كتالوج المنتجات فارغ'}
+            message={
+              fetchError
+                ? fetchErrorMessage
+                  ? `تعذر جلب المنتجات: ${fetchErrorMessage}`
+                  : 'لا توجد بيانات'
+                : urlTraderId && urlTraderId !== 'all'
+                ? 'لا توجد منتجات لهذا التاجر'
+                : 'كتالوج المنتجات فارغ'
+            }
             description="لم يتم إضافة أي منتجات لهذا التاجر بعد. يمكنك إضافة المنتجات يدوياً أو سحبها من رابط المتجر."
             actionLabel={isFiltered ? 'مسح الفلتر وعرض الكل' : 'إضافة منتج جديد'}
             onActionClick={isFiltered ? handleClearAllFilters : () => { ensureTraderOptions(); setIsAddModalOpen(true); }}
@@ -915,13 +1067,14 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           <VirtualProductGrid
             items={filteredProducts}
             keyExtractor={(product) => product.id}
-            estimatedRowHeight={430}
+            estimatedRowHeight={500}
             rowGap={20}
             overscanRows={2}
             maxViewportHeight={780}
             renderItem={(product) => (
               <ProductCard
                 product={product}
+                spApiConfigured={isAmazonSpApiConfigured()}
                 onPlatformChange={handlePlatformChange}
                 onViewDetails={(p) => setSelectedProductForDetails(p)}
               />
@@ -1096,8 +1249,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 p-1.5 shrink-0 overflow-hidden">
                   <OptimizedImage
-                    src={selectedProductForDetails.image_url || selectedProductForDetails.image}
+                    src={
+                      selectedProductForDetails.image_url ||
+                      selectedProductForDetails.image ||
+                      buildAmazonAsinImageUrl(selectedProductForDetails.asin)
+                    }
                     alt={selectedProductForDetails.title}
+                    asin={selectedProductForDetails.asin}
                     width={64}
                     height={64}
                     containerClassName="w-full h-full"
@@ -1112,8 +1270,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                     <span className="text-[11px] font-mono text-slate-400">
                       SKU: <strong className="text-sky-300">{selectedProductForDetails.sku}</strong>
                     </span>
+                    {selectedProductForDetails.asin && (
+                      <span className="text-[11px] font-mono text-sky-300">
+                        ASIN: {selectedProductForDetails.asin}
+                      </span>
+                    )}
                     <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                      المخزون: {selectedProductForDetails.stock || 0} قطعة
+                      المخزون: {selectedProductForDetails.stock ?? 0} قطعة
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white leading-snug">
@@ -1141,8 +1304,16 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 traderId={selectedProductForDetails.trader_id}
                 productId={selectedProductForDetails.id}
                 sku={selectedProductForDetails.sku}
+                asin={selectedProductForDetails.asin}
                 title={selectedProductForDetails.title}
                 currentPrice={Number(selectedProductForDetails.price || 0)}
+                competitorPrice={selectedProductForDetails.competitor_price ?? null}
+                buyBoxPrice={
+                  selectedProductForDetails.buy_box_price ??
+                  selectedProductForDetails.buybox_price ??
+                  null
+                }
+                competitorsCount={selectedProductForDetails.competitors_count ?? null}
                 platform={selectedProductForDetails.platform}
               />
             </ErrorBoundary>

@@ -18,6 +18,8 @@ import {
 
 export const DEFAULT_TRADER_ID = 'A37JIM7LHQI6IM';
 
+export const NO_TRADER_SELECTED_ERROR = 'لم يتم تحديد التاجر';
+
 export const IMPORT_BUTTON_LABEL = 'استورد ملف أمازون (TXT / Excel / CSV)';
 export const ACCEPTED_IMPORT_EXTENSIONS = '.txt,.csv,.tsv,.xlsx,.xls';
 
@@ -49,6 +51,8 @@ export const FOUNDER_AMAZON_WARNING_TEXT =
   'لا تدخل بحسابك على حساب التاجر - اطلب من التاجر الموافقة من حسابه هو';
 
 export const SP_API_SETTINGS_STORAGE_KEY = 'radar_amazon_sp_api_settings_v1';
+export const COMPETITOR_PRICES_STORAGE_KEY = 'radar_competitor_prices_v1';
+export const RADAR_COMPETITOR_PRICES_UPDATED_EVENT = 'radar_competitor_prices_updated';
 
 export interface AmazonSpApiCredentials {
   refreshToken: string;
@@ -58,6 +62,25 @@ export interface AmazonSpApiCredentials {
   marketplaceId?: string;
   region?: string;
   updatedAt?: string;
+}
+
+export interface CompetitorPriceRecord {
+  product_id?: string | null;
+  asin: string;
+  competitor_price: number | null;
+  buy_box_price: number | null;
+  competitors_count: number;
+  image_url?: string | null;
+  updated_at: string;
+}
+
+export interface CompetitorSyncStatus {
+  triggered: boolean;
+  spApiConfigured: boolean;
+  analyzedCount: number;
+  pricedCount: number;
+  updatedImagesCount: number;
+  message: string;
 }
 
 export interface SellerCentralImportedRow {
@@ -104,12 +127,14 @@ export interface ExcelImportSummary {
   newCount: number;
   updatedCount: number;
   skippedCount: number;
+  verifiedDbCount?: number;
   message: string;
   traderId: string;
   rows: SellerCentralImportedRow[];
   importId?: string;
   errorBreakdown?: ImportErrorBreakdown;
   rowErrors?: ImportRowErrorDetail[];
+  competitorSync?: CompetitorSyncStatus;
 }
 
 export interface ImportCommitMetadata {
@@ -128,6 +153,17 @@ export interface SpApiSyncOutcome {
   total?: number;
   newCount?: number;
   updatedCount?: number;
+}
+
+/**
+ * Constructs Amazon standard ASIN product image URL when image_url is missing in listing reports.
+ */
+export function buildAmazonAsinImageUrl(asin?: string | null): string {
+  const cleanAsin = String(asin || '').trim().toUpperCase();
+  if (!cleanAsin || !/^[A-Z0-9]{8,14}$/.test(cleanAsin)) {
+    return '';
+  }
+  return `https://images-na.ssl-images-amazon.com/images/P/${cleanAsin}.01.L.jpg`;
 }
 
 /**
@@ -369,14 +405,13 @@ export const TITLE_COLUMN_ALIASES = [
 ];
 
 export const PRICE_COLUMN_ALIASES = [
-  'price',
-  'currentprice',
-  'current price',
-  'السعر',
-  'السعرالحالي',
   'السعر الحالي',
-  'سعرالبيع',
-  'سعر البيع',
+  'السعرالحالي',
+  'السعر الحالي (egp)',
+  'السعر الحالي (ج.م)',
+  'current price',
+  'currentprice',
+  'price',
   'your price',
   'yourprice',
   'standard price',
@@ -385,20 +420,37 @@ export const PRICE_COLUMN_ALIASES = [
   'listingprice',
   'sale price',
   'saleprice',
-  'سعرالقائمة',
+  'السعر',
+  'السعر (ج.م)',
+  'سعر البيع',
+  'سعرالبيع',
+  'سعر العرض',
+  'سعرالعرض',
   'سعر القائمة',
+  'سعرالقائمة',
+  'سعر',
 ];
 
 export const STOCK_COLUMN_ALIASES = [
+  'الكمية',
+  'المتاح',
   'quantity',
   'stock',
   'qty',
-  'الكمية',
+  'الكمية المتاحة',
+  'الكميةالمتاحة',
+  'الكمية المتوفرة',
+  'الكميةالمتوفرة',
   'المخزون',
-  'المتاح',
+  'المخزون المتاح',
   'fulfillment channel quantity',
+  'fulfillable quantity',
+  'fulfillable-quantity',
   'available quantity',
+  'availablequantity',
   'available',
+  'كمية',
+  'العدد',
 ];
 
 export const IMAGE_COLUMN_ALIASES = [
@@ -467,6 +519,20 @@ export const PRIMARY_HEADER_ANCHORS = new Set([
   ...Array.from(TITLE_CANONICAL_SET),
 ]);
 
+function normalizeFuzzyArabicHeader(key: string): string {
+  return String(key || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/\([^)]*\)/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-–—/\\|:]+/g, ' ')
+    .trim();
+}
+
 function pickField(normRow: Record<string, any>, aliases: string[]): string {
   for (const alias of aliases) {
     const cleanA = cleanHeaderKey(alias);
@@ -479,16 +545,124 @@ function pickField(normRow: Record<string, any>, aliases: string[]): string {
   return '';
 }
 
-function parseNumericValue(raw: string, integer = false): number {
+function parseNumericValue(raw: string | number, integer = false): number {
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw < 0) return 0;
+    return integer ? Math.round(raw) : Math.round(raw * 100) / 100;
+  }
   if (!raw) return 0;
-  // Convert Arabic numerals if present and strip currency/commas
-  const arabicDigitsNormalized = raw.replace(/[٠-٩]/g, (d) =>
-    String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+  // Convert Arabic-Indic & Extended Arabic-Indic numerals, Arabic decimal/thousands separators
+  let text = String(raw)
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/٫/g, '.')
+    .replace(/٬/g, ',');
+
+  // Remove currency tokens BEFORE extracting numeric pattern so "ج.م." dot does not break decimals
+  text = text
+    .replace(/(ج\.?\s*م\.?|جنيه(?:\s+مصري)?|ر\.?\s*س\.?|د\.?\s*إ\.?|egp|sar|usd|aed|eur)/gi, ' ')
+    .trim();
+
+  // Handle thousands commas (e.g. "1,899.50" or "1,899") vs European/Arabic comma decimal ("1899,50")
+  if (text.includes(',') && !text.includes('.')) {
+    if (/^\s*-?\d+,\d{1,2}\s*$/.test(text)) {
+      text = text.replace(',', '.');
+    } else {
+      text = text.replace(/,/g, '');
+    }
+  } else {
+    text = text.replace(/,/g, '');
+  }
+
+  // Strip spaces between thousands digits e.g. "1 899.50"
+  text = text.replace(/(?<=\d)\s+(?=\d)/g, '');
+
+  const match = text.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return 0;
+  const num = integer ? parseInt(match[0], 10) : parseFloat(match[0]);
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return integer ? num : Math.round(num * 100) / 100;
+}
+
+function pickBestNumericField(
+  normRow: Record<string, any>,
+  rawRow: Record<string, any>,
+  aliases: string[],
+  fuzzyMatcher: (fuzzyHeader: string) => boolean,
+  integer: boolean
+): string {
+  const candidates: string[] = [];
+
+  for (const alias of aliases) {
+    const cleanA = cleanHeaderKey(alias);
+    const normA = normalizeHeaderKey(alias);
+    const val = normRow[cleanA] ?? normRow[normA] ?? normRow[alias];
+    if (val !== undefined && val !== null && String(val).trim() !== '') {
+      candidates.push(String(val).trim());
+    }
+  }
+
+  for (const rawKey of Object.keys(rawRow || {})) {
+    const val = rawRow[rawKey];
+    if (val === undefined || val === null || String(val).trim() === '') continue;
+    const fuzzyKey = normalizeFuzzyArabicHeader(rawKey);
+    if (fuzzyKey && fuzzyMatcher(fuzzyKey)) {
+      candidates.push(String(val).trim());
+    }
+  }
+
+  if (candidates.length === 0) return '';
+  const positiveCandidate = candidates.find((c) => parseNumericValue(c, integer) > 0);
+  return positiveCandidate || candidates[0];
+}
+
+function isFuzzyPriceHeader(fuzzyKey: string): boolean {
+  const isExcluded =
+    fuzzyKey.includes('competitor') ||
+    fuzzyKey.includes('buybox') ||
+    fuzzyKey.includes('buy box') ||
+    fuzzyKey.includes('min') ||
+    fuzzyKey.includes('max') ||
+    fuzzyKey.includes('shipping') ||
+    fuzzyKey.includes('ship') ||
+    fuzzyKey.includes('discount') ||
+    fuzzyKey.includes('tax') ||
+    fuzzyKey.includes('fee') ||
+    fuzzyKey.includes('منافس') ||
+    fuzzyKey.includes('ادني') ||
+    fuzzyKey.includes('اقصي') ||
+    fuzzyKey.includes('شحن') ||
+    fuzzyKey.includes('خصم') ||
+    fuzzyKey.includes('ضريب') ||
+    fuzzyKey.includes('عمول');
+  if (isExcluded) return false;
+  return (
+    fuzzyKey.includes('السعر الحالي') ||
+    fuzzyKey.includes('current price') ||
+    fuzzyKey.includes('your price') ||
+    fuzzyKey.includes('standard price') ||
+    fuzzyKey.includes('listing price') ||
+    fuzzyKey.includes('سعر البيع') ||
+    fuzzyKey.includes('سعر') ||
+    fuzzyKey === 'price' ||
+    fuzzyKey.endsWith(' price') ||
+    fuzzyKey.startsWith('price ')
   );
-  const cleaned = arabicDigitsNormalized.replace(/[^0-9.]/g, '');
-  if (!cleaned) return 0;
-  const num = integer ? parseInt(cleaned, 10) : parseFloat(cleaned);
-  return Number.isFinite(num) ? num : 0;
+}
+
+function isFuzzyStockHeader(fuzzyKey: string): boolean {
+  return (
+    fuzzyKey.includes('كمي') ||
+    fuzzyKey.includes('متاح') ||
+    fuzzyKey.includes('مخزون') ||
+    fuzzyKey.includes('quantity') ||
+    fuzzyKey.includes('stock') ||
+    fuzzyKey.includes('fulfillable') ||
+    fuzzyKey === 'qty' ||
+    fuzzyKey.includes(' qty') ||
+    fuzzyKey === 'available'
+  );
 }
 
 function decodeUtf16LeFallback(bytes: Uint8Array, startOffset = 0): string {
@@ -828,10 +1002,11 @@ export function mapRawSheetRowsToProductsDetailed(
   rows: Array<Record<string, any>>,
   options?: { traderId?: string; platform?: string; initialSkippedCount?: number }
 ): ParsedSellerCentralResult {
+  const rawOptTrader = String(options?.traderId || '').trim();
   const targetTraderId =
-    options?.traderId && options.traderId !== 'all'
-      ? options.traderId
-      : DEFAULT_TRADER_ID;
+    rawOptTrader && !['all', 'null', 'undefined'].includes(rawOptTrader.toLowerCase())
+      ? rawOptTrader
+      : '';
   const defaultPlatform = (options?.platform || 'amazon').toLowerCase();
 
   const dedupedBySku = new Map<string, SellerCentralImportedRow>();
@@ -933,10 +1108,23 @@ export function mapRawSheetRowsToProductsDetailed(
     const effectiveAsin = explicitAsin || productIdFallback || '';
     const effectiveTitle = rawTitle || (effectiveAsin ? `منتج ${effectiveAsin}` : rawSku);
 
-    const priceRaw = pickField(normRow, PRICE_COLUMN_ALIASES);
-    const stockRaw = pickField(normRow, STOCK_COLUMN_ALIASES);
+    const priceRaw = pickBestNumericField(
+      normRow,
+      rawRow,
+      PRICE_COLUMN_ALIASES,
+      isFuzzyPriceHeader,
+      false
+    );
+    const stockRaw = pickBestNumericField(
+      normRow,
+      rawRow,
+      STOCK_COLUMN_ALIASES,
+      isFuzzyStockHeader,
+      true
+    );
     const condition = pickField(normRow, CONDITION_COLUMN_ALIASES);
-    const imageUrl = pickField(normRow, IMAGE_COLUMN_ALIASES);
+    const explicitImageUrl = pickField(normRow, IMAGE_COLUMN_ALIASES);
+    const imageUrl = explicitImageUrl || buildAmazonAsinImageUrl(effectiveAsin);
 
     const rawProductUrl = pickField(normRow, [
       'product url',
@@ -1162,23 +1350,37 @@ export function isValidUuid(value?: string | null): boolean {
   return Boolean(value && UUID_REGEX.test(String(value).trim()));
 }
 
-/**
- * Resolves `trader_id` to a valid UUID from the `traders` table.
- * Prevents sending `seller_id` (e.g. A37JIM7LHQI6IM) or trader names into a UUID `trader_id` column.
- */
-export async function resolveValidTraderUuid(candidateId?: string): Promise<string> {
-  const clean = String(candidateId || '').trim();
-  if (isValidUuid(clean)) {
-    return clean;
+function sanitizeTraderCandidate(value?: string | null): string {
+  const clean = String(value || '').trim();
+  if (!clean) return '';
+  const lower = clean.toLowerCase();
+  if (lower === 'all' || lower === 'null' || lower === 'undefined') return '';
+  return clean;
+}
+
+function extractTraderIdFromCurrentUrl(): string {
+  if (typeof window === 'undefined' || !window.location) return '';
+
+  // 1. Check query string (?trader_id=...)
+  if (window.location.search) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const queryTraderId = sanitizeTraderCandidate(params.get('trader_id'));
+      if (queryTraderId) {
+        return queryTraderId;
+      }
+    } catch {
+      // ignore malformed query string
+    }
   }
 
-  // Extract UUID directly from current route (/traders/<uuid>) if present
-  if (typeof window !== 'undefined' && window.location?.pathname) {
+  // 2. Check pathname (/traders/<id>)
+  if (window.location.pathname) {
     const match = window.location.pathname.match(/\/traders\/([^/?#]+)/);
     if (match && match[1]) {
       try {
-        const pathId = decodeURIComponent(match[1]).trim();
-        if (isValidUuid(pathId)) {
+        const pathId = sanitizeTraderCandidate(decodeURIComponent(match[1]));
+        if (pathId) {
           return pathId;
         }
       } catch {
@@ -1187,52 +1389,91 @@ export async function resolveValidTraderUuid(candidateId?: string): Promise<stri
     }
   }
 
+  return '';
+}
+
+export function formatSupabaseImportError(err: any): string {
+  if (!err) return 'خطأ غير معروف في Supabase';
+  if (typeof err === 'string') return err;
+  const parts: string[] = [];
+  if (err.code) parts.push(`[${err.code}]`);
+  if (err.message) parts.push(String(err.message));
+  if (err.details) parts.push(String(err.details));
+  if (err.hint) parts.push(`(${err.hint})`);
+  return parts.join(' — ') || 'خطأ في قاعدة البيانات (Supabase)';
+}
+
+/**
+ * Resolves `trader_id` strictly from explicit selection / active page URL.
+ * Never reads trader_id from the uploaded file, never passes null/empty,
+ * and never falls back silently to the first trader in the table.
+ */
+export async function resolveValidTraderUuid(candidateId?: string): Promise<string> {
+  const explicitCandidate = sanitizeTraderCandidate(candidateId);
+  const urlCandidate = extractTraderIdFromCurrentUrl();
+  const effectiveCandidate = explicitCandidate || urlCandidate;
+
+  if (!effectiveCandidate) {
+    throw new Error(NO_TRADER_SELECTED_ERROR);
+  }
+
+  if (isValidUuid(effectiveCandidate)) {
+    return effectiveCandidate;
+  }
+
+  const lowerClean = effectiveCandidate.toLowerCase();
   try {
     const { data: tradersData } = await supabase
       .from('traders')
       .select('id, seller_id, seller_name, email, gmail');
 
     if (Array.isArray(tradersData) && tradersData.length > 0) {
-      const lowerClean = clean.toLowerCase();
       const uuidTraders = tradersData.filter((t: any) => isValidUuid(t?.id));
       if (uuidTraders.length > 0) {
-        const matchedUuidTrader =
-          uuidTraders.find(
-            (t: any) =>
-              t.id === clean ||
-              (lowerClean &&
-                (String(t.seller_id || '').trim().toLowerCase() === lowerClean ||
-                  String(t.seller_name || '').trim().toLowerCase() === lowerClean ||
-                  String(t.email || '').trim().toLowerCase() === lowerClean ||
-                  String(t.gmail || '').trim().toLowerCase() === lowerClean))
-          ) || uuidTraders[0];
-        return String(matchedUuidTrader.id).trim();
+        const matchedUuidTrader = uuidTraders.find(
+          (t: any) =>
+            String(t.id || '').trim() === effectiveCandidate ||
+            String(t.seller_id || '').trim().toLowerCase() === lowerClean ||
+            String(t.seller_name || '').trim().toLowerCase() === lowerClean ||
+            String(t.email || '').trim().toLowerCase() === lowerClean ||
+            String(t.gmail || '').trim().toLowerCase() === lowerClean
+        );
+        if (matchedUuidTrader?.id) {
+          return String(matchedUuidTrader.id).trim();
+        }
+        throw new Error(NO_TRADER_SELECTED_ERROR);
       }
 
       // Allow unit-test mock fixtures whose mock trader id is non-UUID when no real Supabase client is active
       if (!supabaseClient || typeof (supabaseClient as any).from !== 'function') {
-        const matchedMock =
-          tradersData.find(
-            (t: any) =>
-              t.id === clean ||
-              (lowerClean && String(t.seller_id || '').trim().toLowerCase() === lowerClean)
-          ) || tradersData[0];
+        const matchedMock = tradersData.find(
+          (t: any) =>
+            String(t.id || '').trim() === effectiveCandidate ||
+            String(t.seller_id || '').trim().toLowerCase() === lowerClean ||
+            String(t.seller_name || '').trim().toLowerCase() === lowerClean ||
+            String(t.email || '').trim().toLowerCase() === lowerClean ||
+            String(t.gmail || '').trim().toLowerCase() === lowerClean
+        );
         if (matchedMock?.id) {
           return String(matchedMock.id).trim();
         }
+        throw new Error(NO_TRADER_SELECTED_ERROR);
       }
     }
-  } catch {
+  } catch (err: any) {
+    if (err instanceof Error && err.message === NO_TRADER_SELECTED_ERROR) {
+      throw err;
+    }
     // non-fatal lookup fallback handled below
   }
 
   if (supabaseClient && typeof (supabaseClient as any).from === 'function') {
     throw new Error(
-      'لم يتم العثور على معرّف التاجر (UUID) الصحيح في جدول التجار — افتح ملف التاجر ثم أعد المحاولة'
+      `${NO_TRADER_SELECTED_ERROR} — تعذر مطابقة التاجر مع سجل تاجر صالح (UUID)`
     );
   }
 
-  return clean && clean !== 'all' ? clean : DEFAULT_TRADER_ID;
+  return effectiveCandidate;
 }
 
 const PRODUCT_INSERT_ALLOWED_KEYS = [
@@ -1316,6 +1557,8 @@ interface ExistingSkuSnapshot {
   title: string;
   price: number;
   stock: number;
+  image_url?: string | null;
+  hasImageUrlField?: boolean;
   updated_at?: string;
 }
 
@@ -1326,7 +1569,7 @@ async function fetchExistingTraderSkuMap(
   try {
     let { data: existingRows, error } = await supabase
       .from('products')
-      .select('id, sku, title, price, stock, updated_at')
+      .select('id, sku, title, price, stock, image_url, asin, updated_at')
       .eq('trader_id', targetTraderId);
 
     if (error && isMissingColumnSchemaError(error)) {
@@ -1345,6 +1588,8 @@ async function fetchExistingTraderSkuMap(
             title: String(r.title || r.sku || ''),
             price: Number(r.price ?? 0) || 0,
             stock: Number(r.stock ?? 0) || 0,
+            image_url: r.image_url,
+            hasImageUrlField: 'image_url' in r,
             updated_at: r.updated_at ? String(r.updated_at) : undefined,
           });
         }
@@ -1443,6 +1688,9 @@ export async function upsertImportedProductsToSupabase(
   importMeta?: ImportCommitMetadata
 ): Promise<ExcelImportSummary> {
   const targetTraderId = await resolveValidTraderUuid(traderId);
+  if (!targetTraderId) {
+    throw new Error(NO_TRADER_SELECTED_ERROR);
+  }
 
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error(EMPTY_FILE_ERROR_MESSAGE);
@@ -1452,8 +1700,13 @@ export async function upsertImportedProductsToSupabase(
   const existingBySku = await fetchExistingTraderSkuMap(targetTraderId);
 
   const toInsertFull: Array<Record<string, any>> = [];
-  const toUpdatePairs: Array<{ id: string; payload: { price: number; stock: number; updated_at: string } }> = [];
+  const toUpdatePairs: Array<{
+    id: string;
+    skuKey: string;
+    payload: { price: number; stock: number; updated_at: string; image_url?: string };
+  }> = [];
   const insertedProductIds: string[] = [];
+  const productIdsBySku = new Map<string, string>();
   const updatedSnapshots: ImportUpdatedSnapshot[] = [];
   const itemsPreview: ImportHistoryItemDetail[] = [];
 
@@ -1462,14 +1715,20 @@ export async function upsertImportedProductsToSupabase(
     const matched = existingBySku.get(skuKey);
 
     if (matched) {
-      // Existing SKU: update price and stock only — do not duplicate!
+      productIdsBySku.set(skuKey, matched.id);
+      const updatePayload: { price: number; stock: number; updated_at: string; image_url?: string } = {
+        price: row.price,
+        stock: row.stock,
+        updated_at: nowIso,
+      };
+      if (matched.hasImageUrlField && !matched.image_url && row.image_url) {
+        updatePayload.image_url = row.image_url;
+      }
+      // Existing SKU: update price & stock (and backfill missing image_url if absent in DB) — do not duplicate!
       toUpdatePairs.push({
         id: matched.id,
-        payload: {
-          price: row.price,
-          stock: row.stock,
-          updated_at: nowIso,
-        },
+        skuKey,
+        payload: updatePayload,
       });
       updatedSnapshots.push({
         id: matched.id,
@@ -1528,7 +1787,7 @@ export async function upsertImportedProductsToSupabase(
       }
 
       if (!isMissingColumnSchemaError(insertErr)) {
-        throw insertErr;
+        throw new Error(formatSupabaseImportError(insertErr));
       }
 
       const errMsg = String(insertErr?.message || insertErr?.details || insertErr?.hint || '').toLowerCase();
@@ -1556,13 +1815,17 @@ export async function upsertImportedProductsToSupabase(
     if (Array.isArray(insertedChunkRows)) {
       insertedChunkRows.forEach((insertedRow: any) => {
         if (insertedRow?.id) {
-          insertedProductIds.push(String(insertedRow.id));
+          const idStr = String(insertedRow.id);
+          insertedProductIds.push(idStr);
+          if (insertedRow?.sku) {
+            productIdsBySku.set(String(insertedRow.sku).trim().toUpperCase(), idStr);
+          }
         }
       });
     }
   }
 
-  // Update existing products (price & stock only) in concurrent batches of 15
+  // Update existing products in concurrent batches of 15
   const UPDATE_BATCH_SIZE = 15;
   for (let i = 0; i < toUpdatePairs.length; i += UPDATE_BATCH_SIZE) {
     const batch = toUpdatePairs.slice(i, i + UPDATE_BATCH_SIZE);
@@ -1574,7 +1837,7 @@ export async function upsertImportedProductsToSupabase(
           .eq('id', pair.id);
         if (updErr) {
           if (isMissingColumnSchemaError(updErr)) {
-            const { updated_at: _u, ...corePayload } = pair.payload;
+            const { updated_at: _u, image_url: _img, ...corePayload } = pair.payload;
             const { error: retryUpdErr } = await supabase
               .from('products')
               .update(corePayload)
@@ -1589,6 +1852,32 @@ export async function upsertImportedProductsToSupabase(
   }
 
   const normalizedRows = rows.map((r) => ({ ...r, trader_id: targetTraderId }));
+
+  // Trigger automatic competitor price analysis & catalog image enrichment after saving products
+  let competitorSync: CompetitorSyncStatus | undefined;
+  try {
+    const syncCandidates = normalizedRows
+      .filter((r) => Boolean(r.asin && r.asin.trim()))
+      .map((r) => ({
+        productId: productIdsBySku.get(r.sku.trim().toUpperCase()),
+        sku: r.sku,
+        asin: r.asin.trim().toUpperCase(),
+        price: r.price,
+        image_url: r.image_url,
+      }));
+    competitorSync = await syncCompetitorPricesAfterImport(syncCandidates, targetTraderId);
+  } catch {
+    competitorSync = {
+      triggered: false,
+      spApiConfigured: isAmazonSpApiConfigured(),
+      analyzedCount: 0,
+      pricedCount: 0,
+      updatedImagesCount: 0,
+      message: isAmazonSpApiConfigured()
+        ? 'تم حفظ المنتجات — تعذر إكمال تحليل أسعار المنافسين حالياً'
+        : 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+    };
+  }
 
   // Evaluate price alerts cleanly
   try {
@@ -1607,9 +1896,44 @@ export async function upsertImportedProductsToSupabase(
     // Non-blocking alert evaluation
   }
 
+  // Mandatory Post-Import Re-Fetch from Supabase to verify actual persisted product count
+  const {
+    data: verifiedRows,
+    error: verifyErr,
+    count: verifyCount,
+  } = await supabase
+    .from('products')
+    .select('id', { count: 'exact' })
+    .eq('trader_id', targetTraderId);
+
+  if (verifyErr) {
+    try {
+      localStorage.removeItem('radar_last_sync_stats');
+    } catch {}
+    throw new Error(formatSupabaseImportError(verifyErr));
+  }
+
+  const verifiedDbCount =
+    typeof verifyCount === 'number'
+      ? verifyCount
+      : Array.isArray(verifiedRows)
+      ? verifiedRows.length
+      : 0;
+
+  if (verifiedDbCount === 0) {
+    try {
+      localStorage.removeItem('radar_last_sync_stats');
+    } catch {}
+    throw new Error(
+      'فشل التحقق بعد الاستيراد: عدد المنتجات الفعلية في قاعدة البيانات لهذا التاجر = 0. تحقق من سياسات RLS أو معرّف التاجر (trader_id).'
+    );
+  }
+
   try {
     const stats = {
-      total: normalizedRows.length,
+      total: verifiedDbCount,
+      dbTotal: verifiedDbCount,
+      traderId: targetTraderId,
       new: toInsertFull.length,
       updated: toUpdatePairs.length,
       skipped: skippedCount,
@@ -1661,12 +1985,14 @@ export async function upsertImportedProductsToSupabase(
     newCount,
     updatedCount,
     skippedCount,
+    verifiedDbCount,
     message,
     traderId: targetTraderId,
     rows: normalizedRows,
     importId: recordedImportId,
     ...(importMeta?.errorBreakdown ? { errorBreakdown: importMeta.errorBreakdown } : {}),
     ...(importMeta?.rowErrors ? { rowErrors: importMeta.rowErrors } : {}),
+    ...(competitorSync ? { competitorSync } : {}),
   };
 }
 
@@ -1676,9 +2002,13 @@ export async function upsertImportedProductsToSupabase(
 export async function confirmSellerCentralImport(
   preview: SellerCentralImportPreview
 ): Promise<ExcelImportSummary> {
+  const effectiveTraderId = preview.traderId || extractTraderIdFromCurrentUrl();
+  if (!effectiveTraderId) {
+    throw new Error(NO_TRADER_SELECTED_ERROR);
+  }
   return upsertImportedProductsToSupabase(
     preview.rows,
-    preview.traderId,
+    effectiveTraderId,
     preview.skippedCount,
     {
       fileName: preview.fileName,
@@ -1820,3 +2150,428 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
     };
   }
 }
+
+export interface CompetitorSyncCandidate {
+  productId?: string;
+  sku: string;
+  asin: string;
+  price?: number;
+  image_url?: string;
+}
+
+export function getLocalCompetitorPricesMap(): Record<string, CompetitorPriceRecord> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(COMPETITOR_PRICES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveCompetitorPricesLocally(records: CompetitorPriceRecord[]): void {
+  if (typeof localStorage === 'undefined' || !Array.isArray(records) || records.length === 0) return;
+  try {
+    const map = getLocalCompetitorPricesMap();
+    for (const rec of records) {
+      if (!rec) continue;
+      const cleanAsin = String(rec.asin || '').trim().toUpperCase();
+      const pid = rec.product_id ? String(rec.product_id).trim() : '';
+      const normalized: CompetitorPriceRecord = {
+        product_id: pid || null,
+        asin: cleanAsin,
+        competitor_price:
+          typeof rec.competitor_price === 'number' && rec.competitor_price > 0
+            ? Math.round(rec.competitor_price * 100) / 100
+            : null,
+        buy_box_price:
+          typeof rec.buy_box_price === 'number' && rec.buy_box_price > 0
+            ? Math.round(rec.buy_box_price * 100) / 100
+            : null,
+        competitors_count: Math.max(0, Math.round(Number(rec.competitors_count || 0))),
+        ...(rec.image_url ? { image_url: rec.image_url } : {}),
+        updated_at: rec.updated_at || new Date().toISOString(),
+      };
+      if (pid) map[pid] = normalized;
+      if (cleanAsin) map[cleanAsin] = normalized;
+    }
+    localStorage.setItem(COMPETITOR_PRICES_STORAGE_KEY, JSON.stringify(map));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(RADAR_COMPETITOR_PRICES_UPDATED_EVENT));
+    }
+  } catch {
+    // non-fatal local cache failure
+  }
+}
+
+async function saveCompetitorPricesToSupabase(records: CompetitorPriceRecord[]): Promise<void> {
+  if (!records.length) return;
+  saveCompetitorPricesLocally(records);
+
+  // Build strict Supabase `competitor_prices` rows:
+  // product_id - asin - competitor_price - buy_box_price - competitors_count - updated_at
+  const dbRows = records
+    .filter((r) => Boolean(r.asin))
+    .map((r) => ({
+      product_id: r.product_id || null,
+      asin: String(r.asin).trim().toUpperCase(),
+      competitor_price:
+        typeof r.competitor_price === 'number' && r.competitor_price > 0
+          ? r.competitor_price
+          : null,
+      buy_box_price:
+        typeof r.buy_box_price === 'number' && r.buy_box_price > 0
+          ? r.buy_box_price
+          : null,
+      competitors_count: Math.max(0, Math.round(Number(r.competitors_count || 0))),
+      updated_at: r.updated_at || new Date().toISOString(),
+    }));
+
+  if (dbRows.length === 0) return;
+
+  try {
+    // Fetch existing competitor_prices rows for trader ASINs so we update instead of duplicating
+    const existingByAsin = new Map<string, string>();
+    try {
+      const { data: existingData } = await supabase
+        .from('competitor_prices')
+        .select('id, product_id, asin');
+      if (Array.isArray(existingData)) {
+        existingData.forEach((row: any) => {
+          const k = row?.product_id
+            ? String(row.product_id)
+            : row?.asin
+            ? String(row.asin).trim().toUpperCase()
+            : '';
+          if (row?.id && k) existingByAsin.set(k, String(row.id));
+          if (row?.id && row?.asin) existingByAsin.set(String(row.asin).trim().toUpperCase(), String(row.id));
+        });
+      }
+    } catch {
+      // ignore if table/columns not yet queried cleanly
+    }
+
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: string; payload: any }> = [];
+
+    for (const row of dbRows) {
+      const existingId =
+        (row.product_id && existingByAsin.get(String(row.product_id))) ||
+        existingByAsin.get(row.asin);
+      if (existingId) {
+        toUpdate.push({ id: existingId, payload: row });
+      } else {
+        toInsert.push(row);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      await supabase.from('competitor_prices').insert(toInsert);
+    }
+
+    if (toUpdate.length > 0) {
+      const BATCH = 15;
+      for (let i = 0; i < toUpdate.length; i += BATCH) {
+        await Promise.all(
+          toUpdate.slice(i, i + BATCH).map(async (u) => {
+            await supabase.from('competitor_prices').update(u.payload).eq('id', u.id);
+          })
+        );
+      }
+    }
+  } catch {
+    // Graceful fallback: local competitor cache already saved
+  }
+}
+
+/**
+ * Automatically fetches competitor prices (lowest competitor price, Buy Box, competitors count)
+ * and SP-API catalog item images (/catalog/2022-04-01/items/{asin}) via Supabase Edge Function
+ * immediately after import confirmation. Never throws or blocks import completion.
+ */
+export async function syncCompetitorPricesAfterImport(
+  candidates: CompetitorSyncCandidate[],
+  traderId?: string
+): Promise<CompetitorSyncStatus> {
+  const uniqueByAsin = new Map<string, CompetitorSyncCandidate>();
+  for (const c of candidates || []) {
+    const cleanAsin = String(c?.asin || '').trim().toUpperCase();
+    if (cleanAsin && !uniqueByAsin.has(cleanAsin)) {
+      uniqueByAsin.set(cleanAsin, { ...c, asin: cleanAsin });
+    }
+  }
+  const uniqueItems = Array.from(uniqueByAsin.values());
+  const settings = getAmazonSpApiSettings();
+  const spApiConfigured = isAmazonSpApiConfigured(settings);
+
+  if (uniqueItems.length === 0) {
+    return {
+      triggered: false,
+      spApiConfigured,
+      analyzedCount: 0,
+      pricedCount: 0,
+      updatedImagesCount: 0,
+      message: spApiConfigured
+        ? 'لا توجد أكواد ASIN لتحليل أسعار المنافسين'
+        : 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+    };
+  }
+
+  if (!spApiConfigured) {
+    return {
+      triggered: false,
+      spApiConfigured: false,
+      analyzedCount: uniqueItems.length,
+      pricedCount: 0,
+      updatedImagesCount: 0,
+      message: 'اربط SP-API لجلب أسعار المنافسين تلقائياً',
+    };
+  }
+
+  if (!supabaseClient || !supabaseClient.functions) {
+    return {
+      triggered: false,
+      spApiConfigured: true,
+      analyzedCount: uniqueItems.length,
+      pricedCount: 0,
+      updatedImagesCount: 0,
+      message: 'تعذر الاتصال بخدمة SP-API Edge Function حالياً',
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  const collectedRecords: CompetitorPriceRecord[] = [];
+  const catalogImageUpdates: Array<{ productId?: string; asin: string; imageUrl: string }> = [];
+  const BATCH_SIZE = 20;
+
+  for (let i = 0; i < uniqueItems.length; i += BATCH_SIZE) {
+    const batch = uniqueItems.slice(i, i + BATCH_SIZE);
+    try {
+      const { data, error } = await supabaseClient.functions.invoke('amazon-competitor-prices', {
+        body: {
+          action: 'analyze_competitor_prices_and_catalog',
+          refreshToken: settings.refreshToken,
+          clientId: settings.clientId,
+          clientSecret: settings.clientSecret,
+          sellerId: settings.sellerId || DEFAULT_TRADER_ID,
+          marketplaceId: settings.marketplaceId || 'ARBP9OOSHTCHU',
+          region: settings.region || 'eu-west-1',
+          traderId,
+          includeCatalogImages: true,
+          catalogEndpointTemplate: '/catalog/2022-04-01/items/{asin}',
+          asins: batch.map((b) => b.asin),
+          items: batch.map((b) => ({
+            product_id: b.productId || null,
+            asin: b.asin,
+            sku: b.sku,
+            current_price: b.price || 0,
+          })),
+        },
+      });
+
+      if (error || !data || data.success === false) {
+        continue;
+      }
+
+      const rawResults: any[] =
+        (Array.isArray(data.results) && data.results) ||
+        (Array.isArray(data.competitorPrices) && data.competitorPrices) ||
+        (Array.isArray(data.prices) && data.prices) ||
+        (Array.isArray(data.items) && data.items) ||
+        (Array.isArray(data.data) && data.data) ||
+        [];
+
+      for (const item of rawResults) {
+        if (!item || typeof item !== 'object') continue;
+        const asin = String(item.asin || '').trim().toUpperCase();
+        if (!asin) continue;
+
+        const candidate = uniqueByAsin.get(asin);
+        const rawCompetitorPrice = Number(
+          item.competitor_price ??
+            item.lowest_competitor_price ??
+            item.lowestCompetitorPrice ??
+            item.lowest_price ??
+            item.competitorPrice ??
+            0
+        );
+        const rawBuyBox = Number(
+          item.buy_box_price ?? item.buybox_price ?? item.buyBoxPrice ?? 0
+        );
+        const competitorsCount = Math.max(
+          0,
+          Math.round(
+            Number(
+              item.competitors_count ??
+                item.competitorsCount ??
+                item.offer_count ??
+                item.offersCount ??
+                0
+            )
+          )
+        );
+        const catalogImg = String(
+          item.image_url ?? item.catalog_image_url ?? item.mainImageUrl ?? ''
+        ).trim();
+
+        const validCompetitorPrice =
+          Number.isFinite(rawCompetitorPrice) && rawCompetitorPrice > 0
+            ? Math.round(rawCompetitorPrice * 100) / 100
+            : null;
+        const validBuyBoxPrice =
+          Number.isFinite(rawBuyBox) && rawBuyBox > 0
+            ? Math.round(rawBuyBox * 100) / 100
+            : null;
+
+        if (validCompetitorPrice !== null || validBuyBoxPrice !== null || competitorsCount > 0) {
+          collectedRecords.push({
+            product_id: item.product_id || candidate?.productId || null,
+            asin,
+            competitor_price: validCompetitorPrice,
+            buy_box_price: validBuyBoxPrice,
+            competitors_count: competitorsCount,
+            ...(catalogImg ? { image_url: catalogImg } : {}),
+            updated_at: item.updated_at || nowIso,
+          });
+        }
+
+        if (catalogImg && /^https?:\/\//i.test(catalogImg)) {
+          catalogImageUpdates.push({
+            productId: item.product_id || candidate?.productId,
+            asin,
+            imageUrl: catalogImg,
+          });
+        }
+      }
+    } catch {
+      // Non-blocking: keep product import intact even if Edge Function fails
+    }
+  }
+
+  if (collectedRecords.length > 0) {
+    await saveCompetitorPricesToSupabase(collectedRecords);
+  }
+
+  let updatedImagesCount = 0;
+  for (const imgUpd of catalogImageUpdates) {
+    try {
+      if (imgUpd.productId) {
+        const { error: imgErr } = await supabase
+          .from('products')
+          .update({ image_url: imgUpd.imageUrl, updated_at: nowIso })
+          .eq('id', imgUpd.productId);
+        if (!imgErr) updatedImagesCount++;
+      }
+    } catch {
+      // ignore non-fatal image update failure
+    }
+  }
+
+  const pricedCount = collectedRecords.filter(
+    (r) => (r.competitor_price && r.competitor_price > 0) || (r.buy_box_price && r.buy_box_price > 0)
+  ).length;
+
+  return {
+    triggered: true,
+    spApiConfigured: true,
+    analyzedCount: uniqueItems.length,
+    pricedCount,
+    updatedImagesCount,
+    message:
+      pricedCount > 0
+        ? `تم تحليل أسعار المنافسين لـ ${pricedCount} منتج تلقائياً`
+        : 'تم تشغيل تحليل أسعار المنافسين عبر SP-API',
+  };
+}
+
+/**
+ * Fetches competitor_prices from Supabase + local cache and merges competitor_price,
+ * buybox_price, competitors_count, and ASIN image fallbacks cleanly onto products.
+ */
+export async function mergeCompetitorPricesOntoProducts<T extends Record<string, any>>(
+  products: T[]
+): Promise<T[]> {
+  if (!Array.isArray(products) || products.length === 0) return products;
+
+  const byProductId = new Map<string, CompetitorPriceRecord>();
+  const byAsin = new Map<string, CompetitorPriceRecord>();
+
+  const localMap = getLocalCompetitorPricesMap();
+  Object.values(localMap).forEach((rec) => {
+    if (!rec || typeof rec !== 'object') return;
+    if (rec.product_id) byProductId.set(String(rec.product_id), rec);
+    if (rec.asin) byAsin.set(String(rec.asin).trim().toUpperCase(), rec);
+  });
+
+  try {
+    const { data: remoteRows, error } = await supabase
+      .from('competitor_prices')
+      .select('product_id, asin, competitor_price, buy_box_price, competitors_count, updated_at');
+
+    if (!error && Array.isArray(remoteRows)) {
+      remoteRows.forEach((row: any) => {
+        if (!row) return;
+        const cleanAsin = row.asin ? String(row.asin).trim().toUpperCase() : '';
+        const rec: CompetitorPriceRecord = {
+          product_id: row.product_id ? String(row.product_id) : null,
+          asin: cleanAsin,
+          competitor_price:
+            Number(row.competitor_price) > 0 ? Number(row.competitor_price) : null,
+          buy_box_price:
+            Number(row.buy_box_price ?? row.buybox_price) > 0
+              ? Number(row.buy_box_price ?? row.buybox_price)
+              : null,
+          competitors_count: Math.max(0, Number(row.competitors_count || 0)),
+          updated_at: row.updated_at || new Date().toISOString(),
+        };
+        if (rec.product_id) byProductId.set(rec.product_id, rec);
+        if (cleanAsin) byAsin.set(cleanAsin, rec);
+      });
+    }
+  } catch {
+    // Graceful fallback if competitor_prices table isn't created yet
+  }
+
+  return products.map((p) => {
+    const pid = p?.id ? String(p.id) : '';
+    const asinKey = p?.asin ? String(p.asin).trim().toUpperCase() : '';
+    const match = (pid && byProductId.get(pid)) || (asinKey && byAsin.get(asinKey));
+
+    const existingComp = Number(p?.competitor_price || 0);
+    const existingBuyBox = Number(p?.buybox_price || p?.buy_box_price || 0);
+
+    const competitorPrice =
+      match?.competitor_price && match.competitor_price > 0
+        ? match.competitor_price
+        : existingComp > 0
+        ? existingComp
+        : undefined;
+
+    const buyBoxPrice =
+      match?.buy_box_price && match.buy_box_price > 0
+        ? match.buy_box_price
+        : existingBuyBox > 0
+        ? existingBuyBox
+        : undefined;
+
+    const competitorsCount =
+      match && typeof match.competitors_count === 'number'
+        ? match.competitors_count
+        : typeof p?.competitors_count === 'number'
+        ? p.competitors_count
+        : undefined;
+
+    const fallbackImageUrl = p?.image_url || p?.image || buildAmazonAsinImageUrl(asinKey);
+
+    return {
+      ...p,
+      ...(fallbackImageUrl && !p?.image_url ? { image_url: fallbackImageUrl } : {}),
+      ...(competitorPrice !== undefined ? { competitor_price: competitorPrice } : {}),
+      ...(buyBoxPrice !== undefined ? { buybox_price: buyBoxPrice, buy_box_price: buyBoxPrice } : {}),
+      ...(competitorsCount !== undefined ? { competitors_count: competitorsCount } : {}),
+    };
+  });
+}
+

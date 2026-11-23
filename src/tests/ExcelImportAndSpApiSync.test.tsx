@@ -11,10 +11,12 @@ import {
   FRIENDLY_PULL_FAILURE_MESSAGE,
   IMPORT_BUTTON_LABEL,
   MISSING_SKU_COLUMN_PREFIX,
+  NO_TRADER_SELECTED_ERROR,
   REPORT_STILL_PROCESSING_MESSAGE,
   SP_API_SETTINGS_STORAGE_KEY,
   UNRECOGNIZED_COLUMNS_PREFIX,
   UNSUPPORTED_FILE_ERROR_MESSAGE,
+  buildAmazonAsinImageUrl,
   cleanHeaderKey,
   sanitizeProductPullError,
   parseSellerCentralWorkbook,
@@ -25,9 +27,11 @@ import {
   saveAmazonSpApiSettings,
 } from '../utils/sellerCentralExcelImporter';
 import { FetchProductsModal } from '../components/FetchProductsModal';
+import { OptimizedImage } from '../components/OptimizedImage';
 import { ProductsPage } from '../components/ProductsPage';
 import { TradersPage } from '../components/TradersPage';
 import { AccountSettingsPage } from '../components/AccountSettingsPage';
+import { dataCache } from '../utils/dataCache';
 
 const {
   mockInsert,
@@ -37,10 +41,12 @@ const {
   existingProductRowsRef,
   insertedBatchesRef,
   updatedPayloadsRef,
+  productsEqCallsRef,
 } = vi.hoisted(() => {
   const existingProductRowsRef: { current: any[] } = { current: [] };
   const insertedBatchesRef: { current: any[][] } = { current: [] };
   const updatedPayloadsRef: { current: Array<{ id: string; payload: any }> } = { current: [] };
+  const productsEqCallsRef: { current: Array<{ col: string; val: any }> } = { current: [] };
 
   const mockInsert = vi.fn(async (rows: any[]) => {
     insertedBatchesRef.current.push(rows);
@@ -50,6 +56,7 @@ const {
         r.id ||
         `11111111-1111-4111-8111-${String(insertedBatchesRef.current.length * 1000 + idx + 1).padStart(12, '0')}`,
     }));
+    existingProductRowsRef.current = [...existingProductRowsRef.current, ...dbRows];
     return { data: dbRows, error: null };
   });
 
@@ -80,6 +87,7 @@ const {
     existingProductRowsRef,
     insertedBatchesRef,
     updatedPayloadsRef,
+    productsEqCallsRef,
   };
 });
 
@@ -98,41 +106,48 @@ vi.mock('../lib/supabase', () => {
   ];
 
   const buildChain = (tableName: string) => {
+    let activeTraderFilter: string | null = null;
+    const getFilteredProducts = () =>
+      activeTraderFilter
+        ? existingProductRowsRef.current.filter(
+            (r) => !r.trader_id || r.trader_id === activeTraderFilter
+          )
+        : existingProductRowsRef.current;
+
     const chain: any = {
       select: vi.fn((_fields?: string, _opts?: any) => chain),
-      eq: vi.fn((col: string, _val: any) => {
-        if (tableName === 'products' && col === 'trader_id') {
-          return {
-            data: existingProductRowsRef.current,
-            error: null,
-            order: vi.fn(() => chain),
-            range: vi.fn(async () => ({
-              data: existingProductRowsRef.current,
-              error: null,
-              count: existingProductRowsRef.current.length,
-            })),
-            then: (onFulfilled: any) =>
-              Promise.resolve({ data: existingProductRowsRef.current, error: null }).then(onFulfilled),
-          };
+      eq: vi.fn((col: string, val: any) => {
+        if (tableName === 'products') {
+          productsEqCallsRef.current.push({ col, val });
+          if (col === 'trader_id') {
+            activeTraderFilter = String(val);
+          }
         }
         return chain;
       }),
       order: vi.fn(() => chain),
-      range: vi.fn(async () => ({
-        data: tableName === 'traders' ? mahmoudTraderFixture : existingProductRowsRef.current,
-        error: null,
-        count: tableName === 'traders' ? 1 : existingProductRowsRef.current.length,
-      })),
+      range: vi.fn(async () => {
+        const data =
+          tableName === 'traders' ? mahmoudTraderFixture : getFilteredProducts();
+        return {
+          data,
+          error: null,
+          count: data.length,
+        };
+      }),
       insert: mockInsert,
       update: mockUpdate,
       delete: vi.fn(() => chain),
       single: vi.fn(async () => ({ data: null, error: null })),
-      then: (onFulfilled: any) =>
-        Promise.resolve({
-          data: tableName === 'traders' ? mahmoudTraderFixture : existingProductRowsRef.current,
+      then: (onFulfilled: any) => {
+        const data =
+          tableName === 'traders' ? mahmoudTraderFixture : getFilteredProducts();
+        return Promise.resolve({
+          data,
           error: null,
-          count: tableName === 'traders' ? 1 : existingProductRowsRef.current.length,
-        }).then(onFulfilled),
+          count: data.length,
+        }).then(onFulfilled);
+      },
     };
     return chain;
   };
@@ -141,6 +156,9 @@ vi.mock('../lib/supabase', () => {
     supabase: {
       from: vi.fn((tableName: string) => buildChain(tableName)),
     },
+    formatSupabaseError: vi.fn((err: any) =>
+      typeof err === 'string' ? err : err?.message || 'Supabase Error'
+    ),
     supabaseClient: {
       functions: {
         invoke: mockFunctionsInvoke,
@@ -208,13 +226,17 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    dataCache.invalidate('');
     existingProductRowsRef.current = [];
     insertedBatchesRef.current = [];
     updatedPayloadsRef.current = [];
+    productsEqCallsRef.current = [];
+    window.history.replaceState({}, '', '/');
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    window.history.replaceState({}, '', '/');
   });
 
   it('blocks direct browser fetch on pull click and shows Seller Central TXT instructions and security warning', async () => {
@@ -876,4 +898,380 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
       if (baseImpl) origFrom.mockImplementation(baseImpl);
     }
   });
+
+  it('parses Arabic Amazon Egypt prices with currency/commas (not 0), extracts stock from المتاح/الكمية, and auto-builds ASIN image_url', async () => {
+    const tsv = [
+      'item-name\tseller-sku\tasin\tالسعر الحالي (EGP)\tالمتاح',
+      'راوتر هوائي 5G منزلي\tEG-RTR-01\tB09ROUTER1\t1,899.50 ج.م\t14',
+      'كاميرا مراقبة ذكية\tEG-CAM-02\tB08CAM2026\tج.م 2,450\t7',
+    ].join('\n');
+
+    const parsed = await parseSellerCentralWorkbookDetailed(new TextEncoder().encode(tsv), {
+      fileName: 'amazon-egypt-formatted.txt',
+      traderId: DEFAULT_TRADER_ID,
+    });
+
+    expect(parsed.totalRead).toBe(2);
+    expect(parsed.rows[0].price).toBe(1899.5);
+    expect(parsed.rows[0].stock).toBe(14);
+    expect(parsed.rows[0].image_url).toBe(
+      'https://images-na.ssl-images-amazon.com/images/P/B09ROUTER1.01.L.jpg'
+    );
+
+    expect(parsed.rows[1].price).toBe(2450);
+    expect(parsed.rows[1].stock).toBe(7);
+    expect(parsed.rows[1].image_url).toBe(
+      buildAmazonAsinImageUrl('B08CAM2026')
+    );
+  });
+
+  it('renders ASIN placeholder when OptimizedImage source fails or is absent', () => {
+    const { container } = render(
+      <OptimizedImage
+        src="https://images-na.ssl-images-amazon.com/images/P/B09FAIL999.01.L.jpg"
+        alt="منتج تجريبي"
+        asin="B09FAIL999"
+      />
+    );
+
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(img).toBeTruthy();
+    fireEvent.error(img);
+
+    expect(screen.getByTestId('asin-placeholder-B09FAIL999')).toBeInTheDocument();
+    expect(screen.getByText('ASIN: B09FAIL999')).toBeInTheDocument();
+  });
+
+  it('automatically triggers competitor price Edge Function on import confirm when SP-API is configured, stores competitor_prices, and displays price difference + 30-day chart', async () => {
+    saveAmazonSpApiSettings({
+      refreshToken: 'Atzr|ValidToken',
+      clientId: 'amzn1.client.id',
+      clientSecret: 'amzn1.client.secret',
+      sellerId: 'A37JIM7LHQI6IM',
+    });
+
+    const competitorPriceInserts: any[] = [];
+    const competitorRowsStored: any[] = [];
+    const { supabase } = await import('../lib/supabase');
+    const origFrom = supabase.from as any;
+    const baseImpl = origFrom.getMockImplementation();
+
+    origFrom.mockImplementation((tableName: string) => {
+      const chain = baseImpl(tableName);
+      if (tableName === 'competitor_prices') {
+        chain.insert = vi.fn(async (rows: any[]) => {
+          competitorPriceInserts.push(...rows);
+          competitorRowsStored.push(...rows);
+          return { data: rows, error: null };
+        });
+        chain.then = (onFulfilled: any) =>
+          Promise.resolve({ data: competitorRowsStored, error: null }).then(onFulfilled);
+      }
+      return chain;
+    });
+
+    mockFunctionsInvoke.mockImplementation(async (fnName: string) => {
+      if (fnName === 'amazon-competitor-prices') {
+        return {
+          data: {
+            success: true,
+            results: [
+              {
+                asin: 'B09HIGH001',
+                competitor_price: 1750,
+                buy_box_price: 1790,
+                competitors_count: 5,
+                image_url: 'https://m.media-amazon.com/images/I/high001.jpg',
+              },
+              {
+                asin: 'B09LOW0002',
+                competitor_price: 900,
+                buy_box_price: 920,
+                competitors_count: 3,
+              },
+            ],
+          },
+          error: null,
+        };
+      }
+      return { data: { success: true }, error: null };
+    });
+
+    try {
+      const txtContent = [
+        'item-name\tseller-sku\tasin\tالسعر الحالي\tالكمية',
+        'شاشة كمبيوتر 27 بوصة\tSKU-COMP-1\tB09HIGH001\t1899\t6',
+        'كيبورد ميكانيكي ألعاب\tSKU-COMP-2\tB09LOW0002\t800\t12',
+      ].join('\n');
+      const file = makeMockTextFile('listings-with-competitors.txt', txtContent);
+
+      render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={vi.fn()}
+          trader={{
+            id: DEFAULT_TRADER_ID,
+            user_id: 'founder',
+            seller_name: 'محمود سعيد',
+            email: 'mahmeudsaid4@gmail.com',
+            phone: '',
+            platform: 'amazon',
+            status: 'active',
+            seller_id: DEFAULT_TRADER_ID,
+          }}
+        />
+      );
+
+      fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+        target: { files: [file] },
+      });
+
+      const previewPanel = await screen.findByTestId('import-preview-panel');
+      fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد الاستيراد/i }));
+
+      await waitFor(() => {
+        expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+          'amazon-competitor-prices',
+          expect.objectContaining({
+            body: expect.objectContaining({
+              asins: ['B09HIGH001', 'B09LOW0002'],
+              includeCatalogImages: true,
+            }),
+          })
+        );
+      });
+
+      expect(competitorPriceInserts).toHaveLength(2);
+      expect(competitorPriceInserts[0]).toEqual(
+        expect.objectContaining({
+          asin: 'B09HIGH001',
+          competitor_price: 1750,
+          buy_box_price: 1790,
+          competitors_count: 5,
+        })
+      );
+
+      // Populate DB products as returned after import & verify ProductsPage renders comparison
+      const allInserted = insertedBatchesRef.current.flat();
+      existingProductRowsRef.current = allInserted.map((r, i) => ({
+        ...r,
+        id: `44444444-4444-4444-8444-${String(i + 1).padStart(12, '0')}`,
+      }));
+
+      render(<ProductsPage onShowToast={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1,899 ج\.م/)).toBeInTheDocument();
+        expect(screen.getByText(/1,750 ج\.م/)).toBeInTheDocument();
+        expect(screen.getByText(/أغلى بـ 149 ج\.م/)).toBeInTheDocument();
+        expect(screen.getByText(/أرخص بـ 100 ج\.م/)).toBeInTheDocument();
+      });
+
+      // Open 30-day price analysis modal and confirm competitor comparison renders cleanly
+      const analyzeButtons = screen.getAllByRole('button', { name: /تحليل السعر \(30 يوم\)/i });
+      fireEvent.click(analyzeButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/تحليل السعر ومقارنة المنافسين/i)).toBeInTheDocument();
+        expect(screen.getByText(/سعر Buy Box/i)).toBeInTheDocument();
+      });
+    } finally {
+      if (baseImpl) origFrom.mockImplementation(baseImpl);
+    }
+  });
+
+  it('shows "-" (never 0) and connect SP-API CTA on ProductCard when SP-API is not configured', async () => {
+    localStorage.removeItem(SP_API_SETTINGS_STORAGE_KEY);
+    existingProductRowsRef.current = [
+      {
+        id: '55555555-5555-4555-8555-000000000001',
+        trader_id: 'fbb0e12e-16f5-42d9-924a-c2b39a87541a',
+        title: 'منتج بدون ربط SP-API',
+        sku: 'NO-SPAPI-1',
+        asin: 'B09NOSPAPI',
+        price: 1250,
+        stock: 9,
+        platform: 'amazon',
+      },
+    ];
+
+    render(<ProductsPage onShowToast={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('اربط SP-API لجلب أسعار المنافسين تلقائياً')).toBeInTheDocument();
+      expect(screen.getByText('سعر المنافس الأقل:')).toBeInTheDocument();
+    });
+
+    // Competitor price shows '-' and NOT '0 ج.م'
+    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.queryByText(/^0 ج\.م$/)).not.toBeInTheDocument();
+  });
+
+  it('rejects import with "لم يتم تحديد التاجر" when trader_id is empty/null/all and never picks first trader blindly', async () => {
+    await expect(resolveValidTraderUuid('')).rejects.toThrow(NO_TRADER_SELECTED_ERROR);
+    await expect(resolveValidTraderUuid('all')).rejects.toThrow(NO_TRADER_SELECTED_ERROR);
+    await expect(resolveValidTraderUuid('null')).rejects.toThrow(NO_TRADER_SELECTED_ERROR);
+
+    const file = makeMockTextFile(
+      'listings-no-trader.txt',
+      'item-name\tseller-sku\tasin\tprice\tquantity\ttrader_id\nمنتج بدون تاجر\tSKU-NT-1\tB09NT0001\t500\t10\tFAKE-FILE-TRADER'
+    );
+
+    // Even if file itself contains a trader_id column, import must still throw when page/selected trader_id is empty
+    await expect(importSellerCentralFile(file, '')).rejects.toThrow(NO_TRADER_SELECTED_ERROR);
+    expect(insertedBatchesRef.current).toHaveLength(0);
+  });
+
+  it('uses the selected trader card trader_id (ignoring file trader_id & ignoring first trader) and filters ProductsPage by trader_id ONLY without platform', async () => {
+    const FIRST_TRADER_UUID = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+
+    const { supabase } = await import('../lib/supabase');
+    const origFrom = supabase.from as any;
+    const baseImpl = origFrom.getMockImplementation();
+
+    const twoTraders = [
+      {
+        id: FIRST_TRADER_UUID,
+        user_id: 'founder',
+        seller_name: 'تاجر أول مختلف',
+        email: 'first@example.com',
+        platform: 'amazon',
+        status: 'active',
+        seller_id: 'A111111111',
+      },
+      {
+        id: TARGET_TRADER_UUID,
+        user_id: 'founder',
+        seller_name: 'محمود سعيد',
+        email: 'mahmeudsaid4@gmail.com',
+        platform: 'amazon',
+        status: 'active',
+        seller_id: 'A37JIM7LHQI6IM',
+      },
+    ];
+
+    origFrom.mockImplementation((tableName: string) => {
+      const chain = baseImpl(tableName);
+      if (tableName === 'traders') {
+        chain.then = (onFulfilled: any) =>
+          Promise.resolve({ data: twoTraders, error: null, count: 2 }).then(onFulfilled);
+        chain.range = vi.fn(async () => ({ data: twoTraders, error: null, count: 2 }));
+      }
+      return chain;
+    });
+
+    try {
+      const header = 'sku-البائع\tasin\tالسعر الحالي\tالكمية\ttrader_id';
+      const lines = Array.from({ length: 106 }, (_, i) => {
+        const idx = i + 1;
+        return `MS106-SKU-${idx}\tB09MS${String(idx).padStart(5, '0')}\t${400 + idx}\t${(idx % 12) + 1}\tWRONG-FILE-TRADER-ID`;
+      });
+      const txtFile = makeMockTextFile('mahmoud-106.txt', [header, ...lines].join('\n'));
+
+      render(
+        <FetchProductsModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onShowToast={vi.fn()}
+          trader={twoTraders[1] as any}
+        />
+      );
+
+      fireEvent.change(screen.getByTestId('modal-excel-file-input'), {
+        target: { files: [txtFile] },
+      });
+
+      const previewPanel = await screen.findByTestId('import-preview-panel');
+      fireEvent.click(within(previewPanel).getByRole('button', { name: /تأكيد الاستيراد/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('status')).toHaveTextContent('في قاعدة البيانات: 106');
+      });
+
+      const inserted = insertedBatchesRef.current.flat();
+      expect(inserted).toHaveLength(106);
+      expect(inserted[0].trader_id).toBe(TARGET_TRADER_UUID);
+      expect(inserted[105].trader_id).toBe(TARGET_TRADER_UUID);
+
+      // Simulate navigating to /products?trader_id=fbb0e12e-...&platform=amazon
+      productsEqCallsRef.current = [];
+      window.history.replaceState(
+        {},
+        '',
+        `/products?trader_id=${TARGET_TRADER_UUID}&platform=amazon`
+      );
+
+      render(<ProductsPage onShowToast={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('virtual-product-grid')).toHaveAttribute(
+          'data-total-items',
+          '106'
+        );
+      });
+
+      // Verify Supabase products query ONLY filtered by trader_id and NEVER passed eq('platform', ...)
+      expect(
+        productsEqCallsRef.current.some(
+          (c) => c.col === 'trader_id' && c.val === TARGET_TRADER_UUID
+        )
+      ).toBe(true);
+      expect(productsEqCallsRef.current.some((c) => c.col === 'platform')).toBe(false);
+    } finally {
+      if (baseImpl) origFrom.mockImplementation(baseImpl);
+    }
+  });
+
+  it('throws real Supabase error and suppresses fake "106 imported" count when post-import Supabase re-fetch returns 0 rows or RLS error', async () => {
+    const TARGET_TRADER_UUID = 'fbb0e12e-16f5-42d9-924a-c2b39a87541a';
+    const { supabase } = await import('../lib/supabase');
+    const origFrom = supabase.from as any;
+    const baseImpl = origFrom.getMockImplementation();
+
+    // Case 1: Supabase re-fetch after insert returns 0 rows
+    origFrom.mockImplementation((tableName: string) => {
+      const chain = baseImpl(tableName);
+      if (tableName === 'products') {
+        chain.then = (onFulfilled: any) =>
+          Promise.resolve({ data: [], error: null, count: 0 }).then(onFulfilled);
+      }
+      return chain;
+    });
+
+    try {
+      const file = makeMockTextFile(
+        'rls-blocked.txt',
+        'item-name\tseller-sku\tasin\tprice\tquantity\nمنتج محظور\tSKU-RLS-1\tB09RLS001\t200\t3'
+      );
+
+      await expect(importSellerCentralFile(file, TARGET_TRADER_UUID)).rejects.toThrow(
+        /عدد المنتجات الفعلية في قاعدة البيانات لهذا التاجر = 0/
+      );
+      expect(localStorage.getItem('radar_last_sync_stats')).toBeNull();
+
+      // Case 2: Supabase re-fetch returns real RLS error
+      origFrom.mockImplementation((tableName: string) => {
+        const chain = baseImpl(tableName);
+        if (tableName === 'products') {
+          chain.then = (onFulfilled: any) =>
+            Promise.resolve({
+              data: null,
+              error: { code: '42501', message: 'permission denied for table products' },
+              count: 0,
+            }).then(onFulfilled);
+        }
+        return chain;
+      });
+
+      await expect(importSellerCentralFile(file, TARGET_TRADER_UUID)).rejects.toThrow(
+        /permission denied for table products/
+      );
+      expect(localStorage.getItem('radar_last_sync_stats')).toBeNull();
+    } finally {
+      if (baseImpl) origFrom.mockImplementation(baseImpl);
+    }
+  });
 });
+
