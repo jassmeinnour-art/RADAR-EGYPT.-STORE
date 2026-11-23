@@ -5,8 +5,8 @@ import { dataCache } from '../utils/dataCache';
 import { FetchProductsModal } from './FetchProductsModal';
 import {
   ACCEPTED_IMPORT_EXTENSIONS,
-  DEFAULT_TRADER_ID,
   IMPORT_BUTTON_LABEL,
+  NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
   previewSellerCentralFile,
   sanitizeProductPullError,
@@ -191,12 +191,16 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
   const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!trader.id) {
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
+      if (excelInputRef.current) excelInputRef.current.value = '';
+      return;
+    }
     setIsImportingExcel(true);
     try {
-      const targetId = trader.id || DEFAULT_TRADER_ID;
       const preview = await previewSellerCentralFile(
         file,
-        targetId,
+        trader.id,
         form.platform || trader.platform || 'amazon'
       );
       setPendingPreview(preview);

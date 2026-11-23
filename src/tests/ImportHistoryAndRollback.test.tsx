@@ -41,6 +41,7 @@ const {
         `99999999-9999-4999-8999-${String(insertedRowsRef.current.length + idx + 1).padStart(12, '0')}`,
     }));
     insertedRowsRef.current.push(...dbRows);
+    existingProductRowsRef.current = [...existingProductRowsRef.current, ...dbRows];
     return { data: dbRows, error: null };
   });
 

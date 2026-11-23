@@ -40,9 +40,9 @@ import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../util
 import { FetchProductsModal } from './FetchProductsModal';
 import {
   ACCEPTED_IMPORT_EXTENSIONS,
-  DEFAULT_TRADER_ID,
   DIRECT_FETCH_BLOCKED_MESSAGE,
   IMPORT_BUTTON_LABEL,
+  NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
   invokeAmazonSpApiSyncEdgeFunction,
   isAmazonSpApiConfigured,
@@ -160,9 +160,15 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
       return;
     }
 
+    if (!traderId) {
+      setPullNotice(NO_TRADER_SELECTED_ERROR);
+      if (onShowToast) onShowToast(NO_TRADER_SELECTED_ERROR);
+      return;
+    }
+
     setIsScrapingStorefront(true);
     try {
-      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId || DEFAULT_TRADER_ID);
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId);
       if (!outcome.success) {
         const cleanMsg = sanitizeProductPullError(outcome.message);
         setPullNotice(cleanMsg);
@@ -190,13 +196,18 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
       if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
       return;
     }
+    if (!traderId) {
+      setPullNotice(NO_TRADER_SELECTED_ERROR);
+      if (onShowToast) onShowToast(NO_TRADER_SELECTED_ERROR);
+      return;
+    }
 
     setIsImportingExcel(true);
     setPullNotice(null);
     try {
       const preview = await previewSellerCentralFile(
         file,
-        traderId || DEFAULT_TRADER_ID,
+        traderId,
         trader?.platform || 'amazon'
       );
       setPendingPreview(preview);

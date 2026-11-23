@@ -45,7 +45,9 @@ export interface Product {
   product_url?: string;
   condition?: string;
   buybox_price?: number;
+  buy_box_price?: number;
   competitor_price?: number;
+  competitors_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -1330,8 +1332,16 @@ class SupabaseQueryBuilder {
         if (res.error) {
           return { data: null, error: res.error };
         }
-      } catch (err) {
-        console.warn(`[Supabase Insert Fallback on ${this.tableName}]:`, err);
+        return {
+          data: null,
+          error: { message: `فشل الحفظ في Supabase (${this.tableName}): لم يتم إرجاع صفوف بعد الإدخال` },
+        };
+      } catch (err: any) {
+        console.warn(`[Supabase Insert Error on ${this.tableName}]:`, err);
+        return {
+          data: null,
+          error: err instanceof Error ? { message: err.message } : err || { message: `Supabase insert error on ${this.tableName}` },
+        };
       }
     }
 
@@ -1367,6 +1377,31 @@ class SupabaseQueryBuilder {
         const combined = [...toAdd, ...existing];
         localStorage.setItem(key, JSON.stringify(combined));
         return { data: this.isSingle ? toAdd[0] : toAdd, error: null };
+      }
+      if (this.tableName === 'competitor_prices') {
+        const key = 'radar_competitor_prices_v1';
+        const raw = localStorage.getItem(key);
+        const existingMap: Record<string, any> = raw ? JSON.parse(raw) : {};
+        arr.forEach((item: any) => {
+          if (!item) return;
+          const mapKey = item.product_id || item.asin;
+          if (mapKey) {
+            existingMap[String(mapKey)] = {
+              ...existingMap[String(mapKey)],
+              ...item,
+              updated_at: item.updated_at || new Date().toISOString(),
+            };
+          }
+          if (item.asin) {
+            existingMap[String(item.asin).trim().toUpperCase()] = {
+              ...existingMap[String(item.asin).trim().toUpperCase()],
+              ...item,
+              updated_at: item.updated_at || new Date().toISOString(),
+            };
+          }
+        });
+        localStorage.setItem(key, JSON.stringify(existingMap));
+        return { data: this.isSingle ? arr[0] : arr, error: null };
       }
     } catch (e) {
       return { data: null, error: e };
@@ -1953,6 +1988,26 @@ class SupabaseQueryBuilder {
           }
         }
       } catch {}
+    } else if (this.tableName === 'competitor_prices') {
+      try {
+        const raw = localStorage.getItem('radar_competitor_prices_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const seen = new Set<string>();
+            Object.values(parsed).forEach((entry: any) => {
+              if (!entry || typeof entry !== 'object') return;
+              const uniq = `${entry.product_id || ''}__${entry.asin || ''}`;
+              if (!seen.has(uniq)) {
+                seen.add(uniq);
+                dataset.push(entry);
+              }
+            });
+          } else if (Array.isArray(parsed)) {
+            dataset = parsed;
+          }
+        }
+      } catch {}
     }
 
     // Apply filters
@@ -2144,6 +2199,9 @@ CREATE POLICY "founder_all_traders" ON public.traders FOR ALL TO authenticated
     auth.uid() = founder_uid
     OR LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com'
   );
+
+CREATE POLICY "founder_select_products" ON public.products FOR SELECT TO authenticated
+  USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com');
 
 CREATE POLICY "founder_all_products" ON public.products FOR ALL TO authenticated
   USING (LOWER(COALESCE(auth.email(), auth.jwt() ->> 'email')) = 'jassmeinnour@gmail.com')

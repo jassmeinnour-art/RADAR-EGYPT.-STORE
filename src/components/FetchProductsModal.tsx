@@ -21,10 +21,11 @@ import { navigate } from '../utils/navigation';
 import {
   ACCEPTED_IMPORT_EXTENSIONS,
   AMAZON_TXT_GUIDE_TEXT,
-  DEFAULT_TRADER_ID,
+  CompetitorSyncStatus,
   DIRECT_FETCH_BLOCKED_MESSAGE,
   FOUNDER_AMAZON_WARNING_TEXT,
   IMPORT_BUTTON_LABEL,
+  NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
   confirmSellerCentralImport,
   invokeAmazonSpApiSyncEdgeFunction,
@@ -38,7 +39,13 @@ interface FetchProductsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onShowToast?: (message: string) => void;
-  onSyncCompleted?: (stats: { total: number; new: number; updated: number; skipped?: number }) => void;
+  onSyncCompleted?: (stats: {
+    total: number;
+    dbTotal?: number;
+    new: number;
+    updated: number;
+    skipped?: number;
+  }) => void;
   initialPreview?: SellerCentralImportPreview | null;
 }
 
@@ -57,12 +64,14 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   const [previewData, setPreviewData] = useState<SellerCentralImportPreview | null>(initialPreview);
   const [fetchStats, setFetchStats] = useState<{
     total: number;
+    dbTotal?: number;
     new: number;
     updated: number;
     skipped?: number;
   } | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [competitorSyncStatus, setCompetitorSyncStatus] = useState<CompetitorSyncStatus | null>(null);
   const [lastImportErrors, setLastImportErrors] = useState<ImportRowErrorDetail[]>([]);
   const [lastImportFileName, setLastImportFileName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +81,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setFetchStats(null);
     setImportMessage(null);
     setFetchError(null);
+    setCompetitorSyncStatus(null);
     setLastImportErrors([]);
     setLastImportFileName(undefined);
   }, [trader, isOpen, initialPreview]);
@@ -79,13 +89,23 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   if (!isOpen) return null;
 
   const traderGmail = trader.gmail || trader.email || '';
-  const targetTraderId = trader.id && trader.id !== 'all' ? trader.id : DEFAULT_TRADER_ID;
+  const rawTraderId = String(trader?.id || '').trim();
+  const targetTraderId =
+    rawTraderId && !['all', 'null', 'undefined'].includes(rawTraderId.toLowerCase())
+      ? rawTraderId
+      : '';
   const spApiReady = isAmazonSpApiConfigured();
 
   const handleStartFetch = async () => {
     if (isMaintenanceMode) {
       setFetchError(MAINTENANCE_MODE_BLOCK_MESSAGE);
       onShowToast?.(MAINTENANCE_MODE_BLOCK_MESSAGE);
+      return;
+    }
+
+    if (!targetTraderId) {
+      setFetchError(NO_TRADER_SELECTED_ERROR);
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
       return;
     }
 
@@ -139,6 +159,13 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       return;
     }
 
+    if (!targetTraderId) {
+      setFetchError(NO_TRADER_SELECTED_ERROR);
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsParsingFile(true);
     setFetchError(null);
     setFetchStats(null);
@@ -175,21 +202,32 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       return;
     }
 
+    const effectiveTraderId = targetTraderId || previewData.traderId;
+    if (!effectiveTraderId) {
+      setFetchError(NO_TRADER_SELECTED_ERROR);
+      onShowToast?.(NO_TRADER_SELECTED_ERROR);
+      return;
+    }
+
     setIsConfirmingImport(true);
     setFetchError(null);
+    setCompetitorSyncStatus(null);
     try {
       const summary = await confirmSellerCentralImport({
         ...previewData,
+        traderId: effectiveTraderId,
         traderName: previewData.traderName || trader.seller_name,
       });
       const stats = {
-        total: summary.total,
+        total: summary.verifiedDbCount ?? summary.total,
+        dbTotal: summary.verifiedDbCount,
         new: summary.newCount,
         updated: summary.updatedCount,
         skipped: summary.skippedCount,
       };
       setLastImportErrors(summary.rowErrors || previewData.rowErrors || []);
       setLastImportFileName(previewData.fileName);
+      setCompetitorSyncStatus(summary.competitorSync || null);
       setFetchStats(stats);
       setImportMessage(summary.message);
       setPreviewData(null);
@@ -197,6 +235,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       onShowToast?.(summary.message);
     } catch (err) {
       const cleanMsg = sanitizeProductPullError(err);
+      setFetchStats(null);
+      setImportMessage(null);
       setFetchError(cleanMsg);
       onShowToast?.(cleanMsg);
     } finally {
@@ -410,7 +450,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                   {isConfirmingImport ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>جاري حفظ المنتجات...</span>
+                      <span>جاري حفظ المنتجات وتحليل أسعار المنافسين...</span>
                     </>
                   ) : (
                     <>
@@ -443,7 +483,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
           {fetchStats && (
             <div
               role="status"
-              className="p-4 bg-emerald-900/25 border border-emerald-500/40 rounded-2xl text-center space-y-1.5"
+              className="p-4 bg-emerald-900/25 border border-emerald-500/40 rounded-2xl text-center space-y-2"
             >
               <div className="flex items-center justify-center gap-1.5 text-sm font-black text-emerald-400">
                 <CheckCircle2 className="w-4 h-4" />
@@ -453,8 +493,34 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-emerald-200 font-mono">
-                مقروء: {fetchStats.total} | جديد: {fetchStats.new} | محدّث: {fetchStats.updated} | متخطى: {fetchStats.skipped || 0}
+                في قاعدة البيانات: {fetchStats.dbTotal ?? fetchStats.total} | جديد: {fetchStats.new} | محدّث: {fetchStats.updated} | متخطى: {fetchStats.skipped || 0}
               </p>
+
+              {competitorSyncStatus && (
+                <div
+                  data-testid="competitor-sync-status"
+                  className={`p-2.5 rounded-xl border text-xs font-bold flex flex-wrap items-center justify-center gap-2 ${
+                    competitorSyncStatus.spApiConfigured
+                      ? 'bg-sky-950/50 border-sky-500/35 text-sky-200'
+                      : 'bg-amber-950/40 border-amber-500/35 text-amber-200'
+                  }`}
+                >
+                  <span>{competitorSyncStatus.message}</span>
+                  {!competitorSyncStatus.spApiConfigured && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate('/settings');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black cursor-pointer"
+                    >
+                      ربط SP-API
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="pt-1">
                 <button
                   type="button"

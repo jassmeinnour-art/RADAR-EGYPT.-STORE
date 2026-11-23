@@ -35,7 +35,8 @@ import { GlobalEmptyState } from './GlobalEmptyState';
 import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { EditTraderModal } from './EditTraderModal';
 import { FetchProductsModal } from './FetchProductsModal';
-import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
+import { OptimizedImage } from './OptimizedImage';
+import { IMPORT_BUTTON_LABEL, buildAmazonAsinImageUrl } from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
 
 
@@ -709,6 +710,9 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
                 : 'text-sky-400 bg-sky-500/10 border-sky-500/20';
 
+              const resolvedImg =
+                product.image_url || product.image || buildAmazonAsinImageUrl(product.asin);
+
               return (
                 <div
                   key={product.id}
@@ -724,6 +728,16 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                       </span>
                     </div>
 
+                    <OptimizedImage
+                      src={resolvedImg}
+                      alt={product.title}
+                      asin={product.asin}
+                      width={280}
+                      height={150}
+                      containerClassName="w-full h-[150px]"
+                      maxThumbWidth={320}
+                    />
+
                     <h4 className="text-sm font-black text-white line-clamp-2 leading-snug">
                       {product.title}
                     </h4>
@@ -732,13 +746,13 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                       <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
                         <div className="text-[10px] text-slate-500 font-bold mb-0.5">السعر</div>
                         <div className="text-sm font-black text-white font-mono">
-                          {product.price.toLocaleString()} ج.م
+                          {Number(product.price || 0).toLocaleString()} ج.م
                         </div>
                       </div>
                       <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/60">
                         <div className="text-[10px] text-slate-500 font-bold mb-0.5">المخزون</div>
                         <div className="text-sm font-black text-emerald-400 font-mono">
-                          {product.stock || 0}
+                          {Number(product.stock ?? 0).toLocaleString()}
                         </div>
                       </div>
                     </div>

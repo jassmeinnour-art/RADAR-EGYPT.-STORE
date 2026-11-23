@@ -973,16 +973,28 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
           isOpen={isFetchModalOpen}
           onClose={() => setIsFetchModalOpen(false)}
           onShowToast={onShowToast}
-          onSyncCompleted={() => {
+          onSyncCompleted={(stats) => {
             const nowIso = new Date().toISOString();
+            const updatedCount =
+              typeof stats?.dbTotal === 'number'
+                ? stats.dbTotal
+                : typeof stats?.total === 'number'
+                ? stats.total
+                : undefined;
             setTraders((prev) =>
               prev.map((t) =>
                 t.id === selectedTraderForFetch.id
-                  ? { ...t, last_sync_at: nowIso, last_sync_timestamp: nowIso }
+                  ? {
+                      ...t,
+                      last_sync_at: nowIso,
+                      last_sync_timestamp: nowIso,
+                      ...(updatedCount !== undefined ? { products_count: updatedCount } : {}),
+                    }
                   : t
               )
             );
             dataCache.invalidate('traders');
+            void fetchTraders(1, true);
           }}
         />
       )}
