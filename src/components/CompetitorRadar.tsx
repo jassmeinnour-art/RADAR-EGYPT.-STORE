@@ -1360,11 +1360,11 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               🛋️
             </div>
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-900 font-['Alexandria']">
-                لا توجد عروض منافسين مسجلة لقطعة الأثاث الحالية ({product.title})
+              <h4 className="text-sm font-black text-slate-900 font-['Alexandria']">
+                لا يوجد منافسين حقيقيين بعد - أضف منافس يدوياً بالرابط
               </h4>
               <p className="text-xs text-slate-600 max-w-lg mx-auto leading-relaxed">
-                يعمل محرك الرادار بنمط <strong className="text-indigo-700 font-bold">المطابقة الصارم لقطاع الأثاث والمفروشات</strong>. تم تلقائياً استبعاد أي بيانات وهمية أو منتجات خارج تخصص الأثاث. أنت البائع الحصري لهذا المنتج حالياً، أو يمكنك استيراد ملف CSV مخصص بأسعار منافسي الأثاث الفعليين.
+                تم حذف كافة المنافسين الوهميين نهائياً. المنافس الحقيقي فقط هو المرتبط بـ ASIN حقيقي أو الذي يضيفه المؤسس يدوياً بالرابط والسعر.
               </p>
             </div>
             {onOpenChannelCompetitorImport && (

@@ -15,7 +15,8 @@ import {
   History,
   Link2,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react';
 import { supabase, formatSupabaseError, Product, Trader, isDemoOrOrphanProduct } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -23,6 +24,7 @@ import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
 import { SyncReportDisplay } from './SyncReportDisplay';
 import { FetchProductsModal } from './FetchProductsModal';
+import { AiCompetitorDiscoveryModal } from './AiCompetitorDiscoveryModal';
 import { dataCache } from '../utils/dataCache';
 import { DraggableHandle } from './DraggableHandle';
 import { OptimizedImage } from './OptimizedImage';
@@ -69,7 +71,8 @@ const ProductCard: React.FC<{
   spApiConfigured: boolean;
   onPlatformChange: (p: string) => void;
   onViewDetails: (product: Product) => void;
-}> = React.memo(({ product, spApiConfigured, onPlatformChange, onViewDetails }) => {
+  onOpenAiDiscovery: (product: Product) => void;
+}> = React.memo(({ product, spApiConfigured, onPlatformChange, onViewDetails, onOpenAiDiscovery }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const hasPlatform = Boolean(product.platform && product.platform.trim());
   const platLower = (product.platform || '').toLowerCase();
@@ -220,6 +223,12 @@ const ProductCard: React.FC<{
             </span>
           </div>
 
+          {lowestCompetitorPrice === null && (
+            <div className="pt-1.5 border-t border-slate-800/70 text-[10px] text-amber-300/90 font-bold">
+              لا يوجد منافسين بعد - الصق رابط المنافس
+            </div>
+          )}
+
           {priceDiff !== null ? (
             <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-800/70">
               <span className="text-[11px] text-slate-400 font-bold">الفرق:</span>
@@ -256,6 +265,19 @@ const ProductCard: React.FC<{
             </div>
           ) : null}
         </div>
+
+        {/* AI Competitor Discovery Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenAiDiscovery(product);
+          }}
+          className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30 text-amber-300 border border-orange-500/40 text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
+        >
+          <Sparkles className="w-4 h-4 text-orange-400" />
+          <span>اكتشاف المنافسين بالذكاء الاصطناعي 🤖</span>
+        </button>
       </div>
 
       <div className="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between gap-2 text-[10px] text-slate-500">
@@ -298,6 +320,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isFetchModalOpen, setIsFetchModalOpen] = useState<boolean>(false);
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
+  const [selectedProductForAiDiscovery, setSelectedProductForAiDiscovery] = useState<Product | null>(null);
   const [heatmapFilter, setHeatmapFilter] = useState<ActiveHeatmapSelection | null>(null);
   const [isSyncingInBackground, setIsSyncingInBackground] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -641,6 +664,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       price: parseFloat(newPrice) || 0,
       stock: parseInt(newStock, 10) || 0,
       trader_id: targetTrader,
+      platform: 'amazon',
       status: 'active',
     };
 
@@ -1181,11 +1205,24 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
                 spApiConfigured={isAmazonSpApiConfigured()}
                 onPlatformChange={handlePlatformChange}
                 onViewDetails={(p) => setSelectedProductForDetails(p)}
+                onOpenAiDiscovery={(p) => setSelectedProductForAiDiscovery(p)}
               />
             )}
           />
         )}
       </ErrorBoundary>
+
+      {selectedProductForAiDiscovery && (
+        <AiCompetitorDiscoveryModal
+          product={selectedProductForAiDiscovery}
+          isOpen={Boolean(selectedProductForAiDiscovery)}
+          onClose={() => setSelectedProductForAiDiscovery(null)}
+          onShowToast={onShowToast}
+          onCompetitorSaved={() => {
+            fetchProductsAndTraders(urlTraderId, urlPlatform, 1, true);
+          }}
+        />
+      )}
 
       {products.length > 0 && products.length < totalCount && (
         <div className="flex flex-col items-center justify-center gap-3 pt-6">
