@@ -170,6 +170,7 @@ export const THEME_PRESETS: PrimaryThemeConfig[] = [
 const LOCAL_STORAGE_THEME_KEY = 'radar_global_primary_theme_v7_offwhite_black';
 const LOCAL_STORAGE_COLOR_MODE_KEY = 'radar_global_color_mode_v7_offwhite_black';
 export const LOCAL_STORAGE_THEME_VARIANT_KEY = 'radar_active_theme_variant';
+export const LOCAL_STORAGE_HIGH_CONTRAST_KEY = 'radar_high_contrast_mode';
 const THEME_CACHE_PURGE_KEY = 'radar_soft_offwhite_black_cache_purged_v7';
 
 export type ColorModePreference = 'system' | 'light' | 'dark' | 'scheduled';
@@ -213,6 +214,9 @@ interface ThemeContextType {
   resolvedColorMode: ResolvedColorMode;
   themeVariant: ThemeVariantId;
   systemColorScheme: ResolvedColorMode;
+  isHighContrast: boolean;
+  setHighContrast: (enabled: boolean) => void;
+  toggleHighContrast: () => boolean;
   setColorMode: (mode: ColorModePreference) => void;
   setThemeVariant: (variant: ThemeVariantId) => void;
   toggleColorMode: () => void;
@@ -305,6 +309,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
 
+  const [isHighContrast, setIsHighContrastState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem(LOCAL_STORAGE_HIGH_CONTRAST_KEY) === 'true';
+      } catch {}
+    }
+    return false;
+  });
+
   // Listen to OS system color scheme changes
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -387,6 +400,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentTheme, resolvedColorMode]);
 
+  useEffect(() => {
+    syncHighContrastDomAndStorage(isHighContrast);
+  }, [isHighContrast]);
+
   const setPrimaryTheme = (themeId: PrimaryThemeId) => {
     if (THEME_PRESETS.some(t => t.id === themeId)) {
       setCurrentThemeId(themeId);
@@ -398,6 +415,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const resetToDefaultTheme = () => {
     setCurrentThemeId('sky');
     setColorModeState('light');
+    setIsHighContrastState(false);
+  };
+
+  const setHighContrast = (enabled: boolean) => {
+    setIsHighContrastState(Boolean(enabled));
+  };
+
+  const toggleHighContrast = (): boolean => {
+    const next = !isHighContrast;
+    setIsHighContrastState(next);
+    return next;
   };
 
   const setColorMode = (mode: ColorModePreference) => {
@@ -451,6 +479,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         resolvedColorMode,
         themeVariant,
         systemColorScheme,
+        isHighContrast,
+        setHighContrast,
+        toggleHighContrast,
         setColorMode,
         setThemeVariant,
         toggleColorMode,
@@ -475,6 +506,9 @@ const FALLBACK_THEME_CONTEXT: ThemeContextType = {
   resolvedColorMode: 'light',
   themeVariant: 'clean-light',
   systemColorScheme: 'light',
+  isHighContrast: false,
+  setHighContrast: () => {},
+  toggleHighContrast: () => false,
   setColorMode: () => {},
   setThemeVariant: () => {},
   toggleColorMode: () => {},
@@ -482,14 +516,59 @@ const FALLBACK_THEME_CONTEXT: ThemeContextType = {
   cycleColorMode: () => 'light',
 };
 
-export const useTheme = (): ThemeContextType => {
+function readStoredHighContrast(): boolean {
+  if (typeof window === 'undefined') return false;
   try {
-    const context = useContext(ThemeContext);
-    if (!context) {
-      return FALLBACK_THEME_CONTEXT;
-    }
-    return context;
+    return localStorage.getItem(LOCAL_STORAGE_HIGH_CONTRAST_KEY) === 'true';
   } catch {
-    return FALLBACK_THEME_CONTEXT;
+    return false;
   }
+}
+
+function syncHighContrastDomAndStorage(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const root = document.documentElement;
+    root.setAttribute('data-high-contrast', enabled ? 'true' : 'false');
+    if (enabled) {
+      root.classList.add('high-contrast');
+    } else {
+      root.classList.remove('high-contrast');
+    }
+    localStorage.setItem(LOCAL_STORAGE_HIGH_CONTRAST_KEY, enabled ? 'true' : 'false');
+  } catch {
+    // safe fallback
+  }
+}
+
+export const useTheme = (): ThemeContextType => {
+  const context = useContext(ThemeContext);
+  const [standaloneHighContrast, setStandaloneHighContrast] = useState<boolean>(() =>
+    readStoredHighContrast()
+  );
+
+  useEffect(() => {
+    if (!context) {
+      syncHighContrastDomAndStorage(standaloneHighContrast);
+    }
+  }, [context, standaloneHighContrast]);
+
+  if (!context) {
+    return {
+      ...FALLBACK_THEME_CONTEXT,
+      isHighContrast: standaloneHighContrast,
+      setHighContrast: (enabled: boolean) => {
+        const next = Boolean(enabled);
+        setStandaloneHighContrast(next);
+        syncHighContrastDomAndStorage(next);
+      },
+      toggleHighContrast: () => {
+        const next = !standaloneHighContrast;
+        setStandaloneHighContrast(next);
+        syncHighContrastDomAndStorage(next);
+        return next;
+      },
+    };
+  }
+  return context;
 };

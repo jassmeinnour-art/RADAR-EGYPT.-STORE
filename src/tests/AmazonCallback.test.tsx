@@ -5,7 +5,15 @@ import { resolvePathToTab } from '../utils/navigation';
 import {
   AmazonCallbackPage,
   AMAZON_CALLBACK_SUCCESS_MESSAGE,
+  AMAZON_CALLBACK_WHATSAPP_INSTRUCTION,
+  extractSellerIdFromOAuthState,
 } from '../components/AmazonCallbackPage';
+import {
+  buildMerchantAmazonAuthorizeUrl,
+  AMAZON_OAUTH_CLIENT_ID,
+  AMAZON_OAUTH_REDIRECT_URI,
+} from '../utils/sellerCentralExcelImporter';
+import { getAmazonSellerCentralConsentUrl } from '../utils/platformLaunchHelper';
 import App from '../App';
 
 const {
@@ -84,7 +92,7 @@ vi.mock('../lib/supabase', async (importOriginal) => {
   };
 });
 
-describe('/auth/amazon-callback route & AmazonCallbackPage', () => {
+describe('/auth/amazon-callback route & OAuth link generation', () => {
   beforeEach(() => {
     updateCallsRef.current = [];
     clipboardWriteMock.mockClear();
@@ -115,6 +123,26 @@ describe('/auth/amazon-callback route & AmazonCallbackPage', () => {
     vi.restoreAllMocks();
   });
 
+  it('builds the exact /ap/oa authorization URL with fixed client_id and per-trader state=[name]_[sellerId]', () => {
+    const expectedPrefix = `https://www.amazon.com/ap/oa?client_id=${AMAZON_OAUTH_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=`;
+
+    const urlMahmoud = buildMerchantAmazonAuthorizeUrl('A37JIM7LHQI6IM', 'محمود سعيد');
+    expect(urlMahmoud).toBe(`${expectedPrefix}${encodeURIComponent('محمود سعيد_A37JIM7LHQI6IM')}`);
+    expect(urlMahmoud).not.toContain('sellercentral.amazon.eg/apps/authorize');
+
+    const urlConsent = getAmazonSellerCentralConsentUrl('A999SELLER', 'أحمد علي');
+    expect(urlConsent).toBe(`${expectedPrefix}${encodeURIComponent('أحمد علي_A999SELLER')}`);
+    expect(urlConsent).not.toContain('sellercentral.amazon.eg/apps/authorize');
+  });
+
+  it('extractSellerIdFromOAuthState extracts seller_id from [name]_[seller_id] format', () => {
+    expect(extractSellerIdFromOAuthState('محمود سعيد_A37JIM7LHQI6IM')).toBe('A37JIM7LHQI6IM');
+    expect(extractSellerIdFromOAuthState('A37JIM7LHQI6IM')).toBe('A37JIM7LHQI6IM');
+    expect(extractSellerIdFromOAuthState('محمود سعيد_A37JIM7LHQI6IM', 'A37JIM7LHQI6IM')).toBe(
+      'A37JIM7LHQI6IM'
+    );
+  });
+
   it('resolvePathToTab resolves /auth/amazon-callback properly', () => {
     expect(resolvePathToTab('/auth/amazon-callback')).toBe('amazon_callback');
     expect(resolvePathToTab('/auth/amazon-callback/?code=123&state=A37JIM7LHQI6IM')).toBe(
@@ -123,7 +151,11 @@ describe('/auth/amazon-callback route & AmazonCallbackPage', () => {
   });
 
   it('App renders AmazonCallbackPage without redirecting /auth/amazon-callback to /login when unauthenticated', async () => {
-    window.history.pushState({}, '', '/auth/amazon-callback?code=AN_OAUTH_CODE_777&state=A37JIM7LHQI6IM');
+    window.history.pushState(
+      {},
+      '',
+      `/auth/amazon-callback?code=AN_OAUTH_CODE_777&state=${encodeURIComponent('محمود سعيد_A37JIM7LHQI6IM')}`
+    );
 
     render(<App />);
 
@@ -131,27 +163,18 @@ describe('/auth/amazon-callback route & AmazonCallbackPage', () => {
     const page = await screen.findByTestId('amazon-callback-page');
     expect(page.className).toContain('bg-white');
     expect(screen.getByTestId('amazon-callback-code')).toHaveTextContent('AN_OAUTH_CODE_777');
-    expect(screen.getByTestId('amazon-callback-state')).toHaveTextContent('A37JIM7LHQI6IM');
+    expect(screen.getByTestId('amazon-callback-state')).toHaveTextContent('محمود سعيد_A37JIM7LHQI6IM');
   });
 
-  it('auto-copies code, saves refresh_token to traders by seller_id=state, shows toast message, and navigates to /traders', async () => {
+  it('auto-copies code, saves refresh_token by extracted seller_id, shows WhatsApp instruction, keeps ONLY copy button, and NEVER navigates to /traders', async () => {
     window.history.pushState(
       {},
       '',
-      '/auth/amazon-callback?code=AN_LIVE_AUTH_999&state=A37JIM7LHQI6IM'
+      `/auth/amazon-callback?code=AN_LIVE_AUTH_999&state=${encodeURIComponent('محمود سعيد_A37JIM7LHQI6IM')}`
     );
     const onShowToast = vi.fn();
-    const onNavigateToTraders = vi.fn(() => {
-      window.history.pushState({}, '', '/traders');
-    });
 
-    render(
-      <AmazonCallbackPage
-        onShowToast={onShowToast}
-        onNavigateToTraders={onNavigateToTraders}
-        redirectDelayMs={50}
-      />
-    );
+    render(<AmazonCallbackPage onShowToast={onShowToast} />);
 
     await waitFor(() => {
       expect(clipboardWriteMock).toHaveBeenCalledWith('AN_LIVE_AUTH_999');
@@ -173,9 +196,16 @@ describe('/auth/amazon-callback route & AmazonCallbackPage', () => {
       expect(onShowToast).toHaveBeenCalledWith(AMAZON_CALLBACK_SUCCESS_MESSAGE);
     });
 
-    await waitFor(() => {
-      expect(onNavigateToTraders).toHaveBeenCalledTimes(1);
-      expect(window.location.pathname).toBe('/traders');
-    });
+    expect(screen.getByTestId('amazon-callback-whatsapp-instruction')).toHaveTextContent(
+      AMAZON_CALLBACK_WHATSAPP_INSTRUCTION
+    );
+
+    // Must NOT contain any button or link to /traders
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAttribute('data-testid', 'amazon-callback-copy-btn');
+    expect(buttons[0]).toHaveTextContent(/تم نسخ الكود/);
+    expect(screen.queryByText(/صفحة التجار/)).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe('/auth/amazon-callback');
   });
 });

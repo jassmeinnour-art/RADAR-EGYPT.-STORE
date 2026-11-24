@@ -182,6 +182,13 @@
             rootEl.classList.add('light', 'theme-light', 'theme-clean-light');
             rootEl.classList.remove('dark', 'theme-dark', 'theme-dark-high-contrast');
           }
+          var isHighContrast = localStorage.getItem('radar_high_contrast_mode') === 'true';
+          rootEl.setAttribute('data-high-contrast', isHighContrast ? 'true' : 'false');
+          if (isHighContrast) {
+            rootEl.classList.add('high-contrast');
+          } else {
+            rootEl.classList.remove('high-contrast');
+          }
         } catch(e) {}
 
 

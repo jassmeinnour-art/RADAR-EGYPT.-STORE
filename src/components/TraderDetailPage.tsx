@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ArrowRight, 
   Store, 
@@ -24,7 +24,8 @@ import {
   Hash,
   Receipt,
   Key,
-  Save
+  Save,
+  Copy
 } from 'lucide-react';
 import {
   supabase,
@@ -45,7 +46,6 @@ import {
   saveTraderAmazonConnection,
   buildMerchantAmazonAuthorizeUrl,
   exchangeMerchantOAuthCodeForRefreshToken,
-  getAmazonSpApiSettings,
 } from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
 
@@ -106,14 +106,28 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   const [oauthInputCode, setOauthInputCode] = useState<string>('');
   const [isSavingConnection, setIsSavingConnection] = useState<boolean>(false);
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
+  const [authorizeUrlValue, setAuthorizeUrlValue] = useState<string>('');
+  const [isEditingAuthorizeUrl, setIsEditingAuthorizeUrl] = useState<boolean>(false);
+  const authorizeUrlInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (trader) {
       setTraderSellerId(trader.seller_id || '');
       const conn = getTraderAmazonConnection(trader);
       setTraderRefreshToken(conn.refreshToken || '');
+      setAuthorizeUrlValue(
+        buildMerchantAmazonAuthorizeUrl(trader.seller_id, trader.seller_name)
+      );
     }
   }, [trader]);
+
+  useEffect(() => {
+    if (trader) {
+      setAuthorizeUrlValue(
+        buildMerchantAmazonAuthorizeUrl(traderSellerId || trader.seller_id, trader.seller_name)
+      );
+    }
+  }, [trader, traderSellerId]);
 
   const loadTraderAndProducts = async () => {
     if (!id) return;
@@ -565,30 +579,64 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
             <label className="block text-xs font-bold text-slate-300">
               نسخ رابط الموافقة لهذا التاجر
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <input
+                ref={authorizeUrlInputRef}
                 type="text"
-                readOnly
                 dir="ltr"
-                value={buildMerchantAmazonAuthorizeUrl(
-                  traderSellerId || trader.seller_id,
-                  getAmazonSpApiSettings().clientId
-                )}
-                className="flex-1 h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 text-left select-all"
+                data-testid="trader-detail-authorize-url-input"
+                value={authorizeUrlValue}
+                placeholder="أدخل أو عدّل رابط الموافقة..."
+                onChange={(e) => setAuthorizeUrlValue(e.target.value)}
+                onFocus={() => setIsEditingAuthorizeUrl(true)}
+                onBlur={() => setIsEditingAuthorizeUrl(false)}
+                className={`flex-1 min-w-[220px] h-10 px-3 rounded-xl bg-slate-950 border text-xs font-mono text-amber-300 text-left focus:outline-none ${
+                  isEditingAuthorizeUrl
+                    ? 'border-amber-400 ring-1 ring-amber-400/40'
+                    : 'border-slate-800'
+                }`}
               />
               <button
                 type="button"
+                data-testid="trader-detail-copy-authorize-url"
                 onClick={() => {
-                  const url = buildMerchantAmazonAuthorizeUrl(
-                    traderSellerId || trader.seller_id,
-                    getAmazonSpApiSettings().clientId
-                  );
-                  navigator.clipboard.writeText(url);
+                  if (!authorizeUrlValue.trim()) {
+                    onShowToast?.('⚠️ الخانة فارغة — أدخل رابطاً أو اضغط تعديل أولاً.');
+                    return;
+                  }
+                  navigator.clipboard?.writeText?.(authorizeUrlValue);
                   onShowToast?.('📋 تم نسخ رابط الموافقة الخاص بهذا التاجر بنجاح!');
                 }}
-                className="px-4 h-10 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer transition-colors"
+                className="px-4 h-10 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
               >
-                نسخ الرابط
+                <Copy className="w-3.5 h-3.5" />
+                <span>نسخ الرابط</span>
+              </button>
+              <button
+                type="button"
+                data-testid="trader-detail-edit-authorize-url"
+                onClick={() => {
+                  setIsEditingAuthorizeUrl(true);
+                  authorizeUrlInputRef.current?.focus();
+                  authorizeUrlInputRef.current?.select();
+                }}
+                className="px-3.5 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-bold text-xs inline-flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>تعديل</span>
+              </button>
+              <button
+                type="button"
+                data-testid="trader-detail-clear-authorize-url"
+                onClick={() => {
+                  setAuthorizeUrlValue('');
+                  setIsEditingAuthorizeUrl(true);
+                  authorizeUrlInputRef.current?.focus();
+                }}
+                className="px-3.5 h-10 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-bold text-xs inline-flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>مسح</span>
               </button>
             </div>
           </div>

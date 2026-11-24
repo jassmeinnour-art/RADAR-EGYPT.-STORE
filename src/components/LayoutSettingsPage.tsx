@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
   RotateCcw, 
@@ -11,9 +11,13 @@ import {
   Layers,
   Sparkles,
   MousePointer,
-  Square
+  Square,
+  Contrast,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface LayoutSettingsPageProps {
   onShowToast?: (msg: string) => void;
@@ -21,19 +25,31 @@ interface LayoutSettingsPageProps {
 
 export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowToast }) => {
   const { settings, updateSettings, saveSettingsToStorage, resetDefaults } = useVisualCustomizer();
+  const { isHighContrast, setHighContrast, resolvedColorMode, toggleColorMode } = useTheme();
+  const [localToast, setLocalToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!localToast) return;
+    const timer = window.setTimeout(() => setLocalToast(null), 5500);
+    return () => window.clearTimeout(timer);
+  }, [localToast]);
+
+  const notifyToast = (msg: string) => {
+    if (onShowToast) {
+      onShowToast(msg);
+    } else {
+      setLocalToast(msg);
+    }
+  };
 
   const handleSave = async () => {
     await saveSettingsToStorage();
-    if (onShowToast) {
-      onShowToast('✅ تم حفظ كافة إعدادات التنسيق والمقاسات بنجاح!');
-    }
+    notifyToast('✅ تم حفظ كافة إعدادات التنسيق والمقاسات بنجاح!');
   };
 
   const handleReset = () => {
     resetDefaults();
-    if (onShowToast) {
-      onShowToast('🔄 تم استعادة كافة التنسيقات والمقاسات الافتراضية');
-    }
+    notifyToast('🔄 تم استعادة كافة التنسيقات والمقاسات الافتراضية');
   };
 
   return (
@@ -77,6 +93,106 @@ export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowTo
           >
             <Save className="w-4 h-4 text-slate-950" />
             <span>حفظ التنسيق</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Accessibility & High Contrast Section (Separate from Normal Dark Mode) */}
+      <div
+        aria-label="إعدادات التباين العالي لتحسين القراءة"
+        className="p-6 rounded-3xl border shadow-xl space-y-4"
+        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center text-sky-400 shrink-0">
+              <Contrast className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-black text-[var(--text-primary)]">
+                  وضع التباين العالي (High Contrast)
+                </h3>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                  منفصل عن الوضع الليلي
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                يعزز تباين النصوص والحدود وحقول الإدخال لتحسين وضوح القراءة في الوضعين الفاتح والليلي بشكل مستقل عن الوضع الليلي العادي.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(isHighContrast)}
+            data-testid="layout-high-contrast-switch"
+            onClick={() => {
+              const nextVal = !isHighContrast;
+              setHighContrast?.(nextVal);
+              notifyToast(
+                nextVal
+                  ? '✅ تم تفعيل وضع التباين العالي (High Contrast) — تم تعزيز تباين النصوص والحدود وحقول الإدخال لزيادة وضوح القراءة.'
+                  : 'تم تعطيل وضع التباين العالي — تمت استعادة مستويات التباين القياسية للواجهة.'
+              );
+            }}
+            className={`px-4 py-2.5 rounded-2xl border text-xs font-black flex items-center gap-2.5 cursor-pointer shrink-0 whitespace-nowrap transition-colors ${
+              isHighContrast
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-400'
+                : 'bg-[var(--surface-subtle)] hover:bg-[var(--card-bg-hover)] text-[var(--text-primary)] border-[var(--card-border)]'
+            }`}
+          >
+            <span>{isHighContrast ? 'التباين العالي: مفعل' : 'تفعيل التباين العالي'}</span>
+            <span
+              className={`w-10 h-5 rounded-full p-0.5 flex items-center transition-colors ${
+                isHighContrast ? 'bg-emerald-300 justify-start' : 'bg-slate-600 justify-end'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white block shadow" />
+            </span>
+          </button>
+        </div>
+
+        <div className="pt-3 border-t border-[var(--divider-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            {resolvedColorMode === 'dark' ? (
+              <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+            ) : (
+              <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+            )}
+            <span>
+              الوضع الليلي العادي:{' '}
+              <strong className="text-[var(--text-primary)]">
+                {resolvedColorMode === 'dark' ? 'داكن (Dark Mode)' : 'فاتح (Light Mode)'}
+              </strong>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={resolvedColorMode === 'dark'}
+            data-testid="layout-dark-mode-switch"
+            onClick={() => {
+              const nextDark = resolvedColorMode !== 'dark';
+              toggleColorMode?.();
+              notifyToast(
+                nextDark ? 'تم تفعيل الوضع الليلي العادي' : 'تم تفعيل الوضع النهاري الفاتح'
+              );
+            }}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer shrink-0 transition-colors ${
+              resolvedColorMode === 'dark'
+                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/40'
+                : 'bg-[var(--surface-subtle)] hover:bg-[var(--card-bg-hover)] text-[var(--text-primary)] border-[var(--card-border)]'
+            }`}
+          >
+            {resolvedColorMode === 'dark' ? (
+              <Moon className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+            )}
+            <span>{resolvedColorMode === 'dark' ? 'الوضع الليلي: مفعل' : 'تبديل للوضع الليلي'}</span>
           </button>
         </div>
       </div>
@@ -361,6 +477,28 @@ export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowTo
           </div>
         </div>
       </div>
+
+      {localToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="layout-settings-toast"
+          className="fixed bottom-20 lg:bottom-5 left-5 z-[200] max-w-md bg-slate-900 text-white border border-sky-500/70 shadow-2xl rounded-2xl px-4 py-3 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-3"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <span className="text-xs sm:text-sm font-bold leading-relaxed flex-1">
+            {localToast}
+          </span>
+          <button
+            type="button"
+            onClick={() => setLocalToast(null)}
+            aria-label="إغلاق الإشعار"
+            className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };

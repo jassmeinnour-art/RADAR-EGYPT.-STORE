@@ -377,4 +377,51 @@ describe('Problem 5 — Clickable Trader Cards, /traders Page & /traders/{id} De
     expect(sentPayload.email).toBe('mahmeudsaid4@gmail.com');
     expect(sentPayload.seller_id).toBe('A37JIM7LHQI6IM');
   });
+
+  it('TradersPage TraderCard and TraderDetailPage render editable/clearable authorize URL with the new /ap/oa format and Edit/Clear buttons', async () => {
+    const expectedUrl = `https://www.amazon.com/ap/oa?client_id=amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=${encodeURIComponent(
+      'محمود سعيد_A37JIM7LHQI6IM'
+    )}`;
+
+    render(<TradersPage onShowToast={vi.fn()} />);
+
+    const cardInput = (await screen.findByTestId(
+      'trader-card-authorize-url-trd-mahmoud-001'
+    )) as HTMLInputElement;
+    expect(cardInput.value).toBe(expectedUrl);
+    expect(cardInput.value).not.toContain('sellercentral.amazon.eg/apps/authorize');
+    expect(cardInput.readOnly).toBe(false);
+
+    const editBtn = screen.getByTestId('trader-card-edit-authorize-url-trd-mahmoud-001');
+    const clearBtn = screen.getByTestId('trader-card-clear-authorize-url-trd-mahmoud-001');
+    expect(editBtn).toHaveTextContent('تعديل');
+    expect(clearBtn).toHaveTextContent('مسح');
+
+    // Clear button empties the input
+    fireEvent.click(clearBtn);
+    expect(cardInput.value).toBe('');
+
+    // Edit/typing updates the input
+    fireEvent.click(editBtn);
+    fireEvent.change(cardInput, { target: { value: 'https://custom-auth.example.com' } });
+    expect(cardInput.value).toBe('https://custom-auth.example.com');
+
+    // TraderDetailPage also shows the new URL and supports Edit & Clear
+    detailTraderRef.current = mahmoudTrader;
+    render(<TraderDetailPage traderId="trd-mahmoud-001" onShowToast={vi.fn()} />);
+
+    const detailInput = (await screen.findByTestId(
+      'trader-detail-authorize-url-input'
+    )) as HTMLInputElement;
+    await waitFor(() => {
+      expect(detailInput.value).toBe(expectedUrl);
+    });
+    expect(detailInput.readOnly).toBe(false);
+
+    fireEvent.click(screen.getByTestId('trader-detail-clear-authorize-url'));
+    expect(detailInput.value).toBe('');
+
+    fireEvent.change(detailInput, { target: { value: expectedUrl } });
+    expect(detailInput.value).toBe(expectedUrl);
+  });
 });

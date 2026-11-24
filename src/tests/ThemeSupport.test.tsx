@@ -7,10 +7,13 @@ import {
   ThemeProvider,
   useTheme,
   LOCAL_STORAGE_THEME_VARIANT_KEY,
+  LOCAL_STORAGE_HIGH_CONTRAST_KEY,
 } from '../context/ThemeContext';
+import { VisualCustomizerProvider } from '../context/VisualCustomizerContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSettingsModal } from '../components/ThemeSettingsModal';
 import { AccountSettingsPage } from '../components/AccountSettingsPage';
+import { LayoutSettingsPage } from '../components/LayoutSettingsPage';
 
 vi.mock('../context/AudioNotificationContext', () => ({
   useAudioNotifications: () => ({
@@ -65,6 +68,7 @@ describe('Dual Theme Support: Dark High Contrast & Clean Light', () => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.removeAttribute('data-color-mode');
+    document.documentElement.removeAttribute('data-high-contrast');
     document.documentElement.className = '';
   });
 
@@ -190,5 +194,86 @@ describe('Dual Theme Support: Dark High Contrast & Clean Light', () => {
     fireEvent.click(screen.getByTestId('select-theme-clean-light'));
     expect(screen.getByTestId('probe-variant')).toHaveTextContent('clean-light');
     expect(document.documentElement.getAttribute('data-theme')).toBe('clean-light');
+  });
+
+  it('toggles High Contrast mode independently from normal Dark Mode in LayoutSettingsPage and AccountSettingsPage with persistence', () => {
+    const varsCss = fs.readFileSync(path.resolve(process.cwd(), 'src/variables.css'), 'utf8');
+    const indexCss = fs.readFileSync(path.resolve(process.cwd(), 'src/index.css'), 'utf8');
+    expect(varsCss).toContain('html[data-high-contrast="true"].light');
+    expect(varsCss).toContain('html[data-high-contrast="true"].dark');
+    expect(indexCss).toContain('html[data-high-contrast="true"]');
+
+    const onToast = vi.fn();
+    render(
+      <ThemeProvider>
+        <VisualCustomizerProvider>
+          <ThemeProbe />
+          <LayoutSettingsPage onShowToast={onToast} />
+          <AccountSettingsPage onShowToast={onToast} />
+        </VisualCustomizerProvider>
+      </ThemeProvider>
+    );
+
+    const layoutHcSwitch = screen.getByTestId('layout-high-contrast-switch');
+    const layoutDarkSwitch = screen.getByTestId('layout-dark-mode-switch');
+    const accountHcSwitch = screen.getByTestId('account-high-contrast-switch');
+
+    // Initially off in light mode
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'false');
+    expect(accountHcSwitch).toHaveAttribute('aria-checked', 'false');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('false');
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('light');
+
+    // Enable High Contrast in LayoutSettingsPage while staying in Light Mode
+    fireEvent.click(layoutHcSwitch);
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(accountHcSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('true');
+    expect(document.documentElement.classList.contains('high-contrast')).toBe(true);
+    expect(localStorage.getItem(LOCAL_STORAGE_HIGH_CONTRAST_KEY)).toBe('true');
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('light');
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('تفعيل وضع التباين العالي'));
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('وضوح القراءة'));
+
+    // Toggle normal Dark Mode on & off independently — High Contrast stays enabled
+    fireEvent.click(layoutDarkSwitch);
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('dark');
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('true');
+
+    fireEvent.click(layoutDarkSwitch);
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('light');
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'true');
+
+    // Disable High Contrast from AccountSettingsPage switch
+    fireEvent.click(accountHcSwitch);
+    expect(accountHcSwitch).toHaveAttribute('aria-checked', 'false');
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'false');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('false');
+    expect(localStorage.getItem(LOCAL_STORAGE_HIGH_CONTRAST_KEY)).toBe('false');
+  });
+
+  it('LayoutSettingsPage updates html data-high-contrast and displays Toast notification on enable and disable even when rendered standalone', () => {
+    render(
+      <VisualCustomizerProvider>
+        <LayoutSettingsPage />
+      </VisualCustomizerProvider>
+    );
+
+    const layoutHcSwitch = screen.getByTestId('layout-high-contrast-switch');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('false');
+
+    fireEvent.click(layoutHcSwitch);
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('true');
+    const enableToast = screen.getByTestId('layout-settings-toast');
+    expect(enableToast).toHaveTextContent('تفعيل وضع التباين العالي');
+    expect(enableToast).toHaveTextContent('وضوح القراءة');
+
+    fireEvent.click(layoutHcSwitch);
+    expect(layoutHcSwitch).toHaveAttribute('aria-checked', 'false');
+    expect(document.documentElement.getAttribute('data-high-contrast')).toBe('false');
+    const disableToast = screen.getByTestId('layout-settings-toast');
+    expect(disableToast).toHaveTextContent('تعطيل وضع التباين العالي');
   });
 });

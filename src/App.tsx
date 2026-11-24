@@ -305,16 +305,7 @@ export default function App() {
         sectionTitle="ربط حساب أمازون"
         sectionDescription="تعذر عرض صفحة استلام كود التفويض مؤقتاً."
       >
-        <AmazonCallbackPage
-          onShowToast={showToast}
-          onNavigateToTraders={() => {
-            setHasLazyLoadError(false);
-            setShowOwnerDashboard(false);
-            setActiveWorkspaceTab('traders');
-            setCurrentPathname('/traders');
-            navigate('/traders');
-          }}
-        />
+        <AmazonCallbackPage onShowToast={showToast} />
       </ErrorBoundary>
     );
   }
@@ -419,20 +410,9 @@ export default function App() {
       analytics: <AnalyticsPage />,
       platforms_guide: <PlatformsOnboardingGuide />,
       traders_sync: <TraderStoreSyncManager onShowToast={showToast} />,
-      layout_settings: <LayoutSettingsPage />,
+      layout_settings: <LayoutSettingsPage onShowToast={showToast} />,
       account_settings: <AccountSettingsPage onShowToast={showToast} />,
-      amazon_callback: (
-        <AmazonCallbackPage
-          onShowToast={showToast}
-          onNavigateToTraders={() => {
-            setHasLazyLoadError(false);
-            setShowOwnerDashboard(false);
-            setActiveWorkspaceTab('traders');
-            setCurrentPathname('/traders');
-            navigate('/traders');
-          }}
-        />
-      ),
+      amazon_callback: <AmazonCallbackPage onShowToast={showToast} />,
       help: (
         <HelpPage
           onNavigateToPlatformsGuide={() => {
