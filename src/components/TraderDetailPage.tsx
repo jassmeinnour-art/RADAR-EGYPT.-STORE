@@ -22,7 +22,9 @@ import {
   Pencil,
   FileSpreadsheet,
   Hash,
-  Receipt
+  Receipt,
+  Key,
+  Save
 } from 'lucide-react';
 import {
   supabase,
@@ -36,7 +38,15 @@ import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { EditTraderModal } from './EditTraderModal';
 import { FetchProductsModal } from './FetchProductsModal';
 import { OptimizedImage } from './OptimizedImage';
-import { IMPORT_BUTTON_LABEL, buildAmazonAsinImageUrl } from '../utils/sellerCentralExcelImporter';
+import {
+  IMPORT_BUTTON_LABEL,
+  buildAmazonAsinImageUrl,
+  getTraderAmazonConnection,
+  saveTraderAmazonConnection,
+  buildMerchantAmazonAuthorizeUrl,
+  exchangeMerchantOAuthCodeForRefreshToken,
+  getAmazonSpApiSettings,
+} from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
 
 
@@ -89,6 +99,21 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   const [newPrice, setNewPrice] = useState<string>('');
   const [newStock, setNewStock] = useState<string>('15');
   const [newPlatform, setNewPlatform] = useState<string>('amazon');
+
+  // Per-trader Amazon SP-API connection states
+  const [traderSellerId, setTraderSellerId] = useState<string>('');
+  const [traderRefreshToken, setTraderRefreshToken] = useState<string>('');
+  const [oauthInputCode, setOauthInputCode] = useState<string>('');
+  const [isSavingConnection, setIsSavingConnection] = useState<boolean>(false);
+  const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (trader) {
+      setTraderSellerId(trader.seller_id || '');
+      const conn = getTraderAmazonConnection(trader);
+      setTraderRefreshToken(conn.refreshToken || '');
+    }
+  }, [trader]);
 
   const loadTraderAndProducts = async () => {
     if (!id) return;
@@ -472,6 +497,177 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
               {invoices.length.toLocaleString()}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* قسم: ربط أمازون لهذا التاجر (خاص بهذا التاجر فقط) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <Key className="w-5 h-5 text-amber-400" />
+              <span>ربط أمازون لهذا التاجر ({trader.seller_name})</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              إدارة معرف البائع (Seller ID) ورمز التحديث (Refresh Token) الخاص بهذا التاجر فقط دون المساس بالمفاتيح العامة
+            </p>
+          </div>
+          {(() => {
+            const conn = getTraderAmazonConnection({
+              id: trader.id,
+              seller_id: traderSellerId,
+              refresh_token: traderRefreshToken,
+            });
+            return (
+              <span
+                className={`text-xs font-black px-3 py-1 rounded-full border ${
+                  conn.isConnected
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                }`}
+              >
+                {conn.isConnected ? 'مرتبط ✓' : 'غير مرتبط - اطلب من التاجر الموافقة'}
+              </span>
+            );
+          })()}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              Seller ID (خاص بهذا التاجر)
+            </label>
+            <input
+              type="text"
+              dir="ltr"
+              value={traderSellerId}
+              onChange={(e) => setTraderSellerId(e.target.value)}
+              placeholder="A37JIM7LHQI6IM"
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              Refresh Token (خاص بهذا التاجر)
+            </label>
+            <input
+              type="password"
+              dir="ltr"
+              value={traderRefreshToken}
+              onChange={(e) => setTraderRefreshToken(e.target.value)}
+              placeholder="Atzr|IwEB..."
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div className="sm:col-span-2 space-y-2 pt-2">
+            <label className="block text-xs font-bold text-slate-300">
+              نسخ رابط الموافقة لهذا التاجر
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                dir="ltr"
+                value={buildMerchantAmazonAuthorizeUrl(
+                  traderSellerId || trader.seller_id,
+                  getAmazonSpApiSettings().clientId
+                )}
+                className="flex-1 h-10 px-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 text-left select-all"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const url = buildMerchantAmazonAuthorizeUrl(
+                    traderSellerId || trader.seller_id,
+                    getAmazonSpApiSettings().clientId
+                  );
+                  navigator.clipboard.writeText(url);
+                  onShowToast?.('📋 تم نسخ رابط الموافقة الخاص بهذا التاجر بنجاح!');
+                }}
+                className="px-4 h-10 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer transition-colors"
+              >
+                نسخ الرابط
+              </button>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2 space-y-2 pt-2 border-t border-slate-800/80">
+            <label className="block text-xs font-bold text-slate-300">
+              تحويل كود الموافقة لـ Refresh Token لهذا التاجر
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                dir="ltr"
+                value={oauthInputCode}
+                onChange={(e) => setOauthInputCode(e.target.value)}
+                placeholder="الصق هنا كود الموافقة spapi_oauth_code أو رابط العودة كاملاً..."
+                className="flex-1 h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!oauthInputCode.trim()) {
+                    onShowToast?.('⚠️ يرجى لصق كود الموافقة أولاً');
+                    return;
+                  }
+                  const res = await exchangeMerchantOAuthCodeForRefreshToken({
+                    rawCodeOrUrl: oauthInputCode,
+                    sellerId: traderSellerId || trader.seller_id,
+                    traderId: trader.id,
+                    existingTrader: trader,
+                  });
+                  if (res.success && res.refreshToken) {
+                    setTraderRefreshToken(res.refreshToken);
+                    if (res.sellerId) setTraderSellerId(res.sellerId);
+                    onShowToast?.(res.message);
+                  } else {
+                    onShowToast?.(`❌ ${res.message}`);
+                  }
+                }}
+                className="px-4 h-10 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer transition-colors"
+              >
+                تحويل وحفظ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {connectionFeedback && (
+          <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/40 text-xs font-bold text-emerald-300">
+            {connectionFeedback}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={async () => {
+              setIsSavingConnection(true);
+              try {
+                await saveTraderAmazonConnection({
+                  traderId: trader.id,
+                  sellerId: traderSellerId.trim(),
+                  refreshToken: traderRefreshToken.trim(),
+                  existingTrader: trader,
+                });
+                setConnectionFeedback('✅ تم حفظ بيانات ربط أمازون لهذا التاجر بنجاح.');
+                onShowToast?.('✅ تم حفظ بيانات ربط أمازون لهذا التاجر بنجاح.');
+              } catch (err: any) {
+                setConnectionFeedback(`❌ فشل الحفظ: ${err?.message || 'حدث خطأ'}`);
+                onShowToast?.(`❌ فشل الحفظ: ${err?.message || 'حدث خطأ'}`);
+              } finally {
+                setIsSavingConnection(false);
+              }
+            }}
+            disabled={isSavingConnection}
+            className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSavingConnection ? 'جاري الحفظ...' : 'حفظ ربط هذا التاجر'}</span>
+          </button>
         </div>
       </div>
 

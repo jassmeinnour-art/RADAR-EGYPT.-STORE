@@ -187,6 +187,35 @@ async function generateWithGeminiFallback(options: GeminiFallbackOptions): Promi
   throw lastError || new Error('All candidate Gemini models failed to generate content');
 }
 
+// Rate Limiting Protection Layer for Import & Sync Endpoints (Anti-Flooding)
+const importRateLimitStore = new Map<string, { count: number; resetTime: number }>();
+const IMPORT_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const IMPORT_RATE_LIMIT_MAX_REQUESTS = 25; // max 25 import/sync requests per minute per client
+
+function importRateLimiter(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const clientKey = String(req.ip || req.headers['x-forwarded-for'] || 'anonymous').trim();
+  const now = Date.now();
+  
+  let entry = importRateLimitStore.get(clientKey);
+  if (!entry || now > entry.resetTime) {
+    entry = { count: 1, resetTime: now + IMPORT_RATE_LIMIT_WINDOW_MS };
+    importRateLimitStore.set(clientKey, entry);
+    return next();
+  }
+
+  entry.count++;
+  if (entry.count > IMPORT_RATE_LIMIT_MAX_REQUESTS) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({
+      success: false,
+      error: 'تم تجاوز حد طلبات الاستيراد والمزامنة المسموح به (حماية ضد الإغراق). يرجى الانتظار دقيقة واحدة قبل المحاولة مرة أخرى.',
+      message: 'تم تجاوز حد طلبات الاستيراد والمزامنة المسموح به (حماية ضد الإغراق). يرجى الانتظار دقيقة واحدة قبل المحاولة مرة أخرى.',
+    });
+  }
+
+  next();
+}
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), region: 'Egypt (EGP)' });
@@ -5187,12 +5216,12 @@ const handleMerchantCatalogRequest = async (req: express.Request, res: express.R
 };
 
 // Support both POST and GET across primary and alias catalog API endpoints
-app.post('/api/merchant/catalog', handleMerchantCatalogRequest);
-app.get('/api/merchant/catalog', handleMerchantCatalogRequest);
-app.post('/api/amazon/sp-api/catalog', handleMerchantCatalogRequest);
-app.get('/api/amazon/sp-api/catalog', handleMerchantCatalogRequest);
-app.post('/api/v1/merchant/catalog', handleMerchantCatalogRequest);
-app.get('/api/v1/merchant/catalog', handleMerchantCatalogRequest);
+app.post('/api/merchant/catalog', importRateLimiter, handleMerchantCatalogRequest);
+app.get('/api/merchant/catalog', importRateLimiter, handleMerchantCatalogRequest);
+app.post('/api/amazon/sp-api/catalog', importRateLimiter, handleMerchantCatalogRequest);
+app.get('/api/amazon/sp-api/catalog', importRateLimiter, handleMerchantCatalogRequest);
+app.post('/api/v1/merchant/catalog', importRateLimiter, handleMerchantCatalogRequest);
+app.get('/api/v1/merchant/catalog', importRateLimiter, handleMerchantCatalogRequest);
 
 // Endpoint: Dynamic Competitor Pricing & Buy Box Comparison Engine
 app.post('/api/merchant/pricing/compare', async (req, res) => {
@@ -5639,7 +5668,7 @@ async function fetchAndSaveOrders(merchantId: string, platform: string, authToke
 }
 
 // Endpoint: POST /api/v1/merchant/sync-store
-app.post('/api/v1/merchant/sync-store', async (req, res) => {
+app.post('/api/v1/merchant/sync-store', importRateLimiter, async (req, res) => {
     const { merchantId, platform, authTokens } = req.body;
 
     if (!merchantId || !platform || !authTokens) {
@@ -6150,7 +6179,7 @@ app.get(['/api/traders/:id/invoices', '/api/traders/:id/orders'], (req, res) => 
 });
 
 // API Endpoint: Sync Catalog for a Specific Trader (Strictly connects to API, no dummy items)
-app.post(['/api/traders/:id/sync', '/api/traders/:id/sync-catalog'], (req, res) => {
+app.post(['/api/traders/:id/sync', '/api/traders/:id/sync-catalog'], importRateLimiter, (req, res) => {
   const traderId = req.params.id;
   const trader = findTraderRecord(traderId);
   const now = new Date().toISOString();

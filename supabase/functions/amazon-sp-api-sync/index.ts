@@ -19,19 +19,139 @@ interface SpApiSyncPayload {
   traderId?: string;
 }
 
+// In-memory sliding window rate limiting cache per IP / trader
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 20; // 20 requests per minute limit
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(key: string): { allowed: boolean; remaining: number; resetSec: number } {
+  const now = Date.now();
+  let item = rateLimitMap.get(key);
+  if (!item || now > item.resetTime) {
+    item = { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS };
+    rateLimitMap.set(key, item);
+    return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - 1, resetSec: 60 };
+  }
+  item.count++;
+  const resetSec = Math.max(1, Math.ceil((item.resetTime - now) / 1000));
+  if (item.count > MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, remaining: 0, resetSec };
+  }
+  return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - item.count, resetSec };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Extract client identifier for rate limiting (Cloudflare/Deno headers or IP)
+  const clientIp =
+    req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-real-ip') ||
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    'anonymous-client';
+
   try {
-    const body = (await req.json()) as SpApiSyncPayload;
+    const rawBody = await req.text();
+    if (rawBody.length > 5 * 1024 * 1024) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'حجم ملف الاستيراد يتجاوز الحد الأقصى المسموح به (5 ميجابايت). يرجى تقليل حجم الملف أو تقسيمه.',
+        }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const body = (rawBody ? JSON.parse(rawBody) : {}) as any;
+    const action = String(body.action || '').trim();
+    const traderId = String(body.traderId || body.sellerId || '').trim();
+    const rateLimitKey = `${clientIp}_${traderId || 'global'}`;
+
+    const rateLimit = checkRateLimit(rateLimitKey);
+    const rateLimitHeaders = {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+      'X-RateLimit-Limit': String(MAX_REQUESTS_PER_WINDOW),
+      'X-RateLimit-Remaining': String(rateLimit.remaining),
+      'X-RateLimit-Reset': String(rateLimit.resetSec),
+    };
+
+    if (!rateLimit.allowed) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'تم تجاوز الحد المسموح به لطلبات الاستيراد والمزامنة (حماية ضد الإغراق). يرجى الانتظار دقيقة واحدة قبل المحاولة مجدداً.',
+          retryAfter: rateLimit.resetSec,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...rateLimitHeaders,
+            'Retry-After': String(rateLimit.resetSec),
+          },
+        }
+      );
+    }
+
+    // Handle OAuth authorization code exchange if requested
+    if (action === 'exchange_oauth_code') {
+      const code = String(body.code || '').trim();
+      const clientId = String(body.clientId || '').trim();
+      const clientSecret = String(body.clientSecret || '').trim();
+
+      if (!code || !clientId || !clientSecret) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'يرجى توفير كود التفويض (code) و Client ID و Client Secret لإتمام الربط',
+          }),
+          { status: 400, headers: rateLimitHeaders }
+        );
+      }
+
+      const tokenParams = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
+
+      const exchangeRes = await fetch('https://api.amazon.com/auth/o2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: tokenParams.toString(),
+      });
+
+      if (!exchangeRes.ok) {
+        const errText = await exchangeRes.text();
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `تعذر استبدال كود الموافقة مع أمازون (${exchangeRes.status})`,
+            details: errText.slice(0, 300),
+          }),
+          { status: 502, headers: rateLimitHeaders }
+        );
+      }
+
+      const tokenJson = await exchangeRes.json();
+      return new Response(
+        JSON.stringify({
+          success: true,
+          refresh_token: tokenJson.refresh_token,
+          seller_id: body.sellerId || '',
+        }),
+        { status: 200, headers: rateLimitHeaders }
+      );
+    }
+
     const refreshToken = String(body.refreshToken || '').trim();
     const clientId = String(body.clientId || '').trim();
     const clientSecret = String(body.clientSecret || '').trim();
     const sellerId = String(body.sellerId || '').trim() || 'A37JIM7LHQI6IM';
     const marketplaceId = String(body.marketplaceId || 'ARBP9OOSHTCHU').trim();
-    const traderId = String(body.traderId || sellerId).trim();
 
     if (!refreshToken || !clientId || !clientSecret || !sellerId) {
       return new Response(
@@ -39,7 +159,7 @@ Deno.serve(async (req: Request) => {
           success: false,
           error: 'بيانات ربط Amazon SP-API غير مكتملة (Refresh Token / Client ID / Client Secret / Seller ID)',
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: rateLimitHeaders }
       );
     }
 
