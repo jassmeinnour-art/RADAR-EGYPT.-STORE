@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
-import { supabase, Trader, formatSupabaseError } from '../lib/supabase';
+import { supabase, Trader, formatSupabaseError, cleanTraderPayloadForInsert } from '../lib/supabase';
 import { dataCache } from '../utils/dataCache';
 import { FetchProductsModal } from './FetchProductsModal';
 import {
@@ -106,20 +106,18 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
 
     setIsSaving(true);
     try {
-      // Never send `id` inside the update payload; optional fields use null when blank
-      const updatePayload: Record<string, any> = {
+      // Whitelist only allowed columns: seller_name, email, phone, seller_id, platform, destination_url, store_url, refresh_token
+      // Never send gmail, name, seller, trader_name, id, created_at, updated_at
+      const updatePayload = cleanTraderPayloadForInsert({
         seller_name: cleanName,
         email: cleanEmail || null,
-        gmail: cleanEmail || null,
         phone: cleanPhone || null,
         platform: form.platform || trader.platform || 'amazon',
         seller_id: cleanSellerId || null,
         destination_url: cleanDestination || null,
-        seller_link: cleanDestination || null,
         store_url: cleanStore || null,
-        storefront_link: cleanStore || null,
-        status: form.status || 'active',
-      };
+        refresh_token: form.refresh_token || (trader as any).refresh_token || null,
+      });
 
       let { data, error } = await supabase
         .from('traders')

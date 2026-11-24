@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-import { 
   TrendingUp, 
   TrendingDown, 
   Flame, 
@@ -258,60 +257,20 @@ export const MarketTrendsRadar: React.FC<MarketTrendsRadarProps> = ({
                 </span>
               </div>
 
-              <div className="h-72 w-full min-w-0">
-                    <defs>
-                      <linearGradient id="demandGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="searchGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                      contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                      formatter={(value: any, name: string) => {
-                        if (name === 'demandScore') return [`${value}/100`, 'مؤشر الطلب'];
-                        if (name === 'averagePriceEGP') return [`${value.toLocaleString('ar-EG')} ج.م`, 'متوسط السعر'];
-                        if (name === 'searchInterestScore') return [`${value}/100`, 'حجم البحث والاهتمام'];
-                        if (name === 'salesUnitsEstimated') return [`${value} قطعة`, 'المبيعات المقدرة بالسوق'];
-                        return [value, name];
-                      }}
-                      labelFormatter={(label) => `الفترة: ${label}`}
-                    />
-                      verticalAlign="top" 
-                      height={36}
-                      formatter={(value) => {
-                        if (value === 'demandScore') return 'مؤشر الطلب العام (0-100)';
-                        if (value === 'searchInterestScore') return 'حجم البحث والاهتمام';
-                        if (value === 'averagePriceEGP') return 'متوسط سعر البيع (ج.م)';
-                        return value;
-                      }}
-                    />
-                      yAxisId="left" 
-                      type="monotone" 
-                      dataKey="demandScore" 
-                      stroke="#4f46e5" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#demandGradient)" 
-                    />
-                      yAxisId="left" 
-                      type="monotone" 
-                      dataKey="searchInterestScore" 
-                      stroke="#10b981" 
-                      strokeWidth={2} 
-                      strokeDasharray="4 4"
-                      fillOpacity={1} 
-                      fill="url(#searchGradient)" 
-                    />
-                      yAxisId="right" 
-                      type="monotone" 
-                      dataKey="averagePriceEGP" 
-                      stroke="#0ea5e9" 
-                      strokeWidth={2} 
-                      dot={{ r: 3, fill: '#0ea5e9' }} 
-                    />
+              <div className="h-72 w-full min-w-0 flex items-end justify-between gap-4 p-4 bg-slate-900 rounded-2xl border border-slate-800" dir="ltr">
+                {(currentAnalysis.historicalPoints || []).map((pt: any, idx: number) => {
+                  const heightPct = Math.min(100, Math.max(15, pt.score || 50));
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                      <div className="text-[10px] text-emerald-400 font-mono mb-1">{pt.score}/100</div>
+                      <div
+                        className="w-full rounded-t-md transition-all bg-gradient-to-t from-indigo-600 to-indigo-400 group-hover:from-indigo-500 group-hover:to-indigo-300"
+                        style={{ height: `${heightPct}%` }}
+                      />
+                      <span className="text-[11px] text-slate-300 font-bold mt-2 truncate text-center w-full">{pt.dateLabel}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

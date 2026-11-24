@@ -22,6 +22,7 @@ import {
   Building,
   Store,
   RefreshCw
+} from 'lucide-react';
 import { ProductData, MerchantOffer, PricePoint } from '../types';
 import { getPriceHistory, PriceHistoryEntry } from '../utils/priceHistoryManager';
 import { auth } from '../firebase';

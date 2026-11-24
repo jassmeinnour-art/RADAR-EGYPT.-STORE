@@ -33,7 +33,6 @@ import {
   Percent,
   Store
 } from 'lucide-react';
-import {
 import { ProductData } from '../types';
 
 interface ArchivedProductsVaultProps {
@@ -1182,57 +1181,36 @@ export const ArchivedProductsVault: React.FC<ArchivedProductsVaultProps> = ({
                   </span>
                 </div>
 
-                <div className="bg-slate-50/90 rounded-2xl p-3 sm:p-4 border border-slate-200 h-64 min-w-0">
+                <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800 h-64 min-w-0 flex flex-col justify-end" dir="ltr">
                   {inspectedProduct.priceHistory && inspectedProduct.priceHistory.length > 0 ? (
-                        data={inspectedProduct.priceHistory.map(p => ({
-                          date: p.date,
-                          price: p.price,
-                          merchant: p.merchant,
-                          wholesale: inspectedProduct.estimatedWholesaleCost
-                        }))}
-                        margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
-                      >
-                          domain={['dataMin - 100', 'dataMax + 100']}
-                          tick={{ fontSize: 10, fill: '#64748B' }}
-                          tickFormatter={(val) => `${val}`}
-                        />
-                          content={({ active, payload, label }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload;
-                              return (
-                                <div className="bg-slate-900 text-white p-3 rounded-xl shadow-lg text-xs font-['Cairo'] text-right border border-slate-700">
-                                  <div className="font-bold text-sky-400 mb-1">{label}</div>
-                                  <div className="text-slate-200">
-                                    السعر: <strong className="text-emerald-400 font-bold">{data.price} {currency}</strong>
-                                  </div>
-                                  <div className="text-slate-400 text-[11px] mt-0.5">
-                                    الجهة: {data.merchant}
-                                  </div>
-                                  <div className="text-slate-400 text-[11px] mt-0.5">
-                                    تكلفة الجملة: {data.wholesale} {currency}
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                          type="monotone"
-                          dataKey="price"
-                          name="سعر السوق المسجل"
-                          stroke="#4F46E5"
-                          strokeWidth={2.5}
-                          dot={{ fill: '#4F46E5', r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                          type="stepAfter"
-                          dataKey="wholesale"
-                          name="تكلفة الجملة (الأساس)"
-                          stroke="#10B981"
-                          strokeWidth={1.5}
-                          strokeDasharray="4 4"
-                          dot={false}
-                        />
+                    <div className="flex items-end justify-between gap-2 h-48">
+                      {inspectedProduct.priceHistory.map((p, idx) => {
+                        const maxP = Math.max(
+                          ...inspectedProduct.priceHistory!.map(pt => pt.price || 1),
+                          inspectedProduct.estimatedWholesaleCost || 1
+                        );
+                        const heightPct = Math.max(15, Math.round(((p.price || 0) / maxP) * 100));
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                            <div className="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                              <div className="bg-slate-950 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono border border-slate-700 text-right" dir="rtl">
+                                <div className="font-bold text-sky-400">{p.date}</div>
+                                <div className="text-emerald-400 font-bold">{p.price} {currency}</div>
+                                <div className="text-slate-400">{p.merchant}</div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-indigo-300 font-mono mb-1">{p.price}</div>
+                            <div
+                              className="w-full rounded-t-md transition-all bg-indigo-500 group-hover:bg-indigo-400"
+                              style={{ height: `${heightPct}%` }}
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono mt-1.5 truncate w-full text-center">
+                              {p.date}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400 text-xs">
                       لا توجد نقاط مسجلة بسجل الأسعار لهذا المنتج

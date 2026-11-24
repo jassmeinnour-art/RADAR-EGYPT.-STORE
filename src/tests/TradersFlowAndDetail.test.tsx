@@ -15,12 +15,14 @@ const {
   detailInvoicesRef,
   selectColumnsLog,
   navigateMock,
+  insertedTradersPayloadsRef,
 } = vi.hoisted(() => ({
   tradersListRef: { current: [] as any[] },
   tradersErrorRef: { current: null as any },
   detailTraderRef: { current: null as any },
   detailProductsRef: { current: [] as any[] },
   detailInvoicesRef: { current: [] as any[] },
+  insertedTradersPayloadsRef: { current: [] as any[] },
   selectColumnsLog: [] as Array<{ table: string; columns: string }>,
   navigateMock: vi.fn((url: string) => {
     if (typeof window !== 'undefined') {
@@ -61,7 +63,8 @@ vi.mock('../components/SponsoredAdsSection', () => ({
   SponsoredAdsSection: () => <div />,
 }));
 
-vi.mock('../lib/supabase', () => {
+vi.mock('../lib/supabase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/supabase')>();
   const formatSupabaseError = (err: any) => {
     if (!err) return 'Unknown error';
     if (typeof err === 'string') return err;
@@ -87,6 +90,30 @@ vi.mock('../lib/supabase', () => {
       single: () => {
         isSingle = true;
         return builder;
+      },
+      insert: (rows: any[]) => {
+        insertedTradersPayloadsRef.current.push(...rows);
+        for (const row of rows) {
+          if ('gmail' in row) {
+            const err = { message: "Could not find the 'gmail' column of 'traders'" };
+            return {
+              select: () => Promise.resolve({ data: null, error: err }),
+              then: (onfulfilled: any, onrejected?: any) =>
+                Promise.resolve({ data: null, error: err }).then(onfulfilled, onrejected),
+            };
+          }
+        }
+        const created = rows.map((r, i) => ({
+          id: `trd-new-${Date.now()}-${i}`,
+          created_at: new Date().toISOString(),
+          ...r,
+        }));
+        tradersListRef.current.push(...created);
+        return {
+          select: () => Promise.resolve({ data: created, error: null }),
+          then: (onfulfilled: any, onrejected?: any) =>
+            Promise.resolve({ data: created, error: null }).then(onfulfilled, onrejected),
+        };
       },
       then: (onfulfilled: any, onrejected?: any) => {
         if (table === 'traders') {
@@ -128,6 +155,7 @@ vi.mock('../lib/supabase', () => {
   };
 
   return {
+    ...actual,
     supabase: {
       from: (table: string) => makeBuilder(table),
     },
@@ -175,6 +203,7 @@ describe('Problem 5 — Clickable Trader Cards, /traders Page & /traders/{id} De
     detailProductsRef.current = [];
     detailInvoicesRef.current = [];
     selectColumnsLog.length = 0;
+    insertedTradersPayloadsRef.current = [];
     navigateMock.mockClear();
     localStorage.clear();
   });
@@ -286,5 +315,66 @@ describe('Problem 5 — Clickable Trader Cards, /traders Page & /traders/{id} De
 
     expect(screen.getByRole('button', { name: /تعديل بيانات التاجر/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: new RegExp(IMPORT_BUTTON_LABEL.replace(/[()]/g, '\\$&')) })).toBeInTheDocument();
+  });
+
+  it('saves new trader (Mahmoud Saeed) sending ONLY whitelisted columns without gmail, name, seller, trader_name, id, created_at, or updated_at', async () => {
+    tradersListRef.current = [];
+    const onShowToast = vi.fn();
+    render(<TradersPage onShowToast={onShowToast} />);
+
+    const openAddBtn = await screen.findByRole('button', { name: 'ابدأ بإضافة أول تاجر' });
+    fireEvent.click(openAddBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    const nameInput = screen.getByPlaceholderText('مثال: محمود سعيد');
+    const emailInput = screen.getByPlaceholderText('mahmeudsaid4@gmail.com');
+    const sellerIdInput = screen.getByPlaceholderText('A37JIM7LHQI6IM');
+    const phoneInput = screen.getByPlaceholderText('+20 100 123 4567');
+
+    fireEvent.change(nameInput, { target: { value: 'محمود سعيد' } });
+    fireEvent.change(emailInput, { target: { value: 'mahmeudsaid4@gmail.com' } });
+    fireEvent.change(sellerIdInput, { target: { value: 'A37JIM7LHQI6IM' } });
+    fireEvent.change(phoneInput, { target: { value: '+201012345678' } });
+
+    const dialogEl = await screen.findByRole('dialog');
+    const formEl = dialogEl.querySelector('form')!;
+    fireEvent.submit(formEl);
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('تم حفظ سجل التاجر بنجاح'));
+    });
+
+    expect(insertedTradersPayloadsRef.current.length).toBeGreaterThan(0);
+    const sentPayload = insertedTradersPayloadsRef.current[0];
+
+    const ALLOWED = new Set([
+      'seller_name',
+      'email',
+      'phone',
+      'seller_id',
+      'platform',
+      'destination_url',
+      'store_url',
+      'refresh_token',
+    ]);
+
+    for (const key of Object.keys(sentPayload)) {
+      expect(ALLOWED.has(key)).toBe(true);
+    }
+
+    // Must NOT contain gmail, name, seller, trader_name, id, created_at, updated_at
+    expect(sentPayload).not.toHaveProperty('gmail');
+    expect(sentPayload).not.toHaveProperty('name');
+    expect(sentPayload).not.toHaveProperty('seller');
+    expect(sentPayload).not.toHaveProperty('trader_name');
+    expect(sentPayload).not.toHaveProperty('id');
+    expect(sentPayload).not.toHaveProperty('created_at');
+    expect(sentPayload).not.toHaveProperty('updated_at');
+
+    expect(sentPayload.seller_name).toBe('محمود سعيد');
+    expect(sentPayload.email).toBe('mahmeudsaid4@gmail.com');
+    expect(sentPayload.seller_id).toBe('A37JIM7LHQI6IM');
   });
 });

@@ -434,36 +434,20 @@ export async function saveTraderAmazonConnection(params: {
 
   writeTraderAmazonConnectionLocal(traderId, sellerId, refreshToken, updatedAt);
 
-  if (params.syncToSupabase !== false && traderId) {
+  if (params.syncToSupabase !== false && (traderId || sellerId)) {
     try {
-      const existingApiKeys =
-        params.existingTrader?.api_keys && typeof params.existingTrader.api_keys === 'object'
-          ? params.existingTrader.api_keys
-          : {};
-      const nextApiKeys = {
-        ...existingApiKeys,
-        amazon: {
-          ...(existingApiKeys.amazon || {}),
-          sellerId,
-          refreshToken,
-          updatedAt,
-        },
+      const updatePayload: Record<string, any> = {
+        refresh_token: refreshToken || null,
       };
+      if (sellerId) {
+        updatePayload.seller_id = sellerId;
+      }
 
-      const { error } = await supabase
-        .from('traders')
-        .update({
-          seller_id: sellerId || null,
-          api_keys: nextApiKeys,
-        })
-        .eq('id', traderId);
-
-      // Fallback if table schema lacks api_keys column
-      if (error && (error.code === 'PGRST204' || /column/i.test(String(error.message || '')))) {
-        await supabase
-          .from('traders')
-          .update({ seller_id: sellerId || null })
-          .eq('id', traderId);
+      const query = supabase.from('traders').update(updatePayload);
+      if (traderId) {
+        await query.eq('id', traderId);
+      } else if (sellerId) {
+        await query.eq('seller_id', sellerId);
       }
     } catch {
       // Local store already updated cleanly

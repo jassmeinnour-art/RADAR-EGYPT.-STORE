@@ -289,25 +289,115 @@ export function isFounderSession(): boolean {
   return getSupabaseActiveEmail() === FOUNDER_EMAIL;
 }
 
-const DERIVED_TRADER_FIELDS = new Set([
-  'id',
-  'created_at',
-  'products_count',
-  'amazon_count',
-  'noon_count',
-  'total_stock',
-  'invoices_count',
-  'is_connected',
+export const TRADER_ALLOWED_COLUMNS = new Set([
+  'seller_name',
+  'email',
+  'phone',
+  'seller_id',
+  'platform',
+  'destination_url',
+  'store_url',
+  'refresh_token',
 ]);
 
-export function sanitizeTraderUpdatePayload(updates: Record<string, any> | null | undefined): Record<string, any> {
-  const clean: Record<string, any> = {};
-  if (!updates || typeof updates !== 'object') return clean;
-  for (const [k, v] of Object.entries(updates)) {
-    if (DERIVED_TRADER_FIELDS.has(k)) continue;
-    clean[k] = v;
+/**
+ * Strict whitelist cleaner for saving/updating a trader in Supabase.
+ * - Uses ONLY: seller_name, email, phone, seller_id, platform, destination_url, store_url, refresh_token.
+ * - Converts input named 'gmail' to 'email'.
+ * - Converts 'name', 'seller', 'trader_name' to 'seller_name'.
+ * - Never sends: gmail, name, seller, trader_name.
+ * - Never sends: id, created_at, updated_at (delegates auto-generation to Supabase).
+ */
+export function cleanTraderPayloadForInsert(raw: Record<string, any> | null | undefined): Record<string, any> {
+  if (!raw || typeof raw !== 'object') return {};
+
+  const cleaned: Record<string, any> = {};
+
+  // 1. seller_name - resolved from seller_name, name, trader_name, seller
+  const seller_name = String(
+    raw.seller_name || raw.name || raw.trader_name || raw.seller || ''
+  ).trim();
+  if (seller_name) {
+    cleaned.seller_name = seller_name;
   }
-  return clean;
+
+  // 2. email - if input is named gmail, convert to email. Never send gmail!
+  if (raw.email === null || (raw.email === undefined && raw.gmail === null)) {
+    cleaned.email = null;
+  } else {
+    const email = String(raw.email || raw.gmail || '').trim().toLowerCase();
+    if (email) {
+      cleaned.email = email;
+    }
+  }
+
+  // 3. phone
+  if (raw.phone === null) {
+    cleaned.phone = null;
+  } else if (raw.phone !== undefined) {
+    const phone = String(raw.phone).trim();
+    if (phone) cleaned.phone = phone;
+  }
+
+  // 4. seller_id
+  if (raw.seller_id === null) {
+    cleaned.seller_id = null;
+  } else {
+    const seller_id = String(raw.seller_id || '').trim();
+    if (seller_id) {
+      cleaned.seller_id = seller_id;
+    }
+  }
+
+  // 5. platform
+  if (raw.platform !== null && raw.platform !== undefined) {
+    const platform = String(raw.platform || 'amazon').trim().toLowerCase();
+    if (platform) {
+      cleaned.platform = platform;
+    }
+  }
+
+  // 6. destination_url - resolved from destination_url, seller_link
+  if (raw.destination_url === null || (raw.destination_url === undefined && raw.seller_link === null)) {
+    cleaned.destination_url = null;
+  } else if (raw.destination_url !== undefined || raw.seller_link !== undefined) {
+    const dest = String(raw.destination_url || raw.seller_link || '').trim();
+    if (dest) cleaned.destination_url = dest;
+  }
+
+  // 7. store_url - resolved from store_url, storefront_link
+  if (raw.store_url === null || (raw.store_url === undefined && raw.storefront_link === null)) {
+    cleaned.store_url = null;
+  } else if (raw.store_url !== undefined || raw.storefront_link !== undefined) {
+    const store = String(raw.store_url || raw.storefront_link || '').trim();
+    if (store) cleaned.store_url = store;
+  }
+
+  // 8. refresh_token - resolved from refresh_token, amazon_refresh_token, api_keys
+  if (raw.refresh_token === null) {
+    cleaned.refresh_token = null;
+  } else {
+    const token = String(
+      raw.refresh_token || raw.amazon_refresh_token || raw.api_keys?.amazon?.refreshToken || ''
+    ).trim();
+    if (token) {
+      cleaned.refresh_token = token;
+    }
+  }
+
+  // Strict whitelist cleaning: delete any key not in TRADER_ALLOWED_COLUMNS
+  // Explicitly guarantees never sending: gmail, name, seller, trader_name, id, created_at, updated_at
+  for (const key of Object.keys(cleaned)) {
+    if (!TRADER_ALLOWED_COLUMNS.has(key)) {
+      delete cleaned[key];
+    }
+  }
+
+  return cleaned;
+}
+
+export function sanitizeTraderUpdatePayload(updates: Record<string, any> | null | undefined): Record<string, any> {
+  return cleanTraderPayloadForInsert(updates);
 }
 
 export function formatSupabaseError(err: any): string {
@@ -335,8 +425,8 @@ export function formatSupabaseError(err: any): string {
   return rawMessage;
 }
 
-async function invokeUpdateTraderEdgeFunction(
-  traderId: string,
+export async function invokeUpdateTraderEdgeFunction(
+  traderIdOrTarget: string | { traderId?: string; sellerId?: string },
   updates: Record<string, any>,
   accessToken?: string | null
 ): Promise<{ data: any; error: any }> {
@@ -345,6 +435,10 @@ async function invokeUpdateTraderEdgeFunction(
   }
   try {
     const cleanUpdates = sanitizeTraderUpdatePayload(updates);
+    const target =
+      typeof traderIdOrTarget === 'string'
+        ? { traderId: traderIdOrTarget }
+        : traderIdOrTarget;
     const res = await fetch(`${SUPABASE_URL}/functions/v1/update-trader`, {
       method: 'POST',
       headers: {
@@ -353,7 +447,8 @@ async function invokeUpdateTraderEdgeFunction(
         Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({
-        traderId,
+        ...(target.traderId ? { traderId: target.traderId } : {}),
+        ...(target.sellerId ? { sellerId: target.sellerId } : {}),
         updates: cleanUpdates,
         founderEmail: getSupabaseActiveEmail() || FOUNDER_EMAIL,
       }),
@@ -551,21 +646,13 @@ export const multiTenantDb = {
       }
     }
 
-    const id = `trd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8)}`;
-    const newTrader: Trader = {
-      ...traderData,
-      user_id: effectiveUserId,
-      id,
-      created_at: new Date().toISOString(),
-      status: traderData.status || 'active',
-      products_count: 0
-    };
+    const insertPayload = cleanTraderPayloadForInsert(traderData);
 
     if (supabaseClient) {
       try {
         const { data, error } = await supabaseClient
           .from('traders')
-          .insert([newTrader])
+          .insert([insertPayload])
           .select()
           .single();
 
@@ -576,6 +663,17 @@ export const multiTenantDb = {
         console.warn('[MultiTenant Supabase Insert Error]:', err);
       }
     }
+
+    const id = `trd-${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8)}`;
+    const newTrader: Trader = {
+      ...traderData,
+      ...insertPayload,
+      user_id: effectiveUserId,
+      id,
+      created_at: new Date().toISOString(),
+      status: traderData.status || 'active',
+      products_count: 0
+    };
 
     // Save in isolated storage for this specific user
     try {
@@ -1284,7 +1382,26 @@ class SupabaseQueryBuilder {
     return this;
   }
 
-  async insert(records: any): Promise<{ data: any; error: any }> {
+  insert(records: any): Promise<{ data: any; error: any }> & {
+    select: (fields?: string) => Promise<{ data: any; error: any }> & {
+      single: () => Promise<{ data: any; error: any }>;
+    };
+  } {
+    const execPromise = this.executeInsert(records);
+    const wrapper: any = execPromise;
+    wrapper.select = (_fields?: string) => {
+      const selWrapper: any = execPromise;
+      selWrapper.single = () =>
+        execPromise.then((res) => ({
+          data: Array.isArray(res.data) ? res.data[0] || null : res.data,
+          error: res.error,
+        }));
+      return selWrapper;
+    };
+    return wrapper;
+  }
+
+  private async executeInsert(records: any): Promise<{ data: any; error: any }> {
     if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
       const session = activeAccessToken ? { access_token: activeAccessToken } : await getActiveSupabaseSession(2000);
       if (!session?.access_token) {
@@ -1434,15 +1551,19 @@ class SupabaseQueryBuilder {
   private async executeUpdate(): Promise<{ data: any; error: any }> {
     const idFilter = this.filters.find(f => f.col === 'id' && f.type === 'eq');
     const eqId = idFilter?.val !== undefined && idFilter?.val !== null ? String(idFilter.val).trim() : '';
+    const sellerIdFilter = this.filters.find(f => f.col === 'seller_id' && f.type === 'eq');
+    const eqSellerId = sellerIdFilter?.val !== undefined && sellerIdFilter?.val !== null ? String(sellerIdFilter.val).trim() : '';
 
-    if (this.tableName === 'traders' && !eqId) {
+    if (this.tableName === 'traders' && !eqId && !eqSellerId) {
       const missingIdErr = {
-        message: 'معرف التاجر (id) مطلوب للتعديل ويجب التحديث عبر eq("id", trader.id) فقط',
+        message: 'معرف التاجر (id أو seller_id) مطلوب للتعديل ولا يمكن التحديث بدون تحديد التاجر',
         code: 'MISSING_TRADER_ID',
       };
       console.error(missingIdErr);
       return { data: null, error: missingIdErr };
     }
+
+    const traderEdgeTarget = eqId ? { traderId: eqId } : { sellerId: eqSellerId };
 
     let session: Session | null = null;
     if (supabaseClient && PROTECTED_TABLES.has(this.tableName)) {
@@ -1463,8 +1584,8 @@ class SupabaseQueryBuilder {
 
     if (supabaseClient) {
       if (PROTECTED_TABLES.has(this.tableName) && !session?.access_token) {
-        if (this.tableName === 'traders' && eqId) {
-          const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, null);
+        if (this.tableName === 'traders' && (eqId || eqSellerId)) {
+          const edgeRes = await invokeUpdateTraderEdgeFunction(traderEdgeTarget, this.updatePayload, null);
           if (!edgeRes.error && edgeRes.data) {
             remoteResult = edgeRes.data;
           } else {
@@ -1515,8 +1636,8 @@ class SupabaseQueryBuilder {
               errMsg.includes('row-level security') ||
               errMsg.includes('permission denied');
 
-            if (this.tableName === 'traders' && eqId && isRlsFailure) {
-              const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, session?.access_token);
+            if (this.tableName === 'traders' && (eqId || eqSellerId) && isRlsFailure) {
+              const edgeRes = await invokeUpdateTraderEdgeFunction(traderEdgeTarget, this.updatePayload, session?.access_token);
               if (!edgeRes.error && edgeRes.data) {
                 remoteResult = edgeRes.data;
               } else {
@@ -1525,9 +1646,9 @@ class SupabaseQueryBuilder {
             } else {
               return { data: null, error: res.error };
             }
-          } else if (this.tableName === 'traders' && eqId) {
+          } else if (this.tableName === 'traders' && (eqId || eqSellerId)) {
             // 0 rows returned typically indicates RLS blocked update or record ID was not matched
-            const edgeRes = await invokeUpdateTraderEdgeFunction(eqId, this.updatePayload, session?.access_token);
+            const edgeRes = await invokeUpdateTraderEdgeFunction(traderEdgeTarget, this.updatePayload, session?.access_token);
             if (!edgeRes.error && edgeRes.data) {
               remoteResult = edgeRes.data;
             } else {
@@ -1547,7 +1668,7 @@ class SupabaseQueryBuilder {
           return { data: null, error: err };
         }
       }
-    } else if (this.tableName === 'traders' && eqId) {
+    } else if (this.tableName === 'traders' && (eqId || eqSellerId)) {
       // Offline / localStorage-only mode: verify duplicate email against OTHER traders
       const candidateEmail = String(this.updatePayload?.email || this.updatePayload?.gmail || '').trim().toLowerCase();
       if (candidateEmail && typeof localStorage !== 'undefined') {
@@ -1582,7 +1703,7 @@ class SupabaseQueryBuilder {
     }
 
     // Persist/sync edits in localStorage fallback so edits remain consistent in local cache
-    let updatedRow: any = remoteResult && !Array.isArray(remoteResult) ? remoteResult : { id: eqId, ...this.updatePayload };
+    let updatedRow: any = remoteResult && !Array.isArray(remoteResult) ? remoteResult : { id: eqId || eqSellerId, ...this.updatePayload };
     if (this.tableName === 'products' && eqId) {
       try {
         for (let i = 0; i < localStorage.length; i++) {
@@ -1609,9 +1730,15 @@ class SupabaseQueryBuilder {
       } catch {}
     }
 
-    if (this.tableName === 'traders' && eqId) {
+    if (this.tableName === 'traders' && (eqId || eqSellerId)) {
       try {
         let foundInStorage = false;
+        const matchesTrader = (t: any) => {
+          if (!t) return false;
+          if (eqId && String(t.id) === String(eqId)) return true;
+          if (eqSellerId && String(t.seller_id || '').trim() === String(eqSellerId).trim()) return true;
+          return false;
+        };
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
           if (k && (k.startsWith('radar_multi_tenant_traders_') || k === 'radar_multi_tenant_traders_default')) {
@@ -1621,7 +1748,7 @@ class SupabaseQueryBuilder {
             if (!Array.isArray(list)) continue;
             let modified = false;
             const nextList = list.map((t: any) => {
-              if (t && String(t.id) === String(eqId)) {
+              if (matchesTrader(t)) {
                 foundInStorage = true;
                 modified = true;
                 updatedRow = remoteResult && !Array.isArray(remoteResult)
@@ -1643,11 +1770,12 @@ class SupabaseQueryBuilder {
           updatedRow = remoteResult && !Array.isArray(remoteResult)
             ? remoteResult
             : {
-                id: String(eqId),
+                id: String(eqId || eqSellerId),
+                ...(eqSellerId ? { seller_id: String(eqSellerId) } : {}),
                 user_id: 'founder',
                 ...this.updatePayload,
               };
-          const filtered = Array.isArray(defList) ? defList.filter((t: any) => String(t?.id) !== String(eqId)) : [];
+          const filtered = Array.isArray(defList) ? defList.filter((t: any) => !matchesTrader(t)) : [];
           filtered.unshift(updatedRow);
           localStorage.setItem(defaultKey, JSON.stringify(filtered));
         }

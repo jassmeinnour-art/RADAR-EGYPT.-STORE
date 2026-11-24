@@ -27,6 +27,7 @@ export type WorkspaceTab =
   | 'analytics'
   | 'layout_settings'
   | 'account_settings'
+  | 'amazon_callback'
   | 'not_found';
 
 export const TAB_TO_PATH_MAP: Partial<Record<WorkspaceTab, string>> = {
@@ -51,6 +52,7 @@ export const TAB_TO_PATH_MAP: Partial<Record<WorkspaceTab, string>> = {
   traders_sync: '/gmail-sync',
   layout_settings: '/settings/layout',
   account_settings: '/settings',
+  amazon_callback: '/auth/amazon-callback',
   help: '/help',
 };
 
@@ -58,6 +60,7 @@ export function resolvePathToTab(rawPath: string): WorkspaceTab {
   const pathWithoutQuery = (rawPath || '/').split('?')[0].split('#')[0];
   const normalized = pathWithoutQuery.replace(/\/+$/, '') || '/';
 
+  if (normalized === '/auth/amazon-callback') return 'amazon_callback';
   if (normalized === '/' || normalized === '/index.html' || normalized === '/login') return 'home';
   if (normalized === '/dashboard') return 'dashboard';
   if (normalized === '/traders' || normalized.startsWith('/traders/')) return 'traders';

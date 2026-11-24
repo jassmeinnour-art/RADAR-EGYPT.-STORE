@@ -7,6 +7,7 @@ import { TabSkeletonLoader } from './components/TabSkeletonLoader';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginPage from './components/LoginPage';
 import DashboardHome from './components/DashboardHome';
+import AmazonCallbackPage, { PENDING_OAUTH_TOAST_STORAGE_KEY } from './components/AmazonCallbackPage';
 import { PullToRefresh, RADAR_PULL_TO_REFRESH_EVENT } from './components/PullToRefresh';
 import { TabTransitionContainer } from './components/TabTransitionContainer';
 import { QuickAccessDock } from './components/QuickAccessDock';
@@ -172,7 +173,20 @@ export default function App() {
     [isPerformanceMode]
   );
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const pending = sessionStorage.getItem(PENDING_OAUTH_TOAST_STORAGE_KEY);
+        if (pending) {
+          sessionStorage.removeItem(PENDING_OAUTH_TOAST_STORAGE_KEY);
+          return pending;
+        }
+      } catch {
+        // safe
+      }
+    }
+    return null;
+  });
 
   const showToast = useCallback((msg: string) => {
     if (!msg) return;
@@ -273,6 +287,38 @@ export default function App() {
     return () => window.removeEventListener('merchant_watchlist_price_changed', handleWatchlistAlert);
   }, [showToast]);
 
+  const normalizedCurrentPath = (currentPathname || '/').replace(/\/+$/, '') || '/';
+  const windowNormalizedPath =
+    typeof window !== 'undefined'
+      ? (window.location.pathname || '/').replace(/\/+$/, '') || '/'
+      : '/';
+  const isAmazonCallbackPath =
+    normalizedCurrentPath === '/auth/amazon-callback' ||
+    windowNormalizedPath === '/auth/amazon-callback' ||
+    activeWorkspaceTab === 'amazon_callback';
+
+  // Dedicated Amazon OAuth callback route: NEVER redirect /auth/amazon-callback to /login
+  if (isAmazonCallbackPath) {
+    return (
+      <ErrorBoundary
+        sectionName="amazon-callback"
+        sectionTitle="ربط حساب أمازون"
+        sectionDescription="تعذر عرض صفحة استلام كود التفويض مؤقتاً."
+      >
+        <AmazonCallbackPage
+          onShowToast={showToast}
+          onNavigateToTraders={() => {
+            setHasLazyLoadError(false);
+            setShowOwnerDashboard(false);
+            setActiveWorkspaceTab('traders');
+            setCurrentPathname('/traders');
+            navigate('/traders');
+          }}
+        />
+      </ErrorBoundary>
+    );
+  }
+
   const isResetPath =
     typeof window !== 'undefined' &&
     (window.location.pathname === '/reset-password' ||
@@ -302,6 +348,25 @@ export default function App() {
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/');
           }}
         />
+        {toastMessage && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-5 left-5 z-[200] max-w-md bg-slate-900 text-white border border-emerald-500/60 shadow-2xl rounded-2xl px-4 py-3 flex items-start gap-3"
+          >
+            <span className="text-xs sm:text-sm font-bold leading-relaxed flex-1">
+              {toastMessage}
+            </span>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              aria-label="إغلاق الإشعار"
+              className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </ErrorBoundary>
     );
   }
@@ -356,6 +421,18 @@ export default function App() {
       traders_sync: <TraderStoreSyncManager onShowToast={showToast} />,
       layout_settings: <LayoutSettingsPage />,
       account_settings: <AccountSettingsPage onShowToast={showToast} />,
+      amazon_callback: (
+        <AmazonCallbackPage
+          onShowToast={showToast}
+          onNavigateToTraders={() => {
+            setHasLazyLoadError(false);
+            setShowOwnerDashboard(false);
+            setActiveWorkspaceTab('traders');
+            setCurrentPathname('/traders');
+            navigate('/traders');
+          }}
+        />
+      ),
       help: (
         <HelpPage
           onNavigateToPlatformsGuide={() => {
