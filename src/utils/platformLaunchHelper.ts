@@ -27,14 +27,24 @@ export interface PlatformPortalMeta {
   directLaunchSupported: boolean;
 }
 
-export const AMAZON_APP_ID = ((import.meta as any).env?.VITE_AMAZON_APP_ID || 'amzn1.sp.solution.8f94e2c1-7d4b-4a90-b123-456789abcdef').trim();
+export const AMAZON_APP_ID = 'amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1';
 
 /**
- * Builds the official 1-Click Amazon Seller Central Delegated OAuth Consent URL
+ * Builds the official Amazon OAuth Consent URL with per-trader state=[اسم_التاجر]_[Seller ID]
  */
-export function getAmazonSellerCentralConsentUrl(merchantIdOrSellerId?: string): string {
-  const targetState = encodeURIComponent((merchantIdOrSellerId || 'merchant-active').trim());
-  return `https://sellercentral.amazon.eg/apps/authorize/consent?application_id=${AMAZON_APP_ID}&state=${targetState}`;
+export function getAmazonSellerCentralConsentUrl(
+  merchantIdOrSellerId?: string,
+  sellerName?: string
+): string {
+  const cleanSellerId = (merchantIdOrSellerId || 'merchant-active').trim();
+  const cleanSellerName = (sellerName || '').trim();
+  const stateValue =
+    cleanSellerName && cleanSellerId
+      ? `${cleanSellerName}_${cleanSellerId}`
+      : cleanSellerId || cleanSellerName;
+  return `https://www.amazon.com/ap/oa?client_id=${AMAZON_APP_ID}&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=${encodeURIComponent(
+    stateValue
+  )}`;
 }
 
 export const DEFAULT_PLATFORM_PORTALS: Record<string, PlatformPortalMeta> = {

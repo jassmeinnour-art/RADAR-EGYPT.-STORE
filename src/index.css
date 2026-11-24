@@ -245,3 +245,44 @@ html.performance-mode .radar-blip,
 html.performance-mode .radar-ticker-track {
   animation: none !important;
 }
+
+/* ===== Independent High Contrast Accessibility Layer ===== */
+html[data-high-contrast="true"],
+html[data-high-contrast="true"] body {
+  background-color: var(--app-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+html[data-high-contrast="true"] .theme-card,
+html[data-high-contrast="true"] .card,
+html[data-high-contrast="true"] .panel,
+html[data-high-contrast="true"] .bg-card,
+html[data-high-contrast="true"] .modal-card {
+  border-color: var(--card-border) !important;
+  border-width: max(var(--border-width, 1px), 1.5px);
+}
+
+html[data-high-contrast="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html[data-high-contrast="true"] select,
+html[data-high-contrast="true"] textarea {
+  border-color: var(--input-border) !important;
+}
+
+html[data-high-contrast="true"].dark .text-slate-400,
+html[data-high-contrast="true"].dark .text-slate-500,
+html[data-high-contrast="true"].dark .text-gray-400,
+html[data-high-contrast="true"].dark .text-gray-500 {
+  color: #E2E8F0 !important;
+}
+
+html[data-high-contrast="true"].light .text-slate-400,
+html[data-high-contrast="true"].light .text-slate-500,
+html[data-high-contrast="true"].light .text-gray-400,
+html[data-high-contrast="true"].light .text-gray-500 {
+  color: #1E293B !important;
+}
+
+html[data-high-contrast="true"] :focus-visible {
+  outline: 2px solid var(--focus-ring, #FACC15) !important;
+  outline-offset: 2px !important;
+}

@@ -1,17 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Copy, Check, ArrowLeft, AlertTriangle, Loader2, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Copy, Check, AlertTriangle, Loader2, ShieldCheck, MessageCircle } from 'lucide-react';
 import { invokeUpdateTraderEdgeFunction, supabase } from '../lib/supabase';
 import { saveTraderAmazonConnection } from '../utils/sellerCentralExcelImporter';
-import { navigate } from '../utils/navigation';
 import { dataCache } from '../utils/dataCache';
 
 export const AMAZON_CALLBACK_SUCCESS_MESSAGE = 'تم ربط التاجر بنجاح - الكود اتحفظ';
+export const AMAZON_CALLBACK_WHATSAPP_INSTRUCTION =
+  'تم نسخ الكود - ابعت الكود ده للمؤسس على الواتساب - واقفل الصفحة - متدخلش على رادار';
 export const PENDING_OAUTH_TOAST_STORAGE_KEY = 'radar_pending_oauth_toast';
 
 export interface AmazonCallbackPageProps {
   onShowToast?: (message: string) => void;
-  onNavigateToTraders?: () => void;
-  redirectDelayMs?: number;
+}
+
+export function extractSellerIdFromOAuthState(
+  rawState?: string | null,
+  explicitSellerId?: string | null
+): string {
+  const direct = String(explicitSellerId || '').trim();
+  if (direct) return direct;
+  const trimmedState = String(rawState || '').trim();
+  if (!trimmedState) return '';
+  if (trimmedState.includes('_')) {
+    const trailing = trimmedState.slice(trimmedState.lastIndexOf('_') + 1).trim();
+    if (trailing) return trailing;
+  }
+  return trimmedState;
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -47,22 +61,24 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 
 export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
   onShowToast,
-  onNavigateToTraders,
-  redirectDelayMs = 1500,
 }) => {
-  const { code, state, errorParam, errorDescription } = useMemo(() => {
+  const { code, rawState, sellerId, errorParam, errorDescription } = useMemo(() => {
     if (typeof window === 'undefined') {
-      return { code: '', state: '', errorParam: '', errorDescription: '' };
+      return { code: '', rawState: '', sellerId: '', errorParam: '', errorDescription: '' };
     }
     const params = new URLSearchParams(window.location.search || '');
+    const stateParam = (params.get('state') || '').trim();
+    const explicitId = (
+      params.get('selling_partner_id') ||
+      params.get('seller_id') ||
+      ''
+    ).trim();
+    const extractedSellerId = extractSellerIdFromOAuthState(stateParam, explicitId);
+
     return {
       code: (params.get('code') || params.get('spapi_oauth_code') || '').trim(),
-      state: (
-        params.get('state') ||
-        params.get('selling_partner_id') ||
-        params.get('seller_id') ||
-        ''
-      ).trim(),
+      rawState: stateParam || explicitId,
+      sellerId: extractedSellerId,
       errorParam: (params.get('error') || '').trim(),
       errorDescription: (params.get('error_description') || '').trim(),
     };
@@ -74,19 +90,6 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [errorDetails, setErrorDetails] = useState<string>('');
   const processedRef = useRef(false);
-  const redirectTimerRef = useRef<number | null>(null);
-
-  const goToTraders = useCallback(() => {
-    if (redirectTimerRef.current !== null && typeof window !== 'undefined') {
-      window.clearTimeout(redirectTimerRef.current);
-      redirectTimerRef.current = null;
-    }
-    if (onNavigateToTraders) {
-      onNavigateToTraders();
-    } else {
-      navigate('/traders');
-    }
-  }, [onNavigateToTraders]);
 
   const handleManualCopy = useCallback(async () => {
     if (!code) return;
@@ -116,17 +119,17 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
       setCopyAttempted(true);
       setIsCopied(copied);
 
-      // 2. Save code in traders.refresh_token matching seller_id = state
+      // 2. Save code in traders.refresh_token matching extracted seller_id
       setSaveState('saving');
       let dbErrorMessage = '';
 
-      if (state) {
+      if (sellerId) {
         let savedRemotely = false;
         try {
           const res = await supabase
             .from('traders')
             .update({ refresh_token: code })
-            .eq('seller_id', state);
+            .eq('seller_id', sellerId);
 
           if (!res?.error) {
             savedRemotely = true;
@@ -137,11 +140,11 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
           dbErrorMessage = String(err?.message || err || '');
         }
 
-        // If client-side RLS blocked update (e.g. trader opened callback without founder session), retry via Edge Function
+        // If client-side RLS blocked update (trader opened callback without founder session), retry via Edge Function
         if (!savedRemotely) {
           try {
             const edgeRes = await invokeUpdateTraderEdgeFunction(
-              { sellerId: state },
+              { sellerId },
               { refresh_token: code },
               null
             );
@@ -156,7 +159,7 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
 
         // Keep local per-trader vault synchronized
         await saveTraderAmazonConnection({
-          sellerId: state,
+          sellerId,
           refreshToken: code,
           syncToSupabase: false,
         }).catch(() => {});
@@ -170,10 +173,6 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
           setErrorDetails(dbErrorMessage);
           return;
         }
-      } else {
-        // Code arrived without state — save in session fallback and still inform user
-        setSaveState('saved');
-        setStatusMessage(AMAZON_CALLBACK_SUCCESS_MESSAGE);
       }
 
       setSaveState('saved');
@@ -188,27 +187,14 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
       }
 
       onShowToast?.(AMAZON_CALLBACK_SUCCESS_MESSAGE);
-
-      // 3. Redirect to /traders automatically after brief confirmation on the white page
-      if (typeof window !== 'undefined' && redirectDelayMs >= 0) {
-        redirectTimerRef.current = window.setTimeout(() => {
-          if (isActive) {
-            goToTraders();
-          }
-        }, redirectDelayMs);
-      }
     };
 
     run();
 
     return () => {
       isActive = false;
-      if (redirectTimerRef.current !== null && typeof window !== 'undefined') {
-        window.clearTimeout(redirectTimerRef.current);
-        redirectTimerRef.current = null;
-      }
     };
-  }, [code, state, errorParam, errorDescription, onShowToast, goToTraders, redirectDelayMs]);
+  }, [code, sellerId, errorParam, errorDescription, onShowToast]);
 
   return (
     <div
@@ -251,7 +237,7 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
         </div>
 
         {code ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="text-sm font-bold text-slate-600">
               كود الموافقة المستلم من أمازون:
             </div>
@@ -264,73 +250,64 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
               {code}
             </div>
 
-            {state && (
+            {rawState && (
               <div className="text-sm font-bold text-slate-600">
-                معرّف التاجر (Seller ID / State):{' '}
+                معرّف التاجر (State):{' '}
                 <span
                   dir="ltr"
                   data-testid="amazon-callback-state"
                   className="font-mono font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200"
                 >
-                  {state}
+                  {rawState}
                 </span>
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            <div
+              data-testid="amazon-callback-whatsapp-instruction"
+              className="w-full bg-emerald-50 border-2 border-emerald-400 rounded-2xl px-5 py-5 text-emerald-950 shadow-sm space-y-2"
+            >
+              <div className="flex items-center justify-center gap-2 text-emerald-700 font-extrabold text-sm">
+                <MessageCircle className="w-5 h-5 shrink-0" />
+                <span>خطوة الإكمال</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black leading-relaxed text-slate-900">
+                {AMAZON_CALLBACK_WHATSAPP_INSTRUCTION}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center pt-1">
               <button
                 type="button"
+                data-testid="amazon-callback-copy-btn"
                 onClick={handleManualCopy}
-                className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition cursor-pointer border ${
+                className={`inline-flex items-center gap-2 px-7 py-4 rounded-2xl font-black text-base transition cursor-pointer border shadow-sm ${
                   isCopied
-                    ? 'bg-emerald-600 text-white border-emerald-700'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
                     : 'bg-slate-900 hover:bg-slate-800 text-white border-slate-900'
                 }`}
               >
                 {isCopied ? (
                   <>
-                    <Check className="w-4 h-4" />
-                    <span>تم نسخ الكود تلقائياً في الحافظة ✓</span>
+                    <Check className="w-5 h-5" />
+                    <span>تم نسخ الكود ✓</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" />
-                    <span>{copyAttempted ? 'إعادة نسخ الكود' : 'نسخ الكود'}</span>
+                    <Copy className="w-5 h-5" />
+                    <span>{copyAttempted ? 'نسخ الكود مرة أخرى' : 'تم نسخ الكود'}</span>
                   </>
                 )}
               </button>
-
-              <button
-                type="button"
-                onClick={goToTraders}
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition cursor-pointer"
-              >
-                <span>الانتقال إلى صفحة التجار (/traders)</span>
-                <ArrowLeft className="w-4 h-4" />
-              </button>
             </div>
-
-            {saveState === 'saved' && (
-              <p className="text-xs sm:text-sm text-slate-500 font-semibold">
-                جاري تحويلك تلقائياً إلى صفحة التجار...
-              </p>
-            )}
           </div>
         ) : (
           <div className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 text-sm font-bold">
               {errorDetails
                 ? `تعذر إتمام التفويض من أمازون: ${errorDetails}`
-                : 'لم يصل كود موافقة (code) في الرابط حتى الآن.'}
+                : 'لم يصل كود موافقة (code) في الرابط حتى الآن. برجاء التأكد من الرابط وإعادة المحاولة أو التواصل مع المؤسس.'}
             </div>
-            <button
-              type="button"
-              onClick={goToTraders}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition cursor-pointer"
-            >
-              <span>الانتقال إلى صفحة التجار</span>
-              <ArrowLeft className="w-4 h-4" />
-            </button>
           </div>
         )}
 

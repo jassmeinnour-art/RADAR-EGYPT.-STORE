@@ -3420,7 +3420,10 @@ export const RemoteMerchantsManager: React.FC<RemoteMerchantsManagerProps> = ({
 
                     <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
                       <a
-                        href={getAmazonSellerCentralConsentUrl(editingMerchant.id || editingMerchant.apiCredentials?.amazonSellerId || '')}
+                        href={getAmazonSellerCentralConsentUrl(
+                          editingMerchant.apiCredentials?.amazonSellerId || editingMerchant.id || '',
+                          editingMerchant.storeName || editingMerchant.contactPerson || ''
+                        )}
                         target="_blank"
                         rel="noreferrer"
                         className="h-7.5 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[10px] font-black inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"

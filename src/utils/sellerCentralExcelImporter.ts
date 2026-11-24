@@ -463,15 +463,24 @@ export async function saveTraderAmazonConnection(params: {
   };
 }
 
+export const AMAZON_OAUTH_CLIENT_ID =
+  'amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1';
+export const AMAZON_OAUTH_REDIRECT_URI = 'https://radaregypt.store/auth/amazon-callback';
+
 export function buildMerchantAmazonAuthorizeUrl(
   sellerId?: string | null,
-  clientIdOverride?: string | null
+  sellerName?: string | null
 ): string {
-  const clientId = String(clientIdOverride ?? getAmazonSpApiSettings().clientId ?? '').trim();
-  const state = String(sellerId || '').trim();
-  return `https://sellercentral.amazon.eg/apps/authorize?application_id=${encodeURIComponent(
-    clientId
-  )}&state=${encodeURIComponent(state)}`;
+  const cleanSellerId = String(sellerId || '').trim();
+  const cleanSellerName = String(sellerName || '').trim();
+  const stateValue =
+    cleanSellerName && cleanSellerId
+      ? `${cleanSellerName}_${cleanSellerId}`
+      : cleanSellerId || cleanSellerName;
+
+  return `https://www.amazon.com/ap/oa?client_id=${AMAZON_OAUTH_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=${encodeURIComponent(
+    stateValue
+  )}`;
 }
 
 export function extractAmazonOAuthCodeFromInput(rawInput: string): {

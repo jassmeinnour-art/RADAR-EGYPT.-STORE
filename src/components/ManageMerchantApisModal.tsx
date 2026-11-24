@@ -1157,7 +1157,10 @@ export const ManageMerchantApisModal: React.FC<ManageMerchantApisModalProps> = (
                   </div>
 
                   <a
-                    href={getAmazonSellerCentralConsentUrl(amazonSellerId || selectedMerchantId)}
+                    href={getAmazonSellerCentralConsentUrl(
+                      amazonSellerId || selectedMerchantId,
+                      storeName || contactPerson
+                    )}
                     target="_blank"
                     rel="noreferrer"
                     className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs inline-flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition active:scale-95 shrink-0"
