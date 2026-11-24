@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import {
 import { 
   Store, 
   Package, 
@@ -137,6 +136,7 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
     }).sort((a, b) => b.productsCount - a.productsCount);
   }, [allMerchants, merchantStatsMap, activeMerchantId]);
 
+  const CustomAggregateTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const data = payload[0].payload;
 
@@ -170,6 +170,7 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
     );
   };
 
+  const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const data = payload[0].payload;
 

@@ -14,22 +14,12 @@ const corsHeaders = {
 const ALLOWED_UPDATE_COLUMNS = new Set([
   'seller_name',
   'email',
-  'gmail',
   'phone',
-  'address',
-  'platform',
-  'status',
   'seller_id',
-  'seller_ids',
-  'api_keys',
-  'seller_link',
+  'platform',
   'destination_url',
-  'storefront_link',
   'store_url',
-  'last_sync_at',
-  'last_sync_timestamp',
-  'founder_uid',
-  'user_id',
+  'refresh_token',
 ]);
 
 Deno.serve(async (req: Request) => {
@@ -99,11 +89,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const traderId = String(body?.traderId || body?.id || '').trim();
-    if (!traderId) {
+    const sellerId = String(body?.sellerId || body?.seller_id || '').trim();
+    if (!traderId && !sellerId) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'معرف التاجر (id) مطلوب للتعديل ولا يجوز تركه فارغاً',
+          error: 'معرف التاجر (id أو seller_id) مطلوب للتعديل ولا يجوز تركه فارغاً',
           code: 'MISSING_TRADER_ID',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -134,23 +125,22 @@ Deno.serve(async (req: Request) => {
       cleanUpdates.seller_name = nameVal;
     }
 
-    if (verifiedFounderUid && !cleanUpdates.founder_uid) {
-      cleanUpdates.founder_uid = verifiedFounderUid;
+    // Map gmail to email if sent
+    if ((cleanUpdates as any).gmail) {
+      if (!cleanUpdates.email) cleanUpdates.email = (cleanUpdates as any).gmail;
+      delete (cleanUpdates as any).gmail;
     }
 
-    // Check duplicate email against OTHER traders (excluding current traderId)
-    const candidateEmail = String(cleanUpdates.email || cleanUpdates.gmail || '').trim().toLowerCase();
+    // Check duplicate email against OTHER traders (excluding current trader)
+    const candidateEmail = String(cleanUpdates.email || '').trim().toLowerCase();
     if (candidateEmail) {
-      const { data: dupRows, error: dupErr } = await admin
-        .from('traders')
-        .select('id, email, gmail')
-        .neq('id', traderId);
+      let dupQuery = admin.from('traders').select('id, email, seller_id');
+      dupQuery = traderId ? dupQuery.neq('id', traderId) : dupQuery.neq('seller_id', sellerId);
+      const { data: dupRows, error: dupErr } = await dupQuery;
 
       if (!dupErr && Array.isArray(dupRows)) {
         const hasDup = dupRows.some(
-          (row: any) =>
-            String(row.email || '').trim().toLowerCase() === candidateEmail ||
-            String(row.gmail || '').trim().toLowerCase() === candidateEmail
+          (row: any) => String(row.email || '').trim().toLowerCase() === candidateEmail
         );
         if (hasDup) {
           return new Response(
@@ -166,12 +156,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    let { data, error } = await admin
-      .from('traders')
-      .update(cleanUpdates)
-      .eq('id', traderId)
-      .select()
-      .single();
+    const applyUpdate = async (payload: Record<string, any>) => {
+      let query = admin.from('traders').update(payload);
+      query = traderId ? query.eq('id', traderId) : query.eq('seller_id', sellerId);
+      return await query.select().maybeSingle();
+    };
+
+    let { data, error } = await applyUpdate(cleanUpdates);
 
     // Retry gracefully if legacy table schema has NOT NULL constraints on optional text columns
     if (error && (error.code === '23502' || /violates not-null constraint/i.test(String(error.message || '')))) {
@@ -181,12 +172,7 @@ Deno.serve(async (req: Request) => {
           fallbackUpdates[k] = '';
         }
       }
-      const retry = await admin
-        .from('traders')
-        .update(fallbackUpdates)
-        .eq('id', traderId)
-        .select()
-        .single();
+      const retry = await applyUpdate(fallbackUpdates);
       data = retry.data;
       error = retry.error;
     }

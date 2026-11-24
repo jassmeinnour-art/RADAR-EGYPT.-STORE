@@ -232,6 +232,15 @@ export const PlatformCommissionCalculator: React.FC<PlatformCommissionCalculator
     }));
   }, [calculationSummary]);
 
+  const comparisonData = useMemo(() => {
+    return calculationSummary.platformResults.map(r => ({
+      platformName: r.platformNameAr ? r.platformNameAr.split(' (')[0] : r.platformName,
+      netPayout: r.netProfitEGP,
+      sellingPrice: sellingPriceInput,
+    }));
+  }, [calculationSummary, sellingPriceInput]);
+
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0]?.payload;
       return (

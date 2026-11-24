@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-import {
   TrendingDown,
   TrendingUp,
   Clock,
@@ -66,6 +65,8 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
   const [showNoon, setShowNoon] = useState(true);
   const [showJumia, setShowJumia] = useState(true);
   const [showBtech, setShowBtech] = useState(true);
+  const [showWholesaleLine, setShowWholesaleLine] = useState(true);
+  const [showWinningTargetLine, setShowWinningTargetLine] = useState(true);
 
   // Manual price observation modal
   const [isAddObservationOpen, setIsAddObservationOpen] = useState(false);
@@ -574,7 +575,10 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
 
         {/* Wholesale Baseline Toggle */}
         <button
+          type="button"
+          onClick={() => setShowWholesaleLine(!showWholesaleLine)}
           className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+            showWholesaleLine
               ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs'
               : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
           }`}
@@ -586,7 +590,10 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
         {/* Winning Target Toggle */}
         {winningPrice && (
           <button
+            type="button"
+            onClick={() => setShowWinningTargetLine(!showWinningTargetLine)}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              showWinningTargetLine
                 ? 'bg-indigo-50 border-indigo-400 text-indigo-800 shadow-2xs'
                 : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
             }`}
@@ -597,212 +604,98 @@ export const CompetitorPriceHistoryChart: React.FC<CompetitorPriceHistoryChartPr
         )}
       </div>
 
-      {/* MAIN INTERACTIVE RECHARTS AREA */}
+      {/* MAIN INTERACTIVE CHART AREA */}
       <div className="h-80 sm:h-96 w-full min-w-0 pt-3 pb-1" dir="ltr">
-          {displayMode === 'multi_line' ? (
-              data={filteredData}
-              margin={{ top: 15, right: 20, left: 10, bottom: 5 }}
-            >
-                dataKey="dateLabel"
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                stroke="#cbd5e1"
-              />
-                domain={['auto', 'auto']}
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                stroke="#cbd5e1"
-                tickFormatter={(v) => `${Number(v).toLocaleString()}`}
-              />
-              
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    const dataPoint = payload[0]?.payload as HistoricalPriceDataPoint;
-                    return (
-                      <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl border border-slate-700 text-right min-w-[220px] space-y-2 text-xs font-['Alexandria']" dir="rtl">
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                          <span className="font-bold text-indigo-300">{label}</span>
-                          {dataPoint?.eventNote && (
-                            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/30">
-                              {dataPoint.eventNote}
-                            </span>
-                          )}
-                        </div>
+        <div className="h-full w-full bg-slate-900 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800" dir="rtl">
+            <span>
+              {displayMode === 'multi_line'
+                ? 'مقارنة أسعار المنافسين عبر الزمن'
+                : 'نطاق أعلى وأدنى سعر بالسوق'}
+            </span>
+            <div className="flex items-center gap-3 font-mono">
+              {showWholesaleLine && product.estimatedWholesaleCost ? (
+                <span className="text-emerald-400">
+                  التكلفة: {product.estimatedWholesaleCost.toLocaleString()} {currency}
+                </span>
+              ) : null}
+              {showWinningTargetLine && winningPrice ? (
+                <span className="text-indigo-400">
+                  سعر الفوز: {winningPrice.toLocaleString()} {currency}
+                </span>
+              ) : null}
+            </div>
+          </div>
 
-                        <div className="space-y-1.5 pt-1 font-mono">
-                          {showAmazon && dataPoint.amazon && (
-                            <div className="flex items-center justify-between text-sky-400">
-                              <span className="flex items-center gap-1.5 font-sans font-medium text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-[#FF9900]" />
-                                أمازون مصر:
-                              </span>
-                              <span className="font-bold">{dataPoint.amazon.toLocaleString()} {currency}</span>
-                            </div>
-                          )}
+          <div className="flex items-end justify-between gap-2 flex-1 pt-4">
+            {filteredData.map((dataPoint, idx) => {
+              const allValues = filteredData.flatMap(d => [
+                d.highestPrice || 0,
+                d.lowestPrice || 0,
+                d.marketAverage || 0,
+              ]);
+              const maxVal = Math.max(...allValues, 1);
+              const avgHeight = Math.max(15, Math.round(((dataPoint.marketAverage || 0) / maxVal) * 100));
+              const lowHeight = Math.max(12, Math.round(((dataPoint.lowestPrice || 0) / maxVal) * 100));
 
-                          {showNoon && dataPoint.noon && (
-                            <div className="flex items-center justify-between text-sky-400">
-                              <span className="flex items-center gap-1.5 font-sans font-medium text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-[#38bdf8]" />
-                                نون مصر:
-                              </span>
-                              <span className="font-bold">{dataPoint.noon.toLocaleString()} {currency}</span>
-                            </div>
-                          )}
-
-                          {showJumia && dataPoint.jumia && (
-                            <div className="flex items-center justify-between text-orange-400">
-                              <span className="flex items-center gap-1.5 font-sans font-medium text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-[#F97316]" />
-                                جوميا:
-                              </span>
-                              <span className="font-bold">{dataPoint.jumia.toLocaleString()} {currency}</span>
-                            </div>
-                          )}
-
-                          {showBtech && dataPoint.btech && (
-                            <div className="flex items-center justify-between text-blue-400">
-                              <span className="flex items-center gap-1.5 font-sans font-medium text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-                                بي تك:
-                              </span>
-                              <span className="font-bold">{dataPoint.btech.toLocaleString()} {currency}</span>
-                            </div>
-                          )}
-
-                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-emerald-400 text-[11px]">
-                            <span className="text-slate-400 font-sans">أدنى سعر بالسوق:</span>
-                            <span className="font-bold font-mono">{dataPoint.lowestPrice.toLocaleString()} {currency}</span>
-                          </div>
-
-                            <div className="flex items-center justify-between text-slate-400 text-[10px]">
-                              <span>تكلفة الجملة:</span>
-                              <span className="font-mono">{dataPoint.wholesaleCost.toLocaleString()} {currency}</span>
-                            </div>
-                          )}
-                        </div>
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-slate-950 text-white p-3 rounded-2xl shadow-xl border border-slate-700 text-right min-w-[200px] space-y-1.5 text-xs" dir="rtl">
+                      <div className="font-bold text-indigo-300 border-b border-slate-800 pb-1">
+                        {dataPoint.dateLabel}
                       </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
+                      {showAmazon && dataPoint.amazon && (
+                        <div className="flex items-center justify-between text-sky-400">
+                          <span className="text-slate-300">أمازون مصر:</span>
+                          <span className="font-mono font-bold">{dataPoint.amazon.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                      {showNoon && dataPoint.noon && (
+                        <div className="flex items-center justify-between text-sky-300">
+                          <span className="text-slate-300">نون مصر:</span>
+                          <span className="font-mono font-bold">{dataPoint.noon.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                      {showJumia && dataPoint.jumia && (
+                        <div className="flex items-center justify-between text-orange-400">
+                          <span className="text-slate-300">جوميا:</span>
+                          <span className="font-mono font-bold">{dataPoint.jumia.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                      {showBtech && dataPoint.btech && (
+                        <div className="flex items-center justify-between text-blue-400">
+                          <span className="text-slate-300">بي تك:</span>
+                          <span className="font-mono font-bold">{dataPoint.btech.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                      <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-emerald-400">
+                        <span className="text-slate-400">أدنى سعر بالسوق:</span>
+                        <span className="font-mono font-bold">{dataPoint.lowestPrice.toLocaleString()} {currency}</span>
+                      </div>
+                    </div>
+                  </div>
 
-                formatter={(val) => {
-                  if (val === 'amazon') return 'أمازون مصر';
-                  if (val === 'noon') return 'نون مصر';
-                  if (val === 'jumia') return 'جوميا';
-                  if (val === 'btech') return 'بي تك';
-                  if (val === 'marketAverage') return 'متوسط السوق';
-                  return val;
-                }}
-                wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-              />
-
-              {/* Competitor lines */}
-              {showAmazon && (
-                  type="monotone"
-                  dataKey="amazon"
-                  stroke="#FF9900"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#FF9900', strokeWidth: 1 }}
-                  activeDot={{ r: 6 }}
-                  name="amazon"
-                />
-              )}
-
-              {showNoon && (
-                  type="monotone"
-                  dataKey="noon"
-                  stroke="#38bdf8"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#38bdf8', strokeWidth: 1 }}
-                  activeDot={{ r: 6 }}
-                  name="noon"
-                />
-              )}
-
-              {showJumia && (
-                  type="monotone"
-                  dataKey="jumia"
-                  stroke="#F97316"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: '#F97316', strokeWidth: 1 }}
-                  activeDot={{ r: 5 }}
-                  name="jumia"
-                />
-              )}
-
-              {showBtech && (
-                  type="monotone"
-                  dataKey="btech"
-                  stroke="#3B82F6"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: '#3B82F6', strokeWidth: 1 }}
-                  activeDot={{ r: 5 }}
-                  name="btech"
-                />
-              )}
-
-                  y={product.estimatedWholesaleCost}
-                  stroke="#10B981"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                  label={{
-                    value: `تكلفة الجملة (${product.estimatedWholesaleCost.toLocaleString()} ${currency})`,
-                    fill: '#059669',
-                    fontSize: 10,
-                    position: 'insideBottomRight'
-                  }}
-                />
-              )}
-
-                  y={winningPrice}
-                  stroke="#6366F1"
-                  strokeWidth={2}
-                  strokeDasharray="2 2"
-                  label={{
-                    value: `سعر الفوز المقترح (${winningPrice.toLocaleString()} ${currency})`,
-                    fill: '#4F46E5',
-                    fontSize: 10,
-                    position: 'insideTopLeft'
-                  }}
-                />
-              )}
-          ) : (
-              data={filteredData}
-              margin={{ top: 15, right: 20, left: 10, bottom: 5 }}
-            >
-              <defs>
-                <linearGradient id="colorPriceBand" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0.02}/>
-                </linearGradient>
-                <linearGradient id="colorLowestPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.5}/>
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0.02}/>
-                </linearGradient>
-              </defs>
-                domain={['auto', 'auto']}
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                stroke="#cbd5e1"
-                tickFormatter={(v) => `${Number(v).toLocaleString()}`}
-              />
-                contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', color: '#fff', border: 'none', fontSize: '12px' }}
-                formatter={(val: number | string | Array<number | string> | undefined, name: string | number | undefined) => [
-                  `${Number(val || 0).toLocaleString()} ${currency}`,
-                  name === 'highestPrice' ? 'أعلى سعر بالسوق' : name === 'lowestPrice' ? 'أدنى سعر للمنافسين' : 'متوسط السوق العام'
-                ]}
-              />
-                formatter={(val) => val === 'highestPrice' ? 'أعلى سعر بالسوق' : val === 'lowestPrice' ? 'أدنى سعر للمنافسين' : 'متوسط السوق'}
-                wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-              />
-              
-                  y={product.estimatedWholesaleCost}
-                  stroke="#059669"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                />
-              )}
-          )}
+                  <div className="w-full flex items-end justify-center gap-1 h-48">
+                    <div
+                      className="w-1/2 rounded-t-md bg-emerald-500/80 group-hover:bg-emerald-400 transition-all"
+                      style={{ height: `${lowHeight}%` }}
+                      title={`أدنى سعر: ${dataPoint.lowestPrice.toLocaleString()} ${currency}`}
+                    />
+                    <div
+                      className="w-1/2 rounded-t-md bg-indigo-500/80 group-hover:bg-indigo-400 transition-all"
+                      style={{ height: `${avgHeight}%` }}
+                      title={`متوسط السوق: ${dataPoint.marketAverage.toLocaleString()} ${currency}`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-bold mt-2 truncate text-center w-full">
+                    {dataPoint.dateLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Behavior Insights & Intelligence Card (تحليل سلوك التسعير الذكي) */}

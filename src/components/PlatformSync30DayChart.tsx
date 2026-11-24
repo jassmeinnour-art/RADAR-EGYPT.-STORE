@@ -222,6 +222,7 @@ export const PlatformSync30DayChart: React.FC<PlatformSync30DayChartProps> = ({
     }
   };
 
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const dataPoint: DailyPlatformSyncDataPoint = payload[0]?.payload;
       if (!dataPoint) return null;

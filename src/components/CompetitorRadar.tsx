@@ -36,7 +36,6 @@ import {
   History
 } from 'lucide-react';
 import { GlobalEmptyState } from './GlobalEmptyState';
-import {
 import { ProductData, MerchantOffer, ProductPricingPlan } from '../types';
 import { isFurnitureOrBedding } from '../utils/competitorCSVManager';
 import { ProfitMarginCalculator } from './ProfitMarginCalculator';
@@ -552,13 +551,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                  title="إشعار واتساب وتعديل السعر التلقائي"
-                  description="إرسال تنبيه واتساب فوري وتعديل السعر التلقائي (Auto-Reprice) بنقرة واحدة لأرخص منافس في السوق"
-                  badge="Auto-Reprice"
-                  icon={MessageCircle}
-                  theme="emerald"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-whatsapp-autoreprice"
@@ -573,13 +565,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <span>📱 إشعار واتساب وتعديل السعر (Auto-Reprice)</span>
                   </button>
 
-                  title="تفعيل قفل صمام الأمان فوراً"
-                  description="قفل وتثبيت السعر عند الحد الأدنى الآمن لمنع أي تآكل في الأرباح وحماية رأس المال"
-                  badge="صمام الأمان"
-                  icon={Lock}
-                  theme="emerald"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-lock-floor-now"
@@ -590,12 +575,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <span>🔒 تفعيل قفل صمام الأمان فوراً</span>
                   </button>
 
-                  title="ضبط عند الحد الآمن"
-                  description={`رفع السعر المقترح تلقائياً إلى الحد الأدنى المحمي (${proximity.effectiveFloorPrice.toLocaleString()} ${currency}) لتجنب الخسارة`}
-                  icon={Zap}
-                  theme="sky"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-snap-floor-now"
@@ -606,12 +585,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                     <span>ضبط عند الحد الآمن ({proximity.effectiveFloorPrice.toLocaleString()} {currency})</span>
                   </button>
 
-                  title="وحدة Guardrails المدمجة"
-                  description="الوصول المباشر لقواعد صمام الأمان وحدود الأسعار العليا والدنيا لجميع المنصات"
-                  icon={ShieldCheck}
-                  theme="indigo"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-scroll-to-guardrails"
@@ -726,13 +699,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
               {onOpenBestSellersModal && (
-                  title="أفضل المنتجات مبيعاً (Best Sellers)"
-                  description="عرض قائمة المنتجات الأكثر رواجاً ومبيعاً على المنصات وإضافتها للمتابعة بضغطة زر"
-                  badge="Best Sellers 🔥"
-                  icon={Flame}
-                  theme="amber"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-open-bestsellers-modal"
@@ -744,12 +710,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </button>
               )}
 
-                title="تاريخ وسلوك الأسعار"
-                description="النزول مباشرة للرسم البياني التفاعلي لتتبع مسار وتغيرات أسعار المنافسين عبر الزمن"
-                icon={Clock}
-                theme="sky"
-                side="top"
-              >
                 <button
                   type="button"
                   onClick={() => {
@@ -763,12 +723,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
 
               {onOpenSalesDashboard && (
-                  title="لوحة تحكم أداء المبيعات"
-                  description="تحليل حجم وإيرادات المبيعات ومقارنتها بتذبذبات أسعار المنافسين في السوق المصري"
-                  badge="تحليلات"
-                  theme="emerald"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={onOpenSalesDashboard}
@@ -779,13 +733,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               )}
 
               {onOpenProfitSimulator && (
-                  title="محاكي الربح المستقبلي"
-                  description="نمذجة تنبؤية متقدمة لهامش الربح المتوقع وسيناريوهات التسعير البديلة"
-                  badge="ذكاء تسعيري"
-                  icon={TrendingUp}
-                  theme="indigo"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={onOpenProfitSimulator}
@@ -796,13 +743,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </button>
               )}
 
-                title="تحليل صورة المنافس بالذكاء الاصطناعي"
-                description="رفع أو لصق رابط صورة منتج منافس لتحليلها بـ AI وتلقي توصيات مخصصة لتطوير صورك"
-                badge="AI Visual 📸"
-                icon={Camera}
-                theme="sky"
-                side="top"
-              >
                 <button
                   type="button"
                   id="btn-radar-analyze-competitor-image-top"
@@ -819,12 +759,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
 
               {onOpenPeriodicReports && (
-                  title="تقارير الأداء والـ Buy Box"
-                  description="عرض إحصائيات الاستحواذ على الـ Buy Box وتحميل التقارير الدورية التفصيلية"
-                  icon={FileSpreadsheet}
-                  theme="indigo"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={onOpenPeriodicReports}
@@ -836,13 +770,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               )}
 
               {onOpenBulkReprice && (
-                  title="التحديث الجماعي للأسعار"
-                  description="إعادة تسعير مئات المنتجات دفعة واحدة واستيراد وتصدير جداول CSV"
-                  badge="Bulk Reprice"
-                  icon={SlidersHorizontal}
-                  theme="sky"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={onOpenBulkReprice}
@@ -854,12 +781,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               )}
 
               {onOpenStudio && (
-                  title="استوديو التصوير والزوايا"
-                  description="فحص وتحسين جودة صور المنتج الترويجية وتوليد زوايا احترافية للمتاجر"
-                  icon={Camera}
-                  theme="sky"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={onOpenStudio}
@@ -870,13 +791,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </button>
               )}
 
-                title={activeIsWatchlisted ? "إزالة من قائمة المتابعة" : "إضافة لقائمة المتابعة (Web Notifications)"}
-                description="تثبيت الصنف في قائمة الرقابة اللحظية لتلقي التنبيهات الفورية عبر المتصفح عند تغير الأسعار"
-                badge={activeIsWatchlisted ? "مراقب ✓" : undefined}
-                icon={Bookmark}
-                theme="amber"
-                side="top"
-              >
                 <button
                   type="button"
                   id="btn-radar-toggle-watchlist"
@@ -888,13 +802,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
 
               {/* Dedicated Product Price History & Changes Audit Button */}
-                title="سجل تغيرات الأسعار (Historical Audit)"
-                description="عرض التاريخ الكامل لتغيرات سعر هذا المنتج وأسعار المنافسين مع تحليلات التذبذب ونقاط القرار"
-                badge="سجل الأسعار 📊"
-                icon={History}
-                theme="sky"
-                side="top"
-              >
                 <button
                   type="button"
                   id="btn-radar-product-price-history"
@@ -905,13 +812,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <span>سجل تغيرات الأسعار 📊</span>
                 </button>
 
-                title="تنبيهات واتساب والتسعير التلقائي"
-                description="إرسال تقرير فوري عبر واتساب للتاجر مع تطبيق التسعير التنافسي المباشر بنقرة واحدة"
-                badge="Auto-Reprice ⚡"
-                icon={MessageCircle}
-                theme="emerald"
-                side="top"
-              >
                 <button
                   type="button"
                   id="btn-radar-whatsapp-autoreprice-top"
@@ -927,12 +827,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
 
               {onOpenAlertModal && (
-                  title="ضبط تنبيهات الأسعار"
-                  description="تعيين إشعارات مخصصة عند انخفاض أو صعود سعر أي منافس عن حد معين"
-                  icon={Bell}
-                  theme="sky"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={() => onOpenAlertModal(product)}
@@ -944,12 +838,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               )}
 
               {onArchiveProduct && (
-                  title="أرشفة الصنف"
-                  description="نقل المنتج إلى الأرشيف وعزله عن العمليات النشطة (يدعم السحب والإفلات)"
-                  icon={Archive}
-                  theme="rose"
-                  side="top"
-                >
                   <button
                     type="button"
                     id="btn-radar-archive-product"
@@ -974,14 +862,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             {/* Box 1: Current Lowest Market Price */}
-              title="أرخص سعر منافس بالسوق"
-              description={`أقل سعر رصده الرادار حالياً لدى متجر (${lowestOffer?.merchantName || 'المنافس'}) بمدة شحن (${lowestOffer?.deliveryTime || 'فورية'})`}
-              badge="أرخص سعر"
-              icon={AlertTriangle}
-              theme="sky"
-              side="top"
-              className="w-full h-full block"
-            >
               <div className="w-full h-full bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5 transition-all hover:border-sky-400/50 hover:bg-white/10 cursor-help">
                 <span className="text-xs text-slate-400 flex items-center gap-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-sky-400" />
@@ -999,14 +879,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
 
             {/* Box 2: Wholesale Cost Reference */}
-              title="مرجع تكلفة الجملة الفعلية"
-              description="سعر شراء الجملة التقديري من كبار موردي شارع عبد العزيز والبستان بناءً على كميات 3-5 قطع كاش"
-              badge="سعر الجملة"
-              icon={ShieldCheck}
-              theme="indigo"
-              side="top"
-              className="w-full h-full block"
-            >
               <div className="w-full h-full bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm space-y-1.5 transition-all hover:border-blue-400/50 hover:bg-white/10 cursor-help">
                 <span className="text-xs text-slate-400 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
@@ -1024,14 +896,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               </div>
 
             {/* Box 3: Your Winning Undercut Price (التسعير الذكي لتاجرنا) */}
-              title="سعر البيع الرابح المقترح"
-              description={`سعر ذكي يخفض السعر عن أرخص منافس ويضمن تحقيق صافي ربح (+${profitMargin.toLocaleString()} ${currency}) مع صمام أمان (${proximity.effectiveFloorPrice.toLocaleString()} ${currency})`}
-              badge={proximity.isBreached ? "خطر!" : proximity.isApproachingFloor ? "تحذير" : "فوز مضمون 🏆"}
-              icon={Sparkles}
-              theme={proximity.isBreached ? "rose" : proximity.isApproachingFloor ? "sky" : "emerald"}
-              side="top"
-              className="w-full h-full block"
-            >
               <div className={`w-full h-full border-2 rounded-2xl p-4 backdrop-blur-md space-y-1.5 shadow-lg transition-all cursor-help ${
                 proximity.isBreached
                   ? 'bg-rose-500/20 border-rose-400/80 shadow-rose-950/40'
@@ -1137,13 +1001,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               {/* 1-Click Reprice & Apply Button - Modern High Contrast Emerald */}
-                title="اعتماد السعر الرابح فوراً"
-                description={`تطبيق السعر المقترح (${winningPrice.toLocaleString()} ${currency}) مع خصم (${selectedDiscount}%) ونشره مباشرة وتحديث منصات البيع`}
-                badge="1-Click Apply"
-                icon={Zap}
-                theme="emerald"
-                side="top"
-              >
                 <button
                   onClick={() => onApplyWinningPrice(winningPrice, selectedDiscount)}
                   className="h-10 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs sm:text-sm whitespace-nowrap flex items-center gap-2 justify-center shadow-lg shadow-emerald-950/60 border border-emerald-400/50 transition-all cursor-pointer shrink-0"
@@ -1155,13 +1012,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
               {/* Generate Shipping Waybill Button for Active Product */}
               {onOpenGenerateWaybillModal && product && (
-                  title="توليد بوليصة شحن فورية"
-                  description="إنشاء بوليصة شحن وتصدير بيانات الشحنة لشركات التوصيل مع ربط الباركود والمخزون"
-                  badge="بوليصة شحن"
-                  icon={Truck}
-                  theme="sky"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={() => onOpenGenerateWaybillModal(product)}
@@ -1250,13 +1100,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             {(proximity.isApproachingFloor || proximity.isBreached) && (
-                title="قفل وحماية الحد الأدنى"
-                description="تثبيت صمام الأمان فوراً عند السعر المحمي لمنع بيع المنتج بخسارة"
-                badge="قفل فوري"
-                icon={Lock}
-                theme="emerald"
-                side="top"
-              >
                 <button
                   type="button"
                   onClick={handleLockFloorPrice}
@@ -1266,12 +1109,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   <span>قفل وحماية الحد الأدنى</span>
                 </button>
             )}
-              title={isGuardrailsManagerExpanded ? "طي وحدة صمام الأمان" : "تعديل حدود الحماية الكاملة"}
-              description="ضبط الحد الأدنى والأقصى وقواعد التسعير الأوتوماتيكي وحماية الأرباح"
-              icon={SlidersHorizontal}
-              theme="indigo"
-              side="top"
-            >
               <button
                 type="button"
                 id="btn-toggle-expand-guardrails-manager"
@@ -1398,13 +1235,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/80 rounded-lg border border-slate-800">
             <div className="flex flex-wrap items-center gap-1.5">
               {onOpenChannelCompetitorImport && (
-                  title="استيراد منافسين (CSV)"
-                  description="استيراد قائمة منافسين جديدة عبر ملف CSV لقناة بيع محددة ودمجهم بالرادار فوراً"
-                  badge="CSV Import"
-                  icon={Upload}
-                  theme="indigo"
-                  side="top"
-                >
                   <button
                     type="button"
                     onClick={() => onOpenChannelCompetitorImport(filterPlatform !== 'all' ? filterPlatform : undefined)}
@@ -1427,12 +1257,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
               />
 
               {/* Theme Colors Switcher Button */}
-                title="تخصيص ألوان الرادار"
-                description="تخصيص الألوان الرئيسية لرادار الأسعار ولوحة التحكم بما يناسب متجرك"
-                icon={Palette}
-                theme="slate"
-                side="top"
-              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1451,13 +1275,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                 </button>
 
               {/* Competitor Audio Notifications Button */}
-                title="نغمات وتنبيهات المنافسين"
-                description="تخصيص التنبيهات الصوتية الحية لتغيرات حالة المنافسين والـ Buy Box"
-                badge="أصوات حية 🔊"
-                icon={Volume2}
-                theme="indigo"
-                side="top"
-              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1709,12 +1526,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                       {/* Column 6: Action */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2 flex-wrap">
-                            title="واتساب وإعادة تسعير"
-                            description={`إرسال تنبيه واتساب فوري وتعديل السعر أوتوماتيكياً لمنافسة متجر (${offer.merchantName})`}
-                            icon={MessageCircle}
-                            theme="emerald"
-                            side="top"
-                          >
                             <button
                               type="button"
                               onClick={() => {
@@ -1727,12 +1538,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <span>واتساب وتعديل</span>
                             </button>
 
-                            title="سجل تغيرات الأسعار"
-                            description={`عرض سجل تغيرات السعر التاريخية لمنتج (${product.title}) وأسعار (${offer.merchantName}) لاتخاذ القرار`}
-                            icon={History}
-                            theme="sky"
-                            side="top"
-                          >
                             <button
                               type="button"
                               onClick={() => setIsPriceHistoryAuditModalOpen(true)}
@@ -1743,11 +1548,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <span>سجل الأسعار 📊</span>
                             </button>
 
-                            title="مقارنة تاريخ السعر"
-                            description={`مقارنة مسار تغير سعر (${offer.merchantName}) مقابل سعرك خلال الأسبوع المنصرم`}
-                            theme="sky"
-                            side="top"
-                          >
                             <button
                               type="button"
                               onClick={() => setQuickCompareOffer(offer)}
@@ -1757,12 +1557,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <span>مقارنة سريعة</span>
                             </button>
 
-                            title="تحليل صورة هذا المنافس بالـ AI"
-                            description={`تحليل صوره وعروض متجر (${offer.merchantName}) بالـ AI واستخراج فرص للتفوق عليه`}
-                            icon={Camera}
-                            theme="indigo"
-                            side="top"
-                          >
                             <button
                               type="button"
                               onClick={() => {
@@ -1780,12 +1574,6 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                               <span>تحليل الصورة (AI)</span>
                             </button>
 
-                            title="زيارة صفحة المنافس"
-                            description={`الانتقال المباشر لمتجر (${offer.merchantName}) للتحقق من شروط العرض وتوافر المخزون`}
-                            icon={ExternalLink}
-                            theme="indigo"
-                            side="top"
-                          >
                             <a
                               href={offer.url}
                               target="_blank"
@@ -2016,58 +1804,37 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({
                   </div>
                 </div>
 
-                <div className="h-60 w-full" dir="ltr">
-                        dataKey="dayLabel"
-                        stroke="#94a3b8"
-                        tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                      />
-                        stroke="#94a3b8"
-                        tick={{ fill: '#cbd5e1', fontSize: 11 }}
-                        domain={['auto', 'auto']}
-                        tickFormatter={(val) => `${val}`}
-                      />
-                        contentStyle={{
-                          backgroundColor: '#0f172a',
-                          borderColor: '#334155',
-                          borderRadius: '12px',
-                          color: '#f8fafc',
-                          fontSize: '12px',
-                          direction: 'rtl',
-                          textAlign: 'right'
-                        }}
-                        formatter={(value: any, name: string) => [
-                          `${Number(value).toLocaleString()} ${currency}`,
-                          name === 'competitorPrice' ? `سعر ${quickCompareOffer.merchantName}` : 'سعرك'
-                        ]}
-                      />
-                        formatter={(value) =>
-                          value === 'competitorPrice' ? `سعر ${quickCompareOffer.merchantName}` : 'سعرك الحالي'
-                        }
-                      />
-                        y={floorPrice}
-                        stroke="#f43f5e"
-                        strokeDasharray="4 4"
-                        label={{
-                          value: `الحد الأدنى الآمن (${floorPrice})`,
-                          fill: '#fb7185',
-                          fontSize: 10,
-                          position: 'insideBottomLeft'
-                        }}
-                      />
-                        type="monotone"
-                        dataKey="competitorPrice"
-                        stroke="#38bdf8"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#38bdf8', strokeWidth: 2, stroke: '#0f172a' }}
-                        activeDot={{ r: 6 }}
-                      />
-                        type="monotone"
-                        dataKey="merchantPrice"
-                        stroke="#10b981"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#0f172a' }}
-                        activeDot={{ r: 6 }}
-                      />
+                <div className="h-60 w-full bg-slate-900/90 rounded-xl border border-slate-800 p-4 flex flex-col justify-end" dir="ltr">
+                  <div className="flex items-end justify-between gap-2 h-44">
+                    {weeklyData.map((row, idx) => {
+                      const maxVal = Math.max(
+                        ...weeklyData.flatMap(d => [d.competitorPrice || 0, d.merchantPrice || 0]),
+                        floorPrice || 1,
+                        1
+                      );
+                      const compHeight = Math.max(12, Math.round(((row.competitorPrice || 0) / maxVal) * 100));
+                      const merchHeight = Math.max(12, Math.round(((row.merchantPrice || 0) / maxVal) * 100));
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                          <div className="w-full flex items-end justify-center gap-1 h-full">
+                            <div
+                              className="w-1/2 rounded-t bg-sky-400/90 group-hover:bg-sky-300 transition-all"
+                              style={{ height: `${compHeight}%` }}
+                              title={`سعر المنافس: ${row.competitorPrice.toLocaleString()} ${currency}`}
+                            />
+                            <div
+                              className="w-1/2 rounded-t bg-emerald-400/90 group-hover:bg-emerald-300 transition-all"
+                              style={{ height: `${merchHeight}%` }}
+                              title={`سعرك: ${row.merchantPrice.toLocaleString()} ${currency}`}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-300 font-bold mt-2 truncate w-full text-center">
+                            {row.dayLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

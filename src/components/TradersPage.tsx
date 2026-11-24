@@ -24,7 +24,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
-import { supabase, Trader, getTraderLastSyncAt } from '../lib/supabase';
+import { supabase, Trader, getTraderLastSyncAt, cleanTraderPayloadForInsert } from '../lib/supabase';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
 import { GlobalEmptyState } from './GlobalEmptyState';
@@ -572,25 +572,24 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
     try {
       const cleanDest = formDestinationUrl.trim();
       const cleanStore = formStoreUrl.trim();
-      const newTraderPayload = {
-        user_id: user?.uid || (user as any)?.id || 'founder',
+
+      // Clean and whitelist trader payload strictly
+      // Allowed columns only: seller_name - email - phone - seller_id - platform - destination_url - store_url - refresh_token
+      // Never send: gmail, name, seller, trader_name, id, created_at, updated_at, user_id
+      const newTraderPayload = cleanTraderPayloadForInsert({
         seller_name: formName.trim(),
         email: cleanEmail,
-        gmail: cleanEmail,
         phone: formPhone.trim(),
         platform: formPlatform,
         seller_id: formSellerId.trim(),
         destination_url: cleanDest,
-        seller_link: cleanDest,
         store_url: cleanStore,
-        storefront_link: cleanStore,
-        status: 'active' as const,
-        created_at: new Date().toISOString(),
-      };
+      });
 
       const { data, error } = await supabase
         .from('traders')
-        .insert([newTraderPayload]);
+        .insert([newTraderPayload])
+        .select();
 
       if (error) {
         onShowToast?.(`❌ فشل الحفظ: ${error.message}`);

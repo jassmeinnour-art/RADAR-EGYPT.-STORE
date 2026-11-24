@@ -25,7 +25,8 @@ vi.mock('../context/AuthContext', () => ({
   }),
 }));
 
-vi.mock('../lib/supabase', () => {
+vi.mock('../lib/supabase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/supabase')>();
   const formatSupabaseError = (err: any): string => {
     if (!err) return 'حدث خطأ غير معروف';
     if (typeof err === 'string') return err;
@@ -77,6 +78,7 @@ vi.mock('../lib/supabase', () => {
   };
 
   return {
+    ...actual,
     supabase: {
       from: (table: string) => makeBuilder(table),
     },
@@ -261,12 +263,12 @@ describe('EditTraderModal & TradersPage Edit Flow', () => {
     expect(mockUpdateCalls[0].payload).toMatchObject({
       seller_name: 'محمود سعيد',
       email: null,
-      gmail: null,
       seller_id: null,
       phone: null,
       destination_url: null,
       store_url: null,
     });
+    expect(mockUpdateCalls[0].payload).not.toHaveProperty('gmail');
     expect(onClose).toHaveBeenCalled();
   });
 
