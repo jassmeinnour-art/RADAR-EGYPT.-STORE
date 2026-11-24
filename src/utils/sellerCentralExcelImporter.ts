@@ -3297,4 +3297,30 @@ export async function wipeEntireAppDatabaseAndStorage(): Promise<{ success: bool
   }
 }
 
+export function purgeFakeCompetitors(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(COMPETITOR_PRICES_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw);
+    if (!map || typeof map !== 'object') return;
+    const cleaned: Record<string, any> = {};
+    for (const [k, v] of Object.entries(map)) {
+      const rec: any = v;
+      const title = String(rec?.title || '').toLowerCase();
+      if (
+        title.includes('سماعات بلوتوث') ||
+        title.includes('شاحن سريع') ||
+        title.includes('ساعة ذكية') ||
+        title.includes('حقيبة ظهر') ||
+        (!rec?.asin && !rec?.product_id)
+      ) {
+        continue;
+      }
+      cleaned[k] = rec;
+    }
+    localStorage.setItem(COMPETITOR_PRICES_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch {}
+}
+
 
