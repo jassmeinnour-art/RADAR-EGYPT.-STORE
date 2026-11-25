@@ -55,6 +55,10 @@ import {
   updateWatchlistProductPriceAlertConfig,
   triggerCompetitorPriceCheckForWatchlistItem,
   requestBrowserPermissionOnFirstAlertActivation,
+  getWatchlistNotificationPreferences,
+  saveWatchlistNotificationPreferences,
+  SHARP_PRICE_CHANGE_PRESETS,
+  WatchlistNotificationPreferences,
   PricingEngineAlertEvaluationResult
 } from '../services/watchlistNotificationService';
 import { WatchlistNotificationModal } from './WatchlistNotificationModal';
@@ -158,10 +162,38 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
   const [webNotifPermission, setWebNotifPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [isTestingWebNotif, setIsTestingWebNotif] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<WatchlistNotificationPreferences>(() =>
+    getWatchlistNotificationPreferences()
+  );
 
   useEffect(() => {
     setWebNotifPermission(getWebNotificationPermission());
-  }, []);
+    const handlePrefsSync = () => {
+      setNotifPrefs(getWatchlistNotificationPreferences());
+    };
+    window.addEventListener('merchant_watchlist_prefs_updated', handlePrefsSync);
+    window.addEventListener('storage', handlePrefsSync);
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'WATCHLIST_NOTIFICATION_CLICK' && event.data?.productId) {
+        const matched = getStoredWatchlist().find((w) => w.productId === event.data.productId);
+        if (matched) {
+          onSelectProduct(matched.product);
+        }
+      }
+    };
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+      navigator.serviceWorker?.addEventListener?.('message', handleSwMessage);
+    }
+
+    return () => {
+      window.removeEventListener('merchant_watchlist_prefs_updated', handlePrefsSync);
+      window.removeEventListener('storage', handlePrefsSync);
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+        navigator.serviceWorker?.removeEventListener?.('message', handleSwMessage);
+      }
+    };
+  }, [onSelectProduct]);
 
   // Manual Add Product Modal State
   const [isAddManualModalOpen, setIsAddManualModalOpen] = useState(false);
@@ -562,7 +594,7 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
             >
               {autoPricingRules.map((rule) => (
                 <option key={rule.id} value={rule.id}>
-                  {rule.title || rule.name}
+                  {rule.title || (rule as any).name}
                 </option>
               ))}
             </select>
@@ -574,23 +606,47 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
               htmlFor={`threshold-input-${item.productId}`}
               className="block text-[11px] font-bold text-slate-700"
             >
-              عتبة التغير المخصصة % (اختياري):
+              مستوى التغير الحاد المطلوب % (لهذا المنتج):
             </label>
-            <input
-              id={`threshold-input-${item.productId}`}
-              type="number"
-              min={0}
-              max={90}
-              placeholder="حسب قاعدة المحرك"
-              value={config?.customChangePercentThreshold ?? ''}
-              onChange={(e) => {
-                const v = e.target.value === '' ? undefined : Number(e.target.value);
-                handleUpdateProductAlertConfig(item.productId, {
-                  customChangePercentThreshold: v,
-                });
-              }}
-              className="w-full h-9 px-2.5 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-800 focus:border-indigo-500 focus:outline-none"
-            />
+            <div className="flex items-center gap-1.5">
+              <input
+                id={`threshold-input-${item.productId}`}
+                type="number"
+                min={0}
+                max={90}
+                placeholder={`عام (${notifPrefs.minPriceDropPercentage}%)`}
+                value={config?.customChangePercentThreshold ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? undefined : Number(e.target.value);
+                  handleUpdateProductAlertConfig(item.productId, {
+                    customChangePercentThreshold: v,
+                  });
+                }}
+                className="w-full h-9 px-2.5 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-800 focus:border-indigo-500 focus:outline-none"
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                {[5, 10, 15, 25].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() =>
+                      handleUpdateProductAlertConfig(
+                        item.productId,
+                        { customChangePercentThreshold: pct, enabled: true },
+                        `تم ضبط عتبة التغير الحاد لهذا المنتج عند ${pct}% فأكثر`
+                      )
+                    }
+                    className={`h-9 px-2 rounded-lg text-[10px] font-black border cursor-pointer transition ${
+                      config?.customChangePercentThreshold === pct
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-indigo-50'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -599,7 +655,7 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
           <div className="text-[11px] text-slate-600 space-y-0.5">
             {activeRule && (
               <div className="font-bold text-indigo-900">
-                القاعدة النشطة: {activeRule.title || activeRule.name}
+                القاعدة النشطة: {activeRule.title || (activeRule as any).name}
               </div>
             )}
             {config?.lastRecommendedPrice && (
@@ -758,80 +814,160 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
           </div>
         </div>
 
-        {/* Web Notifications API Intelligence Banner */}
-        <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/40 text-white flex flex-wrap items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center justify-center shrink-0 shadow-inner">
-              <Bell className="w-5 h-5 animate-pulse text-indigo-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-black font-['Alexandria']">
-                  نظام تنبيهات المتصفح لأسعار المنافسين (Web Notifications API)
-                </span>
-                {webNotifPermission === 'granted' ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
-                    مفعل ويعمل لحظياً ✓
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-400/30">
-                    بحاجة لتفعيل الإذن 🔔
-                  </span>
-                )}
+        {/* Web Push Notifications & Sharp Threshold Banner */}
+        <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/40 text-white space-y-3 shadow-md">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center justify-center shrink-0 shadow-inner">
+                <Bell className="w-5 h-5 animate-pulse text-indigo-400" />
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                تنبيهات تلقائية منبثقة لسطح المكتب والموبايل فور رصد أي انخفاض أو صعود بأسعار المنافسين للمنتجات المضافة هنا
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black font-['Alexandria']">
+                    تنبيهات المتصفح للتغيرات السعرية الحادة (Web Push)
+                  </span>
+                  {webNotifPermission === 'granted' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
+                      مفعّل ويعمل لحظياً ✓
+                    </span>
+                  ) : webNotifPermission === 'denied' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/30 text-rose-300 border border-rose-400/30">
+                      محظور بالمتصفح ✕
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-400/30">
+                      بحاجة لتفعيل الإذن 🔔
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 font-mono">
+                    عتبة التغير الحاد: ≥ {notifPrefs.minPriceDropPercentage}%
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  إشعارات متصفح فورية عبر Service Worker عند حدوث تغير حاد في أسعار المنتجات المضافة لقائمة المتابعة
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {webNotifPermission !== 'granted' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await requestWebNotificationPermission();
+                    setWebNotifPermission(res.permission);
+                    if (res.granted) {
+                      if (onShowToast) onShowToast('تم تفعيل إشعارات المتصفح بنجاح! 🔔');
+                    } else if (res.error) {
+                      if (onShowToast) onShowToast(res.error);
+                    }
+                  }}
+                  className="h-8 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>تفعيل إشعارات المتصفح 🔔</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={isTestingWebNotif}
+                onClick={async () => {
+                  setIsTestingWebNotif(true);
+                  try {
+                    const res = await simulateWatchlistPriceChange();
+                    if (onShowToast) onShowToast(res.message);
+                  } finally {
+                    setIsTestingWebNotif(false);
+                  }
+                }}
+                className="h-8 px-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                title="محاكاة تغير سعر حاد لمنتج مراقب وإرسال إشعار متصفح فوري"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+                <span>{isTestingWebNotif ? 'جاري الرصد...' : '🧪 تجربة رصد تغير حاد'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsNotifModalOpen(true)}
+                className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>مركز التنبيهات</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {webNotifPermission !== 'granted' && (
-              <button
-                type="button"
-                onClick={async () => {
-                  const res = await requestWebNotificationPermission();
-                  setWebNotifPermission(res.permission);
-                  if (res.granted) {
-                    if (onShowToast) onShowToast('تم تفعيل إشعارات الويب للمتصفح بنجاح! 🔔');
-                  } else if (res.error) {
-                    if (onShowToast) onShowToast(res.error);
-                  }
+          {/* Sharp Price Change Threshold Inline Controls */}
+          <div className="pt-2.5 border-t border-indigo-500/25 flex flex-wrap items-center justify-between gap-2.5 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-200">مستوى التغير السعري المطلوب لتفعيل التنبيه:</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {SHARP_PRICE_CHANGE_PRESETS.map((preset) => {
+                  const active = notifPrefs.minPriceDropPercentage === preset.percent;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        const updated = saveWatchlistNotificationPreferences({
+                          minPriceDropPercentage: preset.percent,
+                          sharpChangeLevel: preset.id,
+                        });
+                        setNotifPrefs(updated);
+                        onShowToast?.(`تم ضبط مستوى التغير السعري المطلوب للتنبيه عند ${preset.percent}% فأكثر`);
+                      }}
+                      title={preset.description}
+                      className={`h-7 px-2.5 rounded-lg font-black transition cursor-pointer border ${
+                        active
+                          ? 'bg-indigo-500 text-white border-indigo-300 shadow-sm'
+                          : 'bg-slate-900/70 text-slate-300 border-slate-700 hover:border-indigo-400'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+                <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-700 rounded-lg px-2 h-7">
+                  <span className="text-slate-400">مخصص:</span>
+                  <input
+                    type="number"
+                    aria-label="مستوى التغير السعري المخصص بالنسبة المئوية"
+                    min={1}
+                    max={90}
+                    value={notifPrefs.minPriceDropPercentage}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (Number.isFinite(val) && val >= 1) {
+                        const updated = saveWatchlistNotificationPreferences({
+                          minPriceDropPercentage: Math.min(90, val),
+                          sharpChangeLevel: 'custom',
+                        });
+                        setNotifPrefs(updated);
+                      }
+                    }}
+                    className="w-11 bg-transparent text-white font-mono font-bold text-center focus:outline-none"
+                  />
+                  <span className="text-indigo-300 font-bold">%</span>
+                </div>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-1.5 cursor-pointer text-slate-200 font-bold">
+              <input
+                type="checkbox"
+                checked={notifPrefs.notifyOnPriceDropOnly}
+                onChange={(e) => {
+                  const updated = saveWatchlistNotificationPreferences({
+                    notifyOnPriceDropOnly: e.target.checked,
+                  });
+                  setNotifPrefs(updated);
                 }}
-                className="h-8 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>تفعيل إشعارات المتصفح 🔔</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              disabled={isTestingWebNotif}
-              onClick={async () => {
-                setIsTestingWebNotif(true);
-                try {
-                  const res = await simulateWatchlistPriceChange();
-                  if (onShowToast) onShowToast(res.message);
-                } finally {
-                  setIsTestingWebNotif(false);
-                }
-              }}
-              className="h-8 px-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-              title="محاكاة هبوط سعر منافس لمنتج مراقب وإرسال إشعار فوري عبر المتصفح"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-              <span>{isTestingWebNotif ? 'جاري الرصد...' : '🧪 تجربة رصد هبوط سعر'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsNotifModalOpen(true)}
-              className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>مركز التنبيهات</span>
-            </button>
+                className="w-3.5 h-3.5 rounded text-indigo-500 cursor-pointer"
+              />
+              <span>عند الهبوط الحاد فقط</span>
+            </label>
           </div>
         </div>
 
@@ -1366,13 +1502,18 @@ export const WatchlistManager: React.FC<WatchlistManagerProps> = ({
                           </button>
 
                           {isAlertEnabled && (
-                            <div className="text-[11px] text-emerald-900 font-bold truncate">
+                            <div className="text-[11px] text-emerald-900 font-bold truncate flex items-center gap-1.5 flex-wrap">
                               <span>المنافس: {compLabel}</span>
                               {linkedRule && (
-                                <span className="text-indigo-700 mr-2">
-                                  • {linkedRule.title || linkedRule.name}
+                                <span className="text-indigo-700 mr-1">
+                                  • {linkedRule.title || (linkedRule as any).name}
                                 </span>
                               )}
+                              {item.priceAlertConfig?.customChangePercentThreshold ? (
+                                <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black">
+                                  تغير حاد ≥ {item.priceAlertConfig.customChangePercentThreshold}%
+                                </span>
+                              ) : null}
                             </div>
                           )}
                         </div>
