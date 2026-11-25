@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Copy, Check, AlertTriangle, Loader2, ShieldCheck, MessageCircle } from 'lucide-react';
-import { invokeUpdateTraderEdgeFunction, supabase } from '../lib/supabase';
+import { CheckCircle2, Copy, Check, Loader2, ShieldCheck, MessageCircle, UserPlus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { saveTraderAmazonConnection } from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
 
 export const AMAZON_CALLBACK_SUCCESS_MESSAGE = 'تم ربط التاجر بنجاح - الكود اتحفظ';
+export const AMAZON_CALLBACK_NO_MATCH_INSTRUCTION =
+  'الكود اتنسخ - ضيف تاجر جديد بنفس الـ State - والصق الكود في كارت التاجر';
 export const AMAZON_CALLBACK_WHATSAPP_INSTRUCTION =
   'تم نسخ الكود - ابعت الكود ده للمؤسس على الواتساب - واقفل الصفحة - متدخلش على رادار';
 export const PENDING_OAUTH_TOAST_STORAGE_KEY = 'radar_pending_oauth_toast';
@@ -86,9 +88,8 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
 
   const [isCopied, setIsCopied] = useState(false);
   const [copyAttempted, setCopyAttempted] = useState(false);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'no_match'>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [errorDetails, setErrorDetails] = useState<string>('');
   const processedRef = useRef(false);
 
   const handleManualCopy = useCallback(async () => {
@@ -103,10 +104,6 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
     processedRef.current = true;
 
     if (!code) {
-      if (errorParam) {
-        setSaveState('error');
-        setErrorDetails(errorDescription || errorParam);
-      }
       return;
     }
 
@@ -119,46 +116,76 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
       setCopyAttempted(true);
       setIsCopied(copied);
 
-      // 2. Save code in traders.refresh_token matching extracted seller_id
+      const finishWithoutDbSave = () => {
+        if (!isActive) return;
+        setSaveState('no_match');
+        setStatusMessage(AMAZON_CALLBACK_NO_MATCH_INSTRUCTION);
+        onShowToast?.(AMAZON_CALLBACK_NO_MATCH_INSTRUCTION);
+      };
+
+      // 2. Only check & save to DB if we have a candidate sellerId / state
+      if (!sellerId) {
+        finishWithoutDbSave();
+        return;
+      }
+
       setSaveState('saving');
-      let dbErrorMessage = '';
 
-      if (sellerId) {
-        let savedRemotely = false;
-        try {
-          const res = await supabase
+      try {
+        // Check first if a matching trader exists in `traders` BEFORE attempting update
+        // to avoid triggering Failed to fetch or Edge Function errors when State has no match.
+        let matchedBy: 'seller_id' | 'id' | null = null;
+        let matchedTraderId = '';
+
+        const bySellerRes = await supabase
+          .from('traders')
+          .select('id, seller_id')
+          .eq('seller_id', sellerId);
+
+        if (bySellerRes?.error) {
+          // Unauthenticated or network error: do NOT attempt DB update / Edge Function
+          finishWithoutDbSave();
+          return;
+        }
+
+        if (Array.isArray(bySellerRes?.data) && bySellerRes.data.length > 0) {
+          matchedBy = 'seller_id';
+          matchedTraderId = String(bySellerRes.data[0]?.id || '').trim();
+        } else {
+          // Also check if State/sellerId matches traders.id directly
+          const byIdRes = await supabase
             .from('traders')
-            .update({ refresh_token: code })
-            .eq('seller_id', sellerId);
+            .select('id, seller_id')
+            .eq('id', sellerId);
 
-          if (!res?.error) {
-            savedRemotely = true;
-          } else {
-            dbErrorMessage = String(res.error?.message || res.error || '');
-          }
-        } catch (err: any) {
-          dbErrorMessage = String(err?.message || err || '');
-        }
-
-        // If client-side RLS blocked update (trader opened callback without founder session), retry via Edge Function
-        if (!savedRemotely) {
-          try {
-            const edgeRes = await invokeUpdateTraderEdgeFunction(
-              { sellerId },
-              { refresh_token: code },
-              null
-            );
-            if (!edgeRes.error) {
-              savedRemotely = true;
-              dbErrorMessage = '';
-            }
-          } catch {
-            // Keep prior dbErrorMessage if Edge Function unavailable
+          if (!byIdRes?.error && Array.isArray(byIdRes?.data) && byIdRes.data.length > 0) {
+            matchedBy = 'id';
+            matchedTraderId = String(byIdRes.data[0]?.id || '').trim();
           }
         }
 
-        // Keep local per-trader vault synchronized
+        if (!matchedBy) {
+          // State has no matching trader in `traders` -> do NOT save to DB!
+          finishWithoutDbSave();
+          return;
+        }
+
+        const updateQuery =
+          matchedBy === 'seller_id'
+            ? supabase.from('traders').update({ refresh_token: code }).eq('seller_id', sellerId)
+            : supabase.from('traders').update({ refresh_token: code }).eq('id', matchedTraderId);
+
+        const updateRes = await updateQuery;
+        if (!isActive) return;
+
+        if (updateRes?.error) {
+          finishWithoutDbSave();
+          return;
+        }
+
+        // Keep local per-trader vault synchronized for matched trader
         await saveTraderAmazonConnection({
+          traderId: matchedTraderId || undefined,
           sellerId,
           refreshToken: code,
           syncToSupabase: false,
@@ -166,27 +193,22 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
 
         dataCache.invalidate('traders');
 
-        if (!isActive) return;
+        setSaveState('saved');
+        setStatusMessage(AMAZON_CALLBACK_SUCCESS_MESSAGE);
 
-        if (!savedRemotely && dbErrorMessage && !dbErrorMessage.toLowerCase().includes('unauthorized')) {
-          setSaveState('error');
-          setErrorDetails(dbErrorMessage);
-          return;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(PENDING_OAUTH_TOAST_STORAGE_KEY, AMAZON_CALLBACK_SUCCESS_MESSAGE);
+          }
+        } catch {
+          // Safe ignore storage errors
         }
-      }
 
-      setSaveState('saved');
-      setStatusMessage(AMAZON_CALLBACK_SUCCESS_MESSAGE);
-
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem(PENDING_OAUTH_TOAST_STORAGE_KEY, AMAZON_CALLBACK_SUCCESS_MESSAGE);
-        }
+        onShowToast?.(AMAZON_CALLBACK_SUCCESS_MESSAGE);
       } catch {
-        // Safe ignore storage errors
+        // Never display red error or Failed to fetch on callback page
+        finishWithoutDbSave();
       }
-
-      onShowToast?.(AMAZON_CALLBACK_SUCCESS_MESSAGE);
     };
 
     run();
@@ -194,7 +216,7 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
     return () => {
       isActive = false;
     };
-  }, [code, sellerId, errorParam, errorDescription, onShowToast]);
+  }, [code, sellerId, onShowToast]);
 
   return (
     <div
@@ -206,15 +228,15 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
         <div className="flex flex-col items-center gap-3">
           <div
             className={`w-16 h-16 rounded-2xl flex items-center justify-center border ${
-              saveState === 'error'
-                ? 'bg-red-50 border-red-200 text-red-600'
+              saveState === 'no_match'
+                ? 'bg-sky-50 border-sky-200 text-sky-600'
                 : 'bg-emerald-50 border-emerald-200 text-emerald-600'
             }`}
           >
             {saveState === 'saving' ? (
               <Loader2 className="w-8 h-8 animate-spin" />
-            ) : saveState === 'error' ? (
-              <AlertTriangle className="w-8 h-8" />
+            ) : saveState === 'no_match' ? (
+              <UserPlus className="w-8 h-8" />
             ) : (
               <ShieldCheck className="w-8 h-8" />
             )}
@@ -224,13 +246,24 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
             ربط حساب أمازون (Amazon Callback)
           </h1>
 
-          {statusMessage && (
+          {statusMessage && saveState === 'saved' && (
             <div
               role="status"
               data-testid="amazon-callback-success"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-base sm:text-lg font-extrabold"
             >
               <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+          )}
+
+          {statusMessage && saveState === 'no_match' && (
+            <div
+              role="status"
+              data-testid="amazon-callback-no-match"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-50 border border-sky-300 text-sky-900 text-base sm:text-lg font-extrabold"
+            >
+              <UserPlus className="w-5 h-5 shrink-0 text-sky-600" />
               <span>{statusMessage}</span>
             </div>
           )}
@@ -265,14 +298,28 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
 
             <div
               data-testid="amazon-callback-whatsapp-instruction"
-              className="w-full bg-emerald-50 border-2 border-emerald-400 rounded-2xl px-5 py-5 text-emerald-950 shadow-sm space-y-2"
+              className={`w-full rounded-2xl px-5 py-5 shadow-sm space-y-2 border-2 ${
+                saveState === 'no_match'
+                  ? 'bg-sky-50 border-sky-300 text-slate-900'
+                  : 'bg-emerald-50 border-emerald-400 text-emerald-950'
+              }`}
             >
-              <div className="flex items-center justify-center gap-2 text-emerald-700 font-extrabold text-sm">
-                <MessageCircle className="w-5 h-5 shrink-0" />
+              <div
+                className={`flex items-center justify-center gap-2 font-extrabold text-sm ${
+                  saveState === 'no_match' ? 'text-sky-700' : 'text-emerald-700'
+                }`}
+              >
+                {saveState === 'no_match' ? (
+                  <UserPlus className="w-5 h-5 shrink-0" />
+                ) : (
+                  <MessageCircle className="w-5 h-5 shrink-0" />
+                )}
                 <span>خطوة الإكمال</span>
               </div>
               <p className="text-xl sm:text-2xl font-black leading-relaxed text-slate-900">
-                {AMAZON_CALLBACK_WHATSAPP_INSTRUCTION}
+                {saveState === 'no_match'
+                  ? AMAZON_CALLBACK_NO_MATCH_INSTRUCTION
+                  : AMAZON_CALLBACK_WHATSAPP_INSTRUCTION}
               </p>
             </div>
 
@@ -304,16 +351,10 @@ export const AmazonCallbackPage: React.FC<AmazonCallbackPageProps> = ({
         ) : (
           <div className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 text-sm font-bold">
-              {errorDetails
-                ? `تعذر إتمام التفويض من أمازون: ${errorDetails}`
+              {errorParam || errorDescription
+                ? `تعذر إتمام التفويض من أمازون: ${errorDescription || errorParam}`
                 : 'لم يصل كود موافقة (code) في الرابط حتى الآن. برجاء التأكد من الرابط وإعادة المحاولة أو التواصل مع المؤسس.'}
             </div>
-          </div>
-        )}
-
-        {saveState === 'error' && errorDetails && code && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs sm:text-sm text-red-700 font-bold">
-            تنبيه أثناء الحفظ في قاعدة البيانات: {errorDetails}
           </div>
         )}
       </div>

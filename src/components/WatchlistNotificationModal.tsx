@@ -32,6 +32,7 @@ import {
   markWatchlistNotificationAsRead,
   removeFromWatchlist,
   sendWatchlistEmailAlertApi,
+  SHARP_PRICE_CHANGE_PRESETS,
   WatchlistPriceNotificationLog,
   WatchlistNotificationPreferences
 } from '../services/watchlistNotificationService';
@@ -84,15 +85,20 @@ export const WatchlistNotificationModal: React.FC<WatchlistNotificationModalProp
     const handleWatchlistUpdated = () => {
       setWatchlist(getStoredWatchlist());
     };
+    const handlePrefsUpdated = () => {
+      setPrefs(getWatchlistNotificationPreferences());
+    };
 
     window.addEventListener('merchant_watchlist_notification_logged', handleLogAdded);
     window.addEventListener('merchant_watchlist_updated', handleWatchlistUpdated);
     window.addEventListener('merchant_watchlist_price_changed', handleLogAdded);
+    window.addEventListener('merchant_watchlist_prefs_updated', handlePrefsUpdated);
 
     return () => {
       window.removeEventListener('merchant_watchlist_notification_logged', handleLogAdded);
       window.removeEventListener('merchant_watchlist_updated', handleWatchlistUpdated);
       window.removeEventListener('merchant_watchlist_price_changed', handleLogAdded);
+      window.removeEventListener('merchant_watchlist_prefs_updated', handlePrefsUpdated);
     };
   }, []);
 
@@ -155,14 +161,14 @@ export const WatchlistNotificationModal: React.FC<WatchlistNotificationModalProp
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-white font-['Cairo','Alexandria']">
-                  مركز إشعارات وتغيرات أسعار المنتجات المراقبة
+                  مركز تنبيهات المتصفح للتغيرات السعرية الحادة
                 </h3>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 font-mono">
-                  Web Notifications API
+                  Web Push Notifications
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                تنبيهات فورية لسطح المكتب والمتصفح عند أي هبوط أو ارتفاع في أسعار المنافسين لمنتجات قائمة المتابعة
+                إشعارات متصفح فورية عبر Service Worker عند حدوث تغير حاد ({prefs.minPriceDropPercentage}%+) في أسعار منتجات قائمة المتابعة
               </p>
             </div>
           </div>
@@ -476,14 +482,14 @@ export const WatchlistNotificationModal: React.FC<WatchlistNotificationModalProp
               <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
                 <h4 className="text-sm font-black text-white flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                  <span>تفضيلات Web Notifications API</span>
+                  <span>إعدادات إشعارات المتصفح (Web Push) ومستوى التغير الحاد</span>
                 </h4>
 
                 <div className="space-y-3 pt-2 text-xs">
                   <label className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-900 border border-slate-800/80 cursor-pointer">
                     <div>
-                      <span className="text-white font-bold block">إشعارات المتصفح لسطح المكتب والهاتف</span>
-                      <span className="text-slate-400 text-[11px]">إرسال إشعار فوري عند تغير سعر أي منتج في قائمة المتابعة</span>
+                      <span className="text-white font-bold block">تفعيل تنبيهات المتصفح الفورية (Web Push)</span>
+                      <span className="text-slate-400 text-[11px]">إرسال إشعار متصفح منبثق عبر Service Worker عند حدوث تغير سعري حاد لمنتج في المتابعة</span>
                     </div>
                     <input
                       type="checkbox"
@@ -519,27 +525,144 @@ export const WatchlistNotificationModal: React.FC<WatchlistNotificationModalProp
                     />
                   </label>
 
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-bold">الحد الأدنى لنسبة تغير السعر للتنبيه</span>
-                      <span className="font-mono text-indigo-400 font-bold">{prefs.minPriceDropPercentage}%</span>
+                  <label className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-900 border border-slate-800/80 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <div>
+                        <span className="text-white font-bold block">نغمة تنبيه صوتية عند التغير الحاد</span>
+                        <span className="text-slate-400 text-[11px]">تشغيل نغمة خفيفة متزامنة مع إشعار المتصفح</span>
+                      </div>
                     </div>
                     <input
-                      type="range"
-                      min="1"
-                      max="15"
-                      step="1"
-                      value={prefs.minPriceDropPercentage}
+                      type="checkbox"
+                      checked={prefs.soundAlertsEnabled}
                       onChange={(e) => {
                         const updated = saveWatchlistNotificationPreferences({
-                          minPriceDropPercentage: Number(e.target.value),
+                          soundAlertsEnabled: e.target.checked,
                         });
                         setPrefs(updated);
                       }}
-                      className="w-full accent-indigo-500 cursor-pointer"
+                      className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
                     />
-                    <span className="text-[10px] text-slate-500 block">
-                      لن يتم إرسال إشعار بالتغيرات الطفيفة جداً الأقل من {prefs.minPriceDropPercentage}% لتفادي الإزعاج
+                  </label>
+
+                  {/* Sharp Price Change Threshold Selector */}
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-indigo-500/30 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-white font-black block">مستوى التغير السعري المطلوب لتفعيل التنبيه</span>
+                        <span className="text-[11px] text-slate-400">
+                          اختر مستوى حدة التغير (نسبة مئوية) لتجاهل التقلبات الطفيفة وإرسال التنبيه للتغيرات الحادة فقط
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 font-mono text-indigo-300 font-black text-sm shrink-0">
+                        ≥ {prefs.minPriceDropPercentage}%
+                      </span>
+                    </div>
+
+                    {/* Quick Sharp Level Presets */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {SHARP_PRICE_CHANGE_PRESETS.map((preset) => {
+                        const isSelected = prefs.minPriceDropPercentage === preset.percent;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              const updated = saveWatchlistNotificationPreferences({
+                                minPriceDropPercentage: preset.percent,
+                                sharpChangeLevel: preset.id,
+                              });
+                              setPrefs(updated);
+                              onShowToast?.(`تم ضبط مستوى التغير السعري المطلوب للتنبيه عند ${preset.percent}% فأكثر`);
+                            }}
+                            title={preset.description}
+                            className={`p-2 rounded-xl border text-right transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-600/30 border-indigo-400 text-white shadow-sm'
+                                : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-600'
+                            }`}
+                          >
+                            <div className="font-black text-xs">{preset.shortLabel}</div>
+                            <div className="text-[10px] text-slate-300 mt-0.5 truncate">{preset.label}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Slider + Exact % Input */}
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        aria-label="نسبة التغير السعري المطلوبة للتنبيه"
+                        min="1"
+                        max="60"
+                        step="1"
+                        value={Math.min(60, prefs.minPriceDropPercentage)}
+                        onChange={(e) => {
+                          const updated = saveWatchlistNotificationPreferences({
+                            minPriceDropPercentage: Number(e.target.value),
+                          });
+                          setPrefs(updated);
+                        }}
+                        className="flex-1 accent-indigo-500 cursor-pointer"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input
+                          type="number"
+                          aria-label="إدخال نسبة مئوية مخصصة للتنبيه"
+                          min="1"
+                          max="90"
+                          value={prefs.minPriceDropPercentage}
+                          onChange={(e) => {
+                            const num = Number(e.target.value);
+                            if (Number.isFinite(num) && num >= 1) {
+                              const updated = saveWatchlistNotificationPreferences({
+                                minPriceDropPercentage: Math.min(90, num),
+                                sharpChangeLevel: 'custom',
+                              });
+                              setPrefs(updated);
+                            }
+                          }}
+                          className="w-16 h-8 px-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold text-center focus:outline-none focus:border-indigo-400"
+                        />
+                        <span className="text-slate-400 font-bold">%</span>
+                      </div>
+                    </div>
+
+                    {/* Optional Fixed EGP Change Threshold */}
+                    <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="text-slate-200 font-bold block">أو تغير نقدي حاد بمقدار (اختياري)</span>
+                        <span className="text-[10px] text-slate-400">
+                          إرسال تنبيه أيضاً إذا تغير السعر بهذا المبلغ بالجنيه (اتركه 0 للاعتماد على النسبة المئوية فقط)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          aria-label="حد التغير النقدي بالجنيه"
+                          min="0"
+                          step="10"
+                          value={prefs.minAbsoluteChangeEGP || 0}
+                          onChange={(e) => {
+                            const updated = saveWatchlistNotificationPreferences({
+                              minAbsoluteChangeEGP: Math.max(0, Number(e.target.value) || 0),
+                            });
+                            setPrefs(updated);
+                          }}
+                          className="w-24 h-8 px-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold text-center focus:outline-none focus:border-indigo-400"
+                        />
+                        <span className="text-slate-400 font-bold">ج.م</span>
+                      </div>
+                    </div>
+
+                    <span className="text-[10px] text-indigo-300/90 block font-medium">
+                      سيتم إرسال إشعار المتصفح الفوري فقط عند حدوث تغير بنسبة {prefs.minPriceDropPercentage}% فأكثر
+                      {prefs.minAbsoluteChangeEGP && prefs.minAbsoluteChangeEGP > 0
+                        ? ` أو بمقدار ${prefs.minAbsoluteChangeEGP.toLocaleString()} ج.م فأكثر`
+                        : ''}
+                      .
                     </span>
                   </div>
                 </div>

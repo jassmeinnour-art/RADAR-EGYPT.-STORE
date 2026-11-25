@@ -35,11 +35,54 @@ export interface WatchlistPriceNotificationLog {
   currency: string;
 }
 
+export type SharpPriceChangeLevel = 'sensitive' | 'sharp' | 'very_sharp' | 'extreme' | 'custom';
+
+export interface SharpPriceChangePreset {
+  id: Exclude<SharpPriceChangeLevel, 'custom'>;
+  label: string;
+  shortLabel: string;
+  percent: number;
+  description: string;
+}
+
+export const SHARP_PRICE_CHANGE_PRESETS: SharpPriceChangePreset[] = [
+  {
+    id: 'sensitive',
+    label: 'تغير ملحوظ (5%)',
+    shortLabel: '5%',
+    percent: 5,
+    description: 'إرسال تنبيه عند تغير السعر بنسبة 5% فأكثر',
+  },
+  {
+    id: 'sharp',
+    label: 'تغير حاد (10%)',
+    shortLabel: '10%',
+    percent: 10,
+    description: 'المستوى الموصى به لرصد التغيرات الحادة (10% فأكثر)',
+  },
+  {
+    id: 'very_sharp',
+    label: 'تغير حاد جداً (15%)',
+    shortLabel: '15%',
+    percent: 15,
+    description: 'تنبيهات عند الهبوط أو الصعود القوي بنسبة 15% فأكثر',
+  },
+  {
+    id: 'extreme',
+    label: 'تغير عنيف (25%)',
+    shortLabel: '25%',
+    percent: 25,
+    description: 'تنبيهات لحالات انهيار الأسعار أو القفزات الحادة جداً (25%+)',
+  },
+];
+
 export interface WatchlistNotificationPreferences {
   webNotificationsEnabled: boolean;
   soundAlertsEnabled: boolean;
   notifyOnPriceDropOnly: boolean;
   minPriceDropPercentage: number;
+  sharpChangeLevel?: SharpPriceChangeLevel;
+  minAbsoluteChangeEGP?: number;
   emailAlertsEnabled: boolean;
   emailAddress: string;
 }
@@ -52,7 +95,9 @@ export const DEFAULT_WATCHLIST_PREFS: WatchlistNotificationPreferences = {
   webNotificationsEnabled: true,
   soundAlertsEnabled: true,
   notifyOnPriceDropOnly: false,
-  minPriceDropPercentage: 1, // Minimum 1% price change to trigger notification
+  minPriceDropPercentage: 10, // Sharp price change default: 10%
+  sharpChangeLevel: 'sharp',
+  minAbsoluteChangeEGP: 0,
   emailAlertsEnabled: false,
   emailAddress: 'jassmeinnour@gmail.com',
 };
@@ -162,12 +207,31 @@ export async function requestWebNotificationPermission(): Promise<{
 /**
  * Load Watchlist notification preferences from localStorage
  */
+export function resolveSharpChangeLevel(percent: number): SharpPriceChangeLevel {
+  const matched = SHARP_PRICE_CHANGE_PRESETS.find((p) => p.percent === percent);
+  return matched ? matched.id : 'custom';
+}
+
 export function getWatchlistNotificationPreferences(): WatchlistNotificationPreferences {
   if (typeof window === 'undefined') return DEFAULT_WATCHLIST_PREFS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PREFS);
     if (raw) {
-      return { ...DEFAULT_WATCHLIST_PREFS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      const minPct =
+        typeof parsed?.minPriceDropPercentage === 'number' && Number.isFinite(parsed.minPriceDropPercentage)
+          ? Math.max(1, Math.min(90, parsed.minPriceDropPercentage))
+          : DEFAULT_WATCHLIST_PREFS.minPriceDropPercentage;
+      return {
+        ...DEFAULT_WATCHLIST_PREFS,
+        ...parsed,
+        minPriceDropPercentage: minPct,
+        sharpChangeLevel: parsed?.sharpChangeLevel || resolveSharpChangeLevel(minPct),
+        minAbsoluteChangeEGP:
+          typeof parsed?.minAbsoluteChangeEGP === 'number' && parsed.minAbsoluteChangeEGP > 0
+            ? parsed.minAbsoluteChangeEGP
+            : 0,
+      };
     }
   } catch (e) {
     console.warn('Error reading notification preferences:', e);
@@ -182,10 +246,32 @@ export function saveWatchlistNotificationPreferences(
   prefs: Partial<WatchlistNotificationPreferences>
 ): WatchlistNotificationPreferences {
   const current = getWatchlistNotificationPreferences();
-  const updated = { ...current, ...prefs };
+  const nextPct =
+    typeof prefs.minPriceDropPercentage === 'number' && Number.isFinite(prefs.minPriceDropPercentage)
+      ? Math.max(1, Math.min(90, prefs.minPriceDropPercentage))
+      : current.minPriceDropPercentage;
+  const nextLevel =
+    prefs.sharpChangeLevel ||
+    (prefs.minPriceDropPercentage !== undefined
+      ? resolveSharpChangeLevel(nextPct)
+      : current.sharpChangeLevel || resolveSharpChangeLevel(nextPct));
+
+  const updated: WatchlistNotificationPreferences = {
+    ...current,
+    ...prefs,
+    minPriceDropPercentage: nextPct,
+    sharpChangeLevel: nextLevel,
+    minAbsoluteChangeEGP:
+      prefs.minAbsoluteChangeEGP !== undefined
+        ? Math.max(0, Number(prefs.minAbsoluteChangeEGP) || 0)
+        : current.minAbsoluteChangeEGP || 0,
+  };
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(updated));
+      window.dispatchEvent(
+        new CustomEvent('merchant_watchlist_prefs_updated', { detail: updated })
+      );
     } catch (e) {
       console.warn('Error saving notification preferences:', e);
     }
@@ -454,8 +540,32 @@ export function clearWatchlistNotificationLogs(): void {
   }
 }
 
+function playSubtleAlertSoundIfEnabled(enabled: boolean): void {
+  if (!enabled || typeof window === 'undefined') return;
+  try {
+    const AudioCtx =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1174.66, ctx.currentTime + 0.14);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.28);
+  } catch {
+    // Audio playback optional and safe to ignore in restricted contexts
+  }
+}
+
 /**
- * Dispatches a native Web Notification safely with Feature Detection and RTL Arabic support
+ * Dispatches a Web Push / Browser Notification via active Service Worker registration
+ * (with native `Notification` constructor fallback) with Feature Detection and RTL Arabic support.
  */
 export async function sendNativeWebNotification(options: {
   title: string;
@@ -463,15 +573,16 @@ export async function sendNativeWebNotification(options: {
   icon?: string;
   tag?: string;
   url?: string;
+  requireInteraction?: boolean;
   data?: Record<string, any>;
 }): Promise<boolean> {
   if (!isWebNotificationSupported()) {
-    console.warn('[Web Notification API] Not supported in this browser.');
+    console.warn('[Web Push] Not supported in this browser.');
     return false;
   }
 
   if (Notification.permission !== 'granted') {
-    console.info('[Web Notification API] Permission is not granted yet.');
+    console.info('[Web Push] Permission is not granted yet.');
     return false;
   }
 
@@ -488,43 +599,57 @@ export async function sendNativeWebNotification(options: {
     dir: 'rtl',
     lang: 'ar',
     tag: options.tag || `radar-wl-${Date.now()}`,
+    requireInteraction: options.requireInteraction ?? true,
     data: {
-      url: options.url || '#radar',
+      url: options.url || '/watchlist',
       ...options.data,
     },
   };
 
+  playSubtleAlertSoundIfEnabled(prefs.soundAlertsEnabled);
+
+  // 1. Prefer active Service Worker registration.showNotification for full Web Push support
+  try {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistration === 'function') {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && reg.active && typeof reg.showNotification === 'function') {
+        await reg.showNotification(options.title, {
+          ...notifOptions,
+          vibrate: [180, 80, 180],
+          actions: [
+            { action: 'open_product', title: 'عرض المنتج' },
+            { action: 'dismiss', title: 'تجاهل' },
+          ],
+        } as NotificationOptions);
+        return true;
+      }
+    }
+  } catch (swErr) {
+    console.warn('[Web Push] ServiceWorker showNotification failed, falling back to Notification API:', swErr);
+  }
+
+  // 2. Fallback to native window.Notification constructor
   try {
     const notification = new Notification(options.title, notifOptions);
-    notification.onclick = (e) => {
-      e.preventDefault();
-      try {
-        window.focus();
-      } catch {}
-      if (options.data?.productId) {
-        window.dispatchEvent(
-          new CustomEvent('navigate_to_product_radar', {
-            detail: { productId: options.data.productId },
-          })
-        );
-      }
-      notification.close();
-    };
+    if (notification && typeof notification === 'object') {
+      notification.onclick = (e) => {
+        e.preventDefault();
+        try {
+          window.focus();
+        } catch {}
+        if (options.data?.productId) {
+          window.dispatchEvent(
+            new CustomEvent('navigate_to_product_radar', {
+              detail: { productId: options.data.productId },
+            })
+          );
+        }
+        notification.close();
+      };
+    }
     return true;
   } catch (err) {
-    console.warn('[Web Notification API] Direct constructor failed, trying serviceWorker:', err);
-    // Optional fallback through service worker if supported
-    try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        if (reg && 'showNotification' in reg) {
-          await reg.showNotification(options.title, notifOptions);
-          return true;
-        }
-      }
-    } catch (swErr) {
-      console.warn('[Web Notification API] ServiceWorker showNotification failed:', swErr);
-    }
+    console.warn('[Web Push] Direct Notification constructor failed:', err);
   }
 
   return false;
@@ -650,6 +775,8 @@ export async function evaluateCompetitorPriceAgainstPricingEngine(params: {
     : null;
 
   const customThreshold = config?.customChangePercentThreshold;
+  const hasExplicitCustomThreshold =
+    typeof customThreshold === 'number' && customThreshold > 0;
   const rulePercentThreshold = activeRule?.conditionValue || 0;
   const crossedTargetPrice =
     typeof item.targetAlertPrice === 'number' &&
@@ -659,20 +786,20 @@ export async function evaluateCompetitorPriceAgainstPricingEngine(params: {
     activeRule?.conditionType === 'competitor_price_changed_by_percent' &&
     percentChange >= (rulePercentThreshold || 1);
   const exceededCustomPercent =
-    typeof customThreshold === 'number' &&
-    customThreshold > 0 &&
-    percentChange >= customThreshold;
+    hasExplicitCustomThreshold && percentChange >= customThreshold;
 
-  const shouldTrigger = Boolean(
-    ruleEval?.isTriggered || crossedTargetPrice || exceededRuleDelta || exceededCustomPercent
-  );
+  // If user configured an explicit sharp % threshold for this product, require meeting it (unless target price crossed)
+  const shouldTrigger = hasExplicitCustomThreshold
+    ? Boolean(exceededCustomPercent || crossedTargetPrice)
+    : Boolean(ruleEval?.isTriggered || crossedTargetPrice || exceededRuleDelta);
 
   const nowIso = new Date().toISOString();
 
   if (!shouldTrigger) {
-    const reasonText =
-      ruleEval?.triggerReasonAr ||
-      `التغير (${percentChange}%) لم يستوفِ شرط قاعدة التسعير المحددة`;
+    const reasonText = hasExplicitCustomThreshold
+      ? `نسبة التغير (${percentChange}%) أقل من مستوى التغير الحاد المطلوب (${customThreshold}%)`
+      : ruleEval?.triggerReasonAr ||
+        `التغير (${percentChange}%) لم يستوفِ شرط قاعدة التسعير المحددة`;
     const updatedIdle = getStoredWatchlist().map((w) =>
       w.productId === item.productId
         ? {
@@ -693,11 +820,11 @@ export async function evaluateCompetitorPriceAgainstPricingEngine(params: {
       reason: reasonText,
       oldPrice,
       newPrice,
-      ruleTitle: activeRule?.title || activeRule?.name,
+      ruleTitle: activeRule?.title || (activeRule as any)?.name,
     };
   }
 
-  const ruleTitle = activeRule?.title || activeRule?.name || 'محرك التسعير الآلي';
+  const ruleTitle = activeRule?.title || (activeRule as any)?.name || 'محرك التسعير الآلي';
   const computeFallbackRecommendedPrice = (): number => {
     if (ruleEval?.isTriggered) return ruleEval.finalPrice;
     if (!activeRule) return newPrice;
@@ -944,13 +1071,28 @@ export async function notifyWatchlistPriceChange(params: {
 
   const diff = oldPrice - newPrice;
   const isDrop = diff > 0;
-  const percentChange = oldPrice > 0 ? Math.round((Math.abs(diff) / oldPrice) * 100) : 0;
+  const percentChange =
+    oldPrice > 0 ? Number(((Math.abs(diff) / oldPrice) * 100).toFixed(1)) : 0;
 
   const prefs = getWatchlistNotificationPreferences();
   if (prefs.notifyOnPriceDropOnly && !isDrop) {
     return false;
   }
-  if (percentChange < prefs.minPriceDropPercentage) {
+
+  const perProductThreshold = item.priceAlertConfig?.customChangePercentThreshold;
+  const effectivePercentThreshold =
+    typeof perProductThreshold === 'number' && perProductThreshold > 0
+      ? perProductThreshold
+      : prefs.minPriceDropPercentage;
+  const absThreshold =
+    typeof prefs.minAbsoluteChangeEGP === 'number' && prefs.minAbsoluteChangeEGP > 0
+      ? prefs.minAbsoluteChangeEGP
+      : 0;
+
+  const meetsPercentThreshold = percentChange >= effectivePercentThreshold;
+  const meetsAbsoluteThreshold = absThreshold > 0 && Math.abs(diff) >= absThreshold;
+
+  if (!meetsPercentThreshold && !meetsAbsoluteThreshold) {
     return false;
   }
 
@@ -986,14 +1128,14 @@ export async function notifyWatchlistPriceChange(params: {
     currency,
   });
 
-  // Construct Notification Message
+  // Construct Web Push Notification Message highlighting the sharp price move
   const title = isDrop
-    ? `📉 هبوط سعر لمنتجك المراقب: ${item.product.title.slice(0, 32)}...`
-    : `📈 ارتفاع سعر لمنتجك المراقب: ${item.product.title.slice(0, 32)}...`;
+    ? `🚨 هبوط حاد (${percentChange}%-): ${item.product.title.slice(0, 36)}`
+    : `🚨 قفزة سعرية (${percentChange}%+): ${item.product.title.slice(0, 36)}`;
 
   const body = isDrop
-    ? `خفّض المنافس [${competitorName}] على ${platformName} السعر من ${oldPrice.toLocaleString()} إلى ${newPrice.toLocaleString()} ${currency} (-${percentChange}%). اضغط لمراجعة التسعير الرابح وحماية صمام الأمان!`
-    : `رفع المنافس [${competitorName}] على ${platformName} السعر إلى ${newPrice.toLocaleString()} ${currency} (+${percentChange}%). فرصة لرفع هامش ربحك فوراً!`;
+    ? `تغير حاد لدى [${competitorName}] (${platformName}): هبط السعر من ${oldPrice.toLocaleString()} إلى ${newPrice.toLocaleString()} ${currency} (انخفاض ${percentChange}%). اضغط للمراجعة!`
+    : `تغير حاد لدى [${competitorName}] (${platformName}): ارتفع السعر من ${oldPrice.toLocaleString()} إلى ${newPrice.toLocaleString()} ${currency} (+${percentChange}%). فرصة لرفع هامش ربحك!`;
 
   try {
     await multiTenantDb.addNotification({
@@ -1159,8 +1301,14 @@ export async function simulateWatchlistPriceChange(customProductId?: string): Pr
   }
 
   const currentPrice = targetItem.lastCheckedPrice || targetItem.product?.currentLowestPrice || 3100;
-  // Calculate simulated drop between 50 and 200 EGP
-  const dropAmount = Math.max(50, Math.round(currentPrice * 0.06));
+  const prefs = getWatchlistNotificationPreferences();
+  const effectiveThreshold = Math.max(
+    prefs.minPriceDropPercentage || 10,
+    targetItem.priceAlertConfig?.customChangePercentThreshold || 0
+  );
+  // Ensure simulated sharp price drop always exceeds the user's configured threshold
+  const simulatedPercent = Math.min(80, Math.max(12, Math.ceil(effectiveThreshold + 2)));
+  const dropAmount = Math.max(50, Math.round(currentPrice * (simulatedPercent / 100)));
   const simulatedNewPrice = Math.max(100, currentPrice - dropAmount);
 
   const competitorNames = ['أمازون مصر (Amazon.eg)', 'نون مصر (Noon Express)', 'جوميا مصر (Jumia Mall)'];
@@ -1176,7 +1324,60 @@ export async function simulateWatchlistPriceChange(customProductId?: string): Pr
 
   return {
     success: true,
-    message: `تم رصد ومحاكاة هبوط سعر "${targetItem.product.title}" من ${currentPrice} إلى ${simulatedNewPrice} ج.م لدى [${compName}].`,
+    message: `تم رصد تغير حاد (${simulatedPercent}%-) في "${targetItem.product.title}" من ${currentPrice.toLocaleString()} إلى ${simulatedNewPrice.toLocaleString()} ج.م لدى [${compName}]${notified ? ' وإرسال إشعار المتصفح الفوري 🔔' : ''}.`,
     notified,
   };
+}
+
+/**
+ * Evaluates a batch of fresh product prices against the stored Watchlist and dispatches
+ * Web Push notifications for every item that crosses the user's sharp price-change threshold.
+ */
+export async function checkWatchlistSharpPriceChanges(
+  freshProducts: ProductData[]
+): Promise<{ checkedCount: number; notifiedCount: number }> {
+  const watchlist = getStoredWatchlist();
+  if (!watchlist.length || !freshProducts.length) {
+    return { checkedCount: 0, notifiedCount: 0 };
+  }
+
+  let checkedCount = 0;
+  let notifiedCount = 0;
+
+  for (const item of watchlist) {
+    const matched = freshProducts.find(
+      (p) =>
+        p.id === item.productId ||
+        (p.sku && item.product?.sku && p.sku === item.product.sku) ||
+        (p.barcode && item.product?.barcode && p.barcode === item.product.barcode)
+    );
+    if (!matched) continue;
+
+    const lowestOffer = (matched.merchantOffers || []).reduce(
+      (prev, curr) => (curr.price > 0 && curr.price < prev.price ? curr : prev),
+      matched.merchantOffers?.[0] || {
+        price: matched.currentLowestPrice,
+        merchantName: 'السوق المصري',
+        platformName: 'السوق المصري',
+      }
+    );
+
+    const newPrice = lowestOffer?.price || matched.currentLowestPrice;
+    if (!newPrice || newPrice <= 0) continue;
+
+    checkedCount += 1;
+    const wasNotified = await notifyWatchlistPriceChange({
+      item,
+      newPrice,
+      competitorName: lowestOffer?.merchantName || 'منافس بالسوق',
+      platformName: lowestOffer?.platformName || 'السوق المصري',
+      currency: matched.currency || 'ج.م',
+    });
+
+    if (wasNotified) {
+      notifiedCount += 1;
+    }
+  }
+
+  return { checkedCount, notifiedCount };
 }

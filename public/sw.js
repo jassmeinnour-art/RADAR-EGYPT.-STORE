@@ -4,7 +4,7 @@
 // Aligned strictly with permitted domains in index.html CSP
 // ============================================================================
 
-const CACHE_VERSION = 'v1.5.0';
+const CACHE_VERSION = 'v1.6.0';
 const STATIC_CACHE = `radar-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `radar-images-${CACHE_VERSION}`;
 const FONT_CACHE = `radar-fonts-${CACHE_VERSION}`;
@@ -409,7 +409,109 @@ self.addEventListener('message', (event) => {
     event.waitUntil(
       caches.keys().then((names) => Promise.all(names.map((name) => caches.delete(name))))
     );
+  } else if (event.data.type === 'SHOW_WATCHLIST_PUSH' && event.data.payload) {
+    const payload = event.data.payload;
+    const title = payload.title || '🚨 تنبيه تغير حاد في السعر';
+    const options = {
+      body: payload.body || '',
+      icon: payload.icon || '/pwa-192x192.png',
+      badge: payload.badge || '/pwa-192x192.png',
+      dir: 'rtl',
+      lang: 'ar',
+      tag: payload.tag || `radar-wl-push-${Date.now()}`,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [180, 80, 180],
+      data: {
+        url: payload.url || '/watchlist',
+        ...(payload.data || {}),
+      },
+      actions: [
+        { action: 'open_product', title: 'عرض المنتج' },
+        { action: 'dismiss', title: 'تجاهل' },
+      ],
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
   }
+});
+
+// ----------------------------------------------------------------------------
+// 4B. Web Push Notifications (push & notificationclick)
+// ----------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    if (event.data) {
+      try {
+        payload = event.data.json();
+      } catch {
+        payload = { body: event.data.text() };
+      }
+    }
+  } catch (err) {
+    console.warn('[SW] Failed to parse push payload:', err);
+  }
+
+  const title = payload.title || '🚨 تنبيه تغير حاد في أسعار قائمة المتابعة';
+  const body =
+    payload.body ||
+    'حدث تغير حاد في سعر أحد المنتجات المضافة لقائمة المتابعة. اضغط للمراجعة الفورية.';
+
+  const options = {
+    body,
+    icon: payload.icon || '/pwa-192x192.png',
+    badge: payload.badge || '/pwa-192x192.png',
+    dir: 'rtl',
+    lang: 'ar',
+    tag: payload.tag || `radar-push-${payload.productId || Date.now()}`,
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [180, 80, 180],
+    data: {
+      url: payload.url || '/watchlist',
+      productId: payload.productId || payload.data?.productId,
+      percentChange: payload.percentChange,
+      trend: payload.trend,
+      ...(payload.data || {}),
+    },
+    actions: [
+      { action: 'open_product', title: 'مراجعة السعر' },
+      { action: 'dismiss', title: 'إغلاق' },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const data = event.notification.data || {};
+  const targetUrl = data.url && data.url.startsWith('/') ? data.url : '/watchlist';
+  const productId = data.productId;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          client.postMessage({
+            type: 'WATCHLIST_NOTIFICATION_CLICK',
+            productId,
+            url: targetUrl,
+          });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
 });
 
 // ----------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WatchlistManager } from '../components/WatchlistManager';
+import { WatchlistNotificationModal } from '../components/WatchlistNotificationModal';
 import {
   addToWatchlist,
   getStoredWatchlist,
@@ -10,6 +11,9 @@ import {
   evaluateCompetitorPriceAgainstPricingEngine,
   triggerCompetitorPriceCheckForWatchlistItem,
   getWatchlistNotificationLogs,
+  saveWatchlistNotificationPreferences,
+  getWatchlistNotificationPreferences,
+  notifyWatchlistPriceChange,
 } from '../services/watchlistNotificationService';
 import {
   saveAutoPricingRules,
@@ -312,5 +316,136 @@ describe('Watchlist Per-Product Price Alerts & Auto-Pricing Engine Integration',
     });
 
     expect(screen.getByText(/تقترح تسعيرك عند 2,795 ج.م/)).toBeTruthy();
+  });
+
+  it('dispatches Web Push notifications only when price change meets the user-configured sharp threshold', async () => {
+    const mockNotificationConstructor = vi.fn();
+    (mockNotificationConstructor as any).permission = 'granted';
+    (window as any).Notification = mockNotificationConstructor;
+
+    const prod = buildSampleProduct({ id: 'prod-sharp-1', currentLowestPrice: 2000 });
+    prod.merchantOffers = [
+      { ...prod.merchantOffers[0], price: 2000 },
+    ];
+    addToWatchlist(prod, 1500);
+
+    // User configures sharp threshold to 15%
+    saveWatchlistNotificationPreferences({
+      webNotificationsEnabled: true,
+      minPriceDropPercentage: 15,
+      notifyOnPriceDropOnly: false,
+    });
+
+    const item = getStoredWatchlist()[0];
+
+    // 10% drop (2000 -> 1800) is BELOW 15% threshold -> should NOT trigger Web Push
+    const mildDropNotified = await notifyWatchlistPriceChange({
+      item,
+      newPrice: 1800,
+      competitorName: 'أمازون مصر (Amazon.eg)',
+      platformName: 'Amazon.eg',
+    });
+    expect(mildDropNotified).toBe(false);
+    expect(mockNotificationConstructor).not.toHaveBeenCalled();
+
+    // 20% sharp drop (2000 -> 1600) MEETS 15% threshold -> MUST trigger Web Push
+    const sharpDropNotified = await notifyWatchlistPriceChange({
+      item,
+      newPrice: 1600,
+      competitorName: 'أمازون مصر (Amazon.eg)',
+      platformName: 'Amazon.eg',
+    });
+    expect(sharpDropNotified).toBe(true);
+    expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
+    expect(mockNotificationConstructor.mock.calls[0][0]).toContain('هبوط حاد');
+  });
+
+  it('uses active Service Worker registration.showNotification for Web Push when available and respects drop-only setting', async () => {
+    const mockShowNotification = vi.fn().mockResolvedValue(undefined);
+    const originalServiceWorker = navigator.serviceWorker;
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: vi.fn().mockResolvedValue({
+          active: { state: 'activated' },
+          showNotification: mockShowNotification,
+        }),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+
+    const mockNotificationConstructor = vi.fn();
+    (mockNotificationConstructor as any).permission = 'granted';
+    (window as any).Notification = mockNotificationConstructor;
+
+    try {
+      const prod = buildSampleProduct({ id: 'prod-sw-push', currentLowestPrice: 1000 });
+      prod.merchantOffers = [{ ...prod.merchantOffers[0], price: 1000 }];
+      addToWatchlist(prod, 800);
+
+      saveWatchlistNotificationPreferences({
+        webNotificationsEnabled: true,
+        minPriceDropPercentage: 10,
+        notifyOnPriceDropOnly: true,
+      });
+
+      const item = getStoredWatchlist()[0];
+
+      // Sharp price increase (+20% -> 1200) ignored when notifyOnPriceDropOnly is true
+      const riseNotified = await notifyWatchlistPriceChange({
+        item,
+        newPrice: 1200,
+        competitorName: 'نون مصر',
+        platformName: 'Noon.com',
+      });
+      expect(riseNotified).toBe(false);
+      expect(mockShowNotification).not.toHaveBeenCalled();
+
+      // Sharp price drop (-25% -> 750) triggers Service Worker showNotification
+      const dropNotified = await notifyWatchlistPriceChange({
+        item,
+        newPrice: 750,
+        competitorName: 'نون مصر',
+        platformName: 'Noon.com',
+      });
+      expect(dropNotified).toBe(true);
+      expect(mockShowNotification).toHaveBeenCalledTimes(1);
+      expect(mockShowNotification.mock.calls[0][0]).toContain('25%');
+    } finally {
+      if (originalServiceWorker === undefined) {
+        delete (navigator as any).serviceWorker;
+      } else {
+        Object.defineProperty(navigator, 'serviceWorker', {
+          configurable: true,
+          value: originalServiceWorker,
+        });
+      }
+    }
+  });
+
+  it('allows user to configure sharp price change threshold inside WatchlistManager and WatchlistNotificationModal', () => {
+    const prod = buildSampleProduct();
+    addToWatchlist(prod, 2850);
+
+    const toastSpy = vi.fn();
+    render(<WatchlistManager onShowToast={toastSpy} />);
+
+    // Select 15% preset directly in WatchlistManager banner
+    fireEvent.click(screen.getByRole('button', { name: /تغير حاد جداً \(15%\)/ }));
+    expect(getWatchlistNotificationPreferences().minPriceDropPercentage).toBe(15);
+
+    // Open WatchlistNotificationModal and switch to settings tab to set custom 22%
+    render(
+      <WatchlistNotificationModal
+        isOpen={true}
+        onClose={() => {}}
+        onShowToast={toastSpy}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /إعدادات التنبيهات/ }));
+    const customInput = screen.getByLabelText('إدخال نسبة مئوية مخصصة للتنبيه');
+    fireEvent.change(customInput, { target: { value: '22' } });
+    expect(getWatchlistNotificationPreferences().minPriceDropPercentage).toBe(22);
   });
 });

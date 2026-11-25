@@ -5,6 +5,7 @@ import { resolvePathToTab } from '../utils/navigation';
 import {
   AmazonCallbackPage,
   AMAZON_CALLBACK_SUCCESS_MESSAGE,
+  AMAZON_CALLBACK_NO_MATCH_INSTRUCTION,
   AMAZON_CALLBACK_WHATSAPP_INSTRUCTION,
   extractSellerIdFromOAuthState,
 } from '../components/AmazonCallbackPage';
@@ -80,6 +81,13 @@ vi.mock('../lib/supabase', async (importOriginal) => {
               });
               return Promise.resolve({
                 data: [{ id: 'trd-mahmoud', seller_id: 'A37JIM7LHQI6IM', ...updatePayload }],
+                error: null,
+              }).then(onfulfilled, onrejected);
+            }
+            const sellerFilter = filters.find((f) => f.col === 'seller_id')?.val;
+            if (table === 'traders' && sellerFilter === 'A37JIM7LHQI6IM') {
+              return Promise.resolve({
+                data: [{ id: 'trd-mahmoud', seller_id: 'A37JIM7LHQI6IM' }],
                 error: null,
               }).then(onfulfilled, onrejected);
             }
@@ -207,5 +215,33 @@ describe('/auth/amazon-callback route & OAuth link generation', () => {
     expect(buttons[0]).toHaveTextContent(/تم نسخ الكود/);
     expect(screen.queryByText(/صفحة التجار/)).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/auth/amazon-callback');
+  });
+
+  it('skips DB update, shows only code + friendly add-trader instruction, and renders NO red error when State has no matching trader', async () => {
+    window.history.pushState(
+      {},
+      '',
+      `/auth/amazon-callback?code=AN_UNMATCHED_CODE_555&state=${encodeURIComponent('تاجر جديد_UNMATCHED_STATE_99')}`
+    );
+    const onShowToast = vi.fn();
+
+    render(<AmazonCallbackPage onShowToast={onShowToast} />);
+
+    await waitFor(() => {
+      expect(clipboardWriteMock).toHaveBeenCalledWith('AN_UNMATCHED_CODE_555');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('amazon-callback-no-match')).toHaveTextContent(
+        AMAZON_CALLBACK_NO_MATCH_INSTRUCTION
+      );
+    });
+
+    expect(updateCallsRef.current).toHaveLength(0);
+    expect(screen.getByTestId('amazon-callback-code')).toHaveTextContent('AN_UNMATCHED_CODE_555');
+    expect(screen.getByTestId('amazon-callback-state')).toHaveTextContent('تاجر جديد_UNMATCHED_STATE_99');
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/تنبيه أثناء الحفظ/i)).not.toBeInTheDocument();
+    expect(onShowToast).toHaveBeenCalledWith(AMAZON_CALLBACK_NO_MATCH_INSTRUCTION);
   });
 });
