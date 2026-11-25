@@ -39,6 +39,7 @@ import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { EditTraderModal } from './EditTraderModal';
 import { FetchProductsModal } from './FetchProductsModal';
 import { OptimizedImage } from './OptimizedImage';
+import { TraderActivityLog } from './TraderActivityLog';
 import {
   IMPORT_BUTTON_LABEL,
   buildAmazonAsinImageUrl,
@@ -897,6 +898,15 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Trader Activity Log Component */}
+      <TraderActivityLog
+        traderId={id}
+        traderName={trader.seller_name}
+        products={products}
+        invoices={invoices}
+        onShowToast={onShowToast}
+      />
 
       {/* 2- Tab المنتجات مع فلتر المنصة: [الكل] [Amazon] [Noon] [Jumia] */}
       <div className="space-y-4 pt-2">
