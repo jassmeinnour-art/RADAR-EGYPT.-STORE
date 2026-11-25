@@ -37,6 +37,11 @@ import { EmergencyErrorBanner } from './EmergencyLoginButton';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { ErrorBoundary } from './ErrorBoundary';
+import { CompetingStoresManagerModal } from './CompetingStoresManagerModal';
+import {
+  getTraderCompetingStoresSummary,
+  RADAR_COMPETING_STORES_UPDATED_EVENT,
+} from '../utils/competingStoresManager';
 
 interface TradersPageProps {
   onShowToast?: (message: string) => void;
@@ -71,8 +76,10 @@ const TraderCard: React.FC<{
   onEdit: (t: Trader) => void;
   onDelete: (e: React.MouseEvent, t: Trader) => void;
   onFetch: (t: Trader) => void;
+  onOpenCompetingStores: (t: Trader) => void;
+  storesTick?: number;
   onShowToast?: (message: string) => void;
-}> = React.memo(({ trader, isSyncing, onSelect, onEdit, onDelete, onFetch, onShowToast }) => {
+}> = React.memo(({ trader, isSyncing, onSelect, onEdit, onDelete, onFetch, onOpenCompetingStores, storesTick, onShowToast }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const plat = PLATFORM_DETAILS[trader.platform] || {
     name: trader.platform || 'منصة عامة',
@@ -94,6 +101,11 @@ const TraderCard: React.FC<{
   const storeUrl = (trader.store_url || trader.storefront_link || '').trim();
   const displayEmail = (trader.gmail || trader.email || '').trim();
   const phone = (trader.phone || '').trim();
+  const competingSummary = React.useMemo(
+    () => getTraderCompetingStoresSummary(trader),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trader, storesTick]
+  );
 
   const lastSyncTimestamp = getTraderLastSyncAt(
     trader.id,
@@ -453,7 +465,74 @@ const TraderCard: React.FC<{
             )}
           </button>
 
-          {/* 5. View Products (/products?trader_id=...) */}
+          {/* 5. Competing Stores Summary & Manager Button */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="p-2.5 rounded-xl bg-slate-950/90 border border-indigo-500/30 space-y-2"
+          >
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="font-black text-indigo-300 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-indigo-400" />
+                <span>متاجر المنافسين ({competingSummary.storesCount})</span>
+              </span>
+              {competingSummary.cheaperAlertsCount > 0 && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300">
+                  {competingSummary.cheaperAlertsCount} أرخص منك!
+                </span>
+              )}
+            </div>
+
+            {competingSummary.storesCount > 0 ? (
+              <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                <div className="bg-slate-900 px-1.5 py-1 rounded-lg border border-slate-800">
+                  <div className="text-slate-400">محصود</div>
+                  <div className="font-mono font-black text-white">{competingSummary.totalHarvested}</div>
+                </div>
+                <div className="bg-slate-900 px-1.5 py-1 rounded-lg border border-slate-800">
+                  <div className="text-slate-400">شبيهة</div>
+                  <div className="font-mono font-black text-sky-300">{competingSummary.totalMatched}</div>
+                </div>
+                <div className="bg-slate-900 px-1.5 py-1 rounded-lg border border-slate-800">
+                  <div className="text-slate-400">متوسط الفرق</div>
+                  <div
+                    className={`font-black ${
+                      competingSummary.pricePosition === 'cheaper'
+                        ? 'text-rose-400'
+                        : competingSummary.pricePosition === 'expensive'
+                        ? 'text-emerald-400'
+                        : 'text-slate-300'
+                    }`}
+                  >
+                    {competingSummary.pricePosition === 'cheaper'
+                      ? `أرخص ${Math.abs(competingSummary.avgPriceDiffAmount)}`
+                      : competingSummary.pricePosition === 'expensive'
+                      ? `أغلى ${Math.abs(competingSummary.avgPriceDiffAmount)}`
+                      : competingSummary.pricePosition === 'equal'
+                      ? 'متساوي'
+                      : '-'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[10px] text-slate-400">
+                أضف رابط متجر منافس (amazon.eg/s?me=... أو نون/جوميا) للمقارنة والمراقبة اليومية.
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenCompetingStores(trader);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>إدارة وحصد متاجر المنافسين 🕵️</span>
+            </button>
+          </div>
+
+          {/* 6. View Products (/products?trader_id=...) */}
           <button
             type="button"
             onClick={(e) => {
@@ -495,6 +574,8 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
   const [syncingTraderId, setSyncingTraderId] = useState<string | null>(null);
   const [selectedTrader, setSelectedTrader] = useState<Trader | null>(null);
   const [selectedTraderForFetch, setSelectedTraderForFetch] = useState<Trader | null>(null);
+  const [selectedTraderForCompetingStores, setSelectedTraderForCompetingStores] = useState<Trader | null>(null);
+  const [competingStoresTick, setCompetingStoresTick] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Form state for Add Trader modal (all founder-managed fields)
@@ -614,11 +695,16 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
       );
       dataCache.invalidate('traders');
     };
+    const handleCompetingStoresUpdated = () => {
+      setCompetingStoresTick((n) => n + 1);
+    };
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     window.addEventListener('radar_trader_sync_updated', handleSyncUpdated);
+    window.addEventListener(RADAR_COMPETING_STORES_UPDATED_EVENT, handleCompetingStoresUpdated);
     return () => {
       window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
       window.removeEventListener('radar_trader_sync_updated', handleSyncUpdated);
+      window.removeEventListener(RADAR_COMPETING_STORES_UPDATED_EVENT, handleCompetingStoresUpdated);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, isFounder]);
@@ -1041,10 +1127,12 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
               key={trader.id}
               trader={trader}
               isSyncing={syncingTraderId === trader.id}
+              storesTick={competingStoresTick}
               onSelect={handleOpenTraderDetail}
               onEdit={handleEditTrader}
               onDelete={handleDeleteTrader}
               onFetch={handleFetchProducts}
+              onOpenCompetingStores={(t) => setSelectedTraderForCompetingStores(t)}
               onShowToast={onShowToast}
             />
           ))}
@@ -1110,6 +1198,16 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
             <span>عرض المزيد (20 تاجر التاليين) ➕</span>
           </button>
         </div>
+      )}
+
+      {selectedTraderForCompetingStores && (
+        <CompetingStoresManagerModal
+          trader={selectedTraderForCompetingStores}
+          isOpen={Boolean(selectedTraderForCompetingStores)}
+          onClose={() => setSelectedTraderForCompetingStores(null)}
+          onShowToast={onShowToast}
+          onStoresUpdated={() => setCompetingStoresTick((n) => n + 1)}
+        />
       )}
 
       {renderAddTraderModal()}

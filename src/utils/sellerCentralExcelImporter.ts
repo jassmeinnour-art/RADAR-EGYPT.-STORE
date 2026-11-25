@@ -87,6 +87,10 @@ export interface CompetitorPriceRecord {
   title?: string | null;
   stock?: number | null;
   image_url?: string | null;
+  competitor_seller_id?: string | null;
+  competitor_name?: string | null;
+  competitor_url?: string | null;
+  owner_seller_id?: string | null;
   updated_at: string;
 }
 
@@ -2795,6 +2799,16 @@ export function saveCompetitorPricesLocally(records: CompetitorPriceRecord[]): v
       if (!rec) continue;
       const cleanAsin = String(rec.asin || '').trim().toUpperCase();
       const pid = rec.product_id ? String(rec.product_id).trim() : '';
+      const cleanCompSellerId = rec.competitor_seller_id
+        ? String(rec.competitor_seller_id).trim().toUpperCase()
+        : '';
+      const cleanOwnerSellerId = rec.owner_seller_id
+        ? String(rec.owner_seller_id).trim().toUpperCase()
+        : '';
+      // Strictly skip saving if competitor seller ID matches the product owner's seller ID
+      if (cleanCompSellerId && cleanOwnerSellerId && cleanCompSellerId === cleanOwnerSellerId) {
+        continue;
+      }
       const normalized: CompetitorPriceRecord = {
         product_id: pid || null,
         asin: cleanAsin,
@@ -2810,6 +2824,10 @@ export function saveCompetitorPricesLocally(records: CompetitorPriceRecord[]): v
         ...(rec.title ? { title: rec.title } : {}),
         ...(typeof rec.stock === 'number' ? { stock: rec.stock } : {}),
         ...(rec.image_url ? { image_url: rec.image_url } : {}),
+        ...(cleanCompSellerId ? { competitor_seller_id: cleanCompSellerId } : {}),
+        ...(rec.competitor_name ? { competitor_name: rec.competitor_name } : {}),
+        ...(rec.competitor_url ? { competitor_url: rec.competitor_url } : {}),
+        ...(cleanOwnerSellerId ? { owner_seller_id: cleanOwnerSellerId } : {}),
         updated_at: rec.updated_at || new Date().toISOString(),
       };
       if (pid) map[pid] = normalized;
@@ -3209,29 +3227,42 @@ export async function mergeCompetitorPricesOntoProducts<T extends Record<string,
     const asinKey = p?.asin ? String(p.asin).trim().toUpperCase() : '';
     const match = (pid && byProductId.get(pid)) || (asinKey && byAsin.get(asinKey));
 
+    const ownerSellerCandidates = new Set(
+      [p?.trader_id, p?.seller_id, match?.owner_seller_id]
+        .filter(Boolean)
+        .map((v) => String(v).trim().toUpperCase())
+    );
+    const matchSellerId = match?.competitor_seller_id
+      ? String(match.competitor_seller_id).trim().toUpperCase()
+      : '';
+    const isSelfCompetitorMatch = Boolean(matchSellerId && ownerSellerCandidates.has(matchSellerId));
+
     const existingComp = Number(p?.competitor_price || 0);
     const existingBuyBox = Number(p?.buybox_price || p?.buy_box_price || 0);
 
-    const competitorPrice =
-      match?.competitor_price && match.competitor_price > 0
+    const competitorPrice = !isSelfCompetitorMatch
+      ? match?.competitor_price && match.competitor_price > 0
         ? match.competitor_price
         : existingComp > 0
         ? existingComp
-        : undefined;
+        : undefined
+      : undefined;
 
-    const buyBoxPrice =
-      match?.buy_box_price && match.buy_box_price > 0
+    const buyBoxPrice = !isSelfCompetitorMatch
+      ? match?.buy_box_price && match.buy_box_price > 0
         ? match.buy_box_price
         : existingBuyBox > 0
         ? existingBuyBox
-        : undefined;
+        : undefined
+      : undefined;
 
-    const competitorsCount =
-      match && typeof match.competitors_count === 'number'
+    const competitorsCount = !isSelfCompetitorMatch
+      ? match && typeof match.competitors_count === 'number'
         ? match.competitors_count
         : typeof p?.competitors_count === 'number'
         ? p.competitors_count
-        : undefined;
+        : undefined
+      : 0;
 
     const resolvedTitle =
       (!p?.title || (asinKey && String(p.title).trim().toUpperCase() === asinKey)) && match?.title
@@ -3249,9 +3280,12 @@ export async function mergeCompetitorPricesOntoProducts<T extends Record<string,
       ...(resolvedTitle ? { title: resolvedTitle } : {}),
       stock: resolvedStock,
       ...(fallbackImageUrl && !p?.image_url ? { image_url: fallbackImageUrl } : {}),
-      ...(competitorPrice !== undefined ? { competitor_price: competitorPrice } : {}),
+      ...(competitorPrice !== undefined ? { competitor_price: competitorPrice } : { competitor_price: undefined }),
       ...(buyBoxPrice !== undefined ? { buybox_price: buyBoxPrice, buy_box_price: buyBoxPrice } : {}),
       ...(competitorsCount !== undefined ? { competitors_count: competitorsCount } : {}),
+      ...(!isSelfCompetitorMatch && matchSellerId ? { competitor_seller_id: matchSellerId } : {}),
+      ...(!isSelfCompetitorMatch && match?.competitor_name ? { competitor_name: match.competitor_name } : {}),
+      ...(!isSelfCompetitorMatch && match?.competitor_url ? { competitor_url: match.competitor_url } : {}),
     };
   });
 }

@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library';
+import * as cheerio from 'cheerio';
 import { scrapeStorefrontHeadless, parseAmazonStorefront } from './src/utils/scraper';
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a-very-secret-key-that-should-be-long-and-secure-32-chars';
@@ -6153,7 +6154,7 @@ app.post('/api/traders/:id/products', (req, res) => {
     buybox_price: numPrice,
     buybox_owner: 'متجرك 🏆',
     is_buybox_winner: true,
-    competitor_price: numPrice > 0 ? numPrice + Math.round(numPrice * 0.05) : 0,
+    competitor_price: 0,
     image: image?.trim() || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80',
     category: category?.trim() || 'عام',
     platform: platform || 'amazon_sp_api',
@@ -6998,68 +6999,556 @@ app.post('/api/product-image-studio/generate', async (req, res) => {
   }
 });
 
-// Endpoint: AI Extract Competitor from Real URL
+function parseNumericPriceEgp(raw: unknown): number {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) && raw > 0 ? Math.round(raw * 100) / 100 : 0;
+  }
+  const str = String(raw || '').replace(/[,٬\s]/g, '').replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const match = str.match(/(\d+(?:\.\d{1,2})?)/);
+  if (!match) return 0;
+  const num = parseFloat(match[1]);
+  return Number.isFinite(num) && num > 0 ? Math.round(num * 100) / 100 : 0;
+}
+
+function extractSellerIdFromTextOrUrl(input?: string | null): string {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/(?:[?&](?:seller|me|smid|merchantID)=|sellerId["':=\s]+|merchantID["':=\s]+)([A-Z0-9]{10,18})/i);
+  if (match && match[1]) return match[1].trim().toUpperCase();
+  return '';
+}
+
+function extractAsinFromUrl(input?: string | null): string {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/(?:\/dp\/|\/gp\/offer-listing\/|\/gp\/product\/|\/gp\/aod\/ajax\?[^"']*asin=|asin=)([A-Z0-9]{10})/i);
+  return match && match[1] ? match[1].trim().toUpperCase() : '';
+}
+
+const SCRAPE_BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+};
+
+// Endpoint: AI Extract Competitor from Real URL (Amazon Other Sellers / Noon / Jumia / Generic PDP)
 app.post('/api/ai/extract-competitor', async (req, res) => {
   try {
-    const { competitorUrl, productTitle, productAsin } = req.body || {};
-    if (!competitorUrl) {
+    const { competitorUrl, productTitle, productAsin, merchantSellerId } = req.body || {};
+    const cleanUrl = String(competitorUrl || '').trim();
+    if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'يرجى تقديم رابط المنافس' });
     }
 
-    let scrapedText = '';
-    try {
-      const resp = await fetch(competitorUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        signal: AbortSignal.timeout(5000)
-      });
-      if (resp.ok) {
-        const html = await resp.text();
-        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-        scrapedText = (titleMatch ? titleMatch[1] : '') + ' ' + (h1Match ? h1Match[1] : '') + ' ' + html.slice(0, 1500);
-      }
-    } catch {
-      // ignore scrape error and let AI reason based on URL & product title
+    const cleanMerchantSellerId = String(merchantSellerId || '').trim().toUpperCase();
+    const resolvedAsin = (String(productAsin || '').trim().toUpperCase() || extractAsinFromUrl(cleanUrl));
+    const urlSellerId = extractSellerIdFromTextOrUrl(cleanUrl);
+    const isAmazonUrl = /amazon\./i.test(cleanUrl);
+    const platformHint = /noon\./i.test(cleanUrl)
+      ? 'noon'
+      : /jumia\./i.test(cleanUrl)
+      ? 'jumia'
+      : isAmazonUrl
+      ? 'amazon'
+      : 'other';
+
+    const urlsToFetch: string[] = [];
+    if (isAmazonUrl && resolvedAsin) {
+      // Prioritize Amazon Other Sellers / All Buying Options endpoints over main search results
+      urlsToFetch.push(`https://www.amazon.eg/gp/aod/ajax?asin=${encodeURIComponent(resolvedAsin)}`);
+      urlsToFetch.push(`https://www.amazon.eg/gp/offer-listing/${encodeURIComponent(resolvedAsin)}`);
+    }
+    if (!urlsToFetch.includes(cleanUrl)) {
+      urlsToFetch.push(cleanUrl);
     }
 
-    const ai = getGenAI();
-    const prompt = `You are an e-commerce competitor intelligence assistant in Egypt.
-    The merchant is searching for a competitor for product "${productTitle}" (ASIN/SKU: ${productAsin}).
-    The competitor URL provided by the merchant is: "${competitorUrl}".
-    Scraped page text snippet: "${scrapedText}".
+    interface ParsedOffer {
+      competitorName: string;
+      sellerId: string;
+      price: number;
+      imageUrl: string;
+      condition: string;
+      platform: string;
+      productTitle?: string;
+      sourceUrl?: string;
+    }
 
-    Analyze the URL and product details. Return a valid JSON object with keys:
-    - "competitorName": string (Arabic store or brand name extracted from URL or content, e.g. "أمازون مصر", "نون", "معرض الأثاث الحديث", etc.)
-    - "price": number (Realistic competitor price in EGP as an integer number, e.g. 2450)
-    - "imageUrl": string (Product image URL or fallback placeholder)
-    - "condition": string (e.g. "جديد أصلي", "مستعمل")
-    - "platform": string ("amazon", "noon", "jumia", or "other")
-    Return ONLY valid JSON.`;
+    const cheerioOffers: ParsedOffer[] = [];
+    const htmlSnippets: string[] = [];
+    let pageMainTitle = '';
+    let pageMainImage = '';
+    let fetchSucceededCount = 0;
 
-    const aiRes = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' }
-    });
+    for (const targetUrl of urlsToFetch) {
+      try {
+        const resp = await fetch(targetUrl, {
+          headers: SCRAPE_BROWSER_HEADERS,
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!resp.ok) continue;
+        const html = await resp.text();
+        if (!html || html.length < 150) continue;
+        fetchSucceededCount++;
 
-    const jsonStr = (aiRes?.text || '{}').trim();
-    const parsed = JSON.parse(jsonStr);
+        const $ = cheerio.load(html);
+        if (!pageMainTitle) {
+          pageMainTitle =
+            $('#productTitle').text().trim() ||
+            $('#aod-asin-title-text').text().trim() ||
+            $('meta[property="og:title"]').attr('content')?.trim() ||
+            $('h1').first().text().trim() ||
+            $('title').text().trim();
+        }
+        if (!pageMainImage) {
+          pageMainImage =
+            $('#aod-asin-image-id').attr('src') ||
+            $('#landingImage').attr('src') ||
+            $('meta[property="og:image"]').attr('content') ||
+            '';
+        }
+
+        // 1. Parse Amazon AOD (#aod-pinned-offer, #aod-offer)
+        $('#aod-pinned-offer, #aod-offer').each((_, el) => {
+          const offerEl = $(el);
+          const priceRaw =
+            offerEl.find('.a-price .a-offscreen').first().text().trim() ||
+            offerEl.find('.a-price-whole').first().text().trim();
+          const price = parseNumericPriceEgp(priceRaw);
+          if (price <= 0) return;
+
+          const soldByLink = offerEl.find('#aod-offer-soldBy a, a[href*="seller="], a[href*="smid="]').first();
+          const sellerName =
+            soldByLink.text().trim() ||
+            offerEl.find('#aod-offer-soldBy').text().replace(/يباع بواسطة|Sold by/gi, '').trim() ||
+            'بائع على أمازون';
+          const atcAction = offerEl.find('[data-aod-atc-action]').attr('data-aod-atc-action') || '';
+          const sellerId =
+            extractSellerIdFromTextOrUrl(soldByLink.attr('href')) ||
+            extractSellerIdFromTextOrUrl(atcAction) ||
+            extractSellerIdFromTextOrUrl(offerEl.html());
+          const condition =
+            offerEl.find('#aod-offer-heading').text().trim() || 'جديد';
+
+          cheerioOffers.push({
+            competitorName: sellerName,
+            sellerId,
+            price,
+            imageUrl: pageMainImage,
+            condition,
+            platform: 'amazon',
+            productTitle: pageMainTitle || productTitle,
+            sourceUrl: targetUrl,
+          });
+        });
+
+        // 2. Parse classic Amazon Offer Listing Rows (.olpOffer)
+        $('.olpOffer').each((_, el) => {
+          const row = $(el);
+          const price = parseNumericPriceEgp(row.find('.olpOfferPrice').text());
+          if (price <= 0) return;
+          const sellerLink = row.find('.olpSellerName a').first();
+          const sellerName = sellerLink.text().trim() || row.find('.olpSellerName').text().trim() || 'بائع أمازون';
+          const sellerId = extractSellerIdFromTextOrUrl(sellerLink.attr('href')) || extractSellerIdFromTextOrUrl(row.html());
+          const condition = row.find('.olpCondition').text().trim() || 'جديد';
+          cheerioOffers.push({
+            competitorName: sellerName,
+            sellerId,
+            price,
+            imageUrl: pageMainImage,
+            condition,
+            platform: 'amazon',
+            productTitle: pageMainTitle || productTitle,
+            sourceUrl: targetUrl,
+          });
+        });
+
+        // 3. Parse single PDP / JSON-LD / meta price if no AOD rows were collected
+        if (cheerioOffers.length === 0) {
+          let pdpPrice = 0;
+          let pdpSellerName = '';
+          let pdpSellerId = urlSellerId;
+
+          $('script[type="application/ld+json"]').each((_, sc) => {
+            try {
+              const jsonObj = JSON.parse($(sc).text());
+              const offersNode = Array.isArray(jsonObj?.offers) ? jsonObj.offers[0] : jsonObj?.offers;
+              if (offersNode?.price && pdpPrice <= 0) {
+                pdpPrice = parseNumericPriceEgp(offersNode.price);
+              }
+              if (offersNode?.seller?.name && !pdpSellerName) {
+                pdpSellerName = String(offersNode.seller.name).trim();
+              }
+            } catch {}
+          });
+
+          if (pdpPrice <= 0) {
+            const candidatePriceText =
+              $('#corePrice_feature_div .a-price .a-offscreen').first().text() ||
+              $('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen').first().text() ||
+              $('meta[property="product:price:amount"]').attr('content') ||
+              $('[data-qa="pdp-price"]').first().text() ||
+              $('.-b.-ubpt.-tal.-fs24').first().text() ||
+              '';
+            pdpPrice = parseNumericPriceEgp(candidatePriceText);
+          }
+
+          if (!pdpSellerId) {
+            pdpSellerId =
+              extractSellerIdFromTextOrUrl($('#sellerProfileTriggerId').attr('href')) ||
+              extractSellerIdFromTextOrUrl($('#merchant-info').html()) ||
+              extractSellerIdFromTextOrUrl($('input#merchantID').val() as string);
+          }
+          if (!pdpSellerName) {
+            pdpSellerName =
+              $('#sellerProfileTriggerId').text().trim() ||
+              $('[data-qa="pdp-seller-name"]').text().trim() ||
+              (platformHint === 'noon' ? 'بائع نون مصر' : platformHint === 'jumia' ? 'بائع جوميا مصر' : '');
+          }
+
+          if (pdpPrice > 0) {
+            cheerioOffers.push({
+              competitorName: pdpSellerName || (platformHint === 'amazon' ? 'بائع أمازون' : 'منافس بالسوق'),
+              sellerId: pdpSellerId,
+              price: pdpPrice,
+              imageUrl: pageMainImage,
+              condition: 'جديد',
+              platform: platformHint,
+              productTitle: pageMainTitle || productTitle,
+              sourceUrl: targetUrl,
+            });
+          }
+        }
+
+        const cleanBodyText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 3500);
+        if (cleanBodyText) {
+          htmlSnippets.push(`URL: ${targetUrl}\nTitle: ${pageMainTitle}\nText: ${cleanBodyText}`);
+        }
+      } catch {
+        // Ignore single fetch failure and continue
+      }
+    }
+
+    // Use Gemini strictly on fetched page content (NEVER allow invented prices)
+    let aiOffers: ParsedOffer[] = [];
+    if (htmlSnippets.length > 0) {
+      try {
+        const ai = getGenAI();
+        const prompt = `You are a strict e-commerce data extraction parser for Egypt (Amazon.eg, Noon, Jumia).
+Target Product: "${productTitle || ''}" (ASIN: "${resolvedAsin}")
+Merchant Own Seller ID (MUST FLAG/IDENTIFY accurately if seen): "${cleanMerchantSellerId}"
+Pasted Competitor URL: "${cleanUrl}"
+
+Extracted HTML/text snippets from the fetched pages:
+${htmlSnippets.join('\n---\n')}
+
+STRICT ANTI-HALLUCINATION RULES:
+1. Extract ONLY real offers and prices that literally exist in the fetched HTML/text above.
+2. NEVER invent, guess, estimate, or fabricate a price or Seller ID. If no price exists in the text, return "offers": [].
+3. For Amazon pages, extract ALL seller offers (especially Other Sellers / Buying Options) with each seller's exact Seller ID if present.
+
+Return ONLY valid JSON with key "offers" (array of objects):
+{
+  "offers": [
+    {
+      "competitorName": "string (seller or store name)",
+      "sellerId": "string (exact Amazon Seller ID / merchant ID if found in text/URL, else empty string)",
+      "price": number (exact numeric EGP price from page, 0 if not found),
+      "imageUrl": "string (exact image URL if found, else empty string)",
+      "condition": "string (e.g. جديد or مستعمل)",
+      "platform": "amazon | noon | jumia | other",
+      "productTitle": "string (product title from page)"
+    }
+  ]
+}`;
+        const aiRes = await ai.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+        const parsed = JSON.parse((aiRes?.text || '{}').trim());
+        if (Array.isArray(parsed.offers)) {
+          aiOffers = parsed.offers
+            .map((o: any) => ({
+              competitorName: String(o?.competitorName || '').trim(),
+              sellerId: String(o?.sellerId || '').trim().toUpperCase(),
+              price: parseNumericPriceEgp(o?.price),
+              imageUrl: String(o?.imageUrl || pageMainImage || '').trim(),
+              condition: String(o?.condition || 'جديد').trim(),
+              platform: String(o?.platform || platformHint).trim().toLowerCase(),
+              productTitle: String(o?.productTitle || pageMainTitle || productTitle || '').trim(),
+              sourceUrl: cleanUrl,
+            }))
+            .filter((o: ParsedOffer) => o.price > 0);
+        }
+      } catch (aiErr) {
+        console.warn('[Extract Competitor AI parse skipped]:', aiErr);
+      }
+    }
+
+    // Merge cheerioOffers + aiOffers, deduplicating by (sellerId + price)
+    const combinedRaw = [...cheerioOffers, ...aiOffers].filter((o) => o.price > 0);
+    const dedupMap = new Map<string, ParsedOffer & { isSelfMerchant: boolean }>();
+    for (const offer of combinedRaw) {
+      const normalizedSellerId = String(offer.sellerId || '').trim().toUpperCase();
+      const key = `${normalizedSellerId || offer.competitorName}-${offer.price}`;
+      const isSelfMerchant = Boolean(
+        cleanMerchantSellerId && normalizedSellerId && normalizedSellerId === cleanMerchantSellerId
+      );
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, {
+          ...offer,
+          sellerId: normalizedSellerId,
+          competitorName: offer.competitorName || (platformHint === 'amazon' ? 'بائع أمازون' : 'منافس بالسوق'),
+          imageUrl: offer.imageUrl || pageMainImage || '',
+          isSelfMerchant,
+        });
+      }
+    }
+
+    const offers = Array.from(dedupMap.values()).sort((a, b) => a.price - b.price);
+
+    if (offers.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error:
+          fetchSucceededCount === 0
+            ? 'تعذر فتح الرابط أو حظرت المنصة الجلب التلقائي — تأكد من لصق رابط صفحة بائع أو منتج مفتوحة تحتوي على السعر.'
+            : 'لم يتم العثور على سعر حقيقي في هذا الرابط — لن نقوم باختراع أي سعر وهمي.',
+      });
+    }
+
+    const validCompetitorOffers = offers.filter((o) => !o.isSelfMerchant);
+    const primaryOffer = validCompetitorOffers[0] || offers[0];
 
     return res.json({
       success: true,
-      competitor: {
-        competitorName: parsed.competitorName || 'منافس معتمد بالسوق',
-        price: Number(parsed.price) || 2500,
-        imageUrl: parsed.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80',
-        condition: parsed.condition || 'جديد أصلي',
-        platform: parsed.platform || 'amazon'
-      }
+      offers,
+      hasOnlySelfMerchant: validCompetitorOffers.length === 0 && offers.some((o) => o.isSelfMerchant),
+      competitor: primaryOffer,
     });
   } catch (error: any) {
     console.error('[Extract Competitor API Error]:', error);
     return res.status(500).json({
       success: false,
-      error: error?.message || 'تعذر استخراج بيانات المنافس من الرابط'
+      error: error?.message || 'تعذر استخراج بيانات المنافس من الرابط',
+    });
+  }
+});
+
+// Endpoint: AI Harvest Competitor Store Products (Strict real prices & self-merchant exclusion)
+app.post('/api/ai/harvest-store', async (req, res) => {
+  try {
+    const { storeUrl, merchantSellerId, traderId } = req.body || {};
+    const cleanUrl = String(storeUrl || '').trim();
+    if (!cleanUrl) {
+      return res.status(400).json({ success: false, error: 'يرجى تقديم رابط متجر المنافس' });
+    }
+
+    const cleanMerchantSellerId = String(merchantSellerId || '').trim().toUpperCase();
+    const urlSellerId = extractSellerIdFromTextOrUrl(cleanUrl);
+
+    if (cleanMerchantSellerId && urlSellerId && urlSellerId === cleanMerchantSellerId) {
+      return res.status(400).json({
+        success: false,
+        isSelfMerchantStore: true,
+        error: `هذا أنت - مش منافس! رابط المتجر يحمل نفس الـ Seller ID الخاص بتاجرك (${cleanMerchantSellerId}).`,
+      });
+    }
+
+    let html = '';
+    try {
+      const resp = await fetch(cleanUrl, {
+        headers: SCRAPE_BROWSER_HEADERS,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (resp.ok) {
+        html = await resp.text();
+      }
+    } catch {}
+
+    if (!html || html.length < 150) {
+      return res.status(422).json({
+        success: false,
+        error: 'تعذر فتح رابط المتجر أو جلب صفحته — تأكد من صحة الرابط وأنه عام ويحتوي على منتجات وأسعار.',
+      });
+    }
+
+    const $ = cheerio.load(html);
+    const detectedStoreName =
+      $('#s-result-info-bar-content h1, .s-desktop-toolbar h1, h1').first().text().trim() ||
+      $('meta[property="og:title"]').attr('content')?.trim() ||
+      $('title').text().replace(/Amazon\.eg|أمازون مصر|Noon|Jumia/gi, '').trim() ||
+      '';
+
+    interface RawHarvested {
+      asin: string;
+      title: string;
+      price: number;
+      imageUrl: string;
+      sellerId: string;
+      productUrl?: string;
+    }
+
+    const cheerioProducts: RawHarvested[] = [];
+
+    // 1. Amazon Store / Search Cards ([data-asin])
+    $('[data-asin]').each((_, el) => {
+      const card = $(el);
+      const asin = String(card.attr('data-asin') || '').trim().toUpperCase();
+      if (!asin) return;
+      const title =
+        card.find('h2 span, h2 a span, .a-text-normal').first().text().trim();
+      const priceText =
+        card.find('.a-price .a-offscreen').first().text().trim() ||
+        card.find('.a-price-whole').first().text().trim();
+      const price = parseNumericPriceEgp(priceText);
+      const imageUrl =
+        card.find('img.s-image').attr('src') ||
+        card.find('img').first().attr('src') ||
+        '';
+      const cardHref = card.find('h2 a, a.a-link-normal').first().attr('href') || '';
+      const cardSellerId =
+        extractSellerIdFromTextOrUrl(card.html()) ||
+        urlSellerId;
+
+      if (title && price > 0) {
+        cheerioProducts.push({
+          asin,
+          title,
+          price,
+          imageUrl,
+          sellerId: cardSellerId,
+          productUrl: cardHref.startsWith('http')
+            ? cardHref
+            : cardHref
+            ? `https://www.amazon.eg${cardHref}`
+            : `https://www.amazon.eg/dp/${asin}`,
+        });
+      }
+    });
+
+    // 2. Jumia Cards (article.prd)
+    if (cheerioProducts.length === 0) {
+      $('article.prd, [data-qa="product-name"]').each((_, el) => {
+        const card = $(el);
+        const title = card.find('.name').text().trim() || card.text().trim();
+        const price = parseNumericPriceEgp(card.find('.prc').text());
+        const imageUrl = card.find('img').attr('data-src') || card.find('img').attr('src') || '';
+        const href = card.find('a.core').attr('href') || '';
+        if (title && price > 0) {
+          cheerioProducts.push({
+            asin: extractAsinFromUrl(href) || href.split('/').pop()?.replace('.html', '').slice(0, 14).toUpperCase() || '',
+            title,
+            price,
+            imageUrl,
+            sellerId: urlSellerId,
+            productUrl: href.startsWith('http') ? href : href ? `https://www.jumia.com.eg${href}` : cleanUrl,
+          });
+        }
+      });
+    }
+
+    // 3. Also run Gemini strictly on compact page text / cards to catch Noon/other layouts without inventing prices
+    let aiProducts: RawHarvested[] = [];
+    const textForAi = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 5500);
+    if (cheerioProducts.length === 0 && textForAi.length > 80) {
+      try {
+        const ai = getGenAI();
+        const prompt = `You are a strict e-commerce store product extractor in Egypt.
+Merchant Own Seller ID (exclude any item owned by this Seller ID): "${cleanMerchantSellerId || traderId || ''}"
+Store URL: "${cleanUrl}"
+Page Title: "${detectedStoreName}"
+Page text content:
+${textForAi}
+
+STRICT ANTI-HALLUCINATION RULES:
+1. Extract ONLY products that literally appear in the text content above with an explicit real EGP price > 0.
+2. NEVER invent, guess, or fabricate products or prices. If no real product with an explicit numeric price is present, return {"storeName": "", "harvestedProducts": []}.
+
+Return ONLY valid JSON:
+{
+  "storeName": "string",
+  "harvestedProducts": [
+    {
+      "asin": "string (ASIN or SKU if present, else empty string)",
+      "title": "string",
+      "price": number (exact EGP price > 0),
+      "imageUrl": "string",
+      "sellerId": "string (exact Seller ID if found)"
+    }
+  ]
+}`;
+        const aiRes = await ai.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+        const parsed = JSON.parse((aiRes?.text || '{}').trim());
+        if (Array.isArray(parsed.harvestedProducts)) {
+          aiProducts = parsed.harvestedProducts
+            .map((p: any) => ({
+              asin: String(p?.asin || p?.SKU || '').trim().toUpperCase(),
+              title: String(p?.title || '').trim(),
+              price: parseNumericPriceEgp(p?.price),
+              imageUrl: String(p?.imageUrl || '').trim(),
+              sellerId: String(p?.sellerId || urlSellerId || '').trim().toUpperCase(),
+              productUrl: cleanUrl,
+            }))
+            .filter((p: RawHarvested) => Boolean(p.title) && p.price > 0);
+        }
+      } catch (aiErr) {
+        console.warn('[Harvest Store AI parse skipped]:', aiErr);
+      }
+    }
+
+    const merged = [...cheerioProducts, ...aiProducts].filter((p) => Boolean(p.title) && p.price > 0);
+
+    let excludedSelfCount = 0;
+    const validProducts: RawHarvested[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const p of merged) {
+      const itemSellerId = String(p.sellerId || urlSellerId || '').trim().toUpperCase();
+      if (cleanMerchantSellerId && itemSellerId && itemSellerId === cleanMerchantSellerId) {
+        excludedSelfCount++;
+        continue;
+      }
+      const dedupKey = `${p.asin || p.title.toLowerCase()}-${p.price}`;
+      if (seenKeys.has(dedupKey)) continue;
+      seenKeys.add(dedupKey);
+      validProducts.push({
+        asin: p.asin,
+        title: p.title,
+        price: p.price,
+        imageUrl: p.imageUrl,
+        sellerId: itemSellerId,
+        productUrl: p.productUrl || cleanUrl,
+      });
+    }
+
+    if (validProducts.length === 0) {
+      return res.status(422).json({
+        success: false,
+        excludedSelfCount,
+        error:
+          excludedSelfCount > 0
+            ? `جميع المنتجات المستخرجة (${excludedSelfCount}) تخص التاجر نفسه (${cleanMerchantSellerId}) وتم استبعادها — لا يوجد منافسون في هذا الرابط.`
+            : 'لم يتم العثور على منتجات بأسعار حقيقية في رابط المتجر — لن نقوم باختراع أسعار وهمية.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      storeName: detectedStoreName || (urlSellerId ? `متجر (${urlSellerId})` : 'متجر منافس'),
+      storeSellerId: urlSellerId,
+      excludedSelfCount,
+      harvestedProducts: validProducts,
+    });
+  } catch (error: any) {
+    console.error('[Harvest Store API Error]:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'تعذر حصد متجر المنافس بالذكاء الاصطناعي',
     });
   }
 });

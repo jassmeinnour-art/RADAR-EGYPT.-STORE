@@ -223,6 +223,17 @@ const ProductCard: React.FC<{
             </span>
           </div>
 
+          {lowestCompetitorPrice !== null && (product.competitor_seller_id || product.competitor_name) && (
+            <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400 pt-1 border-t border-slate-800/60">
+              <span className="truncate">{product.competitor_name || 'منافس معتمد'}</span>
+              {product.competitor_seller_id && (
+                <span className="font-mono text-sky-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 shrink-0">
+                  Seller ID: {product.competitor_seller_id}
+                </span>
+              )}
+            </div>
+          )}
+
           {lowestCompetitorPrice === null && (
             <div className="pt-1.5 border-t border-slate-800/70 text-[10px] text-amber-300/90 font-bold">
               لا يوجد منافسين بعد - الصق رابط المنافس
@@ -1215,6 +1226,10 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
       {selectedProductForAiDiscovery && (
         <AiCompetitorDiscoveryModal
           product={selectedProductForAiDiscovery}
+          merchantSellerId={
+            traderOptions.find((t) => t.id === selectedProductForAiDiscovery.trader_id)?.seller_id ||
+            selectedProductForAiDiscovery.trader_id
+          }
           isOpen={Boolean(selectedProductForAiDiscovery)}
           onClose={() => setSelectedProductForAiDiscovery(null)}
           onShowToast={onShowToast}
