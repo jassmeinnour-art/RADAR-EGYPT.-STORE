@@ -391,7 +391,7 @@ export const MerchantProductDistributionChart: React.FC<MerchantProductDistribut
                 >
                   <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
                     <div className="bg-slate-900 border border-slate-700 text-white text-[10px] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap font-mono">
-                      <div>{entry.merchantName}</div>
+                      <div>{entry.fullName}</div>
                       <div className="text-sky-400 font-bold">{entry.productsCount} منتج</div>
                     </div>
                     <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />

@@ -56,6 +56,7 @@ import {
   RADAR_COMPETITOR_PRICES_UPDATED_EVENT,
   SellerCentralImportPreview,
   buildAmazonAsinImageUrl,
+  getTraderAmazonConnection,
   isAmazonSpApiConfigured,
   mergeCompetitorPricesOntoProducts,
   previewSellerCentralFile,
@@ -1261,6 +1262,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ onShowToast }) => {
           trader={modalTargetTrader}
           isOpen={isFetchModalOpen}
           initialPreview={pendingImportPreview}
+          autoStartSpApi={Boolean(getTraderAmazonConnection(modalTargetTrader).refreshToken)}
           onClose={() => {
             setIsFetchModalOpen(false);
             setPendingImportPreview(null);

@@ -293,15 +293,17 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(onShowToast).toHaveBeenCalledWith(DIRECT_FETCH_BLOCKED_MESSAGE);
   });
 
-  it('sanitizes HTML DOCTYPE and Unexpected token "<" errors cleanly', () => {
+  it('sanitizes HTML DOCTYPE and Unexpected token "<" errors cleanly while preserving real Amazon/network errors verbatim', () => {
     expect(
       sanitizeProductPullError(new SyntaxError("Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"))
     ).toBe(FRIENDLY_PULL_FAILURE_MESSAGE);
     expect(sanitizeProductPullError('<!DOCTYPE html><html>404</html>')).toBe(FRIENDLY_PULL_FAILURE_MESSAGE);
-    expect(sanitizeProductPullError('Failed to fetch https://sellercentral.amazon.eg')).toBe(
-      FRIENDLY_PULL_FAILURE_MESSAGE
-    );
+    expect(
+      sanitizeProductPullError('invalid_grant: The authorization grant is invalid or expired')
+    ).toBe('invalid_grant: The authorization grant is invalid or expired');
     expect(FRIENDLY_PULL_FAILURE_MESSAGE).not.toContain('Unexpected token');
+    expect(FRIENDLY_PULL_FAILURE_MESSAGE).not.toContain('يمنع السحب المباشر');
+    expect(DIRECT_FETCH_BLOCKED_MESSAGE).not.toContain('يمنع السحب المباشر');
   });
 
   it('parses Amazon All Listings Report TXT (Tab-separated UTF-8 + BOM) with product-id fallback, condition, constructed product_url, and skips blank/no-SKU lines', async () => {
@@ -612,7 +614,7 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(parsedBe.totalRead).toBe(103);
 
     // Verify FetchProductsModal displays preview with line count & first product name for UTF-16LE file
-    const utf16File = new File([utf16LeBytes], 'All+Listings+Report.txt', { type: 'text/plain' });
+    const utf16File = new File([utf16LeBytes.slice().buffer], 'All+Listings+Report.txt', { type: 'text/plain' });
     (utf16File as any).arrayBuffer = async () =>
       utf16LeBytes.buffer.slice(utf16LeBytes.byteOffset, utf16LeBytes.byteOffset + utf16LeBytes.byteLength);
 
@@ -1698,6 +1700,142 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     const savedSettings = JSON.parse(localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY) || '{}');
     expect(savedSettings.clientId).toBe('amzn1.global.client');
   });
+
+  it('saves Refresh Token inside TraderCard, hides file import nagging, pulls real Amazon SP-API products (SKU, ASIN, Price, Stock), and displays them', async () => {
+    saveAmazonSpApiSettings({
+      clientId: 'amzn1.application-oa2-client.prod',
+      clientSecret: 'amzn1.oa2-cs.v1.prodsecret',
+      applicationId: 'amzn1.sp.solution.prodapp',
+      marketplaceId: 'ARBP9OOSHTCHU',
+    });
+
+    const pullPayloads: any[] = [];
+    globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes('/api/amazon/sp-api/pull-products')) {
+        pullPayloads.push(JSON.parse(String(init?.body || '{}')));
+        return new Response(
+          JSON.stringify({
+            success: true,
+            source: 'sp_api_live',
+            products: [
+              {
+                sku: 'REAL-AMZ-SKU-1',
+                asin: 'B09REALAMZ1',
+                title: 'ماكينة قهوة أصلية من أمازون',
+                price: 4250,
+                stock: 19,
+                status: 'active',
+                image_url: 'https://images-na.ssl-images-amazon.com/images/P/B09REALAMZ1.01.L.jpg',
+                product_url: 'https://www.amazon.eg/dp/B09REALAMZ1',
+              },
+              {
+                sku: 'REAL-AMZ-SKU-2',
+                asin: 'B09REALAMZ2',
+                title: 'شواية كهربائية أصلية',
+                price: 1890,
+                stock: 6,
+                status: 'active',
+                image_url: 'https://images-na.ssl-images-amazon.com/images/P/B09REALAMZ2.01.L.jpg',
+                product_url: 'https://www.amazon.eg/dp/B09REALAMZ2',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as any;
+
+    const onShowToast = vi.fn();
+    render(<TradersPage onShowToast={onShowToast} />);
+
+    // Enter & save Refresh Token directly on TraderCard
+    const tokenInput = await screen.findByTestId('trader-card-refresh-token-A37JIM7LHQI6IM');
+    fireEvent.change(tokenInput, { target: { value: 'Atzr|IwEBRealTraderToken123' } });
+    fireEvent.click(screen.getByTestId('trader-card-save-refresh-token-A37JIM7LHQI6IM'));
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Refresh Token'));
+    });
+
+    // File-import button must NOT be shown on TraderCard once Refresh Token is connected
+    expect(screen.queryByRole('button', { name: IMPORT_BUTTON_LABEL })).not.toBeInTheDocument();
+
+    // Click "سحب كل المنتجات (SP-API)" -> opens FetchProductsModal and pulls automatically
+    fireEvent.click(screen.getByTestId('trader-card-pull-sp-api-A37JIM7LHQI6IM'));
+
+    await waitFor(() => {
+      expect(pullPayloads).toHaveLength(1);
+    });
+
+    expect(pullPayloads[0]).toEqual(
+      expect.objectContaining({
+        sellerId: 'A37JIM7LHQI6IM',
+        refreshToken: 'Atzr|IwEBRealTraderToken123',
+        clientId: 'amzn1.application-oa2-client.prod',
+        clientSecret: 'amzn1.oa2-cs.v1.prodsecret',
+        applicationId: 'amzn1.sp.solution.prodapp',
+        marketplaceId: 'ARBP9OOSHTCHU',
+      })
+    );
+
+    // Must NOT ask the founder to import a file when Refresh Token exists
+    expect(screen.queryByText(AMAZON_TXT_GUIDE_TEXT)).not.toBeInTheDocument();
+
+    const table = await screen.findByTestId('sp-api-pulled-products-table');
+    expect(within(table).getByText('REAL-AMZ-SKU-1')).toBeInTheDocument();
+    expect(within(table).getByText('B09REALAMZ1')).toBeInTheDocument();
+    expect(within(table).getByText('4,250 ج.م')).toBeInTheDocument();
+    expect(within(table).getByText('19')).toBeInTheDocument();
+    expect(within(table).getByText('REAL-AMZ-SKU-2')).toBeInTheDocument();
+    expect(within(table).getByText('B09REALAMZ2')).toBeInTheDocument();
+  });
+
+  it('displays Amazon real LWA/SP-API error verbatim when Refresh Token is invalid (never fake direct-fetch-blocked text)', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'invalid_grant',
+          error_description: 'The authorization grant is invalid, expired, or revoked',
+          message:
+            'فشل التوثيق من أمازون (LWA HTTP 400): invalid_grant — The authorization grant is invalid, expired, or revoked',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }) as any;
+
+    render(
+      <FetchProductsModal
+        isOpen={true}
+        autoStartSpApi={true}
+        onClose={vi.fn()}
+        onShowToast={vi.fn()}
+        trader={{
+          id: DEFAULT_TRADER_ID,
+          user_id: 'founder',
+          seller_name: 'محمود سعيد',
+          email: 'mahmeudsaid4@gmail.com',
+          phone: '',
+          platform: 'amazon',
+          status: 'active',
+          seller_id: DEFAULT_TRADER_ID,
+          refresh_token: 'Atzr|InvalidBadToken',
+        }}
+      />
+    );
+
+    const alertBox = await screen.findByTestId('sp-api-error-alert');
+    expect(alertBox).toHaveTextContent('invalid_grant');
+    expect(alertBox).toHaveTextContent('The authorization grant is invalid, expired, or revoked');
+    expect(alertBox.textContent).not.toContain('يمنع السحب المباشر');
+    expect(screen.queryByText(AMAZON_TXT_GUIDE_TEXT)).not.toBeInTheDocument();
+  });
 });
+
 
 

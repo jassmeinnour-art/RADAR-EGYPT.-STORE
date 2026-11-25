@@ -11,7 +11,8 @@ import {
 } from '../components/AmazonCallbackPage';
 import {
   buildMerchantAmazonAuthorizeUrl,
-  AMAZON_OAUTH_CLIENT_ID,
+  buildTraderOAuthState,
+  setRuntimeAmazonOAuthClientId,
   AMAZON_OAUTH_REDIRECT_URI,
 } from '../utils/sellerCentralExcelImporter';
 import { getAmazonSellerCentralConsentUrl } from '../utils/platformLaunchHelper';
@@ -127,19 +128,30 @@ describe('/auth/amazon-callback route & OAuth link generation', () => {
   });
 
   afterEach(() => {
+    setRuntimeAmazonOAuthClientId('');
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('builds the exact /ap/oa authorization URL with fixed client_id and per-trader state=[name]_[sellerId]', () => {
-    const expectedPrefix = `https://www.amazon.com/ap/oa?client_id=${AMAZON_OAUTH_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=`;
+  it('builds the exact /ap/oa authorization URL with Production client_id and per-trader state slugs (mahmoud_A37JIM7LHQI6IM, khaled_A23IW2QPEITPWT)', () => {
+    const prodClientId = 'amzn1.application-oa2-client.prod-env-12345';
+    setRuntimeAmazonOAuthClientId(prodClientId);
+    const expectedPrefix = `https://www.amazon.com/ap/oa?client_id=${prodClientId}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=`;
+
+    expect(buildTraderOAuthState('A37JIM7LHQI6IM', 'محمود سعيد')).toBe('mahmoud_A37JIM7LHQI6IM');
+    expect(buildTraderOAuthState('A23IW2QPEITPWT', 'خالد محمد')).toBe('khaled_A23IW2QPEITPWT');
 
     const urlMahmoud = buildMerchantAmazonAuthorizeUrl('A37JIM7LHQI6IM', 'محمود سعيد');
-    expect(urlMahmoud).toBe(`${expectedPrefix}${encodeURIComponent('محمود سعيد_A37JIM7LHQI6IM')}`);
+    expect(urlMahmoud).toBe(`${expectedPrefix}mahmoud_A37JIM7LHQI6IM`);
+    expect(urlMahmoud).not.toContain('2815cbc0');
     expect(urlMahmoud).not.toContain('sellercentral.amazon.eg/apps/authorize');
 
+    const urlKhaled = buildMerchantAmazonAuthorizeUrl('A23IW2QPEITPWT', 'خالد');
+    expect(urlKhaled).toBe(`${expectedPrefix}khaled_A23IW2QPEITPWT`);
+    expect(urlKhaled).not.toContain('2815cbc0');
+
     const urlConsent = getAmazonSellerCentralConsentUrl('A999SELLER', 'أحمد علي');
-    expect(urlConsent).toBe(`${expectedPrefix}${encodeURIComponent('أحمد علي_A999SELLER')}`);
+    expect(urlConsent).toBe(`${expectedPrefix}ahmed_A999SELLER`);
     expect(urlConsent).not.toContain('sellercentral.amazon.eg/apps/authorize');
   });
 

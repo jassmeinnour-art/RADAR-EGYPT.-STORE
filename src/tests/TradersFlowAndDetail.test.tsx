@@ -4,7 +4,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import DashboardHome from '../components/DashboardHome';
 import { TradersPage } from '../components/TradersPage';
 import { TraderDetailPage } from '../components/TraderDetailPage';
-import { IMPORT_BUTTON_LABEL } from '../utils/sellerCentralExcelImporter';
+import {
+  IMPORT_BUTTON_LABEL,
+  setRuntimeAmazonOAuthClientId,
+} from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
 
 const {
@@ -378,19 +381,45 @@ describe('Problem 5 — Clickable Trader Cards, /traders Page & /traders/{id} De
     expect(sentPayload.seller_id).toBe('A37JIM7LHQI6IM');
   });
 
-  it('TradersPage TraderCard and TraderDetailPage render editable/clearable authorize URL with the new /ap/oa format and Edit/Clear buttons', async () => {
-    const expectedUrl = `https://www.amazon.com/ap/oa?client_id=amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=${encodeURIComponent(
-      'محمود سعيد_A37JIM7LHQI6IM'
-    )}`;
+  it('TradersPage TraderCard and TraderDetailPage generate /ap/oa URL with Production Client ID, per-trader state (mahmoud_A37JIM7LHQI6IM, khaled_A23IW2QPEITPWT), no legacy 2815cbc0, and zero app keys in Trader Card', async () => {
+    const prodClientId = 'amzn1.application-oa2-client.prod-live-9988';
+    setRuntimeAmazonOAuthClientId(prodClientId);
+    const expectedMahmoudUrl = `https://www.amazon.com/ap/oa?client_id=${prodClientId}&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=mahmoud_A37JIM7LHQI6IM`;
+    const expectedKhaledUrl = `https://www.amazon.com/ap/oa?client_id=${prodClientId}&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=khaled_A23IW2QPEITPWT`;
+
+    tradersListRef.current = [
+      mahmoudTrader,
+      {
+        ...mahmoudTrader,
+        id: 'trd-khaled-002',
+        seller_name: 'خالد محمد',
+        seller_id: 'A23IW2QPEITPWT',
+        email: 'khaled@example.com',
+      },
+    ];
 
     render(<TradersPage onShowToast={vi.fn()} />);
 
     const cardInput = (await screen.findByTestId(
       'trader-card-authorize-url-trd-mahmoud-001'
     )) as HTMLInputElement;
-    expect(cardInput.value).toBe(expectedUrl);
+    expect(cardInput.value).toBe(expectedMahmoudUrl);
+    expect(cardInput.value).not.toContain('2815cbc0');
     expect(cardInput.value).not.toContain('sellercentral.amazon.eg/apps/authorize');
     expect(cardInput.readOnly).toBe(false);
+
+    const khaledInput = (await screen.findByTestId(
+      'trader-card-authorize-url-trd-khaled-002'
+    )) as HTMLInputElement;
+    expect(khaledInput.value).toBe(expectedKhaledUrl);
+    expect(khaledInput.value).not.toContain('2815cbc0');
+
+    // Trader Card must only expose Seller ID & Refresh Token (NO Client ID / Client Secret / Application ID inputs)
+    const cardEl = screen.getByTestId('trader-card-trd-mahmoud-001');
+    expect(cardEl.textContent).not.toContain('Client Secret');
+    expect(cardEl.textContent).not.toContain('Application ID');
+    expect(cardEl.textContent).not.toContain('IAM ARN');
+    expect(screen.getByTestId('trader-card-refresh-token-trd-mahmoud-001')).toBeInTheDocument();
 
     const editBtn = screen.getByTestId('trader-card-edit-authorize-url-trd-mahmoud-001');
     const clearBtn = screen.getByTestId('trader-card-clear-authorize-url-trd-mahmoud-001');
@@ -414,14 +443,16 @@ describe('Problem 5 — Clickable Trader Cards, /traders Page & /traders/{id} De
       'trader-detail-authorize-url-input'
     )) as HTMLInputElement;
     await waitFor(() => {
-      expect(detailInput.value).toBe(expectedUrl);
+      expect(detailInput.value).toBe(expectedMahmoudUrl);
     });
     expect(detailInput.readOnly).toBe(false);
 
     fireEvent.click(screen.getByTestId('trader-detail-clear-authorize-url'));
     expect(detailInput.value).toBe('');
 
-    fireEvent.change(detailInput, { target: { value: expectedUrl } });
-    expect(detailInput.value).toBe(expectedUrl);
+    fireEvent.change(detailInput, { target: { value: expectedMahmoudUrl } });
+    expect(detailInput.value).toBe(expectedMahmoudUrl);
+
+    setRuntimeAmazonOAuthClientId('');
   });
 });

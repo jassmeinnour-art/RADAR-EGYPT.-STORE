@@ -1,15 +1,25 @@
 import React from 'react';
 import { TrendingUp, BarChart2 } from 'lucide-react';
+import { ProductData } from '../types';
 
 interface ThirtyDayPriceFluctuationChartProps {
   title?: string;
   sku?: string;
+  availableProducts?: ProductData[];
+  currentProduct?: ProductData;
+  currency?: string;
+  onSelectProduct?: ((product: ProductData) => void) | ((productId: string) => void);
+  onShowToast?: (msg: string) => void;
 }
 
 export const ThirtyDayPriceFluctuationChart: React.FC<ThirtyDayPriceFluctuationChartProps> = ({
-  title = 'المنتج',
-  sku = 'SKU'
+  title,
+  sku,
+  currentProduct,
 }) => {
+  const displayTitle = currentProduct?.title || title || 'المنتج';
+  const displaySku = currentProduct?.sku || currentProduct?.id || sku || 'SKU';
+
   return (
     <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 font-['Cairo'] text-right" dir="rtl">
       <div className="flex items-center gap-3">
@@ -18,7 +28,7 @@ export const ThirtyDayPriceFluctuationChart: React.FC<ThirtyDayPriceFluctuationC
         </div>
         <div>
           <h4 className="text-sm font-black text-white">تذبذب الأسعار خلال 30 يوم</h4>
-          <p className="text-xs text-slate-400 font-bold">{title} ({sku})</p>
+          <p className="text-xs text-slate-400 font-bold">{displayTitle} ({displaySku})</p>
         </div>
       </div>
       <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl text-center space-y-2">

@@ -189,6 +189,7 @@ export const UserLogsManager: React.FC<UserLogsManagerProps> = ({ onShowToast })
       case 'inventory_update': return 'تحديث مخزون 📦';
       case 'product_scan': return 'مسح باركود 📷';
       case 'settings_change': return 'تعديل إعدادات ⚙️';
+      case 'delete': return 'تراجع / حذف 🗑️';
       case 'system': return 'نظام وتدقيق 🛡️';
       default: return type;
     }

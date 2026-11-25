@@ -67,7 +67,7 @@ describe('HelpGuide & /api/help-guide Gemini integration', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/help-guide');
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body))).toMatchObject({

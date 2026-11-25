@@ -27,24 +27,26 @@ export interface PlatformPortalMeta {
   directLaunchSupported: boolean;
 }
 
-export const AMAZON_APP_ID = 'amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1';
+import {
+  buildMerchantAmazonAuthorizeUrl,
+  getResolvedAmazonOAuthClientId,
+} from './sellerCentralExcelImporter';
+
+export const AMAZON_APP_ID = AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID;
 
 /**
- * Builds the official Amazon OAuth Consent URL with per-trader state=[اسم_التاجر]_[Seller ID]
+ * Builds the official Amazon OAuth Consent URL with per-trader state=[name_slug]_[Seller ID]
  */
 export function getAmazonSellerCentralConsentUrl(
   merchantIdOrSellerId?: string,
-  sellerName?: string
+  sellerName?: string,
+  clientIdOverride?: string
 ): string {
   const cleanSellerId = (merchantIdOrSellerId || 'merchant-active').trim();
   const cleanSellerName = (sellerName || '').trim();
-  const stateValue =
-    cleanSellerName && cleanSellerId
-      ? `${cleanSellerName}_${cleanSellerId}`
-      : cleanSellerId || cleanSellerName;
-  return `https://www.amazon.com/ap/oa?client_id=${AMAZON_APP_ID}&scope=profile&response_type=code&redirect_uri=https://radaregypt.store/auth/amazon-callback&state=${encodeURIComponent(
-    stateValue
-  )}`;
+  const resolvedClientId = getResolvedAmazonOAuthClientId(clientIdOverride);
+  if (!resolvedClientId) return '';
+  return buildMerchantAmazonAuthorizeUrl(cleanSellerId, cleanSellerName, resolvedClientId);
 }
 
 export const DEFAULT_PLATFORM_PORTALS: Record<string, PlatformPortalMeta> = {

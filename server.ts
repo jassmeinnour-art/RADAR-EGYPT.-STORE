@@ -20,17 +20,17 @@ function encrypt(text: string): string {
   return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
-const AMAZON_SP_API_CONFIG = {
-  DEFAULT_CLIENT_ID: 'amzn1.application-oa2-client.8f94e2c17d4b4a90b123456789abcdef',
-  DEFAULT_CLIENT_SECRET: 'amzn1.oa2-cs.v1.9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b',
-  DEFAULT_APP_ID: 'amzn1.sp.solution.8f94e2c1-7d4b-4a90-b123-456789abcdef',
-  DEFAULT_REGION: 'eu-west-1',
-  DEFAULT_MARKETPLACE_ID: 'ARBP9OOSHTCHU',
-  DEFAULT_REFRESH_TOKEN: 'Atzr|IwEBIA7x9K2mN4pQ6rS8tU0vW2xY4zA6bC8dE0fG2hI4jK6lM8nO0pQ2rS4tU6vW8xY0zA2bC4dE',
-  DEFAULT_NOON_AUTH_KEY: 'noon_live_fallback_key_egypt_2026'
-} as const;
-
 dotenv.config();
+
+const AMAZON_SP_API_CONFIG = {
+  DEFAULT_CLIENT_ID: (process.env.AMAZON_CLIENT_ID || process.env.LWA_CLIENT_ID || '').trim(),
+  DEFAULT_CLIENT_SECRET: (process.env.AMAZON_CLIENT_SECRET || process.env.LWA_CLIENT_SECRET || '').trim(),
+  DEFAULT_APP_ID: (process.env.AMAZON_APP_ID || process.env.AMAZON_APPLICATION_ID || process.env.SP_API_APP_ID || '').trim(),
+  DEFAULT_REGION: (process.env.AMAZON_REGION || 'eu-west-1').trim(),
+  DEFAULT_MARKETPLACE_ID: (process.env.AMAZON_MARKETPLACE_ID || 'ARBP9OOSHTCHU').trim(),
+  DEFAULT_REFRESH_TOKEN: (process.env.AMAZON_REFRESH_TOKEN || '').trim(),
+  DEFAULT_NOON_AUTH_KEY: (process.env.NOON_AUTH_KEY || 'noon_live_fallback_key_egypt_2026').trim()
+} as const;
 
 const app = express();
 const PORT = 3000;
@@ -3436,10 +3436,12 @@ const lwaAccessTokenCache = new Map<string, CachedLwaAccessToken>();
 interface ServerResolvedMultiTenantAmazonCreds {
   clientId: string;
   clientSecret: string;
+  applicationId: string;
   refreshToken: string;
   encryptedRefreshToken: string;
   sellerId: string;
   region: string;
+  marketplaceId: string;
   tokenSource: 'firestore_store' | 'request_store' | 'env_fallback' | 'missing';
 }
 
@@ -3471,19 +3473,21 @@ async function fetchStoreCredsFromFirestoreServer(
 
 /**
  * Resolves Multi-Tenant Amazon SP-API credentials:
- * - Developer App Keys (`AMAZON_CLIENT_ID` & `AMAZON_CLIENT_SECRET`): From server environment or `AMAZON_SP_API_CONFIG`
- * - Merchant Store Keys (`AMAZON_REFRESH_TOKEN` & `SELLER_ID`): Decrypted dynamically from Active Store in Firestore -> Fallback to `AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN`
+ * - Developer App Keys (`AMAZON_CLIENT_ID`, `AMAZON_CLIENT_SECRET`, `AMAZON_APP_ID`): From request or server environment
+ * - Merchant Store Keys (`AMAZON_REFRESH_TOKEN` & `SELLER_ID`): From request -> Firestore -> env fallback
  */
 async function resolveMultiTenantAmazonSpApiCredentials(params: {
   merchantId?: string;
   providedClientId?: string;
   providedClientSecret?: string;
+  providedApplicationId?: string;
   providedRefreshToken?: string;
   providedSellerId?: string;
   providedRegion?: string;
+  providedMarketplaceId?: string;
   providedTokenSource?: string;
 }): Promise<ServerResolvedMultiTenantAmazonCreds> {
-  // 1. Developer App Credentials from Server Env or AMAZON_SP_API_CONFIG
+  // 1. Production App Credentials from request or Server Env
   const clientId = (
     params.providedClientId ||
     process.env.AMAZON_CLIENT_ID ||
@@ -3495,6 +3499,13 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
     process.env.AMAZON_CLIENT_SECRET ||
     process.env.LWA_CLIENT_SECRET ||
     AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_SECRET
+  ).trim();
+  const applicationId = (
+    params.providedApplicationId ||
+    process.env.AMAZON_APP_ID ||
+    process.env.AMAZON_APPLICATION_ID ||
+    process.env.SP_API_APP_ID ||
+    AMAZON_SP_API_CONFIG.DEFAULT_APP_ID
   ).trim();
 
   let rawStoreRefreshToken = (params.providedRefreshToken || '').trim();
@@ -3522,7 +3533,7 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
   // Decrypt Refresh Token if stored in encrypted envelope (`ENC_LWA_V1:...`)
   const decryptedStoreRefreshToken = decryptServerLwaRefreshToken(rawStoreRefreshToken);
 
-  // 3. Fallback to store environment credentials if store has no stored token
+  // 3. Fallback to env credentials only if explicitly configured in environment
   const defaultFallbackRefreshToken = (
     process.env.AMAZON_REFRESH_TOKEN ||
     AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN
@@ -3535,7 +3546,13 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
   const finalRefreshToken = decryptedStoreRefreshToken || defaultFallbackRefreshToken;
   const finalEncryptedRefreshToken = encryptServerLwaRefreshToken(finalRefreshToken);
   const finalSellerId = storeSellerId || defaultFallbackSellerId;
-  const finalRegion = (storeRegion || AMAZON_SP_API_CONFIG.DEFAULT_REGION).trim();
+  const finalRegion = (storeRegion || AMAZON_SP_API_CONFIG.DEFAULT_REGION || 'eu-west-1').trim();
+  const finalMarketplaceId = (
+    params.providedMarketplaceId ||
+    process.env.AMAZON_MARKETPLACE_ID ||
+    AMAZON_SP_API_CONFIG.DEFAULT_MARKETPLACE_ID ||
+    'ARBP9OOSHTCHU'
+  ).trim();
 
   let tokenSource: ServerResolvedMultiTenantAmazonCreds['tokenSource'] = 'missing';
   if (decryptedStoreRefreshToken) {
@@ -3549,10 +3566,12 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
   return {
     clientId,
     clientSecret,
+    applicationId,
     refreshToken: finalRefreshToken,
     encryptedRefreshToken: finalEncryptedRefreshToken,
     sellerId: finalSellerId,
     region: finalRegion,
+    marketplaceId: finalMarketplaceId,
     tokenSource
   };
 }
@@ -3562,21 +3581,30 @@ async function resolveMultiTenantAmazonSpApiCredentials(params: {
  */
 class AmazonLwaTokenExchangeError extends Error {
   code: string;
+  errorDescription: string;
   tokenExpired: boolean;
   statusCode: number;
 
-  constructor(message: string, code: string = 'invalid_grant', tokenExpired: boolean = true, statusCode: number = 401) {
+  constructor(
+    message: string,
+    code: string = 'invalid_grant',
+    tokenExpired: boolean = true,
+    statusCode: number = 401,
+    errorDescription: string = ''
+  ) {
     super(message);
     this.name = 'AmazonLwaTokenExchangeError';
     this.code = code;
+    this.errorDescription = errorDescription;
     this.tokenExpired = tokenExpired;
     this.statusCode = statusCode;
   }
 }
 
 /**
- * Exchanges an Amazon SP-API `refresh_token` for a short-lived `access_token` dynamically via
+ * Exchanges an Amazon SP-API `refresh_token` for a short-lived `access_token` strictly via
  * Login with Amazon (`https://api.amazon.com/auth/o2/token`) using `grant_type: refresh_token`.
+ * Never issues fake access tokens or masks real Amazon LWA errors.
  */
 async function exchangeAmazonLwaRefreshToken(params: {
   clientId?: string;
@@ -3584,30 +3612,27 @@ async function exchangeAmazonLwaRefreshToken(params: {
   refreshToken?: string;
   forceRefresh?: boolean;
 }): Promise<CachedLwaAccessToken> {
-  const clientId = (params.clientId || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID).trim();
-  const clientSecret = (params.clientSecret || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_SECRET).trim();
-  const plainRefreshToken = decryptServerLwaRefreshToken(params.refreshToken || AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN);
+  const clientId = (params.clientId || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID || '').trim();
+  const clientSecret = (params.clientSecret || AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_SECRET || '').trim();
+  const plainRefreshToken = decryptServerLwaRefreshToken(params.refreshToken || '');
 
-  if (!clientId || !clientSecret || !plainRefreshToken) {
+  if (!plainRefreshToken) {
     throw new AmazonLwaTokenExchangeError(
-      'يرجى إدخال مفتاح LWA Refresh Token الخاص بالمتجر لإتمام الربط مع Amazon SP-API',
+      'يرجى إدخال Refresh Token في كارت التاجر أولاً لإتمام الربط مع Amazon SP-API',
       'missing_refresh_token',
       true,
-      400
+      400,
+      'Refresh token is missing.'
     );
   }
 
-  // Detect explicitly expired or malformed tokens for immediate merchant alert testing
-  if (
-    plainRefreshToken.toLowerCase().includes('expired') ||
-    plainRefreshToken.toLowerCase().includes('invalid') ||
-    plainRefreshToken.length < 12
-  ) {
+  if (!clientId || !clientSecret) {
     throw new AmazonLwaTokenExchangeError(
-      'انتهت صلاحية مفتاح الـ Refresh Token الخاص بالمتجر (invalid_grant) — يرجى إعادة إدخال مفتاح Refresh Token جديد من Amazon Seller Central.',
-      'invalid_grant',
-      true,
-      401
+      'بيانات تطبيق أمازون Production غير مكتملة (Client ID أو Client Secret مفقود) — أضفها في الإعدادات أو متغيرات البيئة (AMAZON_CLIENT_ID / AMAZON_CLIENT_SECRET).',
+      'missing_client_credentials',
+      false,
+      400,
+      'Client ID or Client Secret is missing.'
     );
   }
 
@@ -3617,66 +3642,6 @@ async function exchangeAmazonLwaRefreshToken(params: {
     if (cached && cached.expiresAtMs > Date.now() + 30_000) {
       return cached;
     }
-  }
-
-  // If using the built-in server fallback token, preview client ID, or an `amzn1.` / `Atzr|` store token in preview environment,
-  // issue a valid LWA session token seamlessly or fall back cleanly if external LWA rejects preview credentials
-  if (
-    plainRefreshToken === AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN ||
-    clientId === AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID ||
-    plainRefreshToken.startsWith('amzn1.') ||
-    plainRefreshToken.startsWith('Atzr|')
-  ) {
-    // Attempt live exchange if custom clientId & clientSecret are provided and token starts with Atzr|
-    if (
-      clientId !== AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID &&
-      clientSecret !== AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_SECRET &&
-      plainRefreshToken.startsWith('Atzr|')
-    ) {
-      try {
-        const tokenUrl = 'https://api.amazon.com/auth/o2/token';
-        const bodyParams = new URLSearchParams();
-        bodyParams.append('grant_type', 'refresh_token');
-        bodyParams.append('refresh_token', plainRefreshToken);
-        bodyParams.append('client_id', clientId);
-        bodyParams.append('client_secret', clientSecret);
-
-        const liveRes = await fetch(tokenUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-            'Accept': 'application/json'
-          },
-          body: bodyParams.toString()
-        });
-        if (liveRes.ok) {
-          const liveData = await liveRes.json() as any;
-          if (liveData?.access_token) {
-            const liveRecord: CachedLwaAccessToken = {
-              accessToken: liveData.access_token,
-              tokenType: liveData.token_type || 'bearer',
-              expiresIn: Number(liveData.expires_in) || 3600,
-              expiresAtMs: Date.now() + (Number(liveData.expires_in) || 3600) * 1000,
-              exchangedAt: new Date().toISOString()
-            };
-            lwaAccessTokenCache.set(cacheKey, liveRecord);
-            return liveRecord;
-          }
-        }
-      } catch {
-        // Proceed to safe runtime token fallback
-      }
-    }
-
-    const tokenRecord: CachedLwaAccessToken = {
-      accessToken: `Atza|IwEBIDynamicLwaAccessToken_${Date.now()}`,
-      tokenType: 'bearer',
-      expiresIn: 3600,
-      expiresAtMs: Date.now() + 3600 * 1000,
-      exchangedAt: new Date().toISOString()
-    };
-    lwaAccessTokenCache.set(cacheKey, tokenRecord);
-    return tokenRecord;
   }
 
   // Official Login with Amazon (LWA) Token Exchange endpoint
@@ -3697,38 +3662,52 @@ async function exchangeAmazonLwaRefreshToken(params: {
   });
 
   if (!response.ok) {
-    let errCode = 'invalid_grant';
+    let errCode = `http_${response.status}`;
     let errDesc = '';
+    const rawText = await response.text();
     try {
-      const errJson = await response.json() as any;
-      errCode = errJson?.error || 'invalid_grant';
-      errDesc = errJson?.error_description || '';
+      const errJson = JSON.parse(rawText) as any;
+      errCode = String(errJson?.error || errCode).trim();
+      errDesc = String(errJson?.error_description || errJson?.message || '').trim();
     } catch {
-      errDesc = await response.text();
+      errDesc = rawText.trim();
     }
-    console.warn('[Amazon LWA Token Exchange Warning]', response.status, errCode, errDesc);
+
+    console.warn('[Amazon LWA Token Exchange Error]', response.status, errCode, errDesc);
     const isExpiredOrRevoked =
       response.status === 400 ||
       response.status === 401 ||
       errCode === 'invalid_grant' ||
       errCode === 'invalid_token' ||
-      errCode === 'unauthorized_client';
+      errCode === 'unauthorized_client' ||
+      errCode === 'invalid_client';
+
+    const realAmazonError = `خطأ من أمازون LWA (${response.status} - ${errCode})${errDesc ? `: ${errDesc}` : ''}`;
 
     throw new AmazonLwaTokenExchangeError(
-      isExpiredOrRevoked
-        ? 'انتهت صلاحية رمز التفويض (LWA Refresh Token) أو تم إلغاؤه — يرجى إعادة إدخال مفتاح Refresh Token الخاص بمتجرك.'
-        : `تعذر استبدال رمز LWA من خادم أمازون (${errCode})`,
+      realAmazonError,
       errCode,
       isExpiredOrRevoked,
-      response.status
+      response.status,
+      errDesc
     );
   }
 
   const data = await response.json() as any;
+  if (!data?.access_token) {
+    throw new AmazonLwaTokenExchangeError(
+      'استجابة Amazon LWA لم تتضمن access_token صالح',
+      'empty_access_token',
+      true,
+      502,
+      'Missing access_token in LWA response'
+    );
+  }
+
   const expiresIn = Number(data.expires_in) || 3600;
   const tokenRecord: CachedLwaAccessToken = {
-    accessToken: data.access_token,
-    tokenType: data.token_type || 'bearer',
+    accessToken: String(data.access_token),
+    tokenType: String(data.token_type || 'bearer'),
     expiresIn,
     expiresAtMs: Date.now() + expiresIn * 1000,
     exchangedAt: new Date().toISOString()
@@ -4390,6 +4369,7 @@ const handleAmazonLwaTokenExchange = async (req: express.Request, res: express.R
     merchantId,
     providedClientId: clientId,
     providedClientSecret: clientSecret,
+    providedApplicationId: String(body.applicationId || req.headers['x-amz-app-id'] || ''),
     providedRefreshToken: refreshToken,
     providedSellerId: sellerId,
     providedRegion: region
@@ -4415,27 +4395,123 @@ const handleAmazonLwaTokenExchange = async (req: express.Request, res: express.R
       maskedAccessToken: `${exchanged.accessToken.slice(0, 12)}••••••••••••${exchanged.accessToken.slice(-6)}`,
       encryptedRefreshToken: resolved.encryptedRefreshToken,
       sellerId: resolved.sellerId,
+      applicationId: resolved.applicationId,
       tokenSource: resolved.tokenSource,
       message: `تم استبدال الـ Refresh Token بنجاح من خادم Login with Amazon (LWA) وتوليد Access Token صالح لمدة ${exchanged.expiresIn} ثانية 🔐`
     });
   } catch (err: any) {
     const isExpired = err instanceof AmazonLwaTokenExchangeError ? err.tokenExpired : true;
     const code = err instanceof AmazonLwaTokenExchangeError ? err.code : 'invalid_grant';
-    return res.status(401).json({
+    const status = err instanceof AmazonLwaTokenExchangeError ? err.statusCode : 401;
+    const errDesc = err instanceof AmazonLwaTokenExchangeError ? err.errorDescription : '';
+    return res.status(status >= 400 && status < 600 ? status : 401).json({
       success: false,
       tokenExpired: isExpired,
       requiresReauth: true,
+      error: code,
       errorCode: code,
+      error_description: errDesc,
       merchantId,
       merchantName,
       sellerId: resolved.sellerId,
-      message: err?.message || `انتهت صلاحية مفتاح الـ Refresh Token للمتجر "${merchantName || ''}" — يرجى إعادة إدخال مفتاح Refresh Token جديد.`
+      message: err?.message || `خطأ من أمازون LWA (${code})`
     });
   }
 };
 
 app.all('/api/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
 app.all('/api/v1/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
+
+// Public non-secret OAuth Client ID endpoint (reads Production Client ID from server Environment Variables)
+app.get('/api/amazon/sp-api/oauth-config', (_req, res) => {
+  const rawClientId = (
+    process.env.AMAZON_CLIENT_ID ||
+    process.env.LWA_CLIENT_ID ||
+    process.env.VITE_AMAZON_CLIENT_ID ||
+    AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID ||
+    ''
+  ).trim();
+  const clientId = rawClientId.includes('2815cbc0') ? '' : rawClientId;
+  res.json({
+    success: true,
+    clientId,
+    redirectUri: 'https://radaregypt.store/auth/amazon-callback',
+    configured: Boolean(clientId),
+  });
+});
+
+// Direct OAuth Authorization Code -> Refresh Token exchange endpoint
+app.post('/api/amazon/sp-api/exchange-code', async (req, res) => {
+  const body = req.body || {};
+  const code = String(body.code || body.spapi_oauth_code || '').trim();
+  const sellerId = String(body.sellerId || body.selling_partner_id || '').trim();
+  const resolved = await resolveMultiTenantAmazonSpApiCredentials({
+    merchantId: String(body.traderId || body.merchantId || sellerId || ''),
+    providedClientId: String(body.clientId || ''),
+    providedClientSecret: String(body.clientSecret || ''),
+    providedApplicationId: String(body.applicationId || ''),
+    providedSellerId: sellerId
+  });
+
+  if (!code) {
+    return res.status(400).json({ success: false, error: 'missing_code', message: 'يرجى توفير كود التفويض (spapi_oauth_code).' });
+  }
+  if (!resolved.clientId || !resolved.clientSecret) {
+    return res.status(400).json({
+      success: false,
+      error: 'missing_client_credentials',
+      message: 'بيانات التطبيق Production غير مكتملة (Client ID / Client Secret).'
+    });
+  }
+
+  try {
+    const lwaParams = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: resolved.clientId,
+      client_secret: resolved.clientSecret
+    });
+    const lwaRes = await fetch('https://api.amazon.com/auth/o2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'Accept': 'application/json'
+      },
+      body: lwaParams.toString()
+    });
+    const rawText = await lwaRes.text();
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = { error_description: rawText };
+    }
+    if (!lwaRes.ok || !parsed?.refresh_token) {
+      const codeErr = parsed?.error || `http_${lwaRes.status}`;
+      const descErr = parsed?.error_description || parsed?.message || rawText;
+      return res.status(lwaRes.status >= 400 ? lwaRes.status : 400).json({
+        success: false,
+        error: codeErr,
+        error_description: descErr,
+        message: `خطأ من أمازون LWA (${lwaRes.status} - ${codeErr}): ${descErr}`
+      });
+    }
+
+    return res.json({
+      success: true,
+      refresh_token: parsed.refresh_token,
+      refreshToken: parsed.refresh_token,
+      seller_id: sellerId,
+      expires_in: parsed.expires_in
+    });
+  } catch (err: any) {
+    return res.status(502).json({
+      success: false,
+      error: 'network_error',
+      message: err?.message || 'تعذر الاتصال بخادم Amazon LWA'
+    });
+  }
+});
 
 async function saveStoreCredsToFirestoreServer(merchantId: string, creds: any): Promise<void> {
   console.log('[Server Firestore Sync]', merchantId, creds?.amazonSellerId);
@@ -5060,160 +5136,391 @@ app.all('/api/amazon/sp-api/orders', async (req, res) => {
   }
 });
 
-// Handler for Dynamic Per-Merchant Product Catalog & Competitor Pricing
-const handleMerchantCatalogRequest = async (req: express.Request, res: express.Response) => {
+function getMarketplaceHostAndDomain(marketplaceId: string, region: string): { endpointHost: string; amazonDomain: string } {
+  const mkt = String(marketplaceId || '').trim().toUpperCase();
+  const reg = String(region || '').trim().toLowerCase();
+  let endpointHost = 'https://sellingpartnerapi-eu.amazon.com';
+  if (reg === 'us-east-1' || reg === 'na' || mkt === 'ATVPDKIKX0DER' || mkt === 'A2EUQ1WTGCTBG2') {
+    endpointHost = 'https://sellingpartnerapi-na.amazon.com';
+  } else if (reg === 'us-west-2' || reg === 'fe' || mkt === 'A1VC38T7YXB528' || mkt === 'A39IBJ37TRP1C6') {
+    endpointHost = 'https://sellingpartnerapi-fe.amazon.com';
+  }
+  const amazonDomain =
+    mkt === 'A2VIGQ35RCS4UG'
+      ? 'amazon.ae'
+      : mkt === 'A17E79C6D8DWNP'
+      ? 'amazon.sa'
+      : mkt === 'ATVPDKIKX0DER'
+      ? 'amazon.com'
+      : mkt === 'A1F83G8C2ARO7P'
+      ? 'amazon.co.uk'
+      : 'amazon.eg';
+  return { endpointHost, amazonDomain };
+}
+
+function extractListingPriceAndStock(item: any, marketplaceId: string): { price: number; stock: number | null; currency: string } {
+  const offers = Array.isArray(item?.offers) ? item.offers : [];
+  const matchedOffer =
+    offers.find((o: any) => o?.marketplaceId === marketplaceId && o?.offerType === 'B2C') ||
+    offers.find((o: any) => o?.offerType === 'B2C') ||
+    offers[0];
+
+  let price = Number(matchedOffer?.price?.amount);
+  let currency = String(matchedOffer?.price?.currencyCode || 'EGP');
+
+  if (!Number.isFinite(price) || price <= 0) {
+    const attrOffer = item?.attributes?.purchasable_offer?.[0];
+    const ourPrice = attrOffer?.our_price?.[0]?.schedule?.[0]?.value_with_tax;
+    const discountedPrice = attrOffer?.discounted_price?.[0]?.schedule?.[0]?.value_with_tax;
+    const listPrice = item?.attributes?.list_price?.[0]?.value;
+    const candidate = Number(ourPrice ?? discountedPrice ?? listPrice);
+    if (Number.isFinite(candidate) && candidate >= 0) {
+      price = candidate;
+      if (attrOffer?.currency) currency = String(attrOffer.currency);
+    } else {
+      price = 0;
+    }
+  }
+
+  const availList = Array.isArray(item?.fulfillmentAvailability)
+    ? item.fulfillmentAvailability
+    : Array.isArray(item?.attributes?.fulfillment_availability)
+    ? item.attributes.fulfillment_availability
+    : [];
+
+  let totalQty = 0;
+  let hasNumericQty = false;
+  for (const av of availList) {
+    if (av && av.quantity !== undefined && av.quantity !== null && av.quantity !== '') {
+      const q = Number(av.quantity);
+      if (Number.isFinite(q) && q >= 0) {
+        totalQty += Math.round(q);
+        hasNumericQty = true;
+      }
+    }
+  }
+
+  return {
+    price: Math.round(price * 100) / 100,
+    stock: hasNumericQty ? totalQty : null,
+    currency
+  };
+}
+
+/**
+ * Live Amazon SP-API Product Pull:
+ * 1. Exchanges Refresh Token at https://api.amazon.com/auth/o2/token with Production Client ID & Secret
+ * 2. Calls GET /listings/2021-08-01/items/{sellerId} (paginated)
+ * 3. Calls GET /catalog/2022-04-01/items for real titles, images, brands, and ASIN metadata
+ * 4. Returns real SKU, ASIN, Price, Stock — or surfaces Amazon's real error verbatim.
+ */
+async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: express.Response) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   const body = req.body || {};
   const query = req.query || {};
 
-  const merchantId = String(body.merchantId || query.merchantId || req.headers['x-merchant-id'] || 'merchant-mahmeud-said');
-  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || 'متجر محمود سعيد';
-  let merchantName = 'متجر محمود سعيد';
+  const traderId = String(body.traderId || body.merchantId || query.traderId || query.merchantId || req.headers['x-merchant-id'] || '').trim();
+  const rawMerchantName = body.merchantName || query.merchantName || req.headers['x-merchant-name'] || '';
+  let merchantName = '';
   try {
     merchantName = decodeURIComponent(String(rawMerchantName));
   } catch {
     merchantName = String(rawMerchantName);
   }
-  const platformFilter = String(body.platform || query.platform || 'all');
 
   const resolved = await resolveMultiTenantAmazonSpApiCredentials({
-    merchantId,
-    providedClientId: String(body.clientId || query.clientId || req.headers['x-amz-client-id'] || ''),
-    providedClientSecret: String(body.clientSecret || query.clientSecret || req.headers['x-amz-client-secret'] || ''),
-    providedRefreshToken: String(body.refreshToken || query.refreshToken || req.headers['x-amz-refresh-token'] || ''),
+    merchantId: traderId,
+    providedClientId: String(body.clientId || req.headers['x-amz-client-id'] || ''),
+    providedClientSecret: String(body.clientSecret || req.headers['x-amz-client-secret'] || ''),
+    providedApplicationId: String(body.applicationId || req.headers['x-amz-app-id'] || ''),
+    providedRefreshToken: String(body.refreshToken || req.headers['x-amz-refresh-token'] || ''),
     providedSellerId: String(body.sellerId || query.sellerId || req.headers['x-amz-seller-id'] || ''),
     providedRegion: String(body.region || query.region || req.headers['x-amz-region'] || ''),
-    providedTokenSource: String(body.tokenSource || query.tokenSource || req.headers['x-amz-token-source'] || '')
+    providedMarketplaceId: String(body.marketplaceId || query.marketplaceId || req.headers['x-amz-marketplace-id'] || ''),
+    providedTokenSource: String(body.tokenSource || req.headers['x-amz-token-source'] || '')
   });
 
-  const { clientId, clientSecret, refreshToken, sellerId, region, tokenSource } = resolved;
+  const { clientId, clientSecret, applicationId, refreshToken, sellerId, region, marketplaceId } = resolved;
 
-  // When using the stored or fallback credentials in preview, return the merchant's actual catalog products
-  if (
-    !refreshToken ||
-    refreshToken === AMAZON_SP_API_CONFIG.DEFAULT_REFRESH_TOKEN ||
-    clientId === AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID ||
-    refreshToken.startsWith('amzn1.')
-  ) {
-    const storeProducts = getRealSyncedMerchantCatalogProducts(merchantId, merchantName, platformFilter);
-    return res.status(200).json({
-      success: true,
-      configured: true,
-      tokenExpired: false,
-      requiresReauth: false,
-      dataMode: 'live',
-      merchantId,
-      merchantName,
-      sellerId,
-      tokenSource,
-      count: storeProducts.length,
-      products: storeProducts,
-      message: `تم جلب كتالوج المنتجات الفعلي بنجاح للتاجر "${merchantName}" عبر خدمة LWA Token Exchange`
+  if (!refreshToken) {
+    return res.status(400).json({
+      success: false,
+      stage: 'credentials',
+      error: 'missing_refresh_token',
+      message: 'لم يتم إدخال Refresh Token في كارت التاجر — يرجى لصق الـ Refresh Token في كارت التاجر أولاً.'
     });
   }
 
+  if (!sellerId) {
+    return res.status(400).json({
+      success: false,
+      stage: 'credentials',
+      error: 'missing_seller_id',
+      message: 'يرجى إدخال Seller ID في كارت التاجر لاستدعاء قوائم المنتجات من GET /listings/2021-08-01.'
+    });
+  }
+
+  // 1. Real LWA Access Token Request: POST https://api.amazon.com/auth/o2/token
+  let accessToken = '';
   try {
-    // Exchange LWA token with official Login with Amazon endpoint (`https://api.amazon.com/auth/o2/token`)
     const exchanged = await exchangeAmazonLwaRefreshToken({
       clientId,
       clientSecret,
-      refreshToken
+      refreshToken,
+      forceRefresh: true
     });
-    const accessToken = exchanged.accessToken;
-
-    // Attempt calling SP-API Catalog items or listings
-    const endpointHost = region === 'us-east-1' ? 'https://sellingpartnerapi-na.amazon.com' : 'https://sellingpartnerapi-eu.amazon.com';
-    const catalogRes = await fetch(`${endpointHost}/catalog/2022-04-01/items?marketplaceIds=ARBP9OOSHTCHU&keywords=${encodeURIComponent(merchantName)}`, {
-      headers: {
-        'x-amz-access-token': accessToken,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
+    accessToken = exchanged.accessToken;
+  } catch (err: any) {
+    const status = err instanceof AmazonLwaTokenExchangeError ? err.statusCode : 401;
+    const code = err instanceof AmazonLwaTokenExchangeError ? err.code : 'lwa_error';
+    const desc = err instanceof AmazonLwaTokenExchangeError ? err.errorDescription : '';
+    return res.status(status >= 400 && status < 600 ? status : 401).json({
+      success: false,
+      stage: 'lwa_token_exchange',
+      tokenExpired: true,
+      requiresReauth: true,
+      error: code,
+      error_description: desc,
+      message: err?.message || `خطأ من أمازون LWA (${code})`
     });
-
-    const contentType = catalogRes.headers.get('content-type') || '';
-    if (catalogRes.ok && contentType.includes('application/json')) {
-      const liveCatalogData = await catalogRes.json();
-      const items = liveCatalogData.items || [];
-      if (items.length > 0) {
-        const formatted = items.map((it: any, idx: number) => {
-          const asin = it.asin;
-          const title = it.summaries?.[0]?.itemName || `منتج معتمد على أمازون مصر (${asin})`;
-          const brand = it.summaries?.[0]?.brand || merchantName;
-          return {
-            id: `sp-${asin}`,
-            merchantId,
-            merchantStoreName: merchantName,
-            asin,
-            sku: `${merchantId.slice(0, 5).toUpperCase()}-${asin}`,
-            title,
-            brand,
-            category: 'عام',
-            imageUrl: it.images?.[0]?.images?.[0]?.link || 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600',
-            platform: 'amazon_eg',
-            platformName: 'أمازون مصر (Amazon Egypt)',
-            merchantPrice: 1850 + (idx * 350),
-            stockQuantity: 25,
-            shippingStatus: 'in_stock',
-            fulfillmentType: 'fba',
-            shippingTime: 'توصيل غداً برايم (FBA Prime)',
-            lowestCompetitorPrice: 1890 + (idx * 350),
-            lowestCompetitorName: 'Amazon.eg Retail',
-            buyBoxPrice: 1850 + (idx * 350),
-            buyBoxWinner: `${merchantName} - فائز بالـ Buy Box 🏆`,
-            isBuyBoxWinner: true,
-            competitorsCount: 2,
-            competitors: [
-              {
-                id: `comp-live-${idx}`,
-                sellerName: 'Amazon.eg Retail',
-                platform: 'amazon_eg',
-                price: 1890 + (idx * 350),
-                currency: 'EGP',
-                isBuyBoxWinner: false
-              }
-            ],
-            priceGapAmount: -40,
-            priceGapPercent: -2.1,
-            pricingStatus: 'winning_buybox',
-            suggestedAction: 'سعرك متصدر للـ Buy Box.',
-            dataMode: 'live',
-            lastRefreshedAt: new Date().toISOString()
-          };
-        });
-
-        return res.status(200).json({
-          success: true,
-          configured: true,
-          tokenExpired: false,
-          requiresReauth: false,
-          dataMode: 'live',
-          merchantId,
-          merchantName,
-          count: formatted.length,
-          products: formatted
-        });
-      }
-    }
-  } catch (e: any) {
-    console.warn('[Catalog SP-API LWA Token / Live Query Fallback]:', e.message);
   }
 
-  const storeProducts = getRealSyncedMerchantCatalogProducts(merchantId, merchantName, platformFilter);
+  const { endpointHost, amazonDomain } = getMarketplaceHostAndDomain(marketplaceId, region);
+  const spHeaders: Record<string, string> = {
+    'x-amz-access-token': accessToken,
+    'Accept': 'application/json',
+    'User-Agent': applicationId
+      ? `MerchantRadarEgypt/2.5.0 (AppId=${applicationId}; Language=Node.js)`
+      : 'MerchantRadarEgypt/2.5.0 (Language=Node.js)'
+  };
+
+  // 2. Real SP-API Listings Call: GET /listings/2021-08-01/items/{sellerId}
+  const allListingItems: any[] = [];
+  let pageToken: string | null = null;
+  let pagesFetched = 0;
+  const MAX_PAGES = 25;
+
+  try {
+    do {
+      const qs = new URLSearchParams({
+        marketplaceIds: marketplaceId,
+        includedData: 'summaries,offers,fulfillmentAvailability,attributes,issues',
+        pageSize: '20'
+      });
+      if (pageToken) {
+        qs.set('pageToken', pageToken);
+      }
+      const listingsUrl = `${endpointHost}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${qs.toString()}`;
+      const listingsRes = await fetch(listingsUrl, {
+        method: 'GET',
+        headers: spHeaders
+      });
+
+      const rawText = await listingsRes.text();
+      let listingsJson: any = null;
+      try {
+        listingsJson = JSON.parse(rawText);
+      } catch {
+        listingsJson = null;
+      }
+
+      if (!listingsRes.ok) {
+        const firstErr = Array.isArray(listingsJson?.errors) ? listingsJson.errors[0] : null;
+        const errCode = String(firstErr?.code || listingsJson?.error || `http_${listingsRes.status}`);
+        const errMsg = String(firstErr?.message || listingsJson?.message || rawText || listingsRes.statusText).trim();
+        const errDetails = String(firstErr?.details || '').trim();
+        return res.status(listingsRes.status >= 400 && listingsRes.status < 600 ? listingsRes.status : 502).json({
+          success: false,
+          stage: 'sp_api_listings',
+          error: errCode,
+          details: errDetails,
+          amazonError: {
+            code: errCode,
+            message: errMsg,
+            details: errDetails,
+            httpStatus: listingsRes.status
+          },
+          message: `خطأ من Amazon SP-API /listings/2021-08-01 (${listingsRes.status} - ${errCode}): ${errMsg}${errDetails ? ` — ${errDetails}` : ''}`
+        });
+      }
+
+      const pageItems = Array.isArray(listingsJson?.items) ? listingsJson.items : [];
+      allListingItems.push(...pageItems);
+      pageToken = listingsJson?.pagination?.nextToken ? String(listingsJson.pagination.nextToken) : null;
+      pagesFetched++;
+    } while (pageToken && pagesFetched < MAX_PAGES);
+  } catch (err: any) {
+    return res.status(502).json({
+      success: false,
+      stage: 'sp_api_listings',
+      error: 'network_error',
+      message: `تعذر الاتصال بـ Amazon SP-API /listings/2021-08-01: ${err?.message || 'Network Error'}`
+    });
+  }
+
+  // 3. Real SP-API Catalog Call: GET /catalog/2022-04-01/items to enrich title, images, brand
+  const catalogByAsin = new Map<string, any>();
+  const uniqueAsins = Array.from(
+    new Set(
+      allListingItems
+        .map((it: any) => {
+          const summary = Array.isArray(it?.summaries)
+            ? it.summaries.find((s: any) => s?.marketplaceId === marketplaceId) || it.summaries[0]
+            : null;
+          return String(
+            summary?.asin ||
+              it?.attributes?.externally_assigned_product_identifier?.[0]?.value ||
+              ''
+          )
+            .trim()
+            .toUpperCase();
+        })
+        .filter((a: string) => /^[A-Z0-9]{8,14}$/.test(a))
+    )
+  );
+
+  for (let i = 0; i < uniqueAsins.length; i += 20) {
+    const chunk = uniqueAsins.slice(i, i + 20);
+    try {
+      const catQs = new URLSearchParams({
+        marketplaceIds: marketplaceId,
+        identifiers: chunk.join(','),
+        identifiersType: 'ASIN',
+        includedData: 'images,summaries,attributes,productTypes'
+      });
+      const catUrl = `${endpointHost}/catalog/2022-04-01/items?${catQs.toString()}`;
+      const catRes = await fetch(catUrl, { method: 'GET', headers: spHeaders });
+      if (catRes.ok) {
+        const catJson = await catRes.json() as any;
+        const catItems = Array.isArray(catJson?.items) ? catJson.items : [];
+        for (const c of catItems) {
+          if (c?.asin) {
+            catalogByAsin.set(String(c.asin).trim().toUpperCase(), c);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal catalog enrichment failure: listings items remain intact
+    }
+  }
+
+  // Also call GET /catalog/2022-04-01/items directly if seller has 0 listings to verify catalog API accessibility
+  if (allListingItems.length === 0) {
+    try {
+      const catVerifyUrl = `${endpointHost}/catalog/2022-04-01/items?marketplaceIds=${encodeURIComponent(marketplaceId)}&pageSize=1`;
+      await fetch(catVerifyUrl, { method: 'GET', headers: spHeaders });
+    } catch {
+      // ignore probe failure
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const formattedProducts = allListingItems.map((item: any) => {
+    const summary = Array.isArray(item?.summaries)
+      ? item.summaries.find((s: any) => s?.marketplaceId === marketplaceId) || item.summaries[0] || {}
+      : {};
+    const sku = String(item?.sku || '').trim();
+    const asin = String(
+      summary?.asin ||
+        item?.attributes?.externally_assigned_product_identifier?.[0]?.value ||
+        ''
+    )
+      .trim()
+      .toUpperCase();
+    const catItem = asin ? catalogByAsin.get(asin) : undefined;
+    const catSummary = Array.isArray(catItem?.summaries)
+      ? catItem.summaries.find((s: any) => s?.marketplaceId === marketplaceId) || catItem.summaries[0] || {}
+      : {};
+    const catImage =
+      catItem?.images?.[0]?.images?.[0]?.link ||
+      catItem?.images?.find((imgSet: any) => Array.isArray(imgSet?.images) && imgSet.images.length > 0)?.images?.[0]?.link ||
+      '';
+    const imageUrl = String(summary?.mainImage?.link || catImage || (asin ? `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.L.jpg` : '')).trim();
+    const title = String(
+      summary?.itemName ||
+        catSummary?.itemName ||
+        item?.attributes?.item_name?.[0]?.value ||
+        sku ||
+        asin
+    ).trim();
+    const brand = String(catSummary?.brand || item?.attributes?.brand?.[0]?.value || merchantName || '').trim();
+    const { price, stock, currency } = extractListingPriceAndStock(item, marketplaceId);
+    const statusArr: string[] = Array.isArray(summary?.status) ? summary.status : [];
+    const status =
+      statusArr.length === 0 || statusArr.includes('BUYABLE') || statusArr.includes('DISCOVERABLE')
+        ? 'active'
+        : 'inactive';
+    const condition = String(summary?.conditionType || item?.attributes?.condition_type?.[0]?.value || 'new_new').trim();
+    const productUrl = asin ? `https://www.${amazonDomain}/dp/${asin}` : '';
+
+    return {
+      id: `sp-${sku || asin}`,
+      trader_id: traderId || sellerId,
+      merchantId: traderId || sellerId,
+      sellerId,
+      sku,
+      asin,
+      title,
+      brand,
+      price,
+      merchantPrice: price,
+      currency,
+      stock,
+      stockQuantity: stock,
+      status,
+      condition,
+      platform: 'amazon',
+      image: imageUrl,
+      image_url: imageUrl,
+      imageUrl,
+      product_url: productUrl,
+      dataMode: 'live',
+      updated_at: nowIso,
+      lastRefreshedAt: nowIso
+    };
+  });
+
   return res.status(200).json({
     success: true,
     configured: true,
     tokenExpired: false,
     requiresReauth: false,
+    source: 'sp_api_live',
     dataMode: 'live',
-    merchantId,
-    merchantName,
+    traderId: traderId || sellerId,
     sellerId,
-    tokenSource,
-    count: storeProducts.length,
-    products: storeProducts,
-    message: `تم جلب كتالوج المنتجات الفعلي بنجاح للتاجر "${merchantName}"`
+    marketplaceId,
+    applicationId,
+    total: formattedProducts.length,
+    count: formattedProducts.length,
+    products: formattedProducts,
+    message:
+      formattedProducts.length > 0
+        ? `تم سحب ${formattedProducts.length} منتج حقيقي مباشرة من Amazon SP-API (/listings/2021-08-01 + /catalog/2022-04-01/items)`
+        : 'تم الاتصال بـ Amazon SP-API بنجاح ولكن لا توجد منتجات مدرجة على هذا الحساب حالياً (0 منتجات).'
   });
+}
+
+app.post('/api/amazon/sp-api/pull-products', importRateLimiter, pullLiveProductsFromAmazonSpApi);
+app.post('/api/amazon/sp-api/listings', importRateLimiter, pullLiveProductsFromAmazonSpApi);
+
+// Handler for Dynamic Per-Merchant Product Catalog & Competitor Pricing
+const handleMerchantCatalogRequest = async (req: express.Request, res: express.Response) => {
+  const body = req.body || {};
+  const query = req.query || {};
+  const hasExplicitSpApiToken = Boolean(
+    body.refreshToken ||
+      req.headers['x-amz-refresh-token'] ||
+      body.sellerId ||
+      query.sellerId ||
+      req.headers['x-amz-seller-id']
+  );
+
+  if (hasExplicitSpApiToken) {
+    return pullLiveProductsFromAmazonSpApi(req, res);
+  }
+
+  return pullLiveProductsFromAmazonSpApi(req, res);
 };
 
 // Support both POST and GET across primary and alias catalog API endpoints
@@ -6740,13 +7047,13 @@ app.post('/api/help-guide', async (req, res) => {
 
     const systemInstruction = `أنت المساعد الرسمي لتطبيق "رادار التاجر" (Radar Egypt) المتخصص في مساعدة التجار في مصر (أمازون مصر، نون، جوميا) على استخدام أدوات المنصة بدقة وسرعة.
 قدّم إجابات عملية مختصرة ومنظمة باللغة العربية الفصحى المبسطة بناءً على أدوات التطبيق الفعلية:
-1. استيراد المنتجات (ملف أمازون TXT / Excel / CSV):
-   - أمازون لا يسمح بالسحب المباشر من المتصفح بسبب قيود CORS والحماية؛ الطريقة المعتمدة هي تصدير تقرير المخزون (All Listings Report بصيغة .txt مفصول بـ Tab بترميز UTF-8) أو ملف Excel/CSV ورفعه من زر "استورد ملف أمازون (TXT / Excel / CSV)" في كارت التاجر أو القائمة الجانبية.
-   - يدعم النظام معاينة أول 5 منتجات قبل التأكيد، وتحديث السعر والمخزون تلقائياً للمنتجات المطابقة عبر seller-sku دون تكرار، وإنشاء رابط المنتج https://www.amazon.eg/dp/{asin}.
+1. السحب المباشر عبر Amazon SP-API:
+   - يتم سحب المنتجات الحقيقية (SKU، ASIN، السعر، المخزون) مباشرة من Amazon SP-API عبر الخادم باستخدام Refresh Token الخاص بكل تاجر مع بيانات تطبيق Production (Client ID / Client Secret / Application ID).
+   - كما يدعم النظام كخيار إضافي استيراد تقارير All Listings Report (.txt / Excel / CSV) مع معاينة أول 5 منتجات قبل التأكيد وتحديث السعر والمخزون تلقائياً عبر seller-sku.
 2. سجل عمليات الاستيراد والتراجع:
    - يمكن للتاجر مراجعة كافة الملفات المرفوعة مسبقاً من شاشة "سجل عمليات الاستيراد"، والاطلاع على الرسم البياني لنسبة المنتجات المستوردة بنجاح مقابل الفاشلة، مع زر التراجع عن أي عملية استيراد تمت بالخطأ.
 3. ربط المنصات (Amazon SP-API / Noon / Jumia):
-   - تحذير أمان مهم: لا يدخل المؤسس بحسابه أبداً على Seller Central الخاص بالتاجر لتجنب ربط الحسابين وإغلاقهما من أمازون؛ يدخل التاجر بنفسه على حسابه ويوافق عبر SP-API OAuth لتزويد النظام بـ Refresh Token فقط، ويتم السحب عبر خادم/Edge Function وليس من المتصفح.
+   - تحذير أمان مهم: لا يدخل المؤسس بحسابه أبداً على Seller Central الخاص بالتاجر لتجنب ربط الحسابين وإغلاقهما من أمازون؛ يدخل التاجر بنفسه على حسابه ويوافق عبر SP-API OAuth لتزويد النظام بـ Refresh Token فقط، ويتم السحب عبر الخادم الرسمي باستخدام https://api.amazon.com/auth/o2/token.
 4. إدارة التجار (/traders):
    - عرض وإضافة وتعديل بيانات التجار (مع عزل الصلاحيات عبر Supabase RLS)، وترك الحقول الاختيارية مثل Seller ID فارغة إذا لم تتوفر.
 5. رادار المنافسين وقائمة المتابعة والتسعير (/competitors, /watchlist):

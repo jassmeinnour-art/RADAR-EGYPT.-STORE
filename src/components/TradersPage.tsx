@@ -22,9 +22,20 @@ import {
   History,
   UserPlus,
   BarChart3,
-  Copy
+  Copy,
+  Key,
+  Save,
+  Eye,
+  EyeOff
 } from 'lucide-react';
-import { IMPORT_BUTTON_LABEL, buildMerchantAmazonAuthorizeUrl } from '../utils/sellerCentralExcelImporter';
+import {
+  IMPORT_BUTTON_LABEL,
+  buildMerchantAmazonAuthorizeUrl,
+  fetchProductionAmazonOAuthClientId,
+  getResolvedAmazonOAuthClientId,
+  getTraderAmazonConnection,
+  saveTraderAmazonConnection,
+} from '../utils/sellerCentralExcelImporter';
 import { supabase, Trader, getTraderLastSyncAt, cleanTraderPayloadForInsert } from '../lib/supabase';
 import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
 import { navigate } from '../utils/navigation';
@@ -77,9 +88,10 @@ const TraderCard: React.FC<{
   onDelete: (e: React.MouseEvent, t: Trader) => void;
   onFetch: (t: Trader) => void;
   onOpenCompetingStores: (t: Trader) => void;
+  onTraderUpdated?: (updated: Trader) => void;
   storesTick?: number;
   onShowToast?: (message: string) => void;
-}> = React.memo(({ trader, isSyncing, onSelect, onEdit, onDelete, onFetch, onOpenCompetingStores, storesTick, onShowToast }) => {
+}> = React.memo(({ trader, isSyncing, onSelect, onEdit, onDelete, onFetch, onOpenCompetingStores, onTraderUpdated, storesTick, onShowToast }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const plat = PLATFORM_DETAILS[trader.platform] || {
     name: trader.platform || 'منصة عامة',
@@ -88,14 +100,74 @@ const TraderCard: React.FC<{
   };
   const rawSellerId = (trader.seller_id || trader.seller_ids?.[trader.platform] || '').trim();
   const sellerId = rawSellerId || 'غير محدد';
-  const defaultAuthorizeUrl = buildMerchantAmazonAuthorizeUrl(rawSellerId, trader.seller_name);
+  const [productionClientId, setProductionClientId] = useState<string>(() =>
+    getResolvedAmazonOAuthClientId()
+  );
+  const defaultAuthorizeUrl = buildMerchantAmazonAuthorizeUrl(
+    rawSellerId,
+    trader.seller_name,
+    productionClientId
+  );
   const [authorizeUrlValue, setAuthorizeUrlValue] = useState(defaultAuthorizeUrl);
   const [isEditingAuthorizeUrl, setIsEditingAuthorizeUrl] = useState(false);
+  const hasEditedAuthorizeUrlRef = useRef(false);
   const authorizeUrlInputRef = useRef<HTMLInputElement>(null);
 
+  const savedConnection = getTraderAmazonConnection(trader);
+  const hasRefreshToken = Boolean(savedConnection.refreshToken);
+  const [refreshTokenInput, setRefreshTokenInput] = useState(savedConnection.refreshToken);
+  const [showRefreshToken, setShowRefreshToken] = useState(false);
+  const [isSavingToken, setIsSavingToken] = useState(false);
+
   useEffect(() => {
-    setAuthorizeUrlValue(defaultAuthorizeUrl);
+    let active = true;
+    fetchProductionAmazonOAuthClientId().then((resolvedId) => {
+      if (active && resolvedId) {
+        setProductionClientId(resolvedId);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasEditedAuthorizeUrlRef.current) {
+      setAuthorizeUrlValue(defaultAuthorizeUrl);
+    }
   }, [defaultAuthorizeUrl]);
+
+  useEffect(() => {
+    setRefreshTokenInput(getTraderAmazonConnection(trader).refreshToken);
+  }, [trader]);
+
+  const handleSaveRefreshTokenFromCard = async (e: React.FormEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const cleanToken = refreshTokenInput.trim();
+    setIsSavingToken(true);
+    try {
+      await saveTraderAmazonConnection({
+        traderId: trader.id,
+        sellerId: rawSellerId,
+        refreshToken: cleanToken,
+        existingTrader: trader,
+      });
+      onTraderUpdated?.({
+        ...trader,
+        refresh_token: cleanToken || undefined,
+      });
+      onShowToast?.(
+        cleanToken
+          ? '✅ تم حفظ Refresh Token الخاص بالتاجر بنجاح — جاهز للسحب المباشر من SP-API'
+          : 'تم مسح Refresh Token من كارت التاجر'
+      );
+    } catch (err: any) {
+      onShowToast?.(`❌ تعذر حفظ Refresh Token: ${err?.message || err}`);
+    } finally {
+      setIsSavingToken(false);
+    }
+  };
 
   const destinationUrl = (trader.destination_url || trader.seller_link || '').trim();
   const storeUrl = (trader.store_url || trader.storefront_link || '').trim();
@@ -289,8 +361,11 @@ const TraderCard: React.FC<{
               dir="ltr"
               data-testid={`trader-card-authorize-url-${trader.id}`}
               value={authorizeUrlValue}
-              placeholder="أدخل أو عدّل رابط الموافقة..."
-              onChange={(e) => setAuthorizeUrlValue(e.target.value)}
+              placeholder="https://www.amazon.com/ap/oa?client_id=...&state=..."
+              onChange={(e) => {
+                hasEditedAuthorizeUrlRef.current = true;
+                setAuthorizeUrlValue(e.target.value);
+              }}
               onClick={(e) => e.stopPropagation()}
               onFocus={() => setIsEditingAuthorizeUrl(true)}
               onBlur={() => setIsEditingAuthorizeUrl(false)}
@@ -300,6 +375,11 @@ const TraderCard: React.FC<{
                   : 'border-slate-700'
               }`}
             />
+            {!productionClientId && !authorizeUrlValue && (
+              <p className="text-[10px] text-amber-300/90 leading-relaxed">
+                أضف <span className="font-mono" dir="ltr">AMAZON_CLIENT_ID</span> في Environment Variables لتوليد رابط موافقة Production تلقائياً.
+              </p>
+            )}
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
@@ -323,6 +403,7 @@ const TraderCard: React.FC<{
                 data-testid={`trader-card-edit-authorize-url-${trader.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
+                  hasEditedAuthorizeUrlRef.current = true;
                   setIsEditingAuthorizeUrl(true);
                   authorizeUrlInputRef.current?.focus();
                   authorizeUrlInputRef.current?.select();
@@ -337,6 +418,7 @@ const TraderCard: React.FC<{
                 data-testid={`trader-card-clear-authorize-url-${trader.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
+                  hasEditedAuthorizeUrlRef.current = true;
                   setAuthorizeUrlValue('');
                   setIsEditingAuthorizeUrl(true);
                   authorizeUrlInputRef.current?.focus();
@@ -345,6 +427,65 @@ const TraderCard: React.FC<{
               >
                 <Trash2 className="w-3 h-3" />
                 <span>مسح</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Direct Refresh Token Input inside Trader Card */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-950/75 px-3 py-2.5 rounded-xl border border-slate-800 space-y-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor={`trader-card-refresh-token-${trader.id}`}
+                className="text-[10px] font-bold text-emerald-300 flex items-center gap-1"
+              >
+                <Key className="w-3 h-3" />
+                <span>Refresh Token (SP-API)</span>
+              </label>
+              <span
+                className={`text-[10px] font-black ${
+                  hasRefreshToken ? 'text-emerald-400' : 'text-slate-500'
+                }`}
+              >
+                {hasRefreshToken ? 'مربوط ✓' : 'غير مضاف'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1 min-w-0">
+                <input
+                  id={`trader-card-refresh-token-${trader.id}`}
+                  type={showRefreshToken ? 'text' : 'password'}
+                  dir="ltr"
+                  data-testid={`trader-card-refresh-token-${trader.id}`}
+                  value={refreshTokenInput}
+                  placeholder="Atzr|IwEBIA..."
+                  onChange={(e) => setRefreshTokenInput(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full h-8 pl-8 pr-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-mono text-emerald-200 text-left focus:outline-none focus:border-emerald-400"
+                />
+                <button
+                  type="button"
+                  aria-label="إظهار أو إخفاء Refresh Token"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRefreshToken((prev) => !prev);
+                  }}
+                  className="absolute left-2 top-2 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  {showRefreshToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                data-testid={`trader-card-save-refresh-token-${trader.id}`}
+                disabled={isSavingToken}
+                onClick={handleSaveRefreshTokenFromCard}
+                className="px-2.5 h-8 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                <Save className="w-3 h-3" />
+                <span>{isSavingToken ? 'حفظ...' : 'حفظ'}</span>
               </button>
             </div>
           </div>
@@ -430,27 +571,34 @@ const TraderCard: React.FC<{
             )}
           </div>
 
-          {/* 4. Import Amazon TXT / Excel / CSV (Primary) & Pull Products (Edge SP-API) */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onFetch(trader);
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 font-black text-xs border border-emerald-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>{IMPORT_BUTTON_LABEL}</span>
-          </button>
+          {/* 4. Pull Products (Primary when Refresh Token exists) & Import File fallback only when no Refresh Token */}
+          {!hasRefreshToken && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFetch(trader);
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 font-black text-xs border border-emerald-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>{IMPORT_BUTTON_LABEL}</span>
+            </button>
+          )}
 
           <button
             type="button"
+            data-testid={`trader-card-pull-sp-api-${trader.id}`}
             onClick={(e) => {
               e.stopPropagation();
               onFetch(trader);
             }}
             disabled={isSyncing}
-            className="w-full px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 font-bold text-xs border border-amber-500/40 transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className={`w-full px-3 py-2.5 rounded-xl font-black text-xs border transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+              hasRefreshToken
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400'
+                : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border-amber-500/40'
+            }`}
           >
             {isSyncing ? (
               <>
@@ -460,7 +608,7 @@ const TraderCard: React.FC<{
             ) : (
               <>
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>سحب كل المنتجات</span>
+                <span>{hasRefreshToken ? 'سحب كل المنتجات (SP-API)' : 'سحب كل المنتجات'}</span>
               </>
             )}
           </button>
@@ -1133,6 +1281,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
               onDelete={handleDeleteTrader}
               onFetch={handleFetchProducts}
               onOpenCompetingStores={(t) => setSelectedTraderForCompetingStores(t)}
+              onTraderUpdated={handleUpdateTrader}
               onShowToast={onShowToast}
             />
           ))}
@@ -1143,6 +1292,7 @@ export const TradersPage: React.FC<TradersPageProps> = ({ onShowToast, onSelectT
         <FetchProductsModal
           trader={selectedTraderForFetch}
           isOpen={isFetchModalOpen}
+          autoStartSpApi={Boolean(getTraderAmazonConnection(selectedTraderForFetch).refreshToken)}
           onClose={() => setIsFetchModalOpen(false)}
           onShowToast={onShowToast}
           onSyncCompleted={(stats) => {

@@ -21,8 +21,12 @@ export const AMAZON_SP_API_CONFIG = {
   IS_PRODUCTION: true,
   IS_MOCK_ENABLED: false,
 
-  // 4. Server-side managed indicators (Secrets & Refresh Tokens are resolved and decrypted server-side only)
-  DEFAULT_CLIENT_ID: '',
+  // 4. Production Client ID from env (non-secret public OAuth client_id); Secrets & Refresh Tokens stay server-side only
+  DEFAULT_CLIENT_ID: (
+    import.meta.env.VITE_AMAZON_CLIENT_ID ||
+    import.meta.env.VITE_LWA_CLIENT_ID ||
+    ''
+  ).trim(),
   DEFAULT_CLIENT_SECRET: '',
   DEFAULT_REFRESH_TOKEN: '',
   DEFAULT_NOON_AUTH_KEY: ''

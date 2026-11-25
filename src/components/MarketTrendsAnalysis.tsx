@@ -28,6 +28,8 @@ type TrendDirection = 'up' | 'down' | 'stable';
 
 interface HistoricalPoint {
   label: string;
+  dateStr: string;
+  isForecast: boolean;
   timestampMs: number;
   actualPrice: number | null;
   forecastPrice: number | null;
@@ -226,6 +228,7 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
             : 0;
 
         // Regression slope per recorded step
+        const slopePerStep = linearRegression(priceValues);
         const horizonSteps = horizonDays === 7 ? 1 : horizonDays === 14 ? 2 : 4;
 
         // Factor in market pressure from competitor_price or buybox_price if recorded
@@ -265,6 +268,8 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
         // Build unified Historical + Forecast Chart Series
         const chartSeries: HistoricalPoint[] = recordedSeries.map((pt, idx) => ({
           label: idx === recordedSeries.length - 1 ? 'الآن' : formatShortDate(pt.ms),
+          dateStr: new Date(pt.ms).toISOString().slice(0, 10),
+          isForecast: false,
           timestampMs: pt.ms,
           actualPrice: Math.round(pt.price),
           forecastPrice: idx === recordedSeries.length - 1 ? Math.round(pt.price) : null,
@@ -274,16 +279,22 @@ export const MarketTrendsAnalysis: React.FC<MarketTrendsAnalysisProps> = ({
         // Append intermediate + target next-period forecast points
         const midHorizonDays = Math.max(1, Math.round(horizonDays / 2));
         const midPrice = Math.round(currentPrice + deltaEGP * 0.55);
+        const midTimestampMs = nowMs + midHorizonDays * dayMs;
         chartSeries.push({
           label: `+${midHorizonDays} يوم`,
-          timestampMs: nowMs + midHorizonDays * dayMs,
+          dateStr: new Date(midTimestampMs).toISOString().slice(0, 10),
+          isForecast: true,
+          timestampMs: midTimestampMs,
           actualPrice: null,
           forecastPrice: midPrice,
           competitorPrice: competitorPrice ? Math.round(competitorPrice) : null,
         });
+        const endTimestampMs = nowMs + horizonDays * dayMs;
         chartSeries.push({
           label: `+${horizonDays} يوم (متوقع)`,
-          timestampMs: nowMs + horizonDays * dayMs,
+          dateStr: new Date(endTimestampMs).toISOString().slice(0, 10),
+          isForecast: true,
+          timestampMs: endTimestampMs,
           actualPrice: null,
           forecastPrice,
           competitorPrice: competitorPrice ? Math.round(competitorPrice) : null,

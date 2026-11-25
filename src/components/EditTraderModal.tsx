@@ -8,8 +8,10 @@ import {
   IMPORT_BUTTON_LABEL,
   NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
+  getTraderAmazonConnection,
   previewSellerCentralFile,
   sanitizeProductPullError,
+  saveTraderAmazonConnection,
 } from '../utils/sellerCentralExcelImporter';
 
 interface EditTraderModalProps {
@@ -40,6 +42,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const conn = getTraderAmazonConnection(trader);
     setForm({
       ...trader,
       seller_name: trader.seller_name || '',
@@ -51,6 +54,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
       seller_link: trader.seller_link || trader.destination_url || '',
       store_url: trader.store_url || trader.storefront_link || '',
       storefront_link: trader.storefront_link || trader.store_url || '',
+      refresh_token: conn.refreshToken || trader.refresh_token || '',
     });
     setErrorMessage(null);
   }, [trader, isOpen]);
@@ -89,6 +93,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
     const cleanPhone = String(form.phone || '').trim();
     const cleanDestination = String(destinationValue || '').trim();
     const cleanStore = String(storeValue || '').trim();
+    const cleanRefreshToken = String(form.refresh_token || '').trim();
 
     // Duplicate email check against OTHER traders only (allow same trader to keep their email)
     if (cleanEmail && Array.isArray(existingTraders) && existingTraders.length > 0) {
@@ -116,7 +121,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
         seller_id: cleanSellerId || null,
         destination_url: cleanDestination || null,
         store_url: cleanStore || null,
-        refresh_token: form.refresh_token || (trader as any).refresh_token || null,
+        refresh_token: cleanRefreshToken || null,
       });
 
       let { data, error } = await supabase
@@ -149,6 +154,14 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
         reportError(error);
         return;
       }
+
+      await saveTraderAmazonConnection({
+        traderId,
+        sellerId: cleanSellerId,
+        refreshToken: cleanRefreshToken,
+        existingTrader: trader,
+        syncToSupabase: false,
+      });
 
       const mergedUpdated: Trader = {
         ...trader,
@@ -343,6 +356,24 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
               />
             </div>
 
+            <div>
+              <label htmlFor="edit-trader-refresh-token" className="block text-xs font-bold text-emerald-300 mb-1">
+                SP-API Refresh Token (اختياري — للسحب المباشر من أمازون)
+              </label>
+              <input
+                id="edit-trader-refresh-token"
+                type="text"
+                dir="ltr"
+                value={form.refresh_token || ''}
+                onChange={(e) => {
+                  setErrorMessage(null);
+                  setForm({ ...form, refresh_token: e.target.value });
+                }}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-200 focus:outline-none focus:border-emerald-500 text-left"
+                placeholder="Atzr|IwEBIA..."
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="edit-trader-platform" className="block text-xs font-bold text-slate-300 mb-1">المنصة</label>
@@ -375,26 +406,28 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
               </div>
             </div>
 
-            {/* Direct Inventory Import & Sync Actions inside Edit Modal */}
-            <div className="pt-3 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Direct Inventory Sync & Optional Import Actions inside Edit Modal */}
+            <div className={`pt-3 border-t border-slate-800 grid grid-cols-1 ${String(form.refresh_token || '').trim() ? '' : 'sm:grid-cols-2'} gap-2.5`}>
               <button
                 type="button"
                 onClick={handleTriggerFetch}
                 className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>سحب كل المنتجات</span>
+                <span>{String(form.refresh_token || '').trim() ? 'سحب كل المنتجات (SP-API)' : 'سحب كل المنتجات'}</span>
               </button>
 
-              <button
-                type="button"
-                disabled={isImportingExcel}
-                onClick={() => excelInputRef.current?.click()}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>{isImportingExcel ? 'جاري قراءة الملف...' : IMPORT_BUTTON_LABEL}</span>
-              </button>
+              {!String(form.refresh_token || '').trim() && (
+                <button
+                  type="button"
+                  disabled={isImportingExcel}
+                  onClick={() => excelInputRef.current?.click()}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{isImportingExcel ? 'جاري قراءة الملف...' : IMPORT_BUTTON_LABEL}</span>
+                </button>
+              )}
               <input
                 ref={excelInputRef}
                 type="file"
@@ -434,6 +467,7 @@ export const EditTraderModal: React.FC<EditTraderModalProps> = ({
           }}
           isOpen={isFetchModalOpen}
           initialPreview={pendingPreview}
+          autoStartSpApi={Boolean(String(form.refresh_token || '').trim())}
           onClose={() => {
             setIsFetchModalOpen(false);
             setPendingPreview(null);

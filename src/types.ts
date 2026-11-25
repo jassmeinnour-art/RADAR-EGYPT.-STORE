@@ -2040,6 +2040,7 @@ export type UserActionType =
   | 'product_scan' 
   | 'settings_change' 
   | 'search'
+  | 'delete'
   | 'system';
 
 export type UserActionSeverity = 'info' | 'success' | 'warning' | 'error';

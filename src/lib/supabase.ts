@@ -1301,20 +1301,32 @@ export const multiTenantDb = {
   },
 
   /**
-   * Safe trader catalog read/sync — never triggers direct browser scraping of Amazon/HTML endpoints
+   * Syncs a trader's catalog via real Amazon SP-API backend pull (never fake browser-block messages).
    */
   async syncTrader(traderId: string): Promise<{ success: boolean; count: number; products: Product[]; message?: string }> {
     if (isMaintenanceModeActive()) {
       const existing = await this.getProductsByTrader(traderId);
       return { success: false, count: existing.length, products: existing };
     }
-    const existing = await this.getProductsByTrader(traderId);
-    return {
-      success: existing.length > 0,
-      count: existing.length,
-      products: existing,
-      message: 'لا يمكن السحب المباشر من أمازون من المتصفح - أمازون يمنع ذلك - استخدم استيراد Excel أو ربط SP-API',
-    };
+    try {
+      const { invokeAmazonSpApiSyncEdgeFunction } = await import('../utils/sellerCentralExcelImporter');
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId);
+      const updated = await this.getProductsByTrader(traderId);
+      return {
+        success: outcome.success,
+        count: outcome.total ?? updated.length,
+        products: updated,
+        message: outcome.message,
+      };
+    } catch (err: any) {
+      const existing = await this.getProductsByTrader(traderId);
+      return {
+        success: false,
+        count: existing.length,
+        products: existing,
+        message: err?.message || 'تعذر مزامنة منتجات التاجر عبر SP-API',
+      };
+    }
   }
 };
 
@@ -1531,6 +1543,54 @@ class SupabaseQueryBuilder {
     }
 
     return { data: this.isSingle ? arr[0] : arr, error: null };
+  }
+
+  upsert(records: any, options?: { onConflict?: string }): Promise<{ data: any; error: any }> & {
+    select: (fields?: string) => Promise<{ data: any; error: any }> & {
+      single: () => Promise<{ data: any; error: any }>;
+    };
+  } {
+    const execPromise = this.executeUpsert(records, options);
+    const wrapper: any = execPromise;
+    wrapper.select = (_fields?: string) => {
+      const selWrapper: any = execPromise;
+      selWrapper.single = () =>
+        execPromise.then((res) => ({
+          data: Array.isArray(res.data) ? res.data[0] || null : res.data,
+          error: res.error,
+        }));
+      return selWrapper;
+    };
+    return wrapper;
+  }
+
+  private async executeUpsert(
+    records: any,
+    options?: { onConflict?: string }
+  ): Promise<{ data: any; error: any }> {
+    const rawArr = Array.isArray(records) ? records : [records];
+    if (rawArr.length === 0) {
+      return { data: this.isSingle ? null : [], error: null };
+    }
+
+    if (supabaseClient) {
+      try {
+        const res = await (supabaseClient.from(this.tableName) as any)
+          .upsert(rawArr, options)
+          .select();
+        if (!res.error) {
+          return { data: this.isSingle ? res.data?.[0] || null : res.data, error: null };
+        }
+        return { data: null, error: res.error };
+      } catch (err: any) {
+        return {
+          data: null,
+          error: err instanceof Error ? { message: err.message } : err,
+        };
+      }
+    }
+
+    return this.executeInsert(records);
   }
 
   update(updates: any): this {
