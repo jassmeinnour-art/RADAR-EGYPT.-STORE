@@ -45,6 +45,8 @@ import {
   getTraderAmazonConnection,
   saveTraderAmazonConnection,
   buildMerchantAmazonAuthorizeUrl,
+  fetchProductionAmazonOAuthClientId,
+  getResolvedAmazonOAuthClientId,
   exchangeMerchantOAuthCodeForRefreshToken,
 } from '../utils/sellerCentralExcelImporter';
 import { dataCache } from '../utils/dataCache';
@@ -106,28 +108,53 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
   const [oauthInputCode, setOauthInputCode] = useState<string>('');
   const [isSavingConnection, setIsSavingConnection] = useState<boolean>(false);
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
+  const [productionClientId, setProductionClientId] = useState<string>(() =>
+    getResolvedAmazonOAuthClientId()
+  );
   const [authorizeUrlValue, setAuthorizeUrlValue] = useState<string>('');
   const [isEditingAuthorizeUrl, setIsEditingAuthorizeUrl] = useState<boolean>(false);
+  const hasEditedAuthorizeUrlRef = useRef<boolean>(false);
   const authorizeUrlInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    let active = true;
+    fetchProductionAmazonOAuthClientId().then((resolvedId) => {
+      if (active && resolvedId) {
+        setProductionClientId(resolvedId);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (trader) {
+      hasEditedAuthorizeUrlRef.current = false;
       setTraderSellerId(trader.seller_id || '');
       const conn = getTraderAmazonConnection(trader);
       setTraderRefreshToken(conn.refreshToken || '');
       setAuthorizeUrlValue(
-        buildMerchantAmazonAuthorizeUrl(trader.seller_id, trader.seller_name)
+        buildMerchantAmazonAuthorizeUrl(
+          trader.seller_id,
+          trader.seller_name,
+          productionClientId
+        )
       );
     }
   }, [trader]);
 
   useEffect(() => {
-    if (trader) {
+    if (trader && !hasEditedAuthorizeUrlRef.current) {
       setAuthorizeUrlValue(
-        buildMerchantAmazonAuthorizeUrl(traderSellerId || trader.seller_id, trader.seller_name)
+        buildMerchantAmazonAuthorizeUrl(
+          traderSellerId || trader.seller_id,
+          trader.seller_name,
+          productionClientId
+        )
       );
     }
-  }, [trader, traderSellerId]);
+  }, [trader, traderSellerId, productionClientId]);
 
   const loadTraderAndProducts = async () => {
     if (!id) return;
@@ -586,8 +613,11 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 dir="ltr"
                 data-testid="trader-detail-authorize-url-input"
                 value={authorizeUrlValue}
-                placeholder="أدخل أو عدّل رابط الموافقة..."
-                onChange={(e) => setAuthorizeUrlValue(e.target.value)}
+                placeholder="https://www.amazon.com/ap/oa?client_id=...&state=..."
+                onChange={(e) => {
+                  hasEditedAuthorizeUrlRef.current = true;
+                  setAuthorizeUrlValue(e.target.value);
+                }}
                 onFocus={() => setIsEditingAuthorizeUrl(true)}
                 onBlur={() => setIsEditingAuthorizeUrl(false)}
                 className={`flex-1 min-w-[220px] h-10 px-3 rounded-xl bg-slate-950 border text-xs font-mono text-amber-300 text-left focus:outline-none ${
@@ -616,6 +646,7 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 type="button"
                 data-testid="trader-detail-edit-authorize-url"
                 onClick={() => {
+                  hasEditedAuthorizeUrlRef.current = true;
                   setIsEditingAuthorizeUrl(true);
                   authorizeUrlInputRef.current?.focus();
                   authorizeUrlInputRef.current?.select();
@@ -629,6 +660,7 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 type="button"
                 data-testid="trader-detail-clear-authorize-url"
                 onClick={() => {
+                  hasEditedAuthorizeUrlRef.current = true;
                   setAuthorizeUrlValue('');
                   setIsEditingAuthorizeUrl(true);
                   authorizeUrlInputRef.current?.focus();
@@ -639,6 +671,11 @@ export const TraderDetailPage: React.FC<TraderDetailPageProps> = ({
                 <span>مسح</span>
               </button>
             </div>
+            {!productionClientId && !authorizeUrlValue && (
+              <p className="text-[11px] text-amber-300/90">
+                أضف <span className="font-mono" dir="ltr">AMAZON_CLIENT_ID</span> في Environment Variables لتوليد رابط موافقة Production تلقائياً.
+              </p>
+            )}
           </div>
 
           <div className="sm:col-span-2 space-y-2 pt-2 border-t border-slate-800/80">

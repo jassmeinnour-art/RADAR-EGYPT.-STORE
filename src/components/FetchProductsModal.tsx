@@ -12,6 +12,8 @@ import {
   ShieldAlert,
   ExternalLink,
   History,
+  Zap,
+  Package,
 } from 'lucide-react';
 import { Trader } from '../lib/supabase';
 import { ImportRowErrorDetail } from '../utils/importHistoryService';
@@ -22,12 +24,16 @@ import {
   ACCEPTED_IMPORT_EXTENSIONS,
   AMAZON_TXT_GUIDE_TEXT,
   CompetitorSyncStatus,
+  DEFAULT_MARKETPLACE_ID,
   DIRECT_FETCH_BLOCKED_MESSAGE,
   FOUNDER_AMAZON_WARNING_TEXT,
   IMPORT_BUTTON_LABEL,
   NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
+  SellerCentralImportedRow,
   confirmSellerCentralImport,
+  getAmazonSpApiSettings,
+  getTraderAmazonConnection,
   invokeAmazonSpApiSyncEdgeFunction,
   isAmazonSpApiConfigured,
   previewSellerCentralFile,
@@ -49,6 +55,7 @@ interface FetchProductsModalProps {
     skipped?: number;
   }) => void;
   initialPreview?: SellerCentralImportPreview | null;
+  autoStartSpApi?: boolean;
 }
 
 export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
@@ -58,12 +65,14 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   onShowToast,
   onSyncCompleted,
   initialPreview = null,
+  autoStartSpApi = false,
 }) => {
   const { isMaintenanceMode } = useMaintenanceMode();
   const [isFetching, setIsFetching] = useState(false);
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isConfirmingImport, setIsConfirmingImport] = useState(false);
   const [previewData, setPreviewData] = useState<SellerCentralImportPreview | null>(initialPreview);
+  const [pulledProducts, setPulledProducts] = useState<SellerCentralImportedRow[]>([]);
   const [fetchStats, setFetchStats] = useState<{
     total: number;
     dbTotal?: number;
@@ -80,9 +89,24 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
   const [lastImportErrors, setLastImportErrors] = useState<ImportRowErrorDetail[]>([]);
   const [lastImportFileName, setLastImportFileName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoTriggeredKeyRef = useRef<string | null>(null);
+
+  const rawTraderId = String(trader?.id || '').trim();
+  const targetTraderId =
+    rawTraderId && !['all', 'null', 'undefined'].includes(rawTraderId.toLowerCase())
+      ? rawTraderId
+      : '';
+  const traderConn = getTraderAmazonConnection(trader);
+  const spApiSettings = getAmazonSpApiSettings();
+  const hasRefreshToken = Boolean(traderConn.refreshToken);
+  const spApiReady = hasRefreshToken || isAmazonSpApiConfigured(undefined, trader);
+  const resolvedSellerId =
+    traderConn.sellerId || String(trader?.seller_id || targetTraderId || '').trim();
+  const resolvedMarketplaceId = spApiSettings.marketplaceId || DEFAULT_MARKETPLACE_ID;
 
   useEffect(() => {
     setPreviewData(initialPreview || null);
+    setPulledProducts([]);
     setFetchStats(null);
     setImportMessage(null);
     setPostImportPriceWarning(null);
@@ -90,17 +114,10 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setCompetitorSyncStatus(null);
     setLastImportErrors([]);
     setLastImportFileName(undefined);
+    if (!isOpen) {
+      autoTriggeredKeyRef.current = null;
+    }
   }, [trader, isOpen, initialPreview]);
-
-  if (!isOpen) return null;
-
-  const traderGmail = trader.gmail || trader.email || '';
-  const rawTraderId = String(trader?.id || '').trim();
-  const targetTraderId =
-    rawTraderId && !['all', 'null', 'undefined'].includes(rawTraderId.toLowerCase())
-      ? rawTraderId
-      : '';
-  const spApiReady = isAmazonSpApiConfigured();
 
   const handleStartFetch = async () => {
     if (isMaintenanceMode) {
@@ -118,8 +135,8 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
     setFetchError(null);
     setFetchStats(null);
     setImportMessage(null);
+    setPulledProducts([]);
 
-    // Block all direct browser fetching of destination_url / store_url / sellercentral.amazon.eg
     if (!spApiReady) {
       setFetchError(DIRECT_FETCH_BLOCKED_MESSAGE);
       onShowToast?.(DIRECT_FETCH_BLOCKED_MESSAGE);
@@ -128,7 +145,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
 
     setIsFetching(true);
     try {
-      const outcome = await invokeAmazonSpApiSyncEdgeFunction(targetTraderId);
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(targetTraderId, trader);
       if (!outcome.success) {
         const cleanMsg = sanitizeProductPullError(outcome.message);
         setFetchError(cleanMsg);
@@ -136,8 +153,16 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
         return;
       }
 
+      const liveRows = Array.isArray(outcome.products) ? outcome.products : [];
+      setPulledProducts(liveRows);
+      const firstPriced = liveRows.find((r) => Number(r.price) > 0);
+      const pricedCount = liveRows.filter((r) => Number(r.price) > 0).length;
+
       const stats = {
-        total: outcome.total || 0,
+        total: outcome.total ?? liveRows.length,
+        dbTotal: outcome.total ?? liveRows.length,
+        ...(liveRows.length > 0 ? { dbPricedCount: pricedCount } : {}),
+        ...(firstPriced ? { dbFirstSamplePrice: firstPriced.price } : {}),
         new: outcome.newCount || 0,
         updated: outcome.updatedCount || 0,
         skipped: 0,
@@ -154,6 +179,25 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       setIsFetching(false);
     }
   };
+
+  useEffect(() => {
+    const autoKey = `${targetTraderId}:${hasRefreshToken}`;
+    if (
+      isOpen &&
+      autoStartSpApi &&
+      hasRefreshToken &&
+      !initialPreview &&
+      autoTriggeredKeyRef.current !== autoKey
+    ) {
+      autoTriggeredKeyRef.current = autoKey;
+      void handleStartFetch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, autoStartSpApi, hasRefreshToken, targetTraderId, initialPreview]);
+
+  if (!isOpen) return null;
+
+  const traderGmail = trader.gmail || trader.email || '';
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -263,11 +307,19 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
       className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm font-['Cairo']"
       dir="rtl"
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-3xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
           <h3 className="text-lg font-black text-white flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            <span>استيراد ملف منتجات أمازون (TXT / Excel / CSV)</span>
+            {hasRefreshToken ? (
+              <Zap className="w-5 h-5 text-amber-400" />
+            ) : (
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            )}
+            <span>
+              {hasRefreshToken
+                ? 'سحب المنتجات مباشرة من Amazon SP-API'
+                : 'سحب المنتجات أو استيراد ملف أمازون (TXT / Excel / CSV)'}
+            </span>
           </h3>
           <button
             type="button"
@@ -291,7 +343,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
               <Key className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="font-bold text-slate-400">Seller ID:</span>
               <span className="font-mono font-bold text-amber-300" dir="ltr">
-                {trader.seller_id || targetTraderId}
+                {resolvedSellerId}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -303,58 +355,113 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
             </div>
           </div>
 
-          {/* Primary Action: Amazon TXT (All Listings Report) / Excel / CSV Import */}
-          <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-3">
-            <div className="space-y-1.5">
-              <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>الطريقة الأساسية الموصى بها: تقرير All Listings Report من أمازون</span>
-              </h4>
-              <p className="text-xs text-emerald-100 font-bold bg-slate-950/60 border border-emerald-500/30 rounded-xl p-2.5 leading-relaxed">
-                {AMAZON_TXT_GUIDE_TEXT}
-              </p>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                يدعم ملفات <span className="font-mono font-bold text-white">.txt</span> (Tab-separated UTF-16 / UTF-8)، و{' '}
-                <span className="font-mono font-bold text-white">.tsv</span>، و{' '}
-                <span className="font-mono font-bold text-white">.csv</span>، و{' '}
-                <span className="font-mono font-bold text-white">.xlsx</span> للتاجر{' '}
-                <span className="font-mono text-amber-300" dir="ltr">
-                  {targetTraderId}
-                </span>
-                .
-              </p>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_IMPORT_EXTENSIONS}
-              data-testid="modal-excel-file-input"
-              onChange={handleFileSelected}
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isParsingFile || isConfirmingImport || isMaintenanceMode}
-              className="w-full min-h-[44px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+          {/* Live SP-API Pull Panel when Refresh Token exists */}
+          {hasRefreshToken && (
+            <div
+              data-testid="sp-api-live-pull-panel"
+              className="p-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl space-y-3"
             >
-              {isParsingFile ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري قراءة الملف وتجهيز المعاينة...</span>
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>{IMPORT_BUTTON_LABEL}</span>
-                </>
-              )}
-            </button>
-          </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-black text-amber-300 flex items-center gap-2">
+                  <Zap className="w-4 h-4" />
+                  <span>سحب المنتجات الحقيقية من Amazon SP-API مباشرة</span>
+                </h4>
+                <span className="text-[11px] font-black px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/35">
+                  Refresh Token: متوفر ✓
+                </span>
+              </div>
 
-          {/* 5-Product Preview Before Confirming */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] bg-slate-950/65 p-3 rounded-xl border border-slate-800">
+                <div>
+                  <span className="text-slate-400 font-bold">Marketplace ID: </span>
+                  <span className="font-mono text-sky-300 font-bold" dir="ltr">
+                    {resolvedMarketplaceId}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold">نقطة السحب: </span>
+                  <span className="font-mono text-emerald-300 font-bold" dir="ltr">
+                    /listings/2021-08-01 + /catalog/2022-04-01
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                data-testid="sp-api-pull-now-btn"
+                onClick={handleStartFetch}
+                disabled={isFetching || isMaintenanceMode}
+                className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                {isFetching ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري الاتصال بأمازون وسحب المنتجات الحقيقية...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>سحب المنتجات الحقيقية من أمازون الآن (SP-API)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMPORT_EXTENSIONS}
+            data-testid="modal-excel-file-input"
+            onChange={handleFileSelected}
+            className="hidden"
+          />
+
+          {/* File Import Section — ONLY shown when trader has NO Refresh Token (do NOT ask founder to import a file when Refresh Token is configured) */}
+          {!hasRefreshToken && (
+            <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-3">
+              <div className="space-y-1.5">
+                <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>استيراد ملف منتجات أمازون (أو أضف Refresh Token للسحب المباشر)</span>
+                </h4>
+                <p className="text-xs text-emerald-100 font-bold bg-slate-950/60 border border-emerald-500/30 rounded-xl p-2.5 leading-relaxed">
+                  {AMAZON_TXT_GUIDE_TEXT}
+                </p>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  يدعم ملفات <span className="font-mono font-bold text-white">.txt</span> (Tab-separated UTF-16 / UTF-8)، و{' '}
+                  <span className="font-mono font-bold text-white">.tsv</span>، و{' '}
+                  <span className="font-mono font-bold text-white">.csv</span>، و{' '}
+                  <span className="font-mono font-bold text-white">.xlsx</span> للتاجر{' '}
+                  <span className="font-mono text-amber-300" dir="ltr">
+                    {targetTraderId}
+                  </span>
+                  .
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isParsingFile || isConfirmingImport || isMaintenanceMode}
+                className="w-full min-h-[44px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                {isParsingFile ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري قراءة الملف وتجهيز المعاينة...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{IMPORT_BUTTON_LABEL}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* 5-Product Preview Before Confirming (file imports) */}
           {previewData && (
             <div
               data-testid="import-preview-panel"
@@ -439,40 +546,40 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                           ? 'غير نشط'
                           : row.status || row.condition || 'نشط';
                       return (
-                      <tr key={`${row.sku}-${idx}`} className="hover:bg-slate-900/50">
-                        <td className="p-2 font-bold text-white max-w-[180px] truncate" title={row.title}>
-                          {row.title}
-                        </td>
-                        <td className="p-2 font-mono text-amber-300" dir="ltr">
-                          {row.sku}
-                        </td>
-                        <td className="p-2 font-mono text-sky-300" dir="ltr">
-                          {row.asin || '—'}
-                        </td>
-                        <td className="p-2 text-center font-mono font-bold text-white">
-                          {row.price.toLocaleString()} ج.م
-                        </td>
-                        <td className="p-2 text-center font-mono font-bold text-emerald-400">
-                          {hasNumericRowStock ? row.stock : 'غير متوفر'}
-                        </td>
-                        <td className="p-2 text-center text-slate-300">
-                          {rowStatusLabel}
-                        </td>
-                        <td className="p-2 text-center">
-                          {row.product_url ? (
-                            <a
-                              href={row.product_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sky-400 hover:underline"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                      </tr>
+                        <tr key={`${row.sku}-${idx}`} className="hover:bg-slate-900/50">
+                          <td className="p-2 font-bold text-white max-w-[180px] truncate" title={row.title}>
+                            {row.title}
+                          </td>
+                          <td className="p-2 font-mono text-amber-300" dir="ltr">
+                            {row.sku}
+                          </td>
+                          <td className="p-2 font-mono text-sky-300" dir="ltr">
+                            {row.asin || '—'}
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-white">
+                            {row.price.toLocaleString()} ج.م
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-emerald-400">
+                            {hasNumericRowStock ? row.stock : 'غير متوفر'}
+                          </td>
+                          <td className="p-2 text-center text-slate-300">
+                            {rowStatusLabel}
+                          </td>
+                          <td className="p-2 text-center">
+                            {row.product_url ? (
+                              <a
+                                href={row.product_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sky-400 hover:underline"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -533,10 +640,14 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
           {fetchError && (
             <div
               role="alert"
-              className="p-3.5 bg-amber-950/60 border border-amber-500/50 rounded-xl flex items-start gap-2.5 text-amber-200"
+              data-testid="sp-api-error-alert"
+              className="p-3.5 bg-rose-950/60 border border-rose-500/50 rounded-xl flex items-start gap-2.5 text-rose-200"
             >
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span className="leading-relaxed font-bold">{fetchError}</span>
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="space-y-1 min-w-0">
+                <p className="font-black text-rose-300">استجابة خطأ من Amazon SP-API:</p>
+                <span className="leading-relaxed font-bold break-words block">{fetchError}</span>
+              </div>
             </div>
           )}
 
@@ -549,7 +660,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
                 <CheckCircle2 className="w-4 h-4" />
                 <span>
                   {importMessage ||
-                    `تم قراءة ${fetchStats.total} منتج من الملف - جديد ${fetchStats.new} - محدّث ${fetchStats.updated} - متخطى ${fetchStats.skipped || 0}`}
+                    `تم جلب ${fetchStats.total} منتج - جديد ${fetchStats.new} - محدّث ${fetchStats.updated} - متخطى ${fetchStats.skipped || 0}`}
                 </span>
               </div>
               <p className="text-xs text-emerald-200 font-mono">
@@ -624,6 +735,80 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
             </div>
           )}
 
+          {/* Live SP-API Pulled Products Table (SKU, ASIN, Price, Stock) */}
+          {pulledProducts.length > 0 && (
+            <div
+              data-testid="sp-api-pulled-products-table"
+              className="p-4 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black text-emerald-300 flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  <span>المنتجات الحقيقية المسحوبة من أمازون ({pulledProducts.length})</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/products?trader_id=${encodeURIComponent(targetTraderId)}`);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-[11px] font-black cursor-pointer"
+                >
+                  فتح صفحة المنتجات
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-800 max-h-72 overflow-y-auto">
+                <table className="w-full text-right text-[11px]">
+                  <thead className="bg-slate-900 text-slate-300 font-black border-b border-slate-800 sticky top-0">
+                    <tr>
+                      <th className="p-2">المنتج</th>
+                      <th className="p-2">SKU</th>
+                      <th className="p-2">ASIN</th>
+                      <th className="p-2 text-center">السعر</th>
+                      <th className="p-2 text-center">المخزون</th>
+                      <th className="p-2 text-center">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/70">
+                    {pulledProducts.map((item, idx) => {
+                      const hasNumericStock =
+                        item.stock !== null &&
+                        item.stock !== undefined &&
+                        Number.isFinite(Number(item.stock));
+                      return (
+                        <tr key={`${item.sku}-${item.asin}-${idx}`} className="hover:bg-slate-900/50">
+                          <td className="p-2 font-bold text-white max-w-[200px] truncate" title={item.title}>
+                            {item.title}
+                          </td>
+                          <td className="p-2 font-mono text-amber-300" dir="ltr">
+                            {item.sku}
+                          </td>
+                          <td className="p-2 font-mono text-sky-300" dir="ltr">
+                            {item.asin || '—'}
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-white">
+                            {Number(item.price || 0).toLocaleString()} ج.م
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-emerald-400">
+                            {hasNumericStock ? item.stock : 'غير متوفر'}
+                          </td>
+                          <td className="p-2 text-center text-slate-300">
+                            {item.status === 'active'
+                              ? 'نشط'
+                              : item.status === 'inactive'
+                              ? 'غير نشط'
+                              : item.status || 'نشط'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {fetchStats && (lastImportErrors.length > 0 || (fetchStats.skipped || 0) > 0) && (
             <ImportErrorLog
               errors={lastImportErrors}
@@ -648,26 +833,28 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
             </div>
           </div>
 
-          {/* Secondary Action: Pull via SP-API Edge Function (or clear block notice if not configured) */}
+          {/* Bottom SP-API Pull button when trader didn't have Refresh Token above, plus Settings link */}
           <div className="pt-2 border-t border-slate-800 space-y-2">
-            <button
-              type="button"
-              onClick={handleStartFetch}
-              disabled={isFetching || isMaintenanceMode}
-              className="w-full min-h-[42px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-black py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
-            >
-              {isFetching ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري الاتصال عبر Supabase Edge Function...</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  <span>سحب المنتجات</span>
-                </>
-              )}
-            </button>
+            {!hasRefreshToken && (
+              <button
+                type="button"
+                onClick={handleStartFetch}
+                disabled={isFetching || isMaintenanceMode}
+                className="w-full min-h-[42px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-black py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                {isFetching ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري الاتصال بـ Amazon SP-API...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>سحب المنتجات</span>
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               type="button"
@@ -678,7 +865,7 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
               className="w-full py-2 rounded-xl text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>إعدادات ربط SP-API عبر Supabase Edge Function</span>
+              <span>إعدادات مفاتيح SP-API العامة (Client ID / Secret / Application ID)</span>
             </button>
           </div>
         </div>

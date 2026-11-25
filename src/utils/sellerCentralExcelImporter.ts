@@ -24,10 +24,10 @@ export const IMPORT_BUTTON_LABEL = 'استورد ملف أمازون (TXT / Exce
 export const ACCEPTED_IMPORT_EXTENSIONS = '.txt,.csv,.tsv,.xlsx,.xls';
 
 export const DIRECT_FETCH_BLOCKED_MESSAGE =
-  'لا يمكن السحب المباشر من أمازون من المتصفح - أمازون يمنع ذلك - استخدم استيراد ملف أمازون أو ربط SP-API';
+  'لم يتم إدخال Refresh Token لهذا التاجر — أضف الـ Refresh Token في كارت التاجر أولاً';
 
 export const FRIENDLY_PULL_FAILURE_MESSAGE =
-  'فشل السحب - أمازون يمنع السحب المباشر - استخدم استيراد ملف أمازون';
+  'تعذر الاتصال بخادم SP-API أو استلام استجابة صالحة — تأكد من تشغيل الخادم وصحة بيانات الربط';
 
 export const UNSUPPORTED_FILE_ERROR_MESSAGE =
   'الملف غير مدعوم - ارفع ملف TXT من أمازون';
@@ -52,7 +52,7 @@ export const FOUNDER_AMAZON_WARNING_TEXT =
 
 export const SP_API_SETTINGS_STORAGE_KEY = 'radar_amazon_sp_api_settings_v1';
 export const TRADER_SP_API_TOKENS_STORAGE_KEY = 'radar_trader_sp_api_tokens_v1';
-export const DEFAULT_MARKETPLACE_ID = 'A2VIGQ35RCS4UG';
+export const DEFAULT_MARKETPLACE_ID = 'ARBP9OOSHTCHU';
 export const RADAR_GLOBAL_SP_API_BANNER =
   'مفاتيح رادار - نفس المفاتيح لكل التجار - لا تتغير بإضافة تاجر جديد';
 export const COMPETITOR_PRICES_STORAGE_KEY = 'radar_competitor_prices_v1';
@@ -61,6 +61,7 @@ export const RADAR_COMPETITOR_PRICES_UPDATED_EVENT = 'radar_competitor_prices_up
 export interface AmazonSpApiCredentials {
   clientId: string;
   clientSecret: string;
+  applicationId?: string;
   marketplaceId?: string;
   iamArn?: string;
   region?: string;
@@ -201,6 +202,9 @@ export interface SpApiSyncOutcome {
   total?: number;
   newCount?: number;
   updatedCount?: number;
+  products?: SellerCentralImportedRow[];
+  source?: string;
+  amazonError?: string;
 }
 
 /**
@@ -243,23 +247,15 @@ export function sanitizeProductPullError(err: unknown): string {
   }
 
   const lower = normalized.toLowerCase();
-  const isHtmlOrJsonFailure =
+  const isHtmlOrJsonSyntaxError =
     lower.includes("unexpected token '<'") ||
     lower.includes('unexpected token "<"') ||
-    lower.includes('unexpected token') ||
     lower.includes('<!doctype') ||
     lower.includes('<html') ||
     lower.includes('is not valid json') ||
-    lower.includes('json.parse') ||
-    lower.includes('syntaxerror') ||
-    lower.includes('sellercentral.amazon') ||
-    lower.includes('cors') ||
-    lower.includes('failed to fetch') ||
-    lower.includes('networkerror') ||
-    lower.includes('404') ||
-    lower.includes('not found');
+    (lower.includes('syntaxerror') && lower.includes('unexpected token'));
 
-  if (isHtmlOrJsonFailure) {
+  if (isHtmlOrJsonSyntaxError) {
     return FRIENDLY_PULL_FAILURE_MESSAGE;
   }
 
@@ -299,6 +295,7 @@ export function getAmazonSpApiSettings(): AmazonSpApiCredentials {
   const defaults: AmazonSpApiCredentials = {
     clientId: '',
     clientSecret: '',
+    applicationId: '',
     marketplaceId: DEFAULT_MARKETPLACE_ID,
     iamArn: '',
     region: 'eu-west-1',
@@ -314,9 +311,12 @@ export function getAmazonSpApiSettings(): AmazonSpApiCredentials {
     const raw = localStorage.getItem(SP_API_SETTINGS_STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
+    const rawCachedClientId = String(parsed?.clientId || '').trim();
+    const safeClientId = rawCachedClientId.includes('2815cbc0') ? '' : rawCachedClientId;
     return {
       ...defaults,
       ...(parsed && typeof parsed === 'object' ? parsed : {}),
+      clientId: safeClientId,
       marketplaceId:
         String(parsed?.marketplaceId || DEFAULT_MARKETPLACE_ID).trim() || DEFAULT_MARKETPLACE_ID,
       iamArn: String(parsed?.iamArn || '').trim(),
@@ -467,22 +467,242 @@ export async function saveTraderAmazonConnection(params: {
   };
 }
 
-export const AMAZON_OAUTH_CLIENT_ID =
-  'amzn1.application-oa2-client.2815cbc0c68e46c78ea15893462ef5d1';
-export const AMAZON_OAUTH_REDIRECT_URI = 'https://radaregypt.store/auth/amazon-callback';
+const LEGACY_DEPRECATED_CLIENT_ID_FRAGMENT = '2815cbc0';
+let runtimeProductionOAuthClientId = '';
+let pendingProductionOAuthClientIdPromise: Promise<string> | null = null;
 
-export function buildMerchantAmazonAuthorizeUrl(
+function sanitizeProductionClientId(raw?: string | null): string {
+  const clean = String(raw || '').trim();
+  if (!clean || clean.includes(LEGACY_DEPRECATED_CLIENT_ID_FRAGMENT)) return '';
+  return clean;
+}
+
+const KNOWN_SELLER_ID_STATE_PREFIXES: Record<string, string> = {
+  A37JIM7LHQI6IM: 'mahmoud',
+  A23IW2QPEITPWT: 'khaled',
+};
+
+const ARABIC_NAME_TO_ASCII_SLUG: Record<string, string> = {
+  محمود: 'mahmoud',
+  خالد: 'khaled',
+  احمد: 'ahmed',
+  محمد: 'mohamed',
+  علي: 'ali',
+  عمر: 'omar',
+  عمرو: 'amr',
+  كريم: 'kareem',
+  يوسف: 'youssef',
+  مصطفى: 'mostafa',
+  مصطفي: 'mostafa',
+  طارق: 'tarek',
+  ابراهيم: 'ibrahim',
+  حسن: 'hassan',
+  حسين: 'hussein',
+  سعيد: 'said',
+  ياسر: 'yasser',
+  اسلام: 'islam',
+  رامي: 'ramy',
+  شريف: 'sherif',
+  تامر: 'tamer',
+  وائل: 'wael',
+  هاني: 'hany',
+  سامح: 'sameh',
+  نور: 'nour',
+  سارة: 'sara',
+  ساره: 'sara',
+  مريم: 'mariam',
+  هشام: 'hesham',
+  وليد: 'waleed',
+  باسم: 'bassem',
+  ماجد: 'maged',
+  عادل: 'adel',
+  سمير: 'samir',
+  ايمن: 'ayman',
+  ايهاب: 'ehab',
+  زياد: 'ziad',
+  مروان: 'marwan',
+  يحيى: 'yahya',
+  يحيي: 'yahya',
+  حمزة: 'hamza',
+  حمزه: 'hamza',
+  عبدالله: 'abdullah',
+  عبدالرحمن: 'abdelrahman',
+};
+
+const ARABIC_CHAR_MAP: Record<string, string> = {
+  ا: 'a',
+  أ: 'a',
+  إ: 'e',
+  آ: 'a',
+  ب: 'b',
+  ت: 't',
+  ث: 'th',
+  ج: 'g',
+  ح: 'h',
+  خ: 'kh',
+  د: 'd',
+  ذ: 'z',
+  ر: 'r',
+  ز: 'z',
+  س: 's',
+  ش: 'sh',
+  ص: 's',
+  ض: 'd',
+  ط: 't',
+  ظ: 'z',
+  ع: 'a',
+  غ: 'gh',
+  ف: 'f',
+  ق: 'q',
+  ك: 'k',
+  ل: 'l',
+  م: 'm',
+  ن: 'n',
+  ه: 'h',
+  ة: 'a',
+  و: 'w',
+  ي: 'y',
+  ى: 'a',
+  ؤ: 'o',
+  ئ: 'e',
+  ء: '',
+};
+
+function normalizeArabicToken(token: string): string {
+  return token
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .trim();
+}
+
+export function buildTraderOAuthState(
   sellerId?: string | null,
   sellerName?: string | null
 ): string {
   const cleanSellerId = String(sellerId || '').trim();
   const cleanSellerName = String(sellerName || '').trim();
-  const stateValue =
-    cleanSellerName && cleanSellerId
-      ? `${cleanSellerName}_${cleanSellerId}`
-      : cleanSellerId || cleanSellerName;
 
-  return `https://www.amazon.com/ap/oa?client_id=${AMAZON_OAUTH_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=${encodeURIComponent(
+  let slug = '';
+  if (cleanSellerName) {
+    const firstWord = cleanSellerName.split(/\s+/).filter(Boolean)[0] || '';
+    const normalizedFirst = normalizeArabicToken(firstWord);
+    if (ARABIC_NAME_TO_ASCII_SLUG[normalizedFirst]) {
+      slug = ARABIC_NAME_TO_ASCII_SLUG[normalizedFirst];
+    } else if (/^[a-z0-9_-]+$/i.test(firstWord)) {
+      slug = firstWord.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    } else if (/[\u0600-\u06FF]/.test(firstWord)) {
+      slug = normalizedFirst
+        .split('')
+        .map((ch) => ARABIC_CHAR_MAP[ch] ?? (/[a-z0-9]/i.test(ch) ? ch.toLowerCase() : ''))
+        .join('')
+        .replace(/[^a-z0-9]/g, '');
+    } else {
+      slug = cleanSellerName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+  }
+
+  if (!slug && cleanSellerId && KNOWN_SELLER_ID_STATE_PREFIXES[cleanSellerId]) {
+    slug = KNOWN_SELLER_ID_STATE_PREFIXES[cleanSellerId];
+  }
+
+  if (slug && cleanSellerId) {
+    return `${slug}_${cleanSellerId}`;
+  }
+  return cleanSellerId || slug;
+}
+
+export const AMAZON_OAUTH_CLIENT_ID = sanitizeProductionClientId(
+  (typeof import.meta !== 'undefined' &&
+    ((import.meta as any).env?.VITE_AMAZON_CLIENT_ID ||
+      (import.meta as any).env?.VITE_LWA_CLIENT_ID)) ||
+    (typeof process !== 'undefined' &&
+      (process.env?.VITE_AMAZON_CLIENT_ID ||
+        process.env?.VITE_LWA_CLIENT_ID ||
+        process.env?.AMAZON_CLIENT_ID ||
+        process.env?.LWA_CLIENT_ID)) ||
+    ''
+);
+export const AMAZON_OAUTH_REDIRECT_URI = 'https://radaregypt.store/auth/amazon-callback';
+
+export function setRuntimeAmazonOAuthClientId(clientId?: string | null): void {
+  runtimeProductionOAuthClientId = sanitizeProductionClientId(clientId);
+}
+
+export function getResolvedAmazonOAuthClientId(overrideClientId?: string | null): string {
+  const fromOverride = sanitizeProductionClientId(overrideClientId);
+  if (fromOverride) return fromOverride;
+
+  const fromViteEnv = sanitizeProductionClientId(
+    (typeof import.meta !== 'undefined' &&
+      ((import.meta as any).env?.VITE_AMAZON_CLIENT_ID ||
+        (import.meta as any).env?.VITE_LWA_CLIENT_ID)) ||
+      ''
+  );
+  if (fromViteEnv) return fromViteEnv;
+
+  const fromProcessEnv = sanitizeProductionClientId(
+    (typeof process !== 'undefined' &&
+      (process.env?.VITE_AMAZON_CLIENT_ID ||
+        process.env?.VITE_LWA_CLIENT_ID ||
+        process.env?.AMAZON_CLIENT_ID ||
+        process.env?.LWA_CLIENT_ID)) ||
+      ''
+  );
+  if (fromProcessEnv) return fromProcessEnv;
+
+  if (runtimeProductionOAuthClientId) return runtimeProductionOAuthClientId;
+
+  const fromLocalSettings = sanitizeProductionClientId(getAmazonSpApiSettings().clientId);
+  if (fromLocalSettings) return fromLocalSettings;
+
+  return sanitizeProductionClientId(AMAZON_OAUTH_CLIENT_ID);
+}
+
+export async function fetchProductionAmazonOAuthClientId(): Promise<string> {
+  const immediate = getResolvedAmazonOAuthClientId();
+  if (immediate) return immediate;
+
+  if (typeof fetch !== 'function') return '';
+  if (pendingProductionOAuthClientIdPromise) return pendingProductionOAuthClientIdPromise;
+
+  pendingProductionOAuthClientIdPromise = (async () => {
+    try {
+      const resp = await fetch('/api/amazon/sp-api/oauth-config', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (!resp.ok) return '';
+      const data = await resp.json().catch(() => null);
+      const serverClientId = sanitizeProductionClientId(data?.clientId);
+      if (serverClientId) {
+        runtimeProductionOAuthClientId = serverClientId;
+      }
+      return serverClientId;
+    } catch {
+      return '';
+    } finally {
+      pendingProductionOAuthClientIdPromise = null;
+    }
+  })();
+
+  return pendingProductionOAuthClientIdPromise;
+}
+
+export function buildMerchantAmazonAuthorizeUrl(
+  sellerId?: string | null,
+  sellerName?: string | null,
+  clientIdOverride?: string | null
+): string {
+  const clientId = getResolvedAmazonOAuthClientId(clientIdOverride);
+  if (!clientId) return '';
+
+  const stateValue = buildTraderOAuthState(sellerId, sellerName);
+  return `https://www.amazon.com/ap/oa?client_id=${encodeURIComponent(
+    clientId
+  )}&scope=profile&response_type=code&redirect_uri=${AMAZON_OAUTH_REDIRECT_URI}&state=${encodeURIComponent(
     stateValue
   )}`;
 }
@@ -537,13 +757,6 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
   message: string;
 }> {
   const settings = getAmazonSpApiSettings();
-  if (!settings.clientId.trim() || !settings.clientSecret.trim()) {
-    return {
-      success: false,
-      message:
-        'يرجى إدخال Client ID و Client Secret العامين لرادار في إعدادات الحساب (/settings) أولاً.',
-    };
-  }
 
   const parsed = extractAmazonOAuthCodeFromInput(params.rawCodeOrUrl);
   if (!parsed.code) {
@@ -558,8 +771,59 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
   ).trim();
   const resolvedTraderId = String(params.traderId || '').trim();
 
-  // 1. Try Supabase Edge Function first
-  if (supabaseClient?.functions) {
+  // 1. Primary path: backend Express /api/amazon/sp-api/exchange-code (can use server Production Client ID/Secret/App ID)
+  try {
+    const res = await fetch('/api/amazon/sp-api/exchange-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: parsed.code,
+        clientId: settings.clientId.trim(),
+        clientSecret: settings.clientSecret.trim(),
+        applicationId: (settings.applicationId || '').trim(),
+        sellerId: resolvedSellerId,
+        traderId: resolvedTraderId,
+      }),
+    });
+    const contentType = (res.headers?.get?.('content-type') || '').toLowerCase();
+    const rawText = await res.text();
+    let json: any = null;
+    try {
+      json = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      json = null;
+    }
+
+    if (json && !(res.status === 404 && !contentType.includes('application/json'))) {
+      const token = String(json?.refresh_token || json?.refreshToken || '').trim();
+      if (!res.ok || json?.success === false || !token) {
+        return {
+          success: false,
+          message: sanitizeProductPullError(
+            json?.message || json?.error_description || json?.error || 'تعذر تحويل كود الموافقة إلى Refresh Token'
+          ),
+        };
+      }
+      const finalSellerId = String(json?.seller_id || resolvedSellerId).trim();
+      await saveTraderAmazonConnection({
+        traderId: resolvedTraderId,
+        sellerId: finalSellerId,
+        refreshToken: token,
+        existingTrader: params.existingTrader,
+      });
+      return {
+        success: true,
+        refreshToken: token,
+        sellerId: finalSellerId,
+        message: 'تم تحويل كود الموافقة وحفظ Refresh Token الخاص بهذا التاجر بنجاح ✓',
+      };
+    }
+  } catch {
+    // fallback to Supabase Edge Function below if backend endpoint is unavailable
+  }
+
+  // 2. Fallback: Supabase Edge Function when clientId & clientSecret are configured in local settings
+  if (supabaseClient?.functions && settings.clientId.trim() && settings.clientSecret.trim()) {
     try {
       const { data, error } = await supabaseClient.functions.invoke('amazon-sp-api-sync', {
         body: {
@@ -567,6 +831,7 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
           code: parsed.code,
           clientId: settings.clientId.trim(),
           clientSecret: settings.clientSecret.trim(),
+          applicationId: (settings.applicationId || '').trim(),
           sellerId: resolvedSellerId,
           marketplaceId: settings.marketplaceId || DEFAULT_MARKETPLACE_ID,
           traderId: resolvedTraderId || resolvedSellerId,
@@ -588,59 +853,25 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
           message: 'تم تحويل كود الموافقة وحفظ Refresh Token الخاص بهذا التاجر بنجاح ✓',
         };
       }
-      if (data?.error) {
+      if (data?.error || data?.message) {
         return {
           success: false,
-          message: sanitizeProductPullError(data.error),
+          message: sanitizeProductPullError(data.message || data.error_description || data.error),
         };
       }
-    } catch {
-      // fallback to server endpoint below
+    } catch (err) {
+      return {
+        success: false,
+        message: sanitizeProductPullError(err),
+      };
     }
   }
 
-  // 2. Fallback to backend Express exchange endpoint
-  try {
-    const res = await fetch('/api/amazon/sp-api/exchange-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: parsed.code,
-        clientId: settings.clientId.trim(),
-        clientSecret: settings.clientSecret.trim(),
-        sellerId: resolvedSellerId,
-        traderId: resolvedTraderId,
-      }),
-    });
-    const json = await parseSafeJsonOrThrow(res);
-    const token = String(json?.refresh_token || json?.refreshToken || '').trim();
-    if (!res.ok || json?.success === false || !token) {
-      return {
-        success: false,
-        message: sanitizeProductPullError(
-          json?.error || json?.message || 'تعذر تحويل كود الموافقة إلى Refresh Token'
-        ),
-      };
-    }
-    const finalSellerId = String(json?.seller_id || resolvedSellerId).trim();
-    await saveTraderAmazonConnection({
-      traderId: resolvedTraderId,
-      sellerId: finalSellerId,
-      refreshToken: token,
-      existingTrader: params.existingTrader,
-    });
-    return {
-      success: true,
-      refreshToken: token,
-      sellerId: finalSellerId,
-      message: 'تم تحويل كود الموافقة وحفظ Refresh Token الخاص بهذا التاجر بنجاح ✓',
-    };
-  } catch (err) {
-    return {
-      success: false,
-      message: sanitizeProductPullError(err),
-    };
-  }
+  return {
+    success: false,
+    message:
+      'يرجى إدخال Client ID و Client Secret في إعدادات الحساب (/settings) أو تفعيل متغيرات البيئة على الخادم.',
+  };
 }
 
 export function saveAmazonSpApiSettings(
@@ -650,6 +881,7 @@ export function saveAmazonSpApiSettings(
   const next: AmazonSpApiCredentials = {
     clientId: (updates.clientId ?? current.clientId).trim(),
     clientSecret: (updates.clientSecret ?? current.clientSecret).trim(),
+    applicationId: (updates.applicationId ?? current.applicationId ?? '').trim(),
     marketplaceId:
       (updates.marketplaceId ?? current.marketplaceId ?? DEFAULT_MARKETPLACE_ID).trim() ||
       DEFAULT_MARKETPLACE_ID,
@@ -705,17 +937,17 @@ export function isAmazonSpApiConfigured(
   creds?: AmazonSpApiCredentials,
   traderOrId?: any
 ): boolean {
+  if (traderOrId && getTraderAmazonConnection(traderOrId).isConnected) {
+    return true;
+  }
   const settings = creds || getAmazonSpApiSettings();
-  if (!settings.clientId.trim() || !settings.clientSecret.trim()) {
-    return false;
-  }
-  if (traderOrId) {
-    return getTraderAmazonConnection(traderOrId).isConnected;
-  }
   if (creds?.refreshToken && creds.refreshToken.trim()) {
     return true;
   }
-  return Boolean(settings.refreshToken?.trim() || getAnyConnectedTraderToken()?.refreshToken);
+  if (settings.refreshToken?.trim() || getAnyConnectedTraderToken()?.refreshToken) {
+    return true;
+  }
+  return Boolean(settings.clientId.trim() && settings.clientSecret.trim() && getAnyConnectedTraderToken()?.refreshToken);
 }
 
 const SUPPORTED_EXTS = ['.txt', '.csv', '.tsv', '.xlsx', '.xls'];
@@ -2675,21 +2907,33 @@ export async function importSellerCentralFile(
 }
 
 /**
- * Triggers SP-API product pull strictly via Supabase Edge Function (`amazon-sp-api-sync`).
- * Never issues browser fetch() to Amazon Seller Central, destination_url, or store_url.
+ * Pulls live products from Amazon SP-API via our backend (/api/amazon/sp-api/pull-products)
+ * using the trader's Refresh Token + Production App credentials (Client ID, Client Secret, Application ID).
+ * Falls back to Supabase Edge Function (`amazon-sp-api-sync`) only if backend endpoint is not present.
+ * Always surfaces Amazon's real error verbatim if LWA or SP-API rejects the request.
  */
 export async function invokeAmazonSpApiSyncEdgeFunction(
-  traderId?: string
+  traderId?: string,
+  traderObj?: any
 ): Promise<SpApiSyncOutcome> {
   checkClientImportRateLimit();
   const settings = getAmazonSpApiSettings();
-  const traderConn = getTraderAmazonConnection(traderId);
-  const fallbackConn = !traderConn.refreshToken ? getAnyConnectedTraderToken() : null;
-  const resolvedRefreshToken = traderConn.refreshToken || fallbackConn?.refreshToken || '';
-  const resolvedSellerId =
-    traderConn.sellerId || fallbackConn?.sellerId || (traderId && /^A[A-Z0-9]{8,}$/i.test(traderId) ? traderId : DEFAULT_TRADER_ID);
+  const traderConn = getTraderAmazonConnection(traderObj || traderId);
+  const fallbackConn =
+    !traderConn.refreshToken && (!traderId || traderId === 'all' || traderId === DEFAULT_TRADER_ID)
+      ? getAnyConnectedTraderToken()
+      : null;
+  const resolvedRefreshToken = String(
+    traderConn.refreshToken || settings.refreshToken || fallbackConn?.refreshToken || ''
+  ).trim();
+  const resolvedSellerId = String(
+    traderConn.sellerId ||
+      fallbackConn?.sellerId ||
+      settings.sellerId ||
+      (traderId && /^A[A-Z0-9]{8,}$/i.test(traderId) ? traderId : DEFAULT_TRADER_ID)
+  ).trim();
 
-  if (!settings.clientId.trim() || !settings.clientSecret.trim() || !resolvedRefreshToken) {
+  if (!resolvedRefreshToken) {
     return {
       success: false,
       blocked: true,
@@ -2697,78 +2941,201 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
     };
   }
 
-  if (!supabaseClient || !supabaseClient.functions) {
-    return {
-      success: false,
-      message: FRIENDLY_PULL_FAILURE_MESSAGE,
-    };
-  }
-
   const targetTraderId = await resolveValidTraderUuid(
-    traderId && traderId !== 'all' ? traderId : undefined
+    traderId && traderId !== 'all' ? traderId : traderObj?.id
   );
 
+  // 1. Primary path: Express backend SP-API real pull endpoint (/api/amazon/sp-api/pull-products)
+  // Exchanges Refresh Token at https://api.amazon.com/auth/o2/token, then calls
+  // GET /listings/2021-08-01/items/{sellerId} and GET /catalog/2022-04-01/items
+  let shouldFallbackToEdgeFunction = false;
   try {
-    const { data, error } = await supabaseClient.functions.invoke('amazon-sp-api-sync', {
-      body: {
-        refreshToken: resolvedRefreshToken,
-        clientId: settings.clientId,
-        clientSecret: settings.clientSecret,
+    const res = await fetch('/api/amazon/sp-api/pull-products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        traderId: targetTraderId,
+        merchantId: targetTraderId,
         sellerId: resolvedSellerId,
+        refreshToken: resolvedRefreshToken,
+        clientId: settings.clientId.trim(),
+        clientSecret: settings.clientSecret.trim(),
+        applicationId: (settings.applicationId || '').trim(),
         marketplaceId: settings.marketplaceId || DEFAULT_MARKETPLACE_ID,
         region: settings.region || 'eu-west-1',
-        traderId: targetTraderId,
-      },
+      }),
     });
 
-    if (error) {
-      return {
-        success: false,
-        message: sanitizeProductPullError(error),
-      };
+    const contentType = (res.headers?.get?.('content-type') || '').toLowerCase();
+    const rawText = await res.text();
+    let data: any = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      data = null;
     }
 
-    if (data && typeof data === 'object' && data.success === false) {
-      return {
-        success: false,
-        message: sanitizeProductPullError(data.error || data.message),
-      };
-    }
-
-    const edgeProducts = Array.isArray(data?.products) ? data.products : [];
-    if (edgeProducts.length > 0) {
-      const normalized = mapRawSheetRowsToProducts(edgeProducts, {
-        traderId: targetTraderId,
-        platform: 'amazon',
-      });
-      if (normalized.length > 0) {
-        const summary = await upsertImportedProductsToSupabase(normalized, targetTraderId, 0, {
-          fileName: 'amazon-sp-api-sync',
-          fileType: 'sp_api',
-        });
+    if (res.status === 404 && !contentType.includes('application/json')) {
+      shouldFallbackToEdgeFunction = true;
+    } else if (!data && rawText.trim().startsWith('<')) {
+      shouldFallbackToEdgeFunction = true;
+    } else {
+      if (!res.ok || data?.success === false) {
+        const realErrMsg = String(
+          data?.message ||
+            data?.error_description ||
+            data?.error ||
+            rawText ||
+            `خطأ من خادم SP-API (HTTP ${res.status})`
+        ).trim();
         return {
-          success: true,
-          message: summary.message,
-          total: summary.total,
-          newCount: summary.newCount,
-          updatedCount: summary.updatedCount,
+          success: false,
+          amazonError: data?.error || data?.amazonError?.code,
+          message: sanitizeProductPullError(realErrMsg),
         };
       }
-    }
 
-    return {
-      success: true,
-      message: data?.message || 'تم الاتصال بـ SP-API عبر Supabase Edge Function بنجاح',
-      total: Number(data?.total || 0),
-      newCount: Number(data?.newCount || 0),
-      updatedCount: Number(data?.updatedCount || 0),
-    };
-  } catch (err) {
-    return {
-      success: false,
-      message: sanitizeProductPullError(err),
-    };
+      const pulledProducts = Array.isArray(data?.products) ? data.products : [];
+      if (pulledProducts.length > 0) {
+        const normalized: SellerCentralImportedRow[] = pulledProducts.map((it: any) => {
+          const asin = String(it?.asin || '').trim().toUpperCase();
+          const sku = String(it?.sku || asin || '').trim();
+          const priceNum = Number(it?.price ?? it?.merchantPrice ?? 0);
+          const rawStock = it?.stock ?? it?.stockQuantity ?? it?.quantity;
+          const stockNum =
+            rawStock === null || rawStock === undefined || rawStock === ''
+              ? null
+              : Number(rawStock);
+          return {
+            title: String(it?.title || sku || asin).trim(),
+            sku,
+            asin,
+            price: Number.isFinite(priceNum) ? Math.round(priceNum * 100) / 100 : 0,
+            stock: stockNum !== null && Number.isFinite(stockNum) ? Math.round(stockNum) : null,
+            image_url: String(it?.image_url || it?.imageUrl || buildAmazonAsinImageUrl(asin) || '').trim(),
+            product_url: String(it?.product_url || (asin ? `https://www.amazon.eg/dp/${asin}` : '')).trim(),
+            status: String(it?.status || 'active'),
+            condition: String(it?.condition || 'New'),
+            platform: 'amazon',
+            trader_id: targetTraderId,
+          };
+        }).filter((row: SellerCentralImportedRow) => Boolean(row.sku));
+
+        if (normalized.length > 0) {
+          const summary = await upsertImportedProductsToSupabase(normalized, targetTraderId, 0, {
+            fileName: 'sp-api-live',
+            fileType: 'sp_api',
+          });
+          return {
+            success: true,
+            message: `تم سحب ${normalized.length} منتج حقيقي من Amazon SP-API (جديد ${summary.newCount} — محدّث ${summary.updatedCount})`,
+            total: summary.total,
+            newCount: summary.newCount,
+            updatedCount: summary.updatedCount,
+            products: normalized,
+            source: data?.source || 'sp_api_live',
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: data?.message || 'تم الاتصال بـ Amazon SP-API بنجاح ولكن لا توجد منتجات مدرجة على هذا الحساب حالياً (0 منتجات).',
+        total: 0,
+        newCount: 0,
+        updatedCount: 0,
+        products: [],
+        source: data?.source || 'sp_api_live',
+      };
+    }
+  } catch (err: any) {
+    if (supabaseClient?.functions && settings.clientId.trim() && settings.clientSecret.trim()) {
+      shouldFallbackToEdgeFunction = true;
+    } else {
+      return {
+        success: false,
+        message: sanitizeProductPullError(err),
+      };
+    }
   }
+
+  // 2. Fallback path: Supabase Edge Function (`amazon-sp-api-sync`) when backend route is not hosted
+  if (shouldFallbackToEdgeFunction && supabaseClient?.functions) {
+    try {
+      const { data, error } = await supabaseClient.functions.invoke('amazon-sp-api-sync', {
+        body: {
+          refreshToken: resolvedRefreshToken,
+          clientId: settings.clientId.trim(),
+          clientSecret: settings.clientSecret.trim(),
+          applicationId: (settings.applicationId || '').trim(),
+          sellerId: resolvedSellerId,
+          marketplaceId: settings.marketplaceId || DEFAULT_MARKETPLACE_ID,
+          region: settings.region || 'eu-west-1',
+          traderId: targetTraderId,
+        },
+      });
+
+      if (error) {
+        return {
+          success: false,
+          message: sanitizeProductPullError(error),
+        };
+      }
+
+      if (data && typeof data === 'object' && data.success === false) {
+        return {
+          success: false,
+          amazonError: data.error,
+          message: sanitizeProductPullError(data.message || data.error_description || data.error),
+        };
+      }
+
+      const edgeProducts = Array.isArray(data?.products) ? data.products : [];
+      if (edgeProducts.length > 0) {
+        const normalized = mapRawSheetRowsToProducts(edgeProducts, {
+          traderId: targetTraderId,
+          platform: 'amazon',
+        });
+        if (normalized.length > 0) {
+          const summary = await upsertImportedProductsToSupabase(normalized, targetTraderId, 0, {
+            fileName: 'amazon-sp-api-sync',
+            fileType: 'sp_api',
+          });
+          return {
+            success: true,
+            message: summary.message,
+            total: summary.total,
+            newCount: summary.newCount,
+            updatedCount: summary.updatedCount,
+            products: normalized,
+            source: 'sp_api_edge',
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: data?.message || 'تم الاتصال بـ Amazon SP-API بنجاح ولكن لا توجد منتجات مدرجة على هذا الحساب حالياً.',
+        total: Number(data?.total || 0),
+        newCount: Number(data?.newCount || 0),
+        updatedCount: Number(data?.updatedCount || 0),
+        products: [],
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: sanitizeProductPullError(err),
+      };
+    }
+  }
+
+  return {
+    success: false,
+    message: FRIENDLY_PULL_FAILURE_MESSAGE,
+  };
 }
 
 export interface CompetitorSyncCandidate {

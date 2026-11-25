@@ -44,6 +44,7 @@ import {
   IMPORT_BUTTON_LABEL,
   NO_TRADER_SELECTED_ERROR,
   SellerCentralImportPreview,
+  getTraderAmazonConnection,
   invokeAmazonSpApiSyncEdgeFunction,
   isAmazonSpApiConfigured,
   previewSellerCentralFile,
@@ -154,7 +155,7 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
 
     setPullNotice(null);
 
-    if (!isAmazonSpApiConfigured()) {
+    if (!isAmazonSpApiConfigured(undefined, trader)) {
       setPullNotice(DIRECT_FETCH_BLOCKED_MESSAGE);
       if (onShowToast) onShowToast(DIRECT_FETCH_BLOCKED_MESSAGE);
       return;
@@ -168,7 +169,7 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
 
     setIsScrapingStorefront(true);
     try {
-      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId);
+      const outcome = await invokeAmazonSpApiSyncEdgeFunction(traderId, trader);
       if (!outcome.success) {
         const cleanMsg = sanitizeProductPullError(outcome.message);
         setPullNotice(cleanMsg);
@@ -945,6 +946,7 @@ export const TraderProfilePage: React.FC<TraderProfilePageProps> = ({
           trader={trader}
           isOpen={isFetchModalOpen}
           initialPreview={pendingPreview}
+          autoStartSpApi={Boolean(getTraderAmazonConnection(trader).refreshToken)}
           onClose={() => {
             setIsFetchModalOpen(false);
             setPendingPreview(null);

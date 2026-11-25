@@ -48,13 +48,17 @@ export const AutoPricingSettingsModal: React.FC<AutoPricingSettingsModalProps> =
     e.preventDefault();
     setIsSaving(true);
 
+    const resolvedTitle = ruleName.trim() || 'قاعدة تسعير جديدة';
     const newRule: AutoPricingRule = {
       id: editingRuleId || `rule_${Date.now()}`,
-      name: ruleName.trim() || 'قاعدة تسعير جديدة',
+      title: resolvedTitle,
+      name: resolvedTitle,
+      description: `قاعدة تسعير آلي: ${resolvedTitle}`,
       isActive,
       priority: rules.length + 1,
       conditionType,
       conditionValue: 2, // e.g., 2% change threshold
+      conditionPlatformFilter: 'all',
       actionType,
       actionValue: deltaValue,
       guardrails: {
@@ -63,6 +67,7 @@ export const AutoPricingSettingsModal: React.FC<AutoPricingSettingsModalProps> =
         requireFounderApprovalAboveDeltaPercent: 25,
         pauseOnCompetitorStockOut: true,
       },
+      createdAt: new Date().toISOString().substring(0, 10),
       updatedAt: new Date().toISOString(),
     };
 
@@ -106,12 +111,12 @@ export const AutoPricingSettingsModal: React.FC<AutoPricingSettingsModalProps> =
 
   const handleEditRule = (rule: AutoPricingRule) => {
     setEditingRuleId(rule.id);
-    setRuleName(rule.name);
+    setRuleName(rule.name || rule.title);
     setConditionType(rule.conditionType);
     setActionType(rule.actionType);
     setDeltaValue(rule.actionValue);
     setMinFloorPrice(rule.guardrails.minFloorPriceEGP);
-    setMaxDiscountPercent(rule.guardrails.maxDiscountPercentFromBaseline);
+    setMaxDiscountPercent(rule.guardrails.maxDiscountPercentFromBaseline ?? 15);
     setIsActive(rule.isActive);
   };
 
@@ -289,7 +294,7 @@ export const AutoPricingSettingsModal: React.FC<AutoPricingSettingsModalProps> =
               >
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black text-white">{rule.name}</span>
+                    <span className="text-xs font-black text-white">{rule.name || rule.title}</span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         rule.isActive

@@ -21,20 +21,24 @@ export type AutoPricingActionType =
 
 export interface AutoPricingGuardrails {
   minFloorPriceEGP: number;        // الحد الأدنى المطلق للسعر
-  maxCeilingPriceEGP: number;      // الحد الأقصى المطلق للسعر
-  minNetMarginPercent: number;     // الحد الأدنى لهامش الربح الصافي %
-  maxDailyPriceChanges: number;    // أقصى عدد مرات تعديل في اليوم
+  maxCeilingPriceEGP?: number;     // الحد الأقصى المطلق للسعر
+  minNetMarginPercent?: number;    // الحد الأدنى لهامش الربح الصافي %
+  maxDailyPriceChanges?: number;   // أقصى عدد مرات تعديل في اليوم
+  maxDiscountPercentFromBaseline?: number;
+  requireFounderApprovalAboveDeltaPercent?: number;
+  pauseOnCompetitorStockOut?: boolean;
   protectLowStock?: boolean;       // منع التخفيض في حالة المخزون المنخفض
-  targetPlatforms: ('amazon_eg' | 'noon_eg' | 'jumia_eg' | 'all')[];
+  targetPlatforms?: ('amazon_eg' | 'noon_eg' | 'jumia_eg' | 'all')[];
 }
 
 export interface AutoPricingRule {
   id: string;
+  name?: string;
   title: string;
-  description: string;
+  description?: string;
   conditionType: AutoPricingTriggerCondition;
   conditionValue?: number;         // القيمة المحددة للشرط X (مثلاً تغير 5% أو فارق 20 ج.م)
-  conditionPlatformFilter: 'all' | 'amazon_eg' | 'noon_eg' | 'jumia_eg';
+  conditionPlatformFilter?: 'all' | 'amazon_eg' | 'noon_eg' | 'jumia_eg';
   actionType: AutoPricingActionType;
   actionValue: number;             // قيمة الإجراء Y (مثلاً 10 جنيهات أوفست فوق المنافس، أو 5 جنيهات تخفيض)
   actionOffsetType?: 'fixed_egp' | 'percent'; // نوع قيمة الإجراء (مبلغ ثابت ج.م أو نسبة مئوية %)
@@ -45,7 +49,7 @@ export interface AutoPricingRule {
   appliedProductsCount?: number;
   isPreset?: boolean;
   icon?: string;
-  createdAt: string;
+  createdAt?: string;
   updatedAt: string;
 }
 

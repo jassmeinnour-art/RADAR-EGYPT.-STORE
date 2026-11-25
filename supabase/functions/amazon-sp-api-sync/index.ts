@@ -173,19 +173,32 @@ Deno.serve(async (req: Request) => {
 
     const lwaRes = await fetch('https://api.amazon.com/auth/o2/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'Accept': 'application/json',
+      },
       body: lwaParams.toString(),
     });
 
     if (!lwaRes.ok) {
       const lwaErrText = await lwaRes.text();
+      let errCode = `http_${lwaRes.status}`;
+      let errDesc = lwaErrText;
+      try {
+        const parsed = JSON.parse(lwaErrText);
+        errCode = parsed?.error || errCode;
+        errDesc = parsed?.error_description || parsed?.message || lwaErrText;
+      } catch {
+        // keep raw text
+      }
       return new Response(
         JSON.stringify({
           success: false,
-          error: `تعذر المصادقة مع Amazon LWA (${lwaRes.status})`,
-          details: lwaErrText.slice(0, 300),
+          error: errCode,
+          error_description: errDesc,
+          message: `خطأ من أمازون LWA (${lwaRes.status} - ${errCode}): ${errDesc}`,
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: lwaRes.status >= 400 ? lwaRes.status : 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -193,57 +206,150 @@ Deno.serve(async (req: Request) => {
     const accessToken = String(lwaJson.access_token || '');
     if (!accessToken) {
       return new Response(
-        JSON.stringify({ success: false, error: 'لم يرجع خادم Amazon LWA رمز access_token صالح' }),
+        JSON.stringify({ success: false, error: 'empty_access_token', message: 'لم يرجع خادم Amazon LWA رمز access_token صالح' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 2. Query SP-API EU Listings Items for this Seller
-    const spApiUrl = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${encodeURIComponent(
-      sellerId
-    )}?marketplaceIds=${encodeURIComponent(marketplaceId)}&includedData=summaries,offers,fulfillmentAvailability`;
+    const regionStr = String(body.region || 'eu-west-1').toLowerCase();
+    const spHost =
+      regionStr === 'us-east-1' || regionStr === 'na'
+        ? 'https://sellingpartnerapi-na.amazon.com'
+        : regionStr === 'us-west-2' || regionStr === 'fe'
+        ? 'https://sellingpartnerapi-fe.amazon.com'
+        : 'https://sellingpartnerapi-eu.amazon.com';
 
-    const listingsRes = await fetch(spApiUrl, {
-      method: 'GET',
-      headers: {
-        'x-amz-access-token': accessToken,
-        'Content-Type': 'application/json',
-      },
-    });
+    // 2. Query SP-API Listings Items for this Seller (GET /listings/2021-08-01/items/{sellerId})
+    const items: any[] = [];
+    let pageToken: string | null = null;
+    let pages = 0;
 
-    if (!listingsRes.ok) {
-      const spErrText = await listingsRes.text();
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `تعذر جلب المنتجات من Amazon SP-API (${listingsRes.status})`,
-          details: spErrText.slice(0, 300),
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    do {
+      const qs = new URLSearchParams({
+        marketplaceIds: marketplaceId,
+        includedData: 'summaries,offers,fulfillmentAvailability,attributes',
+        pageSize: '20',
+      });
+      if (pageToken) qs.set('pageToken', pageToken);
+
+      const spApiUrl = `${spHost}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${qs.toString()}`;
+      const listingsRes = await fetch(spApiUrl, {
+        method: 'GET',
+        headers: {
+          'x-amz-access-token': accessToken,
+          'Accept': 'application/json',
+        },
+      });
+
+      const spErrOrBodyText = await listingsRes.text();
+      let listingsData: any = null;
+      try {
+        listingsData = JSON.parse(spErrOrBodyText);
+      } catch {
+        listingsData = null;
+      }
+
+      if (!listingsRes.ok) {
+        const firstErr = Array.isArray(listingsData?.errors) ? listingsData.errors[0] : null;
+        const errCode = String(firstErr?.code || listingsData?.error || `http_${listingsRes.status}`);
+        const errMsg = String(firstErr?.message || listingsData?.message || spErrOrBodyText).trim();
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: errCode,
+            message: `خطأ من Amazon SP-API /listings/2021-08-01 (${listingsRes.status} - ${errCode}): ${errMsg}`,
+          }),
+          { status: listingsRes.status >= 400 ? listingsRes.status : 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (Array.isArray(listingsData?.items)) {
+        items.push(...listingsData.items);
+      }
+      pageToken = listingsData?.pagination?.nextToken ? String(listingsData.pagination.nextToken) : null;
+      pages++;
+    } while (pageToken && pages < 25);
+
+    // 3. Enrich from GET /catalog/2022-04-01/items
+    const catalogByAsin = new Map<string, any>();
+    const uniqueAsins = Array.from(
+      new Set(
+        items
+          .map((it: any) => String(it?.summaries?.[0]?.asin || '').trim().toUpperCase())
+          .filter((a: string) => /^[A-Z0-9]{8,14}$/.test(a))
+      )
+    );
+    for (let i = 0; i < uniqueAsins.length; i += 20) {
+      const chunk = uniqueAsins.slice(i, i + 20);
+      try {
+        const catRes = await fetch(
+          `${spHost}/catalog/2022-04-01/items?marketplaceIds=${encodeURIComponent(marketplaceId)}&identifiers=${encodeURIComponent(
+            chunk.join(',')
+          )}&identifiersType=ASIN&includedData=images,summaries,attributes`,
+          {
+            method: 'GET',
+            headers: {
+              'x-amz-access-token': accessToken,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        if (catRes.ok) {
+          const catJson = await catRes.json();
+          for (const c of catJson?.items || []) {
+            if (c?.asin) catalogByAsin.set(String(c.asin).trim().toUpperCase(), c);
+          }
+        }
+      } catch {
+        // non-fatal
+      }
     }
 
-    const listingsData = await listingsRes.json();
-    const items = Array.isArray(listingsData?.items) ? listingsData.items : [];
     const nowIso = new Date().toISOString();
-
     const mappedProducts = items.map((item: any) => {
       const summary = Array.isArray(item.summaries) ? item.summaries[0] || {} : {};
-      const offer = Array.isArray(item.offers) ? item.offers[0] || {} : {};
-      const availability = Array.isArray(item.fulfillmentAvailability)
-        ? item.fulfillmentAvailability[0] || {}
+      const offer = Array.isArray(item.offers)
+        ? item.offers.find((o: any) => o?.offerType === 'B2C') || item.offers[0] || {}
         : {};
-      const asin = String(summary.asin || '').trim();
+      const attrOffer = item?.attributes?.purchasable_offer?.[0];
+      const fallbackPrice =
+        attrOffer?.our_price?.[0]?.schedule?.[0]?.value_with_tax ??
+        attrOffer?.discounted_price?.[0]?.schedule?.[0]?.value_with_tax ??
+        item?.attributes?.list_price?.[0]?.value ??
+        0;
+      const rawPrice = Number(offer.price?.amount ?? fallbackPrice ?? 0);
+
+      const availList = Array.isArray(item.fulfillmentAvailability)
+        ? item.fulfillmentAvailability
+        : Array.isArray(item?.attributes?.fulfillment_availability)
+        ? item.attributes.fulfillment_availability
+        : [];
+      let totalQty = 0;
+      let hasQty = false;
+      for (const av of availList) {
+        if (av && av.quantity !== undefined && av.quantity !== null) {
+          const q = Number(av.quantity);
+          if (Number.isFinite(q) && q >= 0) {
+            totalQty += Math.round(q);
+            hasQty = true;
+          }
+        }
+      }
+
+      const asin = String(summary.asin || '').trim().toUpperCase();
       const sku = String(item.sku || asin || '').trim();
-      const imageUrl = String(summary.mainImage?.link || '');
+      const catItem = asin ? catalogByAsin.get(asin) : undefined;
+      const catSummary = Array.isArray(catItem?.summaries) ? catItem.summaries[0] || {} : {};
+      const catImage = catItem?.images?.[0]?.images?.[0]?.link || '';
+      const imageUrl = String(summary.mainImage?.link || catImage || '');
 
       return {
         trader_id: traderId,
-        title: String(summary.itemName || sku),
+        title: String(summary.itemName || catSummary.itemName || item?.attributes?.item_name?.[0]?.value || sku),
         sku,
         asin,
-        price: Number(offer.price?.amount || 0),
-        stock: Number(availability.quantity || 0),
+        price: Number.isFinite(rawPrice) ? Math.round(rawPrice * 100) / 100 : 0,
+        stock: hasQty ? totalQty : null,
         platform: 'amazon',
         image: imageUrl,
         image_url: imageUrl,
@@ -252,7 +358,7 @@ Deno.serve(async (req: Request) => {
       };
     });
 
-    // 3. Persist into Supabase products table if service key is available
+    // 4. Persist into Supabase products table if service key is available
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (supabaseUrl && supabaseServiceKey && mappedProducts.length > 0) {
@@ -263,6 +369,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
+        source: 'sp_api_live',
         total: mappedProducts.length,
         products: mappedProducts,
       }),

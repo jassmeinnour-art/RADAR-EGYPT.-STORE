@@ -111,6 +111,7 @@ export default function AnalyticsPage() {
           <EmergencyErrorBanner message="تعذر جلب بيانات التحليلات من قاعدة البيانات." />
         )}
         <GlobalEmptyState
+          icon={<TrendingUp className="w-10 h-10 text-amber-400" />}
           message={fetchError ? 'لا توجد بيانات' : '📊 لا توجد تحليلات متاحة'}
           description="دليل التجار والمنتجات فارغ حالياً. أضف تجاراً ومنتجات وفواتير أولاً لتتمكن المنظومة من تتبع الأسعار وتوليد الرسوم البيانية."
           actionLabel="➕ إضافة تاجر جديد"

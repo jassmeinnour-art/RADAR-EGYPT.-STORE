@@ -30,6 +30,7 @@ import { usePerformanceMode } from '../context/PerformanceModeContext';
 import { ThemeToggle } from './ThemeToggle';
 import { supabase } from '../lib/supabase';
 import {
+  DEFAULT_MARKETPLACE_ID,
   DEFAULT_TRADER_ID,
   FOUNDER_AMAZON_WARNING_TEXT,
   RADAR_COMPETITOR_PRICES_UPDATED_EVENT,
@@ -984,10 +985,10 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
           <div className="space-y-1">
             <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <Key className="w-5 h-5 text-amber-400" />
-              <span>ربط أمازون SP-API (عبر Supabase Edge Function)</span>
+              <span>ربط أمازون SP-API الرسمي (Production Credentials)</span>
             </h2>
             <p className="text-xs text-slate-400">
-              تُستخدم هذه المفاتيح للسحب الرسمي عبر خادم Supabase Edge Function وليس من المتصفح لتجنب حظر CORS من أمازون.
+              تُستخدم مفاتيح التطبيق (Client ID و Client Secret و Application ID) مع Refresh Token الخاص بكل تاجر للسحب المباشر من خادم Amazon SP-API.
             </p>
           </div>
           <span
@@ -1072,6 +1073,26 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
 
           <div>
             <label
+              htmlFor="sp-api-application-id"
+              className="block text-xs font-bold text-slate-300 mb-1.5"
+            >
+              Application ID
+            </label>
+            <input
+              id="sp-api-application-id"
+              type="text"
+              dir="ltr"
+              value={spApiCreds.applicationId || ''}
+              onChange={(e) =>
+                setSpApiCreds((prev) => ({ ...prev, applicationId: e.target.value }))
+              }
+              placeholder="amzn1.sp.solution..."
+              className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div>
+            <label
               htmlFor="sp-api-marketplace-id"
               className="block text-xs font-bold text-slate-300 mb-1.5"
             >
@@ -1081,16 +1102,16 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
               id="sp-api-marketplace-id"
               type="text"
               dir="ltr"
-              value={spApiCreds.marketplaceId || 'A2VIGQ35RCS4UG'}
+              value={spApiCreds.marketplaceId || DEFAULT_MARKETPLACE_ID}
               onChange={(e) =>
                 setSpApiCreds((prev) => ({ ...prev, marketplaceId: e.target.value }))
               }
-              placeholder="A2VIGQ35RCS4UG"
+              placeholder={DEFAULT_MARKETPLACE_ID}
               className="w-full h-10 px-3 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white text-left focus:outline-none focus:border-amber-400"
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label
               htmlFor="sp-api-iam-arn"
               className="block text-xs font-bold text-slate-300 mb-1.5"

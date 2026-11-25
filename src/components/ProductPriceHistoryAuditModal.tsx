@@ -475,8 +475,8 @@ export const ProductPriceHistoryAuditModal: React.FC<ProductPriceHistoryAuditMod
 
           <div className="h-64 sm:h-72 w-full flex flex-col justify-end p-4 bg-slate-950/80 rounded-2xl border border-slate-800" dir="ltr">
             <div className="flex items-end justify-between gap-1 h-52">
-              {chartData.map((pt, idx) => {
-                const maxP = Math.max(...chartData.map(p => Math.max(p.price || 0, p.competitorPrice || 0)));
+              {filteredTimeline.map((pt, idx) => {
+                const maxP = Math.max(...filteredTimeline.map(p => Math.max(p.price || 0, p.competitorPrice || 0)));
                 const val = pt.price || 0;
                 const heightPct = Math.max(15, Math.round((val / (maxP || 1)) * 100));
                 return (

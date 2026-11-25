@@ -357,6 +357,7 @@ ${report.aiExecutiveSummary}
          </div>
          
          <GlobalEmptyState
+            icon={<FileText className="w-10 h-10 text-indigo-400" />}
             message="لا توجد تقارير متاحة بعد"
             description="يجب إضافة تجار ومنتجات وفواتير أولاً ليتمكن النظام من تحليل البيانات وتوليد التقارير الدورية."
             actionLabel="➕ إضافة تاجر جديد"

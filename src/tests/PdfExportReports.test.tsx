@@ -40,7 +40,7 @@ describe('PDF Export (jsPDF) in Reports & ExportCenterModal', () => {
     );
 
     expect(typeof pdf.save).toBe('function');
-    expect(pdf.internal.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+    expect(pdf.getNumberOfPages()).toBeGreaterThanOrEqual(1);
     const rawPdf = pdf.output();
     expect(rawPdf.startsWith('%PDF-')).toBe(true);
     expect(rawPdf).toContain('SKU-101');
@@ -74,7 +74,7 @@ describe('PDF Export (jsPDF) in Reports & ExportCenterModal', () => {
     );
 
     expect(typeof pdf.save).toBe('function');
-    expect(pdf.internal.getNumberOfPages()).toBeGreaterThanOrEqual(1);
+    expect(pdf.getNumberOfPages()).toBeGreaterThanOrEqual(1);
     const rawPdf = pdf.output();
     expect(rawPdf.startsWith('%PDF-')).toBe(true);
     expect(rawPdf).toContain('2026-11-20');
