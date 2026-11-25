@@ -18,7 +18,12 @@ import {
   Calendar,
   Activity,
   GitCompareArrows,
-  Check
+  Check,
+  Store,
+  ExternalLink,
+  Bell,
+  Hash,
+  Plus
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -36,6 +41,19 @@ import { INITIAL_AUTO_PRICING_PRODUCTS, AUTO_PRICING_PRODUCTS_STORAGE_KEY } from
 import { AutoPricingProductItem } from '../types/autoPricing';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { PRICE_HISTORY_MAP_KEY, ProductPriceHistoryRecord } from '../utils/smartPriceAlerts';
+import { Product, Trader, supabase } from '../lib/supabase';
+import { CompetingStoresManagerModal } from './CompetingStoresManagerModal';
+import {
+  CheaperCompetitorAlert,
+  CompetingStoreItem,
+  RADAR_COMPETING_STORES_UPDATED_EVENT,
+  checkAllCompetingStoresDaily,
+  getAllCheaperCompetitorAlerts,
+  getTraderCompetingStores,
+  recalculateStoreStats,
+  resolveTraderMerchantSellerId,
+  saveTraderCompetingStores,
+} from '../utils/competingStoresManager';
 
 export interface MonthlyPriceTrendPoint {
   dateKey: string;
@@ -482,6 +500,89 @@ export default function PriceComparisonEngine({
   const [showCostReference, setShowCostReference] = useState(true);
   const [showProjection, setShowProjection] = useState(true);
 
+  // Competing Stores & Daily Monitoring state
+  const [tradersList, setTradersList] = useState<Trader[]>([]);
+  const [productsByTrader, setProductsByTrader] = useState<Map<string, Product[]>>(new Map());
+  const [competingStoresTick, setCompetingStoresTick] = useState(0);
+  const [isDailyMonitoringRunning, setIsDailyMonitoringRunning] = useState(false);
+  const [cheaperAlerts, setCheaperAlerts] = useState<CheaperCompetitorAlert[]>([]);
+  const [selectedTraderForStores, setSelectedTraderForStores] = useState<Trader | null>(null);
+
+  const loadTradersAndCompetingStores = async (runAutoDaily = true) => {
+    try {
+      const [{ data: tradersData }, { data: prodsData }] = await Promise.all([
+        supabase.from('traders').select('*'),
+        supabase.from('products').select('*'),
+      ]);
+      const loadedTraders = Array.isArray(tradersData) ? (tradersData as Trader[]) : [];
+      const loadedProds = Array.isArray(prodsData) ? (prodsData as Product[]) : [];
+
+      const byTrader = new Map<string, Product[]>();
+      loadedProds.forEach((p) => {
+        if (!p?.trader_id) return;
+        const arr = byTrader.get(p.trader_id) || [];
+        arr.push(p);
+        byTrader.set(p.trader_id, arr);
+      });
+
+      setTradersList(loadedTraders);
+      setProductsByTrader(byTrader);
+      setCheaperAlerts(getAllCheaperCompetitorAlerts(loadedTraders));
+
+      if (runAutoDaily && loadedTraders.length > 0) {
+        const result = await checkAllCompetingStoresDaily(loadedTraders, byTrader, false);
+        setCheaperAlerts(result.alerts);
+        if (result.checkedStoresCount > 0) {
+          setCompetingStoresTick((n) => n + 1);
+        }
+      }
+    } catch {
+      // keep existing state cleanly
+    }
+  };
+
+  const handleRunDailyCheckNow = async () => {
+    if (tradersList.length === 0) {
+      onShowToast?.('⚠️ لا يوجد تجار مسجلون لفحص متاجر منافسيهم حالياً.');
+      return;
+    }
+    setIsDailyMonitoringRunning(true);
+    try {
+      const result = await checkAllCompetingStoresDaily(tradersList, productsByTrader, true);
+      setCheaperAlerts(result.alerts);
+      setCompetingStoresTick((n) => n + 1);
+      onShowToast?.(
+        result.alerts.length > 0
+          ? `🔔 تم الفحص اليومي لـ ${result.checkedStoresCount} متجر منافس — تم رصد ${result.alerts.length} منتج بسعر أرخص منك!`
+          : `✅ تم الفحص اليومي لـ ${result.checkedStoresCount} متجر منافس — أسعارك آمنة.`
+      );
+    } finally {
+      setIsDailyMonitoringRunning(false);
+    }
+  };
+
+  const handleQuickConfirmMatch = (
+    traderId: string,
+    storeId: string,
+    productId: string,
+    accept: boolean
+  ) => {
+    const stores = getTraderCompetingStores(traderId);
+    const updated = stores.map((st) => {
+      if (st.id !== storeId) return st;
+      return recalculateStoreStats({
+        ...st,
+        products: st.products.map((p) =>
+          p.id === productId ? { ...p, confirmed: accept, rejected: !accept } : p
+        ),
+      });
+    });
+    saveTraderCompetingStores(traderId, updated);
+    setCheaperAlerts(getAllCheaperCompetitorAlerts(tradersList));
+    setCompetingStoresTick((n) => n + 1);
+    onShowToast?.(accept ? '✅ تم تأكيد المنافس المحتمل' : 'تم تجاهل المنتج');
+  };
+
   useEffect(() => {
     const loadComparisonData = () => {
       try {
@@ -501,9 +602,22 @@ export default function PriceComparisonEngine({
       generateComparison(INITIAL_AUTO_PRICING_PRODUCTS);
     };
 
+    const handleStoresUpdated = () => {
+      setCompetingStoresTick((n) => n + 1);
+      setTradersList((prev) => {
+        setCheaperAlerts(getAllCheaperCompetitorAlerts(prev));
+        return prev;
+      });
+    };
+
     loadComparisonData();
+    void loadTradersAndCompetingStores(true);
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, loadComparisonData);
-    return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, loadComparisonData);
+    window.addEventListener(RADAR_COMPETING_STORES_UPDATED_EVENT, handleStoresUpdated);
+    return () => {
+      window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, loadComparisonData);
+      window.removeEventListener(RADAR_COMPETING_STORES_UPDATED_EVENT, handleStoresUpdated);
+    };
   }, []);
 
   const generateComparison = (items: AutoPricingProductItem[]) => {
@@ -763,6 +877,241 @@ export default function PriceComparisonEngine({
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" aria-hidden="true" />
           </label>
         </div>
+      </div>
+
+      {/* Cheaper Competitor Daily Monitoring Alerts */}
+      {cheaperAlerts.length > 0 && (
+        <div
+          className="p-5 rounded-2xl bg-rose-950/35 border border-rose-500/50 space-y-3 shadow-lg"
+          role="alert"
+          aria-label="تنبيهات المنافسين الأرخص"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-rose-300 font-black text-sm">
+              <Bell className="w-5 h-5 text-rose-400 animate-pulse" />
+              <span>تنبيهات المراقبة اليومية — منافسين أرخص من أسعارك ({cheaperAlerts.length})</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRunDailyCheckNow}
+              disabled={isDailyMonitoringRunning}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isDailyMonitoringRunning ? 'animate-spin' : ''}`} />
+              <span>{isDailyMonitoringRunning ? 'جاري الفحص...' : 'فحص الأسعار اليومي الآن'}</span>
+            </button>
+          </div>
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {cheaperAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="p-3 rounded-xl bg-slate-950/80 border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+              >
+                <div className="space-y-1">
+                  <div className="font-black text-rose-200 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{alert.message}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                    <span>التاجر: <strong className="text-amber-300">{alert.traderName}</strong></span>
+                    <span>•</span>
+                    <span>المتجر المنافس: <strong className="text-sky-300">{alert.storeName}</strong></span>
+                    {alert.competitorSellerId && (
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300">
+                        Seller ID: {alert.competitorSellerId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={alert.storeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-bold inline-flex items-center gap-1 shrink-0"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>عرض المنافس</span>
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Competing Stores Per Trader Cards */}
+      <div
+        className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4"
+        role="region"
+        aria-label="متاجر المنافسين لكل تاجر"
+        data-refresh-tick={competingStoresTick}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+              <Store className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">متاجر المنافسين لكل تاجر (حصد المتجر الكامل والمراقبة اليومية)</h3>
+              <p className="text-xs text-slate-400">
+                أضف روابط متاجر المنافسين (amazon.eg/s?me=... أو نون/جوميا) لكل تاجر لمقارنة الـ ASIN والتشابه ≥ 70% ومراقبة الأسعار يومياً
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRunDailyCheckNow}
+            disabled={isDailyMonitoringRunning}
+            className="px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 text-xs font-black inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            <RefreshCw className={`w-4 h-4 ${isDailyMonitoringRunning ? 'animate-spin' : ''}`} />
+            <span>{isDailyMonitoringRunning ? 'جاري فحص المتاجر...' : 'فحص أسعار المتاجر اليومي 🔄'}</span>
+          </button>
+        </div>
+
+        {tradersList.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-400 bg-slate-900/50 rounded-xl border border-slate-800">
+            لا يوجد تجار مسجلون بعد — أضف تاجراً أولاً لتتمكن من ربط وحصد متاجر منافسيه.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {tradersList.map((trader) => {
+              const traderStores: CompetingStoreItem[] = getTraderCompetingStores(trader.id);
+              const traderSellerId = resolveTraderMerchantSellerId(trader);
+              const pendingMatches = traderStores.flatMap((s) =>
+                (s.products || [])
+                  .filter((p) => p.matchType === 'potential_title' && !p.confirmed && !p.rejected)
+                  .map((p) => ({ store: s, product: p }))
+              );
+
+              return (
+                <div
+                  key={trader.id}
+                  className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-white truncate">{trader.seller_name}</div>
+                      <div className="text-[11px] font-mono text-amber-300 inline-flex items-center gap-1">
+                        <Hash className="w-3 h-3" />
+                        <span>Seller ID: {traderSellerId || 'غير محدد'}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTraderForStores(trader)}
+                      className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>إضافة / حصد متجر منافس</span>
+                    </button>
+                  </div>
+
+                  {traderStores.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400">
+                      لا توجد متاجر منافسين مضافة لهذا التاجر بعد — اضغط "إضافة / حصد متجر منافس" للصق الرابط.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {traderStores.map((st) => (
+                        <div
+                          key={st.id}
+                          className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-black text-white truncate">{st.storeName}</span>
+                            {st.storeSellerId && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300 shrink-0">
+                                Seller ID: {st.storeSellerId}
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={st.storeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-mono text-sky-400 hover:underline truncate block"
+                            dir="ltr"
+                          >
+                            {st.storeUrl}
+                          </a>
+                          <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                            <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                              <div className="text-[10px] text-slate-400">المنتجات المحصودة</div>
+                              <div className="font-mono font-black text-white">{st.harvestedCount}</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                              <div className="text-[10px] text-slate-400">المنتجات الشبيهة</div>
+                              <div className="font-mono font-black text-sky-300">{st.matchedCount}</div>
+                            </div>
+                            <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                              <div className="text-[10px] text-slate-400">متوسط فرق السعر</div>
+                              <div
+                                className={`font-black ${
+                                  st.pricePosition === 'cheaper'
+                                    ? 'text-rose-400'
+                                    : st.pricePosition === 'expensive'
+                                    ? 'text-emerald-400'
+                                    : 'text-slate-300'
+                                }`}
+                              >
+                                {st.pricePosition === 'cheaper'
+                                  ? `أرخص بـ ${Math.abs(st.avgPriceDiffAmount)} ج.م`
+                                  : st.pricePosition === 'expensive'
+                                  ? `أغلى بـ ${Math.abs(st.avgPriceDiffAmount)} ج.م`
+                                  : st.pricePosition === 'equal'
+                                  ? 'متساوي'
+                                  : '-'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {pendingMatches.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                          <div className="text-[11px] font-black text-amber-300">
+                            منافس محتمل (تشابه ≥ 70%) بانتظار تأكيدك ({pendingMatches.length}):
+                          </div>
+                          {pendingMatches.slice(0, 3).map(({ store: st, product: mp }) => (
+                            <div
+                              key={mp.id}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-950/70 p-2 rounded-lg border border-slate-800 text-[11px]"
+                            >
+                              <div className="min-w-0">
+                                <div className="font-bold text-white truncate">{mp.title}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  تشابه {mp.similarityPercent}% مع "{mp.matchedProductTitle}" • سعره:{' '}
+                                  <strong className="text-amber-300 font-mono">{mp.price.toLocaleString()} ج.م</strong>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickConfirmMatch(trader.id, st.id, mp.id, true)}
+                                  className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black cursor-pointer"
+                                >
+                                  تأكيد ✓
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickConfirmMatch(trader.id, st.id, mp.id, false)}
+                                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                                >
+                                  تجاهل
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -1618,6 +1967,19 @@ export default function PriceComparisonEngine({
           </tbody>
         </table>
       </div>
+
+      {selectedTraderForStores && (
+        <CompetingStoresManagerModal
+          trader={selectedTraderForStores}
+          isOpen={Boolean(selectedTraderForStores)}
+          onClose={() => setSelectedTraderForStores(null)}
+          onShowToast={onShowToast}
+          onStoresUpdated={() => {
+            setCheaperAlerts(getAllCheaperCompetitorAlerts(tradersList));
+            setCompetingStoresTick((n) => n + 1);
+          }}
+        />
+      )}
     </section>
   );
 }

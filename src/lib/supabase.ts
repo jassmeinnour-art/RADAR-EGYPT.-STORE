@@ -51,6 +51,9 @@ export interface Product {
   buy_box_price?: number;
   competitor_price?: number;
   competitors_count?: number;
+  competitor_seller_id?: string | null;
+  competitor_name?: string | null;
+  competitor_url?: string | null;
   created_at?: string;
   updated_at?: string;
 }
