@@ -453,6 +453,131 @@ export const PlatformsOnboardingGuide: React.FC = () => {
                     {platform.description}
                   </p>
 
+                  {/* Amazon SP-API Authorization Code Step-by-Step Visual Guide */}
+                  {platform.id === 'amazon-eg' && (
+                    <div className="bg-gradient-to-br from-sky-50 via-indigo-50/40 to-white rounded-2xl border-2 border-sky-300 p-5 space-y-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-sky-200 gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black text-sm shrink-0">
+                            🔑
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900 font-['Alexandria']">
+                              دليل مصور خطوة بخطوة: استخراج كود التفويض (Authorization Code) من Amazon Seller Central
+                            </h4>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              خطوات عملية دقيقة مع الرسوم التوضيحية لربط متجرك بأمان عبر SP-API وتجنب الأخطاء البشرية
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-sky-600 text-white rounded-full text-[11px] font-bold shadow-xs self-start sm:self-auto shrink-0">
+                          دليل حصري لرادار التاجر 🇪🇬
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Step 1 */}
+                        <div className="bg-white rounded-xl border border-sky-200 p-4 space-y-3 shadow-2xs relative overflow-hidden group hover:border-sky-400 transition-all">
+                          <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center">
+                            01
+                          </div>
+                          <div className="w-full h-24 rounded-lg bg-sky-950 text-sky-200 p-3 flex flex-col justify-between font-mono text-[10px] border border-sky-900 shadow-inner">
+                            <div className="flex items-center justify-between text-sky-400">
+                              <span>🌐 sellercentral.amazon.eg</span>
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            </div>
+                            <div className="bg-sky-900/80 p-1.5 rounded text-center text-white font-bold">
+                              تسجيل الدخول (Admin Login)
+                            </div>
+                            <div className="text-[9px] text-slate-400 text-center">أدخل بريد وكلمة مرور البائع</div>
+                          </div>
+                          <div className="space-y-1">
+                            <strong className="text-xs font-bold text-slate-900 block">تسجيل الدخول لوحة البائع</strong>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              افتح متصفحك واذهب إلى <a href="https://sell.amazon.eg" target="_blank" rel="noreferrer" className="text-sky-600 underline font-medium">sell.amazon.eg</a> وسجل الدخول بحساب حساب المالك (Admin).
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="bg-white rounded-xl border border-sky-200 p-4 space-y-3 shadow-2xs relative overflow-hidden group hover:border-sky-400 transition-all">
+                          <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center">
+                            02
+                          </div>
+                          <div className="w-full h-24 rounded-lg bg-slate-900 text-slate-200 p-3 flex flex-col justify-between font-mono text-[10px] border border-slate-800 shadow-inner">
+                            <div className="flex items-center justify-between text-slate-400">
+                              <span>⚙️ Settings / إعدادات</span>
+                              <span>▼</span>
+                            </div>
+                            <div className="bg-indigo-600 text-white p-1.5 rounded text-center font-bold">
+                              Partner Network (شبكة الشركاء)
+                            </div>
+                            <div className="text-[9px] text-slate-400 text-center">أو Develop Apps / التطبيقات</div>
+                          </div>
+                          <div className="space-y-1">
+                            <strong className="text-xs font-bold text-slate-900 block">الانتقال لشبكة الشركاء</strong>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              من القائمة العلوية أو الجانبية، افتح <strong className="text-slate-800">Settings</strong> ثم اضغط على <strong className="text-slate-800">Partner Network</strong> (أو Develop Apps).
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="bg-white rounded-xl border border-sky-200 p-4 space-y-3 shadow-2xs relative overflow-hidden group hover:border-sky-400 transition-all">
+                          <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center">
+                            03
+                          </div>
+                          <div className="w-full h-24 rounded-lg bg-emerald-950 text-emerald-200 p-3 flex flex-col justify-between font-mono text-[10px] border border-emerald-900 shadow-inner">
+                            <div className="flex items-center justify-between text-emerald-400">
+                              <span>🔗 Authorize App</span>
+                              <span className="text-[9px] bg-emerald-800 px-1 rounded">SP-API</span>
+                            </div>
+                            <div className="bg-emerald-600 text-white p-1.5 rounded text-center font-bold">
+                              تفعيل وتركيز التفويض
+                            </div>
+                            <div className="text-[9px] text-slate-300 text-center">الموافقة على منح صلاحيات القراءة</div>
+                          </div>
+                          <div className="space-y-1">
+                            <strong className="text-xs font-bold text-slate-900 block">منح صلاحيات SP-API</strong>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              اضغط على <strong className="text-slate-800">Authorize new developer</strong>، أدخل معرف التطبيق ووافق على الشروط ومنح الصلاحيات الآمنة.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className="bg-white rounded-xl border border-sky-200 p-4 space-y-3 shadow-2xs relative overflow-hidden group hover:border-sky-400 transition-all">
+                          <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center">
+                            04
+                          </div>
+                          <div className="w-full h-24 rounded-lg bg-indigo-950 text-indigo-200 p-3 flex flex-col justify-between font-mono text-[10px] border border-indigo-900 shadow-inner overflow-hidden">
+                            <div className="flex items-center justify-between text-indigo-300 truncate">
+                              <span>🔗 URL Query Param</span>
+                            </div>
+                            <div className="bg-indigo-900/90 p-1.5 rounded text-[9px] text-amber-300 font-mono truncate select-all" dir="ltr">
+                              spapi_oauth_code=Atza|...
+                            </div>
+                            <div className="text-[9px] text-emerald-300 text-center font-bold">انسخ الكود والصقه في كارت التاجر!</div>
+                          </div>
+                          <div className="space-y-1">
+                            <strong className="text-xs font-bold text-slate-900 block">نسخ الكود ولصقه برادار</strong>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              ستظهر لك صفحة العودة وعليها كود التفويض في رابط المتصفح (<code className="bg-slate-100 px-1 rounded text-rose-600">spapi_oauth_code</code>). انسخه والصقه فوراً!
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-900 flex items-start gap-2.5">
+                        <Sparkles className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block font-bold">تنبيه هام جداً لتجنب الأخطاء:</strong>
+                          كود التفويض (Authorization Code) صالح لفترة محدودة (10 دقائق فقط) ويستخدم لمرة واحدة فقط لاستبدال الـ Refresh Token النهائي. إذا واجهت خطأ انتهي الصلاحية، قم بإعادة الخطوة الرابعة للحصول على كود جديد فوراً.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* AI Explanatory Video Guide Section */}
                   {(() => {
                     const currentFocus = videoFocusByPlatform[platform.id] || 'all';

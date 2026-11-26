@@ -166,48 +166,100 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const refreshToken = String(body.refreshToken || '').trim();
+    const s = dbSettings || {};
+    const b = body || {};
+
+    const refreshToken = String(b.refreshToken || s.refresh_token || s.refreshToken || Deno.env.get('AMAZON_REFRESH_TOKEN') || '').trim();
     const clientId = String(
-      body.clientId ||
-      dbSettings?.client_id ||
-      dbSettings?.clientId ||
+      b.clientId ||
+      s.client_id ||
+      s.clientId ||
+      s.CLIENT_ID ||
+      s.amazon_client_id ||
+      s.AMAZON_CLIENT_ID ||
+      s.sp_api_client_id ||
+      s.SP_API_CLIENT_ID ||
+      s.lwa_client_id ||
+      s.LWA_CLIENT_ID ||
       Deno.env.get('AMAZON_CLIENT_ID') ||
+      Deno.env.get('CLIENT_ID') ||
+      Deno.env.get('SP_API_CLIENT_ID') ||
       Deno.env.get('LWA_CLIENT_ID') ||
       ''
     ).trim();
     const clientSecret = String(
-      body.clientSecret ||
-      dbSettings?.client_secret ||
-      dbSettings?.clientSecret ||
+      b.clientSecret ||
+      s.client_secret ||
+      s.clientSecret ||
+      s.CLIENT_SECRET ||
+      s.amazon_client_secret ||
+      s.AMAZON_CLIENT_SECRET ||
+      s.sp_api_client_secret ||
+      s.SP_API_CLIENT_SECRET ||
+      s.lwa_client_secret ||
+      s.LWA_CLIENT_SECRET ||
       Deno.env.get('AMAZON_CLIENT_SECRET') ||
+      Deno.env.get('CLIENT_SECRET') ||
+      Deno.env.get('SP_API_CLIENT_SECRET') ||
       Deno.env.get('LWA_CLIENT_SECRET') ||
       ''
     ).trim();
     const applicationId = String(
-      body.applicationId ||
-      dbSettings?.application_id ||
-      dbSettings?.applicationId ||
-      dbSettings?.appId ||
+      b.applicationId ||
+      b.appId ||
+      s.application_id ||
+      s.applicationId ||
+      s.app_id ||
+      s.appId ||
+      s.AMAZON_APP_ID ||
+      s.APP_ID ||
       Deno.env.get('AMAZON_APP_ID') ||
-      Deno.env.get('AMAZON_APPLICATION_ID') ||
+      Deno.env.get('APP_ID') ||
+      Deno.env.get('APPLICATION_ID') ||
       Deno.env.get('SP_API_APP_ID') ||
       ''
     ).trim();
-    const sellerId = String(body.sellerId || body.merchantId || dbSettings?.seller_id || dbSettings?.sellerId || '').trim() || 'A37JIM7LHQI6IM';
+    const sellerId = String(
+      b.sellerId ||
+      b.merchantId ||
+      s.seller_id ||
+      s.sellerId ||
+      s.merchant_id ||
+      s.merchantId ||
+      s.SELLER_ID ||
+      Deno.env.get('AMAZON_SELLER_ID') ||
+      Deno.env.get('SELLER_ID') ||
+      ''
+    ).trim() || 'A37JIM7LHQI6IM';
     const marketplaceId = String(
-      body.marketplaceId ||
-      dbSettings?.marketplace_id ||
-      dbSettings?.marketplaceId ||
+      b.marketplaceId ||
+      s.marketplace_id ||
+      s.marketplaceId ||
+      s.MARKETPLACE_ID ||
+      s.amazon_marketplace_id ||
+      s.AMAZON_MARKETPLACE_ID ||
       Deno.env.get('AMAZON_MARKETPLACE_ID') ||
+      Deno.env.get('MARKETPLACE_ID') ||
       'ARBP9OOSHTCHU'
     ).trim();
 
-    if (!refreshToken || !clientId || !clientSecret || !sellerId) {
+    if (!refreshToken) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'بيانات ربط Amazon SP-API غير مكتملة (Refresh Token / Client ID / Client Secret / Seller ID)',
-          message: 'يرجى إدخال Refresh Token في كارت التاجر وتأكد من حفظ Client ID و Client Secret في الإعدادات.',
+          error: 'missing_refresh_token',
+          message: 'يرجى إدخال Refresh Token في كارت التاجر.',
+        }),
+        { status: 400, headers: rateLimitHeaders }
+      );
+    }
+
+    if (!clientId || !clientSecret) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'missing_client_credentials',
+          message: 'يرجى إدخال Client ID و Client Secret في إعدادات الحساب أو جدول الإعدادات.',
         }),
         { status: 400, headers: rateLimitHeaders }
       );
