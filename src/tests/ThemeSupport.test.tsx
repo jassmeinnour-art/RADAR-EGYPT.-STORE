@@ -8,12 +8,16 @@ import {
   useTheme,
   LOCAL_STORAGE_THEME_VARIANT_KEY,
   LOCAL_STORAGE_HIGH_CONTRAST_KEY,
+  LOCAL_STORAGE_DARK_PALETTE_KEY,
+  LOCAL_STORAGE_DARK_TOKENS_KEY,
+  DARK_PALETTE_PRESETS,
 } from '../context/ThemeContext';
 import { VisualCustomizerProvider } from '../context/VisualCustomizerContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSettingsModal } from '../components/ThemeSettingsModal';
 import { AccountSettingsPage } from '../components/AccountSettingsPage';
 import { LayoutSettingsPage } from '../components/LayoutSettingsPage';
+import { DarkPaletteSettingsPage } from '../components/DarkPaletteSettingsPage';
 
 vi.mock('../context/AudioNotificationContext', () => ({
   useAudioNotifications: () => ({
@@ -69,6 +73,8 @@ describe('Dual Theme Support: Dark High Contrast & Clean Light', () => {
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.removeAttribute('data-color-mode');
     document.documentElement.removeAttribute('data-high-contrast');
+    document.documentElement.removeAttribute('data-dark-palette');
+    document.documentElement.removeAttribute('style');
     document.documentElement.className = '';
   });
 
@@ -276,4 +282,94 @@ describe('Dual Theme Support: Dark High Contrast & Clean Light', () => {
     const disableToast = screen.getByTestId('layout-settings-toast');
     expect(disableToast).toHaveTextContent('تعطيل وضع التباين العالي');
   });
+
+  it('applies Deep Blue, Charcoal Black, and Dark Gray palettes via CSS variables in DarkPaletteSettingsPage and clears dark inline overrides when switching to Light Mode', () => {
+    const onToast = vi.fn();
+    render(
+      <ThemeProvider>
+        <VisualCustomizerProvider>
+          <ThemeProbe />
+          <DarkPaletteSettingsPage onShowToast={onToast} />
+        </VisualCustomizerProvider>
+      </ThemeProvider>
+    );
+
+    // Select Deep Blue preset — automatically activates dark mode & applies CSS variables
+    fireEvent.click(screen.getByTestId('dark-palette-preset-deep-blue'));
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('dark');
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('deep-blue');
+    expect(localStorage.getItem(LOCAL_STORAGE_DARK_PALETTE_KEY)).toBe('deep-blue');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe(
+      DARK_PALETTE_PRESETS['deep-blue'].tokens.appBg
+    );
+    expect(document.documentElement.style.getPropertyValue('--card-bg')).toBe(
+      DARK_PALETTE_PRESETS['deep-blue'].tokens.cardBg
+    );
+    expect(document.documentElement.style.getPropertyValue('--sidebar-bg')).toBe(
+      DARK_PALETTE_PRESETS['deep-blue'].tokens.sidebarBg
+    );
+
+    // Select Charcoal Black preset
+    fireEvent.click(screen.getByTestId('dark-palette-preset-charcoal'));
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('charcoal');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe(
+      DARK_PALETTE_PRESETS.charcoal.tokens.appBg
+    );
+
+    // Select Dark Gray preset
+    fireEvent.click(screen.getByTestId('dark-palette-preset-dark-gray'));
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('dark-gray');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe(
+      DARK_PALETTE_PRESETS['dark-gray'].tokens.appBg
+    );
+
+    // Switching back to Light Mode clears dark inline CSS variables cleanly
+    fireEvent.click(screen.getByTestId('dark-palette-mode-toggle'));
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('light');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--card-bg')).toBe('');
+  });
+
+  it('supports fine-grained custom CSS variable editing, WCAG contrast readout, persistence, and reset in DarkPaletteSettingsPage', () => {
+    const onToast = vi.fn();
+    const { unmount } = render(
+      <ThemeProvider>
+        <ThemeProbe />
+        <DarkPaletteSettingsPage onShowToast={onToast} />
+      </ThemeProvider>
+    );
+
+    // Edit --app-bg hex input directly -> switches palette to custom & enables dark mode
+    const appBgHexInput = screen.getByTestId('token-hex-appBg') as HTMLInputElement;
+    fireEvent.change(appBgHexInput, { target: { value: '#102030' } });
+
+    expect(screen.getByTestId('probe-mode')).toHaveTextContent('dark');
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('custom');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe('#102030');
+    expect(screen.getByTestId('dark-palette-custom-indicator')).toBeInTheDocument();
+    expect(screen.getByTestId('dark-palette-css-output')).toHaveTextContent('--app-bg: #102030;');
+    expect(screen.getByTestId('contrast-check-primary-text')).toHaveTextContent(':1');
+
+    const storedTokens = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DARK_TOKENS_KEY) || '{}');
+    expect(storedTokens.appBg).toBe('#102030');
+
+    // Remount and verify persistence
+    unmount();
+    render(
+      <ThemeProvider>
+        <ThemeProbe />
+        <DarkPaletteSettingsPage onShowToast={onToast} />
+      </ThemeProvider>
+    );
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('custom');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe('#102030');
+
+    // Reset back to Obsidian Default
+    fireEvent.click(screen.getByTestId('dark-palette-reset-btn'));
+    expect(document.documentElement.getAttribute('data-dark-palette')).toBe('default');
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe(
+      DARK_PALETTE_PRESETS.default.tokens.appBg
+    );
+  });
 });
+

@@ -75,6 +75,7 @@ const AnalyticsPage = lazyWithPreload(() => import('./components/AnalyticsPage')
 const PlatformsOnboardingGuide = lazyWithPreload(() => import('./components/PlatformsOnboardingGuide'));
 const TraderStoreSyncManager = lazyWithPreload(() => import('./components/TraderStoreSyncManager'));
 const LayoutSettingsPage = lazyWithPreload(() => import('./components/LayoutSettingsPage'));
+const DarkPaletteSettingsPage = lazyWithPreload(() => import('./components/DarkPaletteSettingsPage'));
 const AccountSettingsPage = lazyWithPreload(() => import('./components/AccountSettingsPage'));
 const HelpPage = lazyWithPreload(() => import('./components/HelpPage'));
 const WatchlistManager = lazyWithPreload(() => import('./components/WatchlistManager'));
@@ -103,6 +104,7 @@ const TAB_PRELOADERS: Partial<Record<WorkspaceTab, () => Promise<unknown>>> = {
   platforms_guide: PlatformsOnboardingGuide.preload,
   traders_sync: TraderStoreSyncManager.preload,
   layout_settings: LayoutSettingsPage.preload,
+  dark_palette_settings: DarkPaletteSettingsPage.preload,
   account_settings: AccountSettingsPage.preload,
   help: HelpPage.preload,
   not_found: NotFoundPage.preload,
@@ -411,6 +413,7 @@ export default function App() {
       platforms_guide: <PlatformsOnboardingGuide />,
       traders_sync: <TraderStoreSyncManager onShowToast={showToast} />,
       layout_settings: <LayoutSettingsPage onShowToast={showToast} />,
+      dark_palette_settings: <DarkPaletteSettingsPage onShowToast={showToast} />,
       account_settings: <AccountSettingsPage onShowToast={showToast} />,
       amazon_callback: <AmazonCallbackPage onShowToast={showToast} />,
       help: (
@@ -521,6 +524,7 @@ export default function App() {
                   platforms_guide: '/connections',
                   traders_sync: '/gmail-sync',
                   layout_settings: '/settings/layout',
+                  dark_palette_settings: '/settings/dark-theme',
                   account_settings: '/settings',
                   help: '/help',
                 };
@@ -608,6 +612,7 @@ export default function App() {
                             platforms_guide: 'دليل ربط المنصات',
                             traders_sync: 'مزامنة حسابات التجار',
                             layout_settings: 'تخصيص الواجهة والترتيب',
+                            dark_palette_settings: 'تخصيص لوحة ألوان الوضع الليلي',
                             account_settings: 'إعدادات الحساب والتنبيهات',
                             help: 'مركز المساعدة والدعم الفني',
                           }[activeWorkspaceTab] || `صفحة ${activeWorkspaceTab}`
@@ -706,6 +711,7 @@ export default function App() {
                     platforms_guide: '/connections',
                     traders_sync: '/gmail-sync',
                     layout_settings: '/settings/layout',
+                    dark_palette_settings: '/settings/dark-theme',
                     account_settings: '/settings',
                     help: '/help',
                   };

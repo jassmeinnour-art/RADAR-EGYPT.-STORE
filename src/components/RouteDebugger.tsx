@@ -55,6 +55,7 @@ const REGISTERED_ROUTES_CONFIG: Array<{ tab: WorkspaceTab; path: string; compone
   { tab: 'platforms_guide', path: '/connections', componentName: 'PlatformsOnboardingGuide', isLazy: true },
   { tab: 'traders_sync', path: '/gmail-sync', componentName: 'TraderStoreSyncManager', isLazy: true },
   { tab: 'layout_settings', path: '/settings/layout', componentName: 'LayoutSettingsPage', isLazy: true },
+  { tab: 'dark_palette_settings', path: '/settings/dark-theme', componentName: 'DarkPaletteSettingsPage', isLazy: true },
   { tab: 'account_settings', path: '/settings', componentName: 'AccountSettingsPage', isLazy: true },
   { tab: 'help', path: '/help', componentName: 'HelpPage', isLazy: true },
   { tab: 'watchlist', path: '/watchlist', componentName: 'PriceComparisonEngine (Watchlist)', isLazy: true },

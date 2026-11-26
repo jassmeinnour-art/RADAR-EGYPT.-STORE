@@ -34,6 +34,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/components/ImportErrorLog')) {
+            return 'import-issues-log';
+          }
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('/node_modules/firebase/') || id.includes('/node_modules/@firebase/')) {
             return 'firebase';

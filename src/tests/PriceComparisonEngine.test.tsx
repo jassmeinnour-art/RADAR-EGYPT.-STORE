@@ -6,6 +6,7 @@ import PriceComparisonEngine, {
   buildPriceTrendProjection,
   buildDirectComparisonChartData,
 } from '../components/PriceComparisonEngine';
+import { analyze30DayPricingPatterns } from '../components/D3PriceTrendChart';
 import { INITIAL_AUTO_PRICING_PRODUCTS } from '../data/autoPricingEngineData';
 
 vi.mock('recharts', async () => {
@@ -244,5 +245,57 @@ describe('PriceComparisonEngine interactive Recharts monthly trend chart', () =>
     // Auto-select first 2 restores chart
     fireEvent.click(screen.getByRole('button', { name: 'اختيار أول منتجين تلقائياً' }));
     expect(screen.getByTestId('direct-comparison-chart')).toBeTruthy();
+  });
+
+  it('detects 30-day pricing patterns accurately via analyze30DayPricingPatterns', () => {
+    const uptrendPoints = Array.from({ length: 30 }, (_, idx) => ({
+      dateKey: `2026-10-${String(idx + 1).padStart(2, '0')}`,
+      dateLabel: `${String(idx + 1).padStart(2, '0')}/10`,
+      fullDate: `${idx + 1} أكت 2026`,
+      merchantPrice: 1000 + idx * 10,
+      competitorPrice: 990 + idx * 8,
+      costPrice: 800,
+      priceGap: 10 + idx * 2,
+    }));
+
+    const upAnalysis = analyze30DayPricingPatterns(uptrendPoints, 'ج.م');
+    expect(upAnalysis.patternType).toBe('uptrend');
+    expect(upAnalysis.minPoint?.merchantPrice).toBe(1000);
+    expect(upAnalysis.maxPoint?.merchantPrice).toBe(1290);
+    expect(upAnalysis.movingAvgSeries).toHaveLength(30);
+    expect(upAnalysis.netChangePercent).toBeGreaterThan(20);
+  });
+
+  it('renders the D3 30-day historical price trend chart, updates on product selection, and toggles D3 overlay layers', () => {
+    render(<PriceComparisonEngine />);
+
+    const d3Section = screen.getByTestId('d3-historical-trend-section');
+    const d3Svg = screen.getByTestId('d3-price-trend-svg');
+    expect(d3Section).toBeTruthy();
+    expect(d3Svg.querySelector('.d3-merchant-line')).toBeTruthy();
+    expect(d3Svg.querySelector('.d3-ma7-line')).toBeTruthy();
+    expect(d3Svg.querySelector('.d3-competitor-line')).toBeTruthy();
+    expect(d3Svg.querySelector('.d3-x-axis')).toBeTruthy();
+    expect(d3Svg.querySelector('.d3-y-axis')).toBeTruthy();
+    expect(screen.getByTestId('d3-pattern-classification')).toBeTruthy();
+    expect(screen.getByTestId('d3-pattern-insight')).toBeTruthy();
+
+    // Switch product and verify D3 section reflects the new SKU
+    const second = INITIAL_AUTO_PRICING_PRODUCTS[1];
+    fireEvent.click(screen.getByText(second.title));
+    expect(d3Section.textContent).toContain(`SKU: ${second.sku}`);
+
+    // Toggle 7-day moving average and competitor trend overlays
+    const maToggle = screen.getByRole('button', { name: 'متوسط متحرك 7 أيام' });
+    expect(maToggle.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(maToggle);
+    expect(maToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(d3Svg.querySelector('.d3-ma7-line')).toBeNull();
+
+    const compToggle = screen.getByRole('button', { name: 'مسار المنافس' });
+    expect(compToggle.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(compToggle);
+    expect(compToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(d3Svg.querySelector('.d3-competitor-line')).toBeNull();
   });
 });

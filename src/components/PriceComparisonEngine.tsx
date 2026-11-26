@@ -43,6 +43,7 @@ import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { PRICE_HISTORY_MAP_KEY, ProductPriceHistoryRecord } from '../utils/smartPriceAlerts';
 import { Product, Trader, supabase } from '../lib/supabase';
 import { CompetingStoresManagerModal } from './CompetingStoresManagerModal';
+import { D3PriceTrendChart } from './D3PriceTrendChart';
 import {
   CheaperCompetitorAlert,
   CompetingStoreItem,
@@ -779,6 +780,12 @@ export default function PriceComparisonEngine({
 
   const monthlyTrendSeries = selectedComparisonItem
     ? buildMonthlyPriceTrendSeries(selectedComparisonItem, trendRangeDays)
+    : [];
+
+  const historical30DaySeries = selectedComparisonItem
+    ? trendRangeDays === 30
+      ? monthlyTrendSeries
+      : buildMonthlyPriceTrendSeries(selectedComparisonItem, 30)
     : [];
 
   const projectionResult = selectedComparisonItem
@@ -1806,6 +1813,18 @@ export default function PriceComparisonEngine({
         )
         )}
       </div>
+
+      {/* Dedicated D3.js 30-Day Historical Price Trend & Pattern Analysis Chart */}
+      {selectedComparisonItem && historical30DaySeries.length > 0 && (
+        <D3PriceTrendChart
+          data={historical30DaySeries}
+          productTitle={selectedComparisonItem.title}
+          sku={selectedComparisonItem.sku}
+          costPrice={selectedComparisonItem.costPrice}
+          currency={currency}
+          competitorName={selectedComparisonItem.competitorName}
+        />
+      )}
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800" role="region" aria-label="أدوات البحث والفلترة">
