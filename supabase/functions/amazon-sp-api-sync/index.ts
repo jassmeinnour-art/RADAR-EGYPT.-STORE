@@ -147,17 +147,67 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+
+    let dbSettings: any = null;
+    if (supabaseUrl && supabaseServiceKey) {
+      try {
+        const admin = createClient(supabaseUrl, supabaseServiceKey);
+        const { data: setRow } = await admin.from('settings').select('*').eq('id', 'amazon_sp_api_settings').maybeSingle();
+        if (setRow) {
+          dbSettings = setRow;
+        } else {
+          const { data: anySet } = await admin.from('settings').select('*').limit(1).maybeSingle();
+          if (anySet) dbSettings = anySet;
+        }
+      } catch {
+        // non-fatal
+      }
+    }
+
     const refreshToken = String(body.refreshToken || '').trim();
-    const clientId = String(body.clientId || '').trim();
-    const clientSecret = String(body.clientSecret || '').trim();
-    const sellerId = String(body.sellerId || '').trim() || 'A37JIM7LHQI6IM';
-    const marketplaceId = String(body.marketplaceId || 'ARBP9OOSHTCHU').trim();
+    const clientId = String(
+      body.clientId ||
+      dbSettings?.client_id ||
+      dbSettings?.clientId ||
+      Deno.env.get('AMAZON_CLIENT_ID') ||
+      Deno.env.get('LWA_CLIENT_ID') ||
+      ''
+    ).trim();
+    const clientSecret = String(
+      body.clientSecret ||
+      dbSettings?.client_secret ||
+      dbSettings?.clientSecret ||
+      Deno.env.get('AMAZON_CLIENT_SECRET') ||
+      Deno.env.get('LWA_CLIENT_SECRET') ||
+      ''
+    ).trim();
+    const applicationId = String(
+      body.applicationId ||
+      dbSettings?.application_id ||
+      dbSettings?.applicationId ||
+      dbSettings?.appId ||
+      Deno.env.get('AMAZON_APP_ID') ||
+      Deno.env.get('AMAZON_APPLICATION_ID') ||
+      Deno.env.get('SP_API_APP_ID') ||
+      ''
+    ).trim();
+    const sellerId = String(body.sellerId || body.merchantId || dbSettings?.seller_id || dbSettings?.sellerId || '').trim() || 'A37JIM7LHQI6IM';
+    const marketplaceId = String(
+      body.marketplaceId ||
+      dbSettings?.marketplace_id ||
+      dbSettings?.marketplaceId ||
+      Deno.env.get('AMAZON_MARKETPLACE_ID') ||
+      'ARBP9OOSHTCHU'
+    ).trim();
 
     if (!refreshToken || !clientId || !clientSecret || !sellerId) {
       return new Response(
         JSON.stringify({
           success: false,
           error: 'بيانات ربط Amazon SP-API غير مكتملة (Refresh Token / Client ID / Client Secret / Seller ID)',
+          message: 'يرجى إدخال Refresh Token في كارت التاجر وتأكد من حفظ Client ID و Client Secret في الإعدادات.',
         }),
         { status: 400, headers: rateLimitHeaders }
       );
