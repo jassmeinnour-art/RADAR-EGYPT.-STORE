@@ -25,7 +25,7 @@ interface LayoutSettingsPageProps {
 
 export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowToast }) => {
   const { settings, updateSettings, saveSettingsToStorage, resetDefaults } = useVisualCustomizer();
-  const { isHighContrast, setHighContrast, resolvedColorMode, toggleColorMode } = useTheme();
+  const { isHighContrast, setHighContrast, resolvedColorMode, toggleColorMode, darkPalette, setDarkPalette } = useTheme();
   const [localToast, setLocalToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -194,6 +194,69 @@ export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowTo
             )}
             <span>{resolvedColorMode === 'dark' ? 'الوضع الليلي: مفعل' : 'تبديل للوضع الليلي'}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Custom Dark Mode Palette Selection Card */}
+      <div
+        aria-label="تخصيص ألوان الوضع الليلي"
+        className="p-6 rounded-3xl border shadow-xl space-y-4"
+        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+            <Moon className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-[var(--text-primary)]">
+              ألوان الوضع الليلي المخصصة (Custom Dark Mode Themes)
+            </h3>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              اختر درجة اللون المفضلة للوضع الليلي بدلاً من الوضع الافتراضي لراحة عينيك أثناء العمل التجاري.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+          {[
+            { id: 'default', label: 'أسود أوبسيديان (افتراضي)', desc: 'الوضع الداكن القياسي العالي التباين', color: '#020617', border: '#475569' },
+            { id: 'deep-blue', label: 'أزرق داكن (Deep Blue)', desc: 'خلفية كحلي ودرجات أزرق هادئة', color: '#0b1329', border: '#314875' },
+            { id: 'charcoal', label: 'أسود فحم (Charcoal Black)', desc: 'أسود فاحم مريح للعين OLED', color: '#121212', border: '#3f3f46' },
+            { id: 'dark-gray', label: 'رمادي داكن (Dark Gray)', desc: 'رمادي احترافي ناعم وهادئ', color: '#111827', border: '#4b5563' },
+          ].map((palette) => {
+            const isSelected = (darkPalette || 'default') === palette.id;
+            return (
+              <button
+                key={palette.id}
+                type="button"
+                onClick={() => {
+                  setDarkPalette(palette.id as any);
+                  notifyToast(`🌙 تم تطبيق الثيم الليلي: ${palette.label}`);
+                }}
+                className={`p-4 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                  isSelected
+                    ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/30'
+                    : 'bg-[var(--surface-subtle)] hover:bg-[var(--card-bg-hover)] border-[var(--card-border)]'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-5 h-5 rounded-full border shadow-xs inline-block shrink-0"
+                      style={{ backgroundColor: palette.color, borderColor: palette.border }}
+                    />
+                    <strong className="text-xs font-bold text-[var(--text-primary)]">{palette.label}</strong>
+                  </div>
+                  {isSelected && (
+                    <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-black">
+                      ✓
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-[var(--text-secondary)] leading-normal">{palette.desc}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 

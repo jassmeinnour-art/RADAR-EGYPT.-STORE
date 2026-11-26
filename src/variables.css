@@ -354,3 +354,61 @@ html.high-contrast.dark {
   --badge-border: #FFFFFF;
   --focus-ring: #FACC15;
 }
+
+/* ==========================================================================
+   Custom Dark Mode Palettes (Deep Blue, Charcoal Black, Dark Gray)
+   ========================================================================== */
+html.dark[data-dark-palette="deep-blue"],
+html[data-color-mode="dark"][data-dark-palette="deep-blue"] {
+  --app-bg: #0b1329;
+  --app-bg-primary: #0b1329;
+  --app-bg-secondary: #070d1f;
+  --app-bg-surface: #101935;
+  --app-bg-card: #141e38;
+  --surface-bg: #101935;
+  --surface-elevated: #1a2747;
+  --surface-subtle: #070d1f;
+  --card-bg: #141e38;
+  --card-bg-elevated: #1a2747;
+  --card-bg-hover: #22325c;
+  --card-border: #314875;
+  --sidebar-bg: #070d1f;
+  --header-bg: #070d1f;
+}
+
+html.dark[data-dark-palette="charcoal"],
+html[data-color-mode="dark"][data-dark-palette="charcoal"] {
+  --app-bg: #121212;
+  --app-bg-primary: #121212;
+  --app-bg-secondary: #0a0a0a;
+  --app-bg-surface: #181818;
+  --app-bg-card: #1e1e1e;
+  --surface-bg: #181818;
+  --surface-elevated: #282828;
+  --surface-subtle: #0d0d0d;
+  --card-bg: #1e1e1e;
+  --card-bg-elevated: #282828;
+  --card-bg-hover: #333333;
+  --card-border: #3f3f46;
+  --sidebar-bg: #0d0d0d;
+  --header-bg: #0d0d0d;
+}
+
+html.dark[data-dark-palette="dark-gray"],
+html[data-color-mode="dark"][data-dark-palette="dark-gray"] {
+  --app-bg: #111827;
+  --app-bg-primary: #111827;
+  --app-bg-secondary: #0b0f19;
+  --app-bg-surface: #1f2937;
+  --app-bg-card: #1f2937;
+  --surface-bg: #1f2937;
+  --surface-elevated: #374151;
+  --surface-subtle: #0b0f19;
+  --card-bg: #1f2937;
+  --card-bg-elevated: #374151;
+  --card-bg-hover: #4b5563;
+  --card-border: #4b5563;
+  --sidebar-bg: #0b0f19;
+  --header-bg: #0b0f19;
+}
+

@@ -171,11 +171,13 @@ const LOCAL_STORAGE_THEME_KEY = 'radar_global_primary_theme_v7_offwhite_black';
 const LOCAL_STORAGE_COLOR_MODE_KEY = 'radar_global_color_mode_v7_offwhite_black';
 export const LOCAL_STORAGE_THEME_VARIANT_KEY = 'radar_active_theme_variant';
 export const LOCAL_STORAGE_HIGH_CONTRAST_KEY = 'radar_high_contrast_mode';
+export const LOCAL_STORAGE_DARK_PALETTE_KEY = 'radar_custom_dark_palette';
 const THEME_CACHE_PURGE_KEY = 'radar_soft_offwhite_black_cache_purged_v7';
 
 export type ColorModePreference = 'system' | 'light' | 'dark' | 'scheduled';
 export type ResolvedColorMode = 'light' | 'dark';
 export type ThemeVariantId = 'dark-high-contrast' | 'clean-light';
+export type DarkPaletteId = 'default' | 'deep-blue' | 'charcoal' | 'dark-gray';
 
 export interface ThemeVariantMeta {
   id: ThemeVariantId;
@@ -222,6 +224,8 @@ interface ThemeContextType {
   toggleColorMode: () => void;
   toggleThemeVariant: () => ThemeVariantId;
   cycleColorMode: () => ColorModePreference;
+  darkPalette: DarkPaletteId;
+  setDarkPalette: (palette: DarkPaletteId) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -306,6 +310,35 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const [scheduledColorScheme, setScheduledColorScheme] = useState<ResolvedColorMode>(getScheduledMode());
+
+  const [darkPalette, setDarkPaletteState] = useState<DarkPaletteId>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_DARK_PALETTE_KEY);
+        if (saved === 'deep-blue' || saved === 'charcoal' || saved === 'dark-gray' || saved === 'default') {
+          return saved as DarkPaletteId;
+        }
+      } catch {}
+    }
+    return 'default';
+  });
+
+  const setDarkPalette = (palette: DarkPaletteId) => {
+    setDarkPaletteState(palette);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_DARK_PALETTE_KEY, palette);
+        document.documentElement.setAttribute('data-dark-palette', palette);
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      document.documentElement.setAttribute('data-dark-palette', darkPalette);
+    } catch {}
+  }, [darkPalette]);
 
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
 
@@ -487,6 +520,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleColorMode,
         toggleThemeVariant,
         cycleColorMode,
+        darkPalette,
+        setDarkPalette,
       }}
     >
       {children}
@@ -514,6 +549,8 @@ const FALLBACK_THEME_CONTEXT: ThemeContextType = {
   toggleColorMode: () => {},
   toggleThemeVariant: () => 'clean-light',
   cycleColorMode: () => 'light',
+  darkPalette: 'default',
+  setDarkPalette: () => {},
 };
 
 function readStoredHighContrast(): boolean {
