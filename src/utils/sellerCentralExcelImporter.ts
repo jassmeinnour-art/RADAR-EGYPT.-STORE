@@ -896,6 +896,22 @@ export function saveAmazonSpApiSettings(
     // ignore storage quota errors
   }
 
+  if (supabaseClient) {
+    supabaseClient
+      .from('settings')
+      .upsert({
+        id: 'amazon_sp_api_settings',
+        client_id: next.clientId,
+        client_secret: next.clientSecret,
+        application_id: next.applicationId,
+        marketplace_id: next.marketplaceId,
+        region: next.region,
+        iam_arn: next.iamArn,
+        updated_at: next.updatedAt,
+      })
+      .then(() => {}, () => {});
+  }
+
   // If a caller also provided per-trader credentials programmatically, persist them in the per-trader vault
   if (updates.refreshToken && updates.refreshToken.trim()) {
     const legacySellerId = (updates.sellerId || DEFAULT_TRADER_ID).trim();
