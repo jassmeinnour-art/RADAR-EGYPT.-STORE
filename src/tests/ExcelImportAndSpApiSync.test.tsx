@@ -1835,6 +1835,56 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(alertBox.textContent).not.toContain('يمنع السحب المباشر');
     expect(screen.queryByText(AMAZON_TXT_GUIDE_TEXT)).not.toBeInTheDocument();
   });
+
+  it('falls back to amazon-sp-api-sync Edge Function on HTTP 405 even without localStorage clientId/clientSecret and extracts real Amazon error verbatim from FunctionsHttpError context', async () => {
+    localStorage.removeItem(SP_API_SETTINGS_STORAGE_KEY);
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response('Method Not Allowed', {
+        status: 405,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }) as any;
+
+    mockFunctionsInvoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: 'FunctionsHttpError',
+        message: 'Edge Function returned a non-2xx status code',
+        context: new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'sp_api_listings',
+            httpStatus: 403,
+            error: 'Unauthorized',
+            message: 'خطأ من Amazon SP-API (403 - Unauthorized): Access to requested resource is denied.',
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        ),
+      },
+    });
+
+    const outcome = await invokeAmazonSpApiSyncEdgeFunction(DEFAULT_TRADER_ID, {
+      id: DEFAULT_TRADER_ID,
+      seller_id: DEFAULT_TRADER_ID,
+      refresh_token: 'Atzr|ValidTraderToken',
+    });
+
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+      'amazon-sp-api-sync',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          refreshToken: 'Atzr|ValidTraderToken',
+          sellerId: DEFAULT_TRADER_ID,
+        }),
+      })
+    );
+    expect(outcome.success).toBe(false);
+    expect(outcome.amazonError).toBe('Unauthorized');
+    expect(outcome.message).toContain('403 - Unauthorized');
+    expect(outcome.message).toContain('Access to requested resource is denied');
+    expect(outcome.message).not.toContain('405');
+  });
 });
 
 

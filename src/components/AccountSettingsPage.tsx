@@ -28,6 +28,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { usePerformanceMode } from '../context/PerformanceModeContext';
 import { ThemeToggle } from './ThemeToggle';
+import { navigate } from '../utils/navigation';
 import { supabase } from '../lib/supabase';
 import {
   DEFAULT_MARKETPLACE_ID,
@@ -582,6 +583,19 @@ export const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
               </span>
             )}
+          </button>
+        </div>
+
+        <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--divider-color)]">
+          <p className="text-xs text-[var(--text-secondary)]">
+            خصّص درجات الوضع الليلي (أزرق داكن، أسود فحم، رمادي داكن) ومتغيرات CSS على مستوى التطبيق.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/settings/dark-theme')}
+            className="px-3.5 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--surface-elevated)] hover:bg-[var(--card-bg-hover)] text-xs font-bold text-[var(--text-primary)] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+          >
+            إعدادات ألوان الوضع الليلي المتقدمة ←
           </button>
         </div>
 

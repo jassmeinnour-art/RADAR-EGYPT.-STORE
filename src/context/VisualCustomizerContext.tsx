@@ -478,19 +478,35 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
     if (typeof document === 'undefined') return;
 
     const root = document.documentElement;
+    const hasCustomColors =
+      s.colorPrimary !== DEFAULT_VISUAL_SETTINGS.colorPrimary ||
+      s.colorSecondary !== DEFAULT_VISUAL_SETTINGS.colorSecondary ||
+      s.colorBackground !== DEFAULT_VISUAL_SETTINGS.colorBackground ||
+      s.colorCard !== DEFAULT_VISUAL_SETTINGS.colorCard ||
+      s.colorText !== DEFAULT_VISUAL_SETTINGS.colorText ||
+      s.colorTextSecondary !== DEFAULT_VISUAL_SETTINGS.colorTextSecondary ||
+      s.colorBorder !== DEFAULT_VISUAL_SETTINGS.colorBorder;
 
-    // Direct :root variables specified by user
-    root.style.setProperty('--primary', s.colorPrimary);
-    root.style.setProperty('--secondary', s.colorSecondary);
-    root.style.setProperty('--background', s.colorBackground);
-    root.style.setProperty('--app-bg', s.colorBackground);
-    root.style.setProperty('--card-bg', s.colorCard);
-    root.style.setProperty('--card-border', s.colorBorder);
+    if (hasCustomColors) {
+      root.style.setProperty('--primary', s.colorPrimary);
+      root.style.setProperty('--secondary', s.colorSecondary);
+      root.style.setProperty('--background', s.colorBackground);
+      root.style.setProperty('--app-bg', s.colorBackground);
+      root.style.setProperty('--card-bg', s.colorCard);
+      root.style.setProperty('--card-border', s.colorBorder);
+      root.style.setProperty('--card-text', s.colorText);
+      root.style.setProperty('--text', s.colorText);
+      root.style.setProperty('--text-secondary', s.colorTextSecondary);
+      root.style.setProperty('--border', s.colorBorder);
+    } else {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--secondary');
+      root.style.removeProperty('--background');
+      root.style.removeProperty('--text');
+      root.style.removeProperty('--border');
+    }
+
     root.style.setProperty('--card-radius', `${s.borderRadius}px`);
-    root.style.setProperty('--card-text', s.colorText);
-    root.style.setProperty('--text', s.colorText);
-    root.style.setProperty('--text-secondary', s.colorTextSecondary);
-    root.style.setProperty('--border', s.colorBorder);
     root.style.setProperty('--success', s.colorSuccess);
     root.style.setProperty('--error', s.colorError);
     root.style.setProperty('--warning', s.colorWarning);
@@ -549,6 +565,20 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
       document.head.appendChild(styleTag);
     }
 
+    const customColorVarsBlock = hasCustomColors
+      ? `
+        --color-primary: ${s.colorPrimary};
+        --color-secondary: ${s.colorSecondary};
+        --color-card: ${s.colorCard};
+        --color-border: ${s.colorBorder};
+        --card-bg: ${s.colorCard};
+        --card-border: ${s.colorBorder};
+        --card-text: ${s.colorText};
+        --app-bg: ${s.colorBackground};
+        --background: ${s.colorBackground};
+      `
+      : '';
+
     styleTag.textContent = `
       :root {
         --sidebar-width: ${s.sidebarWidth || 280}px;
@@ -558,23 +588,15 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
         --app-gap: ${s.appGap || s.gapBetweenCards || 16}px;
         --font-size: ${s.fontSizeBase || 14}px;
         --button-padding: ${s.buttonSize === 'small' ? '4px 10px' : s.buttonSize === 'large' ? '12px 24px' : '8px 16px'};
-        --color-primary: ${s.colorPrimary};
-        --color-secondary: ${s.colorSecondary};
-        --color-card: ${s.colorCard};
-        --color-border: ${s.colorBorder};
-        --card-bg: ${s.colorCard};
-        --card-border: ${s.colorBorder};
         --card-radius: ${s.borderRadius}px;
-        --card-text: ${s.colorText};
-        --app-bg: ${s.colorBackground};
-        --background: ${s.colorBackground};
         --app-font-family: '${s.fontFamily}', sans-serif;
+        ${customColorVarsBlock}
       }
       body {
         font-family: '${s.fontFamily}', sans-serif !important;
         font-size: ${s.fontSizeBase || 14}px;
         line-height: ${s.lineHeight};
-        background-color: ${s.colorBackground} !important;
+        ${hasCustomColors ? `background-color: ${s.colorBackground} !important;` : ''}
       }
       .sidebar-logo {
         width: var(--sidebar-logo-size, 36px) !important;
@@ -584,20 +606,20 @@ export const VisualCustomizerProvider: React.FC<{ children: React.ReactNode }> =
       }
       .dynamic-theme-heading, h1 {
         font-size: ${s.fontSizeH1}px;
-        color: ${s.colorHeading} !important;
+        ${hasCustomColors ? `color: ${s.colorHeading} !important;` : ''}
       }
       .dynamic-theme-card {
-        background-color: ${s.colorCard} !important;
+        background-color: ${hasCustomColors ? s.colorCard : 'var(--card-bg)'} !important;
         border-radius: ${s.borderRadius}px !important;
         border-width: ${s.borderWidth}px !important;
-        border-color: ${s.colorBorder} !important;
+        border-color: ${hasCustomColors ? s.colorBorder : 'var(--card-border)'} !important;
         box-shadow: ${getShadowCssValue(s.cardShadow)} !important;
         padding: ${s.cardPadding}px !important;
       }
       .dynamic-theme-button {
         border-radius: ${getButtonRadius(s.buttonShape)}px !important;
-        background-color: ${s.buttonPrimaryColor} !important;
-        color: ${s.buttonTextColor} !important;
+        background-color: ${hasCustomColors ? s.buttonPrimaryColor : 'var(--primary-color)'} !important;
+        color: ${hasCustomColors ? s.buttonTextColor : 'var(--primary-text)'} !important;
         height: ${getButtonHeight(s.buttonSize)}px !important;
       }
     `;

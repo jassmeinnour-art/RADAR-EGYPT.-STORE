@@ -745,6 +745,46 @@ export function extractAmazonOAuthCodeFromInput(rawInput: string): {
   return { code: trimmed };
 }
 
+async function extractEdgeFunctionErrorMessage(error: any): Promise<{
+  message: string;
+  amazonError?: string;
+}> {
+  if (!error) {
+    return { message: FRIENDLY_PULL_FAILURE_MESSAGE };
+  }
+
+  try {
+    const ctx = error?.context;
+    if (ctx && typeof ctx.text === 'function') {
+      const cloned = typeof ctx.clone === 'function' ? ctx.clone() : ctx;
+      const raw = await cloned.text();
+      if (raw && raw.trim()) {
+        try {
+          const parsed = JSON.parse(raw);
+          const msg = String(
+            parsed?.message ||
+              parsed?.error_description ||
+              parsed?.error ||
+              raw
+          ).trim();
+          return {
+            message: sanitizeProductPullError(msg),
+            amazonError: parsed?.error ? String(parsed.error) : undefined,
+          };
+        } catch {
+          return { message: sanitizeProductPullError(raw) };
+        }
+      }
+    }
+  } catch {
+    // ignore context parsing failure and fall back to error.message
+  }
+
+  return {
+    message: sanitizeProductPullError(error),
+  };
+}
+
 export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
   rawCodeOrUrl: string;
   sellerId?: string;
@@ -794,7 +834,11 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
       json = null;
     }
 
-    if (json && !(res.status === 404 && !contentType.includes('application/json'))) {
+    const isGatewayFallback =
+      ((res.status === 404 || res.status === 405) && !json) ||
+      (!json && !contentType.includes('application/json'));
+
+    if (json && !isGatewayFallback) {
       const token = String(json?.refresh_token || json?.refreshToken || '').trim();
       if (!res.ok || json?.success === false || !token) {
         return {
@@ -822,8 +866,8 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
     // fallback to Supabase Edge Function below if backend endpoint is unavailable
   }
 
-  // 2. Fallback: Supabase Edge Function when clientId & clientSecret are configured in local settings
-  if (supabaseClient?.functions && settings.clientId.trim() && settings.clientSecret.trim()) {
+  // 2. Fallback: Supabase Edge Function (reads credentials from Supabase settings table or Secrets if not passed)
+  if (supabaseClient?.functions) {
     try {
       const { data, error } = await supabaseClient.functions.invoke('amazon-sp-api-sync', {
         body: {
@@ -837,8 +881,15 @@ export async function exchangeMerchantOAuthCodeForRefreshToken(params: {
           traderId: resolvedTraderId || resolvedSellerId,
         },
       });
+      if (error) {
+        const extracted = await extractEdgeFunctionErrorMessage(error);
+        return {
+          success: false,
+          message: extracted.message,
+        };
+      }
       const token = String(data?.refresh_token || data?.refreshToken || '').trim();
-      if (!error && data?.success !== false && token) {
+      if (data?.success !== false && token) {
         const finalSellerId = String(data?.seller_id || resolvedSellerId).trim();
         await saveTraderAmazonConnection({
           traderId: resolvedTraderId,
@@ -896,20 +947,33 @@ export function saveAmazonSpApiSettings(
     // ignore storage quota errors
   }
 
-  if (supabaseClient) {
-    supabaseClient
-      .from('settings')
-      .upsert({
-        id: 'amazon_sp_api_settings',
-        client_id: next.clientId,
-        client_secret: next.clientSecret,
-        application_id: next.applicationId,
-        marketplace_id: next.marketplaceId,
-        region: next.region,
-        iam_arn: next.iamArn,
-        updated_at: next.updatedAt,
-      })
-      .then(() => {}, () => {});
+  const dbClient =
+    typeof (supabaseClient as any)?.from === 'function'
+      ? supabaseClient
+      : typeof (supabase as any)?.from === 'function'
+      ? supabase
+      : null;
+
+  if (dbClient) {
+    try {
+      const upsertRes = dbClient
+        .from('settings')
+        .upsert({
+          id: 'amazon_sp_api_settings',
+          client_id: next.clientId,
+          client_secret: next.clientSecret,
+          application_id: next.applicationId,
+          marketplace_id: next.marketplaceId,
+          region: next.region,
+          iam_arn: next.iamArn,
+          updated_at: next.updatedAt,
+        });
+      if (upsertRes && typeof (upsertRes as any).then === 'function') {
+        (upsertRes as PromiseLike<any>).then(() => {}, () => {});
+      }
+    } catch {
+      // ignore non-fatal DB sync error
+    }
   }
 
   // If a caller also provided per-trader credentials programmatically, persist them in the per-trader vault
@@ -2994,7 +3058,12 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
       data = null;
     }
 
-    if (res.status === 404 && !contentType.includes('application/json')) {
+    const isGateway404Or405 =
+      ((res.status === 404 || res.status === 405) &&
+        (!data || (!data.amazonError && !data.stage && !data.error))) ||
+      (!data && !contentType.includes('application/json'));
+
+    if (isGateway404Or405) {
       shouldFallbackToEdgeFunction = true;
     } else if (!data && rawText.trim().startsWith('<')) {
       shouldFallbackToEdgeFunction = true;
@@ -3068,7 +3137,7 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
       };
     }
   } catch (err: any) {
-    if (supabaseClient?.functions && settings.clientId.trim() && settings.clientSecret.trim()) {
+    if (supabaseClient?.functions) {
       shouldFallbackToEdgeFunction = true;
     } else {
       return {
@@ -3095,9 +3164,11 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
       });
 
       if (error) {
+        const extracted = await extractEdgeFunctionErrorMessage(error);
         return {
           success: false,
-          message: sanitizeProductPullError(error),
+          amazonError: extracted.amazonError,
+          message: extracted.message,
         };
       }
 

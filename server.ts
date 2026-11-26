@@ -4441,12 +4441,13 @@ app.get('/api/amazon/sp-api/oauth-config', (_req, res) => {
 });
 
 // Direct OAuth Authorization Code -> Refresh Token exchange endpoint
-app.post('/api/amazon/sp-api/exchange-code', async (req, res) => {
+app.all('/api/amazon/sp-api/exchange-code', async (req, res) => {
   const body = req.body || {};
-  const code = String(body.code || body.spapi_oauth_code || '').trim();
-  const sellerId = String(body.sellerId || body.selling_partner_id || '').trim();
+  const query = req.query || {};
+  const code = String(body.code || body.spapi_oauth_code || query.code || query.spapi_oauth_code || '').trim();
+  const sellerId = String(body.sellerId || body.selling_partner_id || query.sellerId || query.selling_partner_id || '').trim();
   const resolved = await resolveMultiTenantAmazonSpApiCredentials({
-    merchantId: String(body.traderId || body.merchantId || sellerId || ''),
+    merchantId: String(body.traderId || body.merchantId || query.traderId || sellerId || ''),
     providedClientId: String(body.clientId || ''),
     providedClientSecret: String(body.clientSecret || ''),
     providedApplicationId: String(body.applicationId || ''),
@@ -5286,12 +5287,81 @@ async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: expres
   }
 
   const { endpointHost, amazonDomain } = getMarketplaceHostAndDomain(marketplaceId, region);
-  const spHeaders: Record<string, string> = {
-    'x-amz-access-token': accessToken,
-    'Accept': 'application/json',
-    'User-Agent': applicationId
-      ? `MerchantRadarEgypt/2.5.0 (AppId=${applicationId}; Language=Node.js)`
-      : 'MerchantRadarEgypt/2.5.0 (Language=Node.js)'
+  const awsAccessKeyId = String(
+    body.awsAccessKeyId ||
+      process.env.SP_API_AWS_ACCESS_KEY_ID ||
+      process.env.AWS_ACCESS_KEY_ID ||
+      process.env.AMAZON_AWS_ACCESS_KEY_ID ||
+      ''
+  ).trim();
+  const awsSecretAccessKey = String(
+    body.awsSecretAccessKey ||
+      process.env.SP_API_AWS_SECRET_ACCESS_KEY ||
+      process.env.SP_API_AWS_SECRET_KEY ||
+      process.env.AWS_SECRET_ACCESS_KEY ||
+      process.env.AMAZON_AWS_SECRET_ACCESS_KEY ||
+      ''
+  ).trim();
+  const awsSessionToken = String(
+    body.awsSessionToken || process.env.AWS_SESSION_TOKEN || ''
+  ).trim();
+
+  const buildNodeSpHeaders = (targetUrl: string): Record<string, string> => {
+    const parsedUrl = new URL(targetUrl);
+    const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const dateStamp = amzDate.slice(0, 8);
+    const headers: Record<string, string> = {
+      'x-amz-access-token': accessToken,
+      'x-amz-date': amzDate,
+      'Accept': 'application/json',
+      'User-Agent': applicationId
+        ? `MerchantRadarEgypt/2.5.0 (AppId=${applicationId}; Language=Node.js)`
+        : 'MerchantRadarEgypt/2.5.0 (Language=Node.js)',
+    };
+    if (awsSessionToken) {
+      headers['x-amz-security-token'] = awsSessionToken;
+    }
+    if (awsAccessKeyId && awsSecretAccessKey) {
+      const signingRegion = endpointHost.includes('-na.')
+        ? 'us-east-1'
+        : endpointHost.includes('-fe.')
+        ? 'us-west-2'
+        : 'eu-west-1';
+      const encodeRfc3986 = (s: string) =>
+        encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+      const signMap: Record<string, string> = {
+        host: parsedUrl.host,
+        'x-amz-access-token': accessToken,
+        'x-amz-date': amzDate,
+      };
+      if (awsSessionToken) signMap['x-amz-security-token'] = awsSessionToken;
+      const sortedKeys = Object.keys(signMap).sort();
+      const canonicalHeaders = sortedKeys.map((k) => `${k}:${signMap[k].trim()}\n`).join('');
+      const signedHeaders = sortedKeys.join(';');
+      const canonicalUri =
+        parsedUrl.pathname.split('/').map((seg) => encodeRfc3986(decodeURIComponent(seg))).join('/') || '/';
+      const qPairs: Array<[string, string]> = [];
+      parsedUrl.searchParams.forEach((v, k) => qPairs.push([encodeRfc3986(k), encodeRfc3986(v)]));
+      qPairs.sort((a, b) => (a[0] === b[0] ? a[1].localeCompare(b[1]) : a[0].localeCompare(b[0])));
+      const canonicalQs = qPairs.map(([k, v]) => `${k}=${v}`).join('&');
+      const payloadHash = crypto.createHash('sha256').update('').digest('hex');
+      const canonicalReq = ['GET', canonicalUri, canonicalQs, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+      const scope = `${dateStamp}/${signingRegion}/execute-api/aws4_request`;
+      const strToSign = [
+        'AWS4-HMAC-SHA256',
+        amzDate,
+        scope,
+        crypto.createHash('sha256').update(canonicalReq).digest('hex'),
+      ].join('\n');
+      const hmac = (k: Buffer | string, d: string) => crypto.createHmac('sha256', k).update(d, 'utf8').digest();
+      const kDate = hmac(`AWS4${awsSecretAccessKey}`, dateStamp);
+      const kRegion = hmac(kDate, signingRegion);
+      const kService = hmac(kRegion, 'execute-api');
+      const kSign = hmac(kService, 'aws4_request');
+      const sig = crypto.createHmac('sha256', kSign).update(strToSign, 'utf8').digest('hex');
+      headers['Authorization'] = `AWS4-HMAC-SHA256 Credential=${awsAccessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${sig}`;
+    }
+    return headers;
   };
 
   // 2. Real SP-API Listings Call: GET /listings/2021-08-01/items/{sellerId}
@@ -5313,7 +5383,7 @@ async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: expres
       const listingsUrl = `${endpointHost}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${qs.toString()}`;
       const listingsRes = await fetch(listingsUrl, {
         method: 'GET',
-        headers: spHeaders
+        headers: buildNodeSpHeaders(listingsUrl)
       });
 
       const rawText = await listingsRes.text();
@@ -5389,7 +5459,7 @@ async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: expres
         includedData: 'images,summaries,attributes,productTypes'
       });
       const catUrl = `${endpointHost}/catalog/2022-04-01/items?${catQs.toString()}`;
-      const catRes = await fetch(catUrl, { method: 'GET', headers: spHeaders });
+      const catRes = await fetch(catUrl, { method: 'GET', headers: buildNodeSpHeaders(catUrl) });
       if (catRes.ok) {
         const catJson = await catRes.json() as any;
         const catItems = Array.isArray(catJson?.items) ? catJson.items : [];
@@ -5401,16 +5471,6 @@ async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: expres
       }
     } catch {
       // Non-fatal catalog enrichment failure: listings items remain intact
-    }
-  }
-
-  // Also call GET /catalog/2022-04-01/items directly if seller has 0 listings to verify catalog API accessibility
-  if (allListingItems.length === 0) {
-    try {
-      const catVerifyUrl = `${endpointHost}/catalog/2022-04-01/items?marketplaceIds=${encodeURIComponent(marketplaceId)}&pageSize=1`;
-      await fetch(catVerifyUrl, { method: 'GET', headers: spHeaders });
-    } catch {
-      // ignore probe failure
     }
   }
 
@@ -5501,8 +5561,8 @@ async function pullLiveProductsFromAmazonSpApi(req: express.Request, res: expres
   });
 }
 
-app.post('/api/amazon/sp-api/pull-products', importRateLimiter, pullLiveProductsFromAmazonSpApi);
-app.post('/api/amazon/sp-api/listings', importRateLimiter, pullLiveProductsFromAmazonSpApi);
+app.all('/api/amazon/sp-api/pull-products', importRateLimiter, pullLiveProductsFromAmazonSpApi);
+app.all('/api/amazon/sp-api/listings', importRateLimiter, pullLiveProductsFromAmazonSpApi);
 
 // Handler for Dynamic Per-Merchant Product Catalog & Competitor Pricing
 const handleMerchantCatalogRequest = async (req: express.Request, res: express.Response) => {

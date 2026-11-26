@@ -30,6 +30,7 @@ import {
   Wand2,
   GripVertical,
   RotateCcw,
+  Palette,
 } from 'lucide-react';
 import {
   DndContext,
@@ -682,6 +683,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           action: () => {
             onSelectTab('account_settings');
             if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings');
+          },
+        },
+        {
+          id: 'dark_palette_settings_tab',
+          label: 'ألوان الوضع الليلي',
+          icon: <Palette className="w-4 h-4 text-amber-300" />,
+          preloadTab: 'dark_palette_settings',
+          isActive: activeTab === 'dark_palette_settings',
+          action: () => {
+            onSelectTab('dark_palette_settings');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/settings/dark-theme');
           },
         },
         ...(isOwner

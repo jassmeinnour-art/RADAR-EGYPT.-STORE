@@ -360,55 +360,119 @@ html.high-contrast.dark {
    ========================================================================== */
 html.dark[data-dark-palette="deep-blue"],
 html[data-color-mode="dark"][data-dark-palette="deep-blue"] {
-  --app-bg: #0b1329;
-  --app-bg-primary: #0b1329;
-  --app-bg-secondary: #070d1f;
+  --app-bg: #0B1329;
+  --app-bg-primary: #0B1329;
+  --app-bg-secondary: #070D1F;
   --app-bg-surface: #101935;
-  --app-bg-card: #141e38;
+  --app-bg-card: #141E38;
   --surface-bg: #101935;
-  --surface-elevated: #1a2747;
-  --surface-subtle: #070d1f;
-  --card-bg: #141e38;
-  --card-bg-elevated: #1a2747;
-  --card-bg-hover: #22325c;
+  --surface-elevated: #1A2747;
+  --surface-subtle: #070D1F;
+  --card-bg: #141E38;
+  --card-bg-elevated: #1A2747;
+  --card-bg-hover: #22325C;
   --card-border: #314875;
-  --sidebar-bg: #070d1f;
-  --header-bg: #070d1f;
+  --card-border-strong: #3B5998;
+  --app-border-color: #314875;
+  --divider-color: #314875;
+  --sidebar-bg: #070D1F;
+  --sidebar-surface: #101935;
+  --sidebar-border: #314875;
+  --sidebar-hover-bg: #22325C;
+  --header-bg: #070D1F;
+  --header-border: #314875;
+  --input-bg: #091024;
+  --input-border: #3B5998;
+  --input-border-focus: #60A5FA;
+  --table-header-bg: #192646;
+  --table-row-bg: #141E38;
+  --table-row-hover: #22325C;
+  --table-border: #314875;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --card-text: #F8FAFC;
+  --card-text-secondary: #CBD5E1;
+  --primary-color: #38BDF8;
+  --primary-border: #38BDF8;
+  --accent-color: #60A5FA;
 }
 
 html.dark[data-dark-palette="charcoal"],
 html[data-color-mode="dark"][data-dark-palette="charcoal"] {
   --app-bg: #121212;
   --app-bg-primary: #121212;
-  --app-bg-secondary: #0a0a0a;
+  --app-bg-secondary: #0A0A0A;
   --app-bg-surface: #181818;
-  --app-bg-card: #1e1e1e;
+  --app-bg-card: #1C1C1E;
   --surface-bg: #181818;
-  --surface-elevated: #282828;
-  --surface-subtle: #0d0d0d;
-  --card-bg: #1e1e1e;
-  --card-bg-elevated: #282828;
-  --card-bg-hover: #333333;
-  --card-border: #3f3f46;
-  --sidebar-bg: #0d0d0d;
-  --header-bg: #0d0d0d;
+  --surface-elevated: #262626;
+  --surface-subtle: #0A0A0A;
+  --card-bg: #1C1C1E;
+  --card-bg-elevated: #262626;
+  --card-bg-hover: #2C2C2E;
+  --card-border: #3F3F46;
+  --card-border-strong: #52525B;
+  --app-border-color: #3F3F46;
+  --divider-color: #3F3F46;
+  --sidebar-bg: #0D0D0D;
+  --sidebar-surface: #18181B;
+  --sidebar-border: #3F3F46;
+  --sidebar-hover-bg: #2C2C2E;
+  --header-bg: #0D0D0D;
+  --header-border: #3F3F46;
+  --input-bg: #101012;
+  --input-border: #52525B;
+  --input-border-focus: #FBBF24;
+  --table-header-bg: #222225;
+  --table-row-bg: #1C1C1E;
+  --table-row-hover: #2C2C2E;
+  --table-border: #3F3F46;
+  --text-primary: #FAFAFA;
+  --text-secondary: #D4D4D8;
+  --card-text: #FAFAFA;
+  --card-text-secondary: #D4D4D8;
+  --primary-color: #F59E0B;
+  --primary-border: #F59E0B;
+  --accent-color: #FBBF24;
 }
 
 html.dark[data-dark-palette="dark-gray"],
 html[data-color-mode="dark"][data-dark-palette="dark-gray"] {
-  --app-bg: #111827;
-  --app-bg-primary: #111827;
-  --app-bg-secondary: #0b0f19;
-  --app-bg-surface: #1f2937;
-  --app-bg-card: #1f2937;
-  --surface-bg: #1f2937;
-  --surface-elevated: #374151;
-  --surface-subtle: #0b0f19;
-  --card-bg: #1f2937;
-  --card-bg-elevated: #374151;
-  --card-bg-hover: #4b5563;
-  --card-border: #4b5563;
-  --sidebar-bg: #0b0f19;
-  --header-bg: #0b0f19;
+  --app-bg: #14181F;
+  --app-bg-primary: #14181F;
+  --app-bg-secondary: #0E1218;
+  --app-bg-surface: #1D232D;
+  --app-bg-card: #1F2530;
+  --surface-bg: #1D232D;
+  --surface-elevated: #2D3544;
+  --surface-subtle: #0E1218;
+  --card-bg: #1F2530;
+  --card-bg-elevated: #2D3544;
+  --card-bg-hover: #2E3646;
+  --card-border: #475161;
+  --card-border-strong: #64748B;
+  --app-border-color: #475161;
+  --divider-color: #475161;
+  --sidebar-bg: #0E1218;
+  --sidebar-surface: #1B212B;
+  --sidebar-border: #475161;
+  --sidebar-hover-bg: #2E3646;
+  --header-bg: #0E1218;
+  --header-border: #475161;
+  --input-bg: #11161E;
+  --input-border: #64748B;
+  --input-border-focus: #60A5FA;
+  --table-header-bg: #252C39;
+  --table-row-bg: #1F2530;
+  --table-row-hover: #2E3646;
+  --table-border: #475161;
+  --text-primary: #F9FAFB;
+  --text-secondary: #D1D5DB;
+  --card-text: #F9FAFB;
+  --card-text-secondary: #D1D5DB;
+  --primary-color: #34D399;
+  --primary-border: #34D399;
+  --accent-color: #60A5FA;
 }
+
 

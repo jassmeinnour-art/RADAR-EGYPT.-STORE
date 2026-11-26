@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useVisualCustomizer } from '../context/VisualCustomizerContext';
 import { useTheme } from '../context/ThemeContext';
+import { navigate } from '../utils/navigation';
 
 interface LayoutSettingsPageProps {
   onShowToast?: (msg: string) => void;
@@ -203,18 +204,28 @@ export const LayoutSettingsPage: React.FC<LayoutSettingsPageProps> = ({ onShowTo
         className="p-6 rounded-3xl border shadow-xl space-y-4"
         style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', color: 'var(--card-text)' }}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
-            <Moon className="w-5 h-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+              <Moon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-[var(--text-primary)]">
+                ألوان الوضع الليلي المخصصة (Custom Dark Mode Themes)
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                اختر درجة اللون المفضلة للوضع الليلي بدلاً من الوضع الافتراضي لراحة عينيك أثناء العمل التجاري.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-black text-[var(--text-primary)]">
-              ألوان الوضع الليلي المخصصة (Custom Dark Mode Themes)
-            </h3>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              اختر درجة اللون المفضلة للوضع الليلي بدلاً من الوضع الافتراضي لراحة عينيك أثناء العمل التجاري.
-            </p>
-          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/settings/dark-theme')}
+            className="px-3.5 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--surface-elevated)] hover:bg-[var(--card-bg-hover)] text-xs font-bold text-[var(--text-primary)] cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+          >
+            محرر ألوان CSS المتقدم ←
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">

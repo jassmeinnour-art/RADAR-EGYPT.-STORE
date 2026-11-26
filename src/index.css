@@ -286,3 +286,46 @@ html[data-high-contrast="true"] :focus-visible {
   outline: 2px solid var(--focus-ring, #FACC15) !important;
   outline-offset: 2px !important;
 }
+
+/* ===== App-wide Dark Palette CSS Variable Propagation ===== */
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) body {
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-950,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-950\/95,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-950\/90,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-950\/80,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-950\/60 {
+  background-color: var(--app-bg-secondary);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-900,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-900\/95,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-900\/90,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-900\/80,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-900\/60 {
+  background-color: var(--card-bg);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-800,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-800\/80,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .bg-slate-800\/60 {
+  background-color: var(--surface-elevated);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .border-slate-800,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .border-slate-700,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .border-slate-700\/80 {
+  border-color: var(--card-border);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .text-slate-100 {
+  color: var(--text-primary);
+}
+
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .text-slate-300,
+html.dark[data-dark-palette]:not([data-dark-palette="default"]):not([data-high-contrast="true"]) .text-slate-400 {
+  color: var(--text-secondary);
+}

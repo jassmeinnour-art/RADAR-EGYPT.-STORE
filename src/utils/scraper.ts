@@ -150,7 +150,7 @@ export async function scrapeStorefrontHeadless(url: string, platformHint?: strin
         : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
     } else {
       try {
-        const chromiumMod = await import('@sparticuz/chromium').catch(() => null);
+        const chromiumMod = await (Function('return import("@sparticuz/chromium")')() as Promise<any>).catch(() => null);
         if (chromiumMod && chromiumMod.default) {
           chromiumMod.default.setGraphicsMode = false;
           executablePath = await chromiumMod.default.executablePath();
@@ -160,7 +160,7 @@ export async function scrapeStorefrontHeadless(url: string, platformHint?: strin
       }
     }
 
-    const puppeteerMod = await import('puppeteer-core').catch(() => null);
+    const puppeteerMod = await (Function('return import("puppeteer-core")')() as Promise<any>).catch(() => null);
     if (executablePath && puppeteerMod && puppeteerMod.default) {
       const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
 

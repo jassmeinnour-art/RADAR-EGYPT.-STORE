@@ -1,5 +1,3 @@
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
 import { parseAmazonStorefront, parseNoonHtml, parseJumiaHtml, ScrapedProduct } from '../../src/utils/scraper';
 
 export const config = {
@@ -76,10 +74,11 @@ export default async function handler(req: any, res: any) {
   let executionMethod: 'headless_puppeteer' | 'fallback_http' = 'headless_puppeteer';
   let executionError: string | null = null;
 
-  // 2. Primary Method: Headless browser execution with @sparticuz/chromium & puppeteer-core
+  // 2. Primary Method: Headless browser execution with @sparticuz/chromium & puppeteer-core (when available)
   try {
     const isWindowsOrMac = process.platform === 'win32' || process.platform === 'darwin';
     let executablePath = '';
+    let chromium: any = null;
 
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
       executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -89,15 +88,22 @@ export default async function handler(req: any, res: any) {
         : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
     } else {
       try {
-        chromium.setGraphicsMode = false;
-        executablePath = await chromium.executablePath();
-      } catch (pathErr: any) {
+        const chromiumMod = await (Function('return import("@sparticuz/chromium")')() as Promise<any>).catch(() => null);
+        chromium = chromiumMod?.default || chromiumMod;
+        if (chromium) {
+          chromium.setGraphicsMode = false;
+          executablePath = await chromium.executablePath();
+        }
+      } catch {
         executablePath = '/usr/bin/google-chrome';
       }
     }
 
-    if (executablePath) {
-      const launchArgs = Array.isArray(chromium.args)
+    const puppeteerMod = await (Function('return import("puppeteer-core")')() as Promise<any>).catch(() => null);
+    const puppeteer = puppeteerMod?.default || puppeteerMod;
+
+    if (executablePath && puppeteer) {
+      const launchArgs = Array.isArray(chromium?.args)
         ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
         : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
 
