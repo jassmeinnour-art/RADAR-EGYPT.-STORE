@@ -1,0 +1,3 @@
+# Supabase CLI Function Configuration
+[functions.amazon-sp-api-sync]
+verify_jwt = false

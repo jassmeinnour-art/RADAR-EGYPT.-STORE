@@ -5,9 +5,27 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-api-version, x-requested-with, accept',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
+
+const FUNCTION_MAX_DURATION_MS = 38_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // In-memory sliding window rate limiting cache per IP / trader
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
@@ -192,8 +210,11 @@ async function buildSpApiHeaders(params: {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
+
+  const functionStartMs = Date.now();
+  const functionDeadlineMs = functionStartMs + FUNCTION_MAX_DURATION_MS;
 
   // Extract client identifier for rate limiting (Cloudflare/Deno headers or IP)
   const clientIp =
@@ -233,6 +254,20 @@ Deno.serve(async (req: Request) => {
     const b: Record<string, any> = { ...queryParams, ...parsedBody };
     const action = String(b.action || '').trim();
     const traderId = String(b.traderId || b.sellerId || b.merchantId || '').trim();
+
+    if (action === 'ping' || action === 'health' || (req.method === 'GET' && !traderId && !b.refreshToken && !b.code)) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          function: 'amazon-sp-api-sync',
+          status: 'ready',
+          cors: true,
+          timestamp: new Date().toISOString(),
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const rateLimitKey = `${clientIp}_${traderId || 'global'}`;
 
     const rateLimit = checkRateLimit(rateLimitKey);
@@ -269,6 +304,7 @@ Deno.serve(async (req: Request) => {
       supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
     let s: Record<string, any> = {};
+    let dbTrader: Record<string, any> | null = null;
     if (supabaseAdmin) {
       try {
         const { data: primaryRow } = await supabaseAdmin
@@ -284,6 +320,28 @@ Deno.serve(async (req: Request) => {
         s = mergeSettingsRows(orderedRows);
       } catch {
         // non-fatal
+      }
+
+      if (traderId) {
+        try {
+          const { data: byId } = await supabaseAdmin
+            .from('traders')
+            .select('*')
+            .eq('id', traderId)
+            .maybeSingle();
+          if (byId) {
+            dbTrader = byId;
+          } else {
+            const { data: bySellerId } = await supabaseAdmin
+              .from('traders')
+              .select('*')
+              .eq('seller_id', traderId)
+              .maybeSingle();
+            if (bySellerId) dbTrader = bySellerId;
+          }
+        } catch {
+          // non-fatal
+        }
       }
     }
 
@@ -359,6 +417,8 @@ Deno.serve(async (req: Request) => {
       pickFirstNonEmpty(
         b.sellerId,
         b.merchantId,
+        dbTrader?.seller_id,
+        dbTrader?.seller_ids?.amazon,
         s.seller_id,
         s.sellerId,
         s.merchant_id,
@@ -371,6 +431,10 @@ Deno.serve(async (req: Request) => {
     const refreshToken = pickFirstNonEmpty(
       b.refreshToken,
       b.refresh_token,
+      dbTrader?.api_keys?.amazon?.refreshToken,
+      dbTrader?.api_keys?.amazon?.refresh_token,
+      dbTrader?.refresh_token,
+      dbTrader?.amazon_refresh_token,
       s.refresh_token,
       s.refreshToken,
       s.amazon_refresh_token,
@@ -447,14 +511,34 @@ Deno.serve(async (req: Request) => {
         client_secret: clientSecret,
       });
 
-      const exchangeRes = await fetch('https://api.amazon.com/auth/o2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          'Accept': 'application/json',
-        },
-        body: tokenParams.toString(),
-      });
+      let exchangeRes: Response;
+      try {
+        exchangeRes = await fetchWithTimeout(
+          'https://api.amazon.com/auth/o2/token',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+              'Accept': 'application/json',
+            },
+            body: tokenParams.toString(),
+          },
+          12_000
+        );
+      } catch (fetchErr: any) {
+        const isTimeout = fetchErr?.name === 'AbortError';
+        return new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'oauth_exchange',
+            error: isTimeout ? 'upstream_timeout' : 'network_error',
+            message: isTimeout
+              ? 'انتهت مهلة الاتصال بخادم Amazon LWA أثناء تحويل كود التفويض (12 ثانية).'
+              : `تعذر الاتصال بخادم Amazon LWA: ${fetchErr?.message || 'Network Error'}`,
+          }),
+          { status: isTimeout ? 504 : 502, headers: rateLimitHeaders }
+        );
+      }
 
       const errOrOkText = await exchangeRes.text();
       let tokenJson: any = null;
@@ -523,14 +607,36 @@ Deno.serve(async (req: Request) => {
       refresh_token: refreshToken,
     });
 
-    const lwaRes = await fetch('https://api.amazon.com/auth/o2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-        'Accept': 'application/json',
-      },
-      body: lwaParams.toString(),
-    });
+    let lwaRes: Response;
+    try {
+      lwaRes = await fetchWithTimeout(
+        'https://api.amazon.com/auth/o2/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'Accept': 'application/json',
+          },
+          body: lwaParams.toString(),
+        },
+        12_000
+      );
+    } catch (lwaErr: any) {
+      const isTimeout = lwaErr?.name === 'AbortError';
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'lwa_token_exchange',
+          method: 'POST',
+          endpoint: 'https://api.amazon.com/auth/o2/token',
+          error: isTimeout ? 'upstream_timeout' : 'network_error',
+          message: isTimeout
+            ? 'انتهت مهلة الاتصال بخادم Amazon LWA (12 ثانية) — حاول مرة أخرى.'
+            : `تعذر الاتصال بخادم Amazon LWA: ${lwaErr?.message || 'Network Error'}`,
+        }),
+        { status: isTimeout ? 504 : 502, headers: rateLimitHeaders }
+      );
+    }
 
     const lwaRawText = await lwaRes.text();
     let lwaParsed: any = null;
@@ -600,8 +706,14 @@ Deno.serve(async (req: Request) => {
     const items: any[] = [];
     let pageToken: string | null = null;
     let pages = 0;
+    let stoppedForDeadline = false;
 
     do {
+      if (Date.now() > functionDeadlineMs - 10_000 && pages > 0) {
+        stoppedForDeadline = true;
+        break;
+      }
+
       const qs = new URLSearchParams({
         marketplaceIds: marketplaceId,
         includedData: 'summaries,offers,fulfillmentAvailability,attributes',
@@ -621,10 +733,36 @@ Deno.serve(async (req: Request) => {
         applicationId,
       });
 
-      const listingsRes = await fetch(spApiUrl, {
-        method: 'GET',
-        headers: spHeaders,
-      });
+      let listingsRes: Response;
+      try {
+        listingsRes = await fetchWithTimeout(
+          spApiUrl,
+          {
+            method: 'GET',
+            headers: spHeaders,
+          },
+          14_000
+        );
+      } catch (spErr: any) {
+        if (items.length > 0) {
+          stoppedForDeadline = true;
+          break;
+        }
+        const isTimeout = spErr?.name === 'AbortError';
+        return new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'sp_api_listings',
+            method: 'GET',
+            endpoint: spApiUrl,
+            error: isTimeout ? 'upstream_timeout' : 'network_error',
+            message: isTimeout
+              ? 'انتهت مهلة الاتصال بـ Amazon SP-API /listings/2021-08-01 (14 ثانية).'
+              : `تعذر الاتصال بـ Amazon SP-API /listings/2021-08-01: ${spErr?.message || 'Network Error'}`,
+          }),
+          { status: isTimeout ? 504 : 502, headers: rateLimitHeaders }
+        );
+      }
 
       const spErrOrBodyText = await listingsRes.text();
       let listingsData: any = null;
@@ -688,6 +826,10 @@ Deno.serve(async (req: Request) => {
 
     const catalogErrors: any[] = [];
     for (let i = 0; i < uniqueAsins.length; i += 20) {
+      if (Date.now() > functionDeadlineMs - 4_000) {
+        stoppedForDeadline = true;
+        break;
+      }
       const chunk = uniqueAsins.slice(i, i + 20);
       try {
         const catQs = new URLSearchParams({
@@ -708,10 +850,14 @@ Deno.serve(async (req: Request) => {
           applicationId,
         });
 
-        const catRes = await fetch(catUrl, {
-          method: 'GET',
-          headers: catHeaders,
-        });
+        const catRes = await fetchWithTimeout(
+          catUrl,
+          {
+            method: 'GET',
+            headers: catHeaders,
+          },
+          9_000
+        );
         const catText = await catRes.text();
         let catJson: any = null;
         try {
@@ -820,6 +966,8 @@ Deno.serve(async (req: Request) => {
         sellerId,
         sigV4Signed: Boolean(awsAccessKeyId && awsSecretAccessKey),
         total: mappedProducts.length,
+        partial: stoppedForDeadline,
+        durationMs: Date.now() - functionStartMs,
         products: mappedProducts,
         ...(catalogErrors.length > 0 ? { catalogWarnings: catalogErrors } : {}),
       }),

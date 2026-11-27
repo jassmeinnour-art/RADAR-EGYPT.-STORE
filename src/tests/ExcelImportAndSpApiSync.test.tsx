@@ -1885,7 +1885,49 @@ describe('Amazon TXT / Excel / CSV Import, Direct Fetch Blocking, and Anti-Linke
     expect(outcome.message).toContain('Access to requested resource is denied');
     expect(outcome.message).not.toContain('405');
   });
+
+  it('surfaces actionable amazon-sp-api-sync deployment/CORS/URL diagnostics when Edge Function returns FunctionsFetchError for trader Khaled', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return new Response('Not Found', {
+        status: 404,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }) as any;
+
+    mockFunctionsInvoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: 'FunctionsFetchError',
+        message: 'Failed to send a request to the Edge Function',
+      },
+    });
+
+    const khaledUuid = '22222222-2222-4222-8222-222222222222';
+    const outcome = await invokeAmazonSpApiSyncEdgeFunction(khaledUuid, {
+      id: khaledUuid,
+      seller_name: 'خالد محمد',
+      seller_id: 'A23IW2QPEITPWT',
+      refresh_token: 'Atzr|KhaledToken',
+    });
+
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+      'amazon-sp-api-sync',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          traderId: khaledUuid,
+          refreshToken: 'Atzr|KhaledToken',
+          sellerId: 'A23IW2QPEITPWT',
+        }),
+      })
+    );
+    expect(outcome.success).toBe(false);
+    expect(outcome.message).toContain('amazon-sp-api-sync');
+    expect(outcome.message).toContain('VITE_SUPABASE_URL');
+    expect(outcome.message).toContain('CORS');
+    expect(outcome.message).not.toContain('405');
+  });
 });
+
 
 
 
