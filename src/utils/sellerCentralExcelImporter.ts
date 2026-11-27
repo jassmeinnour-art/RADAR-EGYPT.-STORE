@@ -780,6 +780,20 @@ async function extractEdgeFunctionErrorMessage(error: any): Promise<{
     // ignore context parsing failure and fall back to error.message
   }
 
+  const errName = String(error?.name || '');
+  const rawMsg = String(error?.message || '').trim();
+  if (
+    errName === 'FunctionsFetchError' ||
+    rawMsg.includes('Failed to send a request to the Edge Function') ||
+    errName === 'AbortError' ||
+    rawMsg.toLowerCase().includes('aborted')
+  ) {
+    return {
+      message:
+        'تعذر الوصول إلى Edge Function (amazon-sp-api-sync) على Supabase: تأكد من نشر الدالة (supabase functions deploy amazon-sp-api-sync --no-verify-jwt)، وصحة رابط VITE_SUPABASE_URL، وإعدادات CORS، أو عدم انتهاء مهلة الشبكة (Failed to send a request to the Edge Function).',
+    };
+  }
+
   return {
     message: sanitizeProductPullError(error),
   };
@@ -3217,6 +3231,14 @@ export async function invokeAmazonSpApiSyncEdgeFunction(
         message: sanitizeProductPullError(err),
       };
     }
+  }
+
+  if (shouldFallbackToEdgeFunction && !supabaseClient?.functions) {
+    return {
+      success: false,
+      message:
+        'تعذر الوصول إلى نقطة نهاية الخادم (/api/amazon/sp-api/pull-products) كما أن إعدادات Supabase (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) غير مكتملة لاستدعاء دالة amazon-sp-api-sync.',
+    };
   }
 
   return {

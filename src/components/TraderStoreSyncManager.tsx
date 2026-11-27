@@ -18,10 +18,13 @@ import {
   Layers, 
   Filter, 
   ExternalLink,
-  Sparkles
+  Sparkles,
+  Bug
 } from 'lucide-react';
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
+import { supabaseClient } from '../lib/supabase';
+import { SpApiDiagnosticTool } from './SpApiDiagnosticTool';
 
 export interface ConnectedTrader {
   id: string;
@@ -86,23 +89,54 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
   const [apiKey, setApiKey] = useState<string>('');
   const [apiSecret, setApiSecret] = useState<string>('');
 
-  // Fetch Traders & Products from Backend API
+  // Fetch Traders & Products from Backend API (with Supabase fallback)
   const fetchTradersData = async () => {
     setIsLoading(true);
     try {
-      const resTraders = await fetch('/api/traders');
-      const dataTraders = await resTraders.json();
-      if (dataTraders.success && dataTraders.traders) {
-        setTraders(dataTraders.traders);
+      let loadedTraders: ConnectedTrader[] = [];
+      try {
+        const resTraders = await fetch('/api/traders');
+        const dataTraders = await resTraders.json();
+        if (dataTraders.success && Array.isArray(dataTraders.traders)) {
+          loadedTraders = dataTraders.traders;
+        }
+      } catch {
+        // Fallback to Supabase below
       }
 
-      // Fetch products for all or selected
-      const endpoint = selectedTraderId && selectedTraderId !== 'all' 
-        ? `/api/traders/${selectedTraderId}/products`
-        : `/api/traders`; // Fetch products for first trader if available
+      if (loadedTraders.length === 0 && supabaseClient) {
+        try {
+          const { data: dbTraders } = await supabaseClient.from('traders').select('*');
+          if (Array.isArray(dbTraders) && dbTraders.length > 0) {
+            loadedTraders = dbTraders.map((t: any) => ({
+              id: t.id,
+              seller_name: t.seller_name || 'تاجر بدون اسم',
+              email: t.email || t.gmail || '',
+              platform: (t.platform || '').includes('noon')
+                ? 'noon_seller'
+                : (t.platform || '').includes('jumia')
+                ? 'jumia_seller'
+                : 'amazon_sp_api',
+              seller_id: t.seller_id || t.id,
+              category: t.category || 'عام',
+              marketplace: t.marketplace || 'EG',
+              is_connected: Boolean(t.refresh_token),
+              sync_status: t.refresh_token ? 'Connected' : 'Failed',
+              last_sync_at: t.last_sync_at || new Date().toISOString(),
+              products_count: t.products_count || 0,
+              low_stock_count: 0,
+            }));
+          }
+        } catch {
+          // non-fatal
+        }
+      }
 
-      if (dataTraders.traders && dataTraders.traders.length > 0) {
-        const targetId = selectedTraderId === 'all' ? dataTraders.traders[0].id : selectedTraderId;
+      setTraders(loadedTraders);
+
+      // Fetch products for all or selected
+      if (loadedTraders.length > 0) {
+        const targetId = selectedTraderId === 'all' ? loadedTraders[0].id : selectedTraderId;
         const resProds = await fetch(`/api/traders/${targetId}/products`);
         const dataProds = await resProds.json();
         if (dataProds.success && dataProds.products) {
@@ -259,7 +293,20 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('sp-api-diagnostic-section');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer"
+            data-testid="header-jump-to-diagnostic-button"
+          >
+            <Bug className="w-4 h-4 text-amber-400" />
+            <span>تشخيص SP-API (405) 🔍</span>
+          </button>
+
           <button
             onClick={() => handleTriggerSync('all')}
             disabled={isSyncing}
@@ -415,6 +462,14 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Amazon SP-API & Edge Function Diagnostic Section */}
+      <div id="sp-api-diagnostic-section">
+        <SpApiDiagnosticTool
+          traders={traders}
+          onShowToast={onShowToast}
+        />
       </div>
 
       {/* Trader Synced Catalog Products Table */}

@@ -83,7 +83,9 @@ export interface AppNotification {
   created_at: string;
 }
 
-const SUPABASE_URL = String(import.meta.env?.VITE_SUPABASE_URL || '').trim();
+const SUPABASE_URL = String(import.meta.env?.VITE_SUPABASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 const SUPABASE_ANON_KEY = String(import.meta.env?.VITE_SUPABASE_ANON_KEY || '').trim();
 
 const hasValidSupabaseUrl =
@@ -126,7 +128,8 @@ function createSafeSupabaseClient(): SupabaseClient | null {
           }
           if (!init?.signal && typeof AbortController !== 'undefined') {
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 10000);
+            const timeoutMs = urlStr.includes('/functions/v1/') ? 55000 : 10000;
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
             return fetch(input, { ...init, headers, signal: controller.signal }).finally(() =>
               clearTimeout(timer)
             );
