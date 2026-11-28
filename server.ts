@@ -3673,7 +3673,7 @@ async function exchangeAmazonLwaRefreshToken(params: {
       errDesc = rawText.trim();
     }
 
-    console.warn('[Amazon LWA Token Exchange Error]', response.status, errCode, errDesc);
+    console.log('[Amazon LWA Token Exchange Response]', response.status, errCode, errDesc);
     const isExpiredOrRevoked =
       response.status === 400 ||
       response.status === 401 ||
@@ -4224,7 +4224,7 @@ async function fetchAmazonSpApiOrders(options: FetchOrdersOptions = {}): Promise
 
   if (!ordersRes.ok) {
     const errBody = await ordersRes.text();
-    console.error('[Amazon SP-API Orders Error]', ordersRes.status, errBody);
+    console.log('[Amazon SP-API Orders Response]', ordersRes.status, errBody);
     throw new Error(`تعذر جلب طلبات أمازون للتاجر "${merchantName}": ${ordersRes.statusText}`);
   }
 
@@ -5108,7 +5108,7 @@ app.all('/api/amazon/sp-api/orders', async (req, res) => {
       orders: result.orders
     });
   } catch (err: any) {
-    console.warn('[Amazon SP-API Graceful Fallback on Token/API Error]', err?.message || err);
+    console.log('[Amazon SP-API Fallback on Token/API Response]', err?.message || err);
     const isTokenExpired =
       err instanceof AmazonLwaTokenExchangeError ||
       String(err?.message || '').includes('Refresh Token') ||
