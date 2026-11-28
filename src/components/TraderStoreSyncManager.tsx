@@ -24,7 +24,163 @@ import {
 import { RADAR_PULL_TO_REFRESH_EVENT } from './PullToRefresh';
 import { isMaintenanceModeActive, MAINTENANCE_MODE_BLOCK_MESSAGE } from '../utils/maintenanceMode';
 import { supabaseClient } from '../lib/supabase';
+import { getAmazonSpApiSettings } from '../utils/sellerCentralExcelImporter';
 import { SpApiDiagnosticTool } from './SpApiDiagnosticTool';
+
+export interface AmazonEnvVarCheckResult {
+  name: 'AMAZON_CLIENT_ID' | 'AMAZON_APP_ID';
+  configured: boolean;
+  valid: boolean;
+  maskedValue: string;
+  source: 'server' | 'vite_env' | 'local_settings' | 'missing';
+  reason?: string;
+}
+
+export interface AmazonEnvHealthStatus {
+  ready: boolean;
+  checkedAt: string;
+  clientId: AmazonEnvVarCheckResult;
+  appId: AmazonEnvVarCheckResult;
+  missingVars: Array<'AMAZON_CLIENT_ID' | 'AMAZON_APP_ID'>;
+  message: string;
+  serverReachable: boolean;
+}
+
+const isPlaceholderOrInvalidEnvValue = (rawValue?: string | null): boolean => {
+  const value = String(rawValue || '').trim();
+  if (!value) return true;
+  const lower = value.toLowerCase();
+  return (
+    lower.includes('your-amazon-') ||
+    lower.includes('2815cbc0') ||
+    lower === 'undefined' ||
+    lower === 'null' ||
+    lower.startsWith('replace_') ||
+    lower.startsWith('<your')
+  );
+};
+
+export const maskAmazonEnvValue = (value: string): string => {
+  const clean = value.trim();
+  if (!clean) return '';
+  if (clean.length <= 10) {
+    return `${clean.slice(0, 3)}***${clean.slice(-2)}`;
+  }
+  return `${clean.slice(0, 8)}...${clean.slice(-4)}`;
+};
+
+export interface CheckAmazonEnvHealthOptions {
+  fetchFn?: typeof fetch;
+  viteEnv?: {
+    VITE_AMAZON_CLIENT_ID?: string;
+    VITE_LWA_CLIENT_ID?: string;
+    VITE_AMAZON_APP_ID?: string;
+  };
+  localSettings?: {
+    clientId?: string;
+    applicationId?: string;
+  };
+}
+
+/**
+ * دالة فحص بسيطة (Health Check) للتحقق من وجود وصلاحية متغيرات البيئة:
+ * AMAZON_CLIENT_ID و AMAZON_APP_ID قبل محاولة تنفيذ أي عملية مزامنة جديدة.
+ */
+export async function checkAmazonEnvHealth(
+  options: CheckAmazonEnvHealthOptions = {}
+): Promise<AmazonEnvHealthStatus> {
+  const fetchFn = options.fetchFn || globalThis.fetch;
+  const metaEnv =
+    options.viteEnv ||
+    ((typeof import.meta !== 'undefined' ? (import.meta as any).env : {}) as Record<string, string | undefined>);
+  const localSettings = options.localSettings || getAmazonSpApiSettings();
+
+  let serverClientId = '';
+  let serverAppId = '';
+  let serverReachable = false;
+
+  if (typeof fetchFn === 'function') {
+    try {
+      const res = await fetchFn('/api/amazon/sp-api/oauth-config', { method: 'GET' });
+      if (res && res.ok) {
+        serverReachable = true;
+        const data = await res.json();
+        serverClientId = String(data?.clientId || '').trim();
+        serverAppId = String(data?.applicationId || data?.appId || '').trim();
+      }
+    } catch {
+      serverReachable = false;
+    }
+  }
+
+  const viteClientId = String(metaEnv?.VITE_AMAZON_CLIENT_ID || metaEnv?.VITE_LWA_CLIENT_ID || '').trim();
+  const viteAppId = String(metaEnv?.VITE_AMAZON_APP_ID || '').trim();
+  const localClientId = String(localSettings?.clientId || '').trim();
+  const localAppId = String(localSettings?.applicationId || '').trim();
+
+  const resolveVar = (
+    name: 'AMAZON_CLIENT_ID' | 'AMAZON_APP_ID',
+    candidates: Array<{ value: string; source: 'server' | 'vite_env' | 'local_settings' }>
+  ): AmazonEnvVarCheckResult => {
+    for (const candidate of candidates) {
+      if (candidate.value && !isPlaceholderOrInvalidEnvValue(candidate.value)) {
+        return {
+          name,
+          configured: true,
+          valid: true,
+          maskedValue: maskAmazonEnvValue(candidate.value),
+          source: candidate.source,
+        };
+      }
+    }
+
+    const hadPlaceholder = candidates.some(
+      (c) => Boolean(c.value) && isPlaceholderOrInvalidEnvValue(c.value)
+    );
+
+    return {
+      name,
+      configured: false,
+      valid: false,
+      maskedValue: '',
+      source: 'missing',
+      reason: hadPlaceholder
+        ? 'القيمة الحالية افتراضية أو قديمة غير صالحة'
+        : 'المتغير غير موجود في بيئة التشغيل',
+    };
+  };
+
+  const clientIdResult = resolveVar('AMAZON_CLIENT_ID', [
+    { value: serverClientId, source: 'server' },
+    { value: viteClientId, source: 'vite_env' },
+    { value: localClientId, source: 'local_settings' },
+  ]);
+
+  const appIdResult = resolveVar('AMAZON_APP_ID', [
+    { value: serverAppId, source: 'server' },
+    { value: viteAppId, source: 'vite_env' },
+    { value: localAppId, source: 'local_settings' },
+  ]);
+
+  const missingVars: Array<'AMAZON_CLIENT_ID' | 'AMAZON_APP_ID'> = [];
+  if (!clientIdResult.valid) missingVars.push('AMAZON_CLIENT_ID');
+  if (!appIdResult.valid) missingVars.push('AMAZON_APP_ID');
+
+  const ready = missingVars.length === 0;
+  const message = ready
+    ? 'جميع متغيرات بيئة Amazon SP-API مهيأة وجاهزة للمزامنة.'
+    : `يرجى تهيئة متغيرات البيئة التالية قبل المزامنة: ${missingVars.join('، ')}`;
+
+  return {
+    ready,
+    checkedAt: new Date().toISOString(),
+    clientId: clientIdResult,
+    appId: appIdResult,
+    missingVars,
+    message,
+    serverReachable,
+  };
+}
 
 export interface ConnectedTrader {
   id: string;
@@ -74,6 +230,8 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
   const [selectedTraderId, setSelectedTraderId] = useState<string>('all');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [envHealth, setEnvHealth] = useState<AmazonEnvHealthStatus | null>(null);
+  const [isCheckingEnvHealth, setIsCheckingEnvHealth] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
 
@@ -150,11 +308,24 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
     }
   };
 
+  const runEnvHealthCheck = async (): Promise<AmazonEnvHealthStatus> => {
+    setIsCheckingEnvHealth(true);
+    try {
+      const status = await checkAmazonEnvHealth();
+      setEnvHealth(status);
+      return status;
+    } finally {
+      setIsCheckingEnvHealth(false);
+    }
+  };
+
   useEffect(() => {
     fetchTradersData();
+    runEnvHealthCheck();
     const handleRefresh = () => {
       if (isMaintenanceModeActive()) return;
       fetchTradersData();
+      runEnvHealthCheck();
     };
     window.addEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
     return () => window.removeEventListener(RADAR_PULL_TO_REFRESH_EVENT, handleRefresh);
@@ -211,12 +382,23 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
     }
   };
 
-  // Handle Manual Sync
+  // Handle Manual Sync (gated by Amazon Environment Health Check)
   const handleTriggerSync = async (traderId?: string) => {
     if (isMaintenanceModeActive()) {
       if (onShowToast) onShowToast(`⚠️ ${MAINTENANCE_MODE_BLOCK_MESSAGE}`);
       return;
     }
+
+    const health = await runEnvHealthCheck();
+    if (!health.ready) {
+      if (onShowToast) {
+        onShowToast(
+          `⚠️ تعذر بدء المزامنة: متغيرات البيئة غير مهيأة (${health.missingVars.join('، ')})`
+        );
+      }
+      return;
+    }
+
     setIsSyncing(true);
     try {
       const res = await fetch('/api/sync-inventory', {
@@ -323,6 +505,120 @@ export const TraderStoreSyncManager: React.FC<TraderStoreSyncManagerProps> = ({
             <PlusCircle className="w-4 h-4 text-slate-950" />
             <span>ربط متجر تاجر جديد +</span>
           </button>
+        </div>
+      </div>
+
+      {/* Amazon Environment Health Check Status Banner */}
+      <div
+        data-testid="amazon-env-health-card"
+        className={`rounded-2xl p-4 sm:p-5 border transition ${
+          envHealth === null || isCheckingEnvHealth
+            ? 'bg-slate-900/70 border-slate-700/80'
+            : envHealth.ready
+            ? 'bg-emerald-950/30 border-emerald-500/40'
+            : 'bg-rose-950/30 border-rose-500/40'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div
+              className={`p-2.5 rounded-xl border ${
+                envHealth?.ready
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+              }`}
+            >
+              {envHealth?.ready ? (
+                <ShieldCheck className="w-5 h-5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-black text-white">
+                  فحص تهيئة متغيرات بيئة Amazon SP-API (Health Check)
+                </h3>
+                <span
+                  data-testid="env-health-overall-badge"
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                    isCheckingEnvHealth && !envHealth
+                      ? 'bg-slate-800 text-slate-300 border-slate-700'
+                      : envHealth?.ready
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}
+                >
+                  {isCheckingEnvHealth && !envHealth
+                    ? 'جاري الفحص...'
+                    : envHealth?.ready
+                    ? 'تهيئة البيئة جاهزة ✓'
+                    : 'تهيئة متغيرات البيئة غير مكتملة ⚠️'}
+                </span>
+              </div>
+              <p data-testid="env-health-message" className="text-xs text-slate-300">
+                {envHealth?.message || 'جاري التحقق من وجود وتهيئة AMAZON_CLIENT_ID و AMAZON_APP_ID...'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => runEnvHealthCheck()}
+            disabled={isCheckingEnvHealth}
+            data-testid="env-health-recheck-button"
+            className="self-start sm:self-auto px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-sky-300 font-bold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isCheckingEnvHealth ? 'animate-spin' : ''}`} />
+            <span>{isCheckingEnvHealth ? 'جاري الفحص...' : 'إعادة فحص التهيئة'}</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          {[envHealth?.clientId, envHealth?.appId].map((item, idx) => {
+            const label = idx === 0 ? 'AMAZON_CLIENT_ID' : 'AMAZON_APP_ID';
+            const testId = idx === 0 ? 'env-health-client-id' : 'env-health-app-id';
+            const isValid = Boolean(item?.valid);
+            const sourceLabel =
+              item?.source === 'server'
+                ? 'خادم التطبيق (Env)'
+                : item?.source === 'vite_env'
+                ? 'متغير Vite'
+                : item?.source === 'local_settings'
+                ? 'الإعدادات المحلية'
+                : 'غير متوفر';
+
+            return (
+              <div
+                key={label}
+                data-testid={testId}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                  isValid
+                    ? 'bg-slate-900/70 border-emerald-500/30'
+                    : 'bg-slate-900/70 border-rose-500/30'
+                }`}
+              >
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Key className={`w-3.5 h-3.5 ${isValid ? 'text-emerald-400' : 'text-rose-400'}`} />
+                    <span className="font-mono text-xs font-bold text-white">{label}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate font-mono">
+                    {isValid ? `${item?.maskedValue} • ${sourceLabel}` : item?.reason || 'غير مهيأ'}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 px-2 py-0.5 rounded-lg text-[11px] font-bold border ${
+                    isValid
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                  }`}
+                >
+                  {isValid ? 'مهيأ ✓' : 'غير مهيأ ✗'}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
