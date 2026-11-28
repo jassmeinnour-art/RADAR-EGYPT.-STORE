@@ -14,6 +14,7 @@ import {
   History,
   Zap,
   Package,
+  Copy,
 } from 'lucide-react';
 import { Trader } from '../lib/supabase';
 import { ImportRowErrorDetail } from '../utils/importHistoryService';
@@ -38,6 +39,7 @@ import {
   isAmazonSpApiConfigured,
   previewSellerCentralFile,
   sanitizeProductPullError,
+  buildMerchantAmazonAuthorizeUrl,
 } from '../utils/sellerCentralExcelImporter';
 
 interface FetchProductsModalProps {
@@ -644,9 +646,33 @@ export const FetchProductsModal: React.FC<FetchProductsModalProps> = ({
               className="p-3.5 bg-rose-950/60 border border-rose-500/50 rounded-xl flex items-start gap-2.5 text-rose-200"
             >
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="space-y-1 min-w-0">
+              <div className="space-y-2 min-w-0 flex-1">
                 <p className="font-black text-rose-300">استجابة خطأ من Amazon SP-API:</p>
                 <span className="leading-relaxed font-bold break-words block">{fetchError}</span>
+
+                {(fetchError.includes('invalid_grant') ||
+                  fetchError.includes('refresh_token') ||
+                  fetchError.includes('انتهت صلاحية')) && (
+                  <div className="pt-2 border-t border-rose-500/30 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sId = trader.seller_id || trader.id;
+                        const url = buildMerchantAmazonAuthorizeUrl(sId, trader.seller_name);
+                        try {
+                          if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                            navigator.clipboard.writeText(url);
+                          }
+                        } catch {}
+                        onShowToast?.('📋 تم نسخ رابط تفويض التاجر (OAuth)');
+                      }}
+                      className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-bold rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>نسخ رابط تفويض التاجر لتجديد الـ Token (OAuth)</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
