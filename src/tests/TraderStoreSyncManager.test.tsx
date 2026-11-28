@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { TraderStoreSyncManager } from '../components/TraderStoreSyncManager';
+import { TraderStoreSyncManager, checkAmazonEnvHealth } from '../components/TraderStoreSyncManager';
 import { SpApiDiagnosticTool } from '../components/SpApiDiagnosticTool';
 
 // Mock Supabase
@@ -241,5 +241,144 @@ describe('TraderStoreSyncManager & SpApiDiagnosticTool', () => {
     expect(jsonViewer).toHaveTextContent('amazon-sp-api-sync');
     expect(jsonViewer).toHaveTextContent('ready');
     expect(screen.queryByTestId('sp-api-405-troubleshooter-box')).not.toBeInTheDocument();
+  });
+
+  it('checkAmazonEnvHealth flags missing or placeholder AMAZON_CLIENT_ID and AMAZON_APP_ID', async () => {
+    const missingStatus = await checkAmazonEnvHealth({
+      fetchFn: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            clientId: 'your-amazon-client-id',
+            applicationId: '',
+          }),
+          { status: 200 }
+        )
+      ) as any,
+      viteEnv: {},
+      localSettings: { clientId: '', applicationId: '' },
+    });
+
+    expect(missingStatus.ready).toBe(false);
+    expect(missingStatus.clientId.valid).toBe(false);
+    expect(missingStatus.appId.valid).toBe(false);
+    expect(missingStatus.missingVars).toEqual(['AMAZON_CLIENT_ID', 'AMAZON_APP_ID']);
+  });
+
+  it('displays missing env status in UI and blocks sync before calling /api/sync-inventory', async () => {
+    const onShowToast = vi.fn();
+    render(<TraderStoreSyncManager onShowToast={onShowToast} />);
+
+    const badge = await screen.findByTestId('env-health-overall-badge');
+    await waitFor(() => {
+      expect(badge).toHaveTextContent('تهيئة متغيرات البيئة غير مكتملة ⚠️');
+    });
+
+    expect(screen.getByTestId('env-health-client-id')).toHaveTextContent('غير مهيأ ✗');
+    expect(screen.getByTestId('env-health-app-id')).toHaveTextContent('غير مهيأ ✗');
+
+    const syncButton = screen.getByRole('button', { name: /مزامنة فورية الآن/i });
+    fireEvent.click(syncButton);
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(
+        expect.stringContaining('تعذر بدء المزامنة: متغيرات البيئة غير مهيأة')
+      );
+    });
+
+    const fetchCalls = (globalThis.fetch as any).mock.calls.map((c: any[]) => String(c[0]));
+    expect(fetchCalls.some((url: string) => url.includes('/api/sync-inventory'))).toBe(false);
+  });
+
+  it('displays configured masked env vars, updates via re-check button, and allows sync when ready', async () => {
+    const onShowToast = vi.fn();
+    let oauthConfigured = false;
+
+    globalThis.fetch = vi.fn(async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/api/amazon/sp-api/oauth-config')) {
+        if (!oauthConfigured) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              clientId: '',
+              applicationId: '',
+              configured: false,
+              clientIdConfigured: false,
+              appIdConfigured: false,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            clientId: 'amzn1.application-oa2-client.prod9988',
+            applicationId: 'amzn1.sp.solution.app7766',
+            configured: true,
+            clientIdConfigured: true,
+            appIdConfigured: true,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (urlStr.includes('/api/traders')) {
+        return new Response(JSON.stringify({ success: true, traders: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (urlStr.includes('/api/sync-inventory')) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'تمت المزامنة بنجاح' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as any;
+
+    render(<TraderStoreSyncManager onShowToast={onShowToast} />);
+
+    // Initially unconfigured
+    await waitFor(() => {
+      expect(screen.getByTestId('env-health-overall-badge')).toHaveTextContent(
+        'تهيئة متغيرات البيئة غير مكتملة ⚠️'
+      );
+    });
+
+    // Simulate user/env becoming configured and clicking re-check button
+    oauthConfigured = true;
+    const recheckBtn = screen.getByTestId('env-health-recheck-button');
+    fireEvent.click(recheckBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('env-health-overall-badge')).toHaveTextContent(
+        'تهيئة البيئة جاهزة ✓'
+      );
+    });
+
+    expect(screen.getByTestId('env-health-client-id')).toHaveTextContent('مهيأ ✓');
+    expect(screen.getByTestId('env-health-client-id')).toHaveTextContent('amzn1.ap...9988');
+    expect(screen.getByTestId('env-health-app-id')).toHaveTextContent('مهيأ ✓');
+    expect(screen.getByTestId('env-health-app-id')).toHaveTextContent('amzn1.sp...7766');
+
+    // Now sync proceeds cleanly
+    const syncButton = screen.getByRole('button', { name: /مزامنة فورية الآن/i });
+    fireEvent.click(syncButton);
+
+    await waitFor(() => {
+      const fetchCalls = (globalThis.fetch as any).mock.calls.map((c: any[]) => String(c[0]));
+      expect(fetchCalls.some((url: string) => url.includes('/api/sync-inventory'))).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith('🔄 تمت المزامنة بنجاح');
+    });
   });
 });

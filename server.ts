@@ -4422,7 +4422,7 @@ const handleAmazonLwaTokenExchange = async (req: express.Request, res: express.R
 app.all('/api/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
 app.all('/api/v1/amazon/lwa/token-exchange', handleAmazonLwaTokenExchange);
 
-// Public non-secret OAuth Client ID endpoint (reads Production Client ID from server Environment Variables)
+// Public non-secret OAuth Client ID & App ID status endpoint (reads Production keys from server Environment Variables)
 app.get('/api/amazon/sp-api/oauth-config', (_req, res) => {
   const rawClientId = (
     process.env.AMAZON_CLIENT_ID ||
@@ -4431,12 +4431,26 @@ app.get('/api/amazon/sp-api/oauth-config', (_req, res) => {
     AMAZON_SP_API_CONFIG.DEFAULT_CLIENT_ID ||
     ''
   ).trim();
-  const clientId = rawClientId.includes('2815cbc0') ? '' : rawClientId;
+  const clientId = rawClientId.includes('2815cbc0') || rawClientId.includes('your-amazon-') ? '' : rawClientId;
+
+  const rawAppId = (
+    process.env.AMAZON_APP_ID ||
+    process.env.AMAZON_APPLICATION_ID ||
+    process.env.SP_API_APP_ID ||
+    process.env.VITE_AMAZON_APP_ID ||
+    AMAZON_SP_API_CONFIG.DEFAULT_APP_ID ||
+    ''
+  ).trim();
+  const applicationId = rawAppId.includes('your-amazon-') ? '' : rawAppId;
+
   res.json({
     success: true,
     clientId,
+    applicationId,
     redirectUri: 'https://radaregypt.store/auth/amazon-callback',
     configured: Boolean(clientId),
+    clientIdConfigured: Boolean(clientId),
+    appIdConfigured: Boolean(applicationId),
   });
 });
 

@@ -46,6 +46,7 @@ interface ImportMetaEnv {
   readonly VITE_AMAZON_LWA_ENDPOINT?: string;
   readonly VITE_AMAZON_CLIENT_ID?: string;
   readonly VITE_LWA_CLIENT_ID?: string;
+  readonly VITE_AMAZON_APP_ID?: string;
 }
 
 interface ImportMeta {
